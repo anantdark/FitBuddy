@@ -128,3 +128,4 @@ GPL-3.0 — see [LICENSE](LICENSE).
 ## Related docs
 
 - [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store publishing & keystore setup
+- [AGENTS.md](AGENTS.md) — contributor context for architecture and conventions

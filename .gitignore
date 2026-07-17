@@ -48,9 +48,8 @@ captures/
 .DS_Store
 Thumbs.db
 
-# Editor / assistant local files (never commit)
+# Editor local files (never commit)
 .cursor/
-AGENTS.md
 
 # Backup / swap
 *~
