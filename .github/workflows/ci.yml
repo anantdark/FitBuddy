@@ -29,7 +29,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Create local.properties
         run: echo "sdk.dir=${ANDROID_HOME}" >> local.properties
