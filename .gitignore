@@ -1,0 +1,77 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local configuration (SDK path, API keys)
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/gradle.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/misc.xml
+.idea/deploymentTargetDropDown.xml
+.idea/deploymentTargetSelector.xml
+.idea/runConfigurations.xml
+.idea/inspectionProfiles/
+.idea/codeStyles/
+.idea/dictionaries/
+.idea/shelf/
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/contentModel.xml
+.idea/render.experimental.xml
+
+# Kotlin
+.kotlin/
+
+# Captures / profiling
+captures/
+*.hprof
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / assistant local files (never commit)
+.cursor/
+AGENTS.md
+
+# Backup / swap
+*~
+*.swp
+*.bak
+
+# NDK / native
+.externalNativeBuild/
+.cxx/
+
+# Accidental dev artifacts
+**/Screenshot_*.png
+
+# Generated
+*.apk
+*.aab
+*.ap_
+*.dex
+output.json
+
+# Secrets (extra safety)
+.env
+.env.*
+!.env.example

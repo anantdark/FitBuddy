@@ -1,0 +1,64 @@
+name: Bug report
+description: Report something that is broken
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve FitBuddy. Include steps to reproduce when possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect vs what actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open app
+        2. Tap ...
+        3. See error
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: e.g. 1.0.0 (build 42 from GitHub Releases)
+    validations:
+      required: false
+
+  - type: input
+    id: device
+    attributes:
+      label: Device / Android version
+      placeholder: e.g. Pixel 8 / Android 15
+    validations:
+      required: false
+
+  - type: dropdown
+    id: ai-provider
+    attributes:
+      label: AI provider (if relevant)
+      options:
+        - Not using AI / offline mode
+        - OpenRouter
+        - Gemini
+        - Ollama
+        - Other / not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste logcat snippets or attach screenshots.
+    validations:
+      required: false
