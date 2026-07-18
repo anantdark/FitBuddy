@@ -101,9 +101,10 @@ Architecture: **MVVM** — UI → ViewModel → Repository → Room + Remote AI.
 
 Merged PRs trigger release automatically (merge creates a push to `main`).
 
-### Optional: signed release builds in CI
+### Required: signed release builds in CI
 
-Add these [repository secrets](https://github.com/anantdark/FitBuddy/settings/secrets/actions) to sign releases with your upload key instead of the debug key:
+Release workflow **fails** without these [repository secrets](https://github.com/anantdark/FitBuddy/settings/secrets/actions)
+(so every APK shares one signing key and in-app updates work):
 
 | Secret | Value |
 |--------|-------|
@@ -112,11 +113,9 @@ Add these [repository secrets](https://github.com/anantdark/FitBuddy/settings/se
 | `RELEASE_KEY_ALIAS` | Key alias (default: `fitbuddy`) |
 | `RELEASE_KEY_PASSWORD` | Key password |
 
-Without these secrets, CI release builds fall back to **that runner's** debug keystore —
-which is **not** the same as your local debug key. A phone with a local/`*-dev` install
-cannot update over a GitHub APK (Android reports a package/signature conflict). Uninstall
-FitBuddy once, install the GitHub release APK, then in-app updates work going forward.
-For Play Store, configure the release keystore secrets above.
+See [DISTRIBUTION.md](DISTRIBUTION.md) to create the keystore. After the first release signed
+with a new keystore, uninstall any older install once, then install that APK — later in-app
+updates will succeed.
 
 ## Contributing
 

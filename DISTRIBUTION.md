@@ -26,6 +26,21 @@ Place `fitbuddy-release.jks` in the project root (or update `storeFile` in `keys
 
 Release builds automatically use the release keystore when `keystore.properties` exists; otherwise they fall back to the debug key for local testing.
 
+### GitHub Actions (required for Releases)
+
+Add these repository secrets so CI always signs with the same key (otherwise each runner
+uses a different debug keystore and in-app updates fail between releases):
+
+| Secret | Value |
+|--------|-------|
+| `RELEASE_KEYSTORE_BASE64` | `base64 -i fitbuddy-release.jks \| pbcopy` |
+| `RELEASE_STORE_PASSWORD` | Same as `storePassword` |
+| `RELEASE_KEY_ALIAS` | Same as `keyAlias` (default `fitbuddy`) |
+| `RELEASE_KEY_PASSWORD` | Same as `keyPassword` |
+
+The release workflow fails if any of these are missing. After switching to a new keystore,
+uninstall older installs once and install the first APK signed with that key.
+
 ## 3. Build a release APK / AAB
 
 ```bash

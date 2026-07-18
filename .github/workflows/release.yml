@@ -36,32 +36,30 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=${ANDROID_HOME}" >> local.properties
 
-      - name: Detect release signing
-        id: signing
-        env:
-          KEYSTORE: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$KEYSTORE" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-
+      # Stable signing is required. Without these secrets, each runner uses a
+      # different debug keystore and in-app updates break between releases.
       - name: Configure release signing
-        if: steps.signing.outputs.enabled == 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_STORE_PASSWORD" ] \
+            || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
+            echo "::error::Missing RELEASE_* secrets. Add RELEASE_KEYSTORE_BASE64,"
+            echo "RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD"
+            echo "so every release shares one signing key (see DISTRIBUTION.md)."
+            exit 1
+          fi
           echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > fitbuddy-release.jks
-          cat > keystore.properties <<EOF
-          storeFile=fitbuddy-release.jks
-          storePassword=${RELEASE_STORE_PASSWORD}
-          keyAlias=${RELEASE_KEY_ALIAS}
-          keyPassword=${RELEASE_KEY_PASSWORD}
-          EOF
+          printf '%s\n' \
+            "storeFile=fitbuddy-release.jks" \
+            "storePassword=${RELEASE_STORE_PASSWORD}" \
+            "keyAlias=${RELEASE_KEY_ALIAS}" \
+            "keyPassword=${RELEASE_KEY_PASSWORD}" \
+            > keystore.properties
+          echo "Release signing configured (stable keystore)."
 
       - name: Compute version metadata
         id: version
