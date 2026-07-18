@@ -85,6 +85,7 @@ class SettingsRepository(context: Context) {
                 if (prov != null && raw.isNotBlank() && !isPlausibleModelIdFor(prov, raw)) "" else raw
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
+            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: true,
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false
         )
     }
@@ -160,6 +161,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_OLLAMA_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.OLLAMA))
             prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
+            prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
             prefs[KEY_EASTER_EGG] = settings.easterEggDiscovered
             // Cooldowns stay until UTC midnight; AI calls still update active after success.
             // Save always resets Auto selection to the preferred provider's current models
@@ -204,6 +206,7 @@ class SettingsRepository(context: Context) {
         val KEY_ACTIVE_PHOTO_MODEL = stringPreferencesKey("active_photo_model")
         val KEY_ACTIVE_TEXT_MODEL = stringPreferencesKey("active_text_model")
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
         val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
         val KEY_MODEL_COOLDOWNS = stringPreferencesKey("ai_model_cooldowns")
     }

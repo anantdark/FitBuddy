@@ -54,6 +54,11 @@ data class AppSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
+    /**
+     * When true, FitBuddy checks GitHub Releases for a newer APK shortly after startup
+     * (and still allows a manual check in Settings).
+     */
+    val autoCheckUpdates: Boolean = true,
     /** Set when the Settings "Created by" easter egg is discovered — hides startup credit toast. */
     val easterEggDiscovered: Boolean = false
 ) {

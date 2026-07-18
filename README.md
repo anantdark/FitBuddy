@@ -111,7 +111,11 @@ Add these [repository secrets](https://github.com/anantdark/FitBuddy/settings/se
 | `RELEASE_KEY_ALIAS` | Key alias (default: `fitbuddy`) |
 | `RELEASE_KEY_PASSWORD` | Key password |
 
-Without these secrets, CI release builds fall back to debug signing (fine for sideloading, not for Play Store).
+Without these secrets, CI release builds fall back to **that runner's** debug keystore —
+which is **not** the same as your local debug key. A phone with a local/`*-dev` install
+cannot update over a GitHub APK (Android reports a package/signature conflict). Uninstall
+FitBuddy once, install the GitHub release APK, then in-app updates work going forward.
+For Play Store, configure the release keystore secrets above.
 
 ## Contributing
 

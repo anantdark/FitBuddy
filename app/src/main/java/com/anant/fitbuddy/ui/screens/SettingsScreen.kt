@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -23,10 +24,12 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -96,8 +99,7 @@ fun SettingsScreen(
     onResetEasterEggData: () -> Unit,
     updateState: UpdateUiState,
     onCheckForUpdates: () -> Unit,
-    onDismissUpdatePrompt: () -> Unit,
-    onConfirmUpdate: (downloadUrl: String) -> Unit,
+    onAutoCheckUpdatesChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Local editable copies, re-seeded whenever persisted settings change.
@@ -412,6 +414,58 @@ fun SettingsScreen(
             ) { Text("Save AI Settings") }
         }
 
+        // --- Updates (below AI provider) -------------------------------------------------
+        SettingsCard(title = "Updates", initiallyExpanded = false) {
+            Text(
+                text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Check automatically", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Looks for a newer GitHub release shortly after startup.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = settings.autoCheckUpdates,
+                    onCheckedChange = onAutoCheckUpdatesChange
+                )
+            }
+            OutlinedButton(
+                onClick = onCheckForUpdates,
+                enabled = !updateState.isChecking && !updateState.isDownloading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (updateState.isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Checking...")
+                } else {
+                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Check for Updates")
+                }
+            }
+            updateState.statusMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (updateState.statusIsError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+        }
+
         // --- Appearance ------------------------------------------------------------------
         SettingsCard(title = "Appearance", initiallyExpanded = false) {
             Row(
@@ -510,62 +564,150 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.size(8.dp))
-            OutlinedButton(
-                onClick = onCheckForUpdates,
-                enabled = !updateState.isChecking,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (updateState.isChecking) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Checking...")
-                } else {
-                    Icon(Icons.Filled.Refresh, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Check for Updates")
-                }
-            }
-            updateState.statusMessage?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (updateState.statusIsError) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
         }
     }
+}
+
+/** Update / download dialogs — shown from [MainScreen] so startup checks work outside Settings. */
+@Composable
+fun UpdatePromptDialogs(
+    updateState: UpdateUiState,
+    onDismissUpdatePrompt: () -> Unit,
+    onConfirmUpdate: (downloadUrl: String) -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
 
     updateState.updateInfo?.let { info ->
+        val highlights = remember(info.releaseNotes) { releaseNoteHighlights(info.releaseNotes) }
         AlertDialog(
             onDismissRequest = onDismissUpdatePrompt,
+            icon = {
+                Icon(
+                    Icons.Filled.SystemUpdate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
             title = { Text("Update available") },
             text = {
-                Column {
-                    Text("Version ${info.versionName} (build ${info.versionCode}) is available.")
-                    if (info.releaseNotes.isNotBlank()) {
-                        Spacer(Modifier.size(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = info.versionName,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Build ${info.versionCode}  ·  you have ${BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (highlights.isNotEmpty()) {
                         Text(
-                            text = info.releaseNotes,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "What's new",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium
                         )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 180.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            highlights.forEach { line ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("•", color = MaterialTheme.colorScheme.primary)
+                                    Text(
+                                        text = line,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (info.htmlUrl.isNotBlank()) {
+                        TextButton(
+                            onClick = { uriHandler.openUri(info.htmlUrl) },
+                            modifier = Modifier.padding(start = 0.dp)
+                        ) {
+                            Text("View on GitHub")
+                        }
                     }
                 }
             },
             confirmButton = {
-                Button(onClick = { onConfirmUpdate(info.downloadUrl) }) { Text("Update") }
+                Button(
+                    onClick = { onConfirmUpdate(info.downloadUrl) },
+                    enabled = !updateState.isDownloading
+                ) { Text("Download & install") }
             },
             dismissButton = {
-                OutlinedButton(onClick = onDismissUpdatePrompt) { Text("Later") }
+                OutlinedButton(
+                    onClick = onDismissUpdatePrompt,
+                    enabled = !updateState.isDownloading
+                ) { Text("Later") }
             }
         )
     }
+
+    if (updateState.isDownloading) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = {
+                CircularProgressIndicator(modifier = Modifier.size(36.dp), strokeWidth = 3.dp)
+            },
+            title = { Text("Downloading update") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val progress = updateState.downloadProgress
+                    if (progress != null) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "${(progress * 100).toInt()}% complete",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(
+                            text = "Downloading APK…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "Keep FitBuddy open until the installer opens.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {}
+        )
+    }
 }
+
+/** Pull commit bullets from CI release notes; drop headers / metadata noise. */
+private fun releaseNoteHighlights(raw: String, limit: Int = 6): List<String> =
+    raw.lineSequence()
+        .map { it.trim() }
+        .filter { it.startsWith("- ") }
+        .map { line ->
+            line.removePrefix("- ")
+                .replace(Regex("""\s*\([0-9a-f]{7,40}\)\s*$"""), "")
+                .trim()
+        }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .take(limit)
+        .toList()
 
 /**
  * Read-only exposed-dropdown listing vision-capable models for the active [provider] (free-only

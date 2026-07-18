@@ -41,7 +41,10 @@ class UpdateChecker(private val api: GithubApi) {
                 ?: return UpdateCheckResult.Error("Latest release has no APK attached")
 
             UpdateCheckResult.Available(
-                versionName = release.name,
+                versionName = release.tagName
+                    .removePrefix("v")
+                    .substringBefore("-build")
+                    .ifBlank { release.name },
                 versionCode = remoteVersionCode,
                 downloadUrl = apkAsset.downloadUrl,
                 releaseNotes = release.body.orEmpty(),

@@ -260,6 +260,15 @@ fun MainScreen(viewModel: MainViewModel) {
         )
     }
 
+    // One delayed silent update check per process when the toggle is on.
+    var startupUpdateChecked by remember { mutableStateOf(false) }
+    LaunchedEffect(hasSettingsSnapshot, settings.autoCheckUpdates) {
+        if (!hasSettingsSnapshot || !settings.autoCheckUpdates || startupUpdateChecked) return@LaunchedEffect
+        startupUpdateChecked = true
+        delay(1_500)
+        viewModel.checkForUpdates(BuildConfig.VERSION_CODE, silent = true)
+    }
+
     if (showSettings) {
         BackHandler { showSettings = false }
         Box(modifier = Modifier.fillMaxSize()) {
@@ -320,16 +329,8 @@ fun MainScreen(viewModel: MainViewModel) {
                 },
                 updateState = updateState,
                 onCheckForUpdates = { viewModel.checkForUpdates(BuildConfig.VERSION_CODE) },
-                onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
-                onConfirmUpdate = { downloadUrl ->
-                    scope.launch {
-                        try {
-                            ApkInstaller.downloadAndInstall(context, downloadUrl)
-                            viewModel.dismissUpdatePrompt()
-                        } catch (e: Exception) {
-                            snackbarHostState.showFitBuddyPill("Update download failed: ${e.message}")
-                        }
-                    }
+                onAutoCheckUpdatesChange = { enabled ->
+                    viewModel.saveSettings(settings.copy(autoCheckUpdates = enabled))
                 },
                 modifier = Modifier.padding(innerPadding)
             )
@@ -771,6 +772,26 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         )
     }
+
+    UpdatePromptDialogs(
+        updateState = updateState,
+        onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
+        onConfirmUpdate = { downloadUrl ->
+            viewModel.beginUpdateDownload()
+            scope.launch {
+                try {
+                    ApkInstaller.downloadAndInstall(context, downloadUrl) { progress ->
+                        viewModel.updateDownloadProgress(progress)
+                    }
+                    viewModel.finishUpdateDownload()
+                } catch (e: Exception) {
+                    viewModel.failUpdateDownload(
+                        e.message?.takeIf { it.isNotBlank() } ?: "Update download failed"
+                    )
+                }
+            }
+        }
+    )
 }
 
 @Composable

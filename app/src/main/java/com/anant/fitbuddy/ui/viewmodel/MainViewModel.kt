@@ -164,6 +164,9 @@ data class WorkoutEditUiState(
 @Immutable
 data class UpdateUiState(
     val isChecking: Boolean = false,
+    val isDownloading: Boolean = false,
+    /** 0f–1f when known; null while checking size / indeterminate download. */
+    val downloadProgress: Float? = null,
     val updateInfo: UpdateCheckResult.Available? = null,
     val statusMessage: String? = null,
     val statusIsError: Boolean = false
@@ -182,20 +185,36 @@ class MainViewModel(
     private val _updateState = MutableStateFlow(UpdateUiState())
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
-    /** Manual check triggered from Settings; app is sideloaded, so there's no store-driven prompt. */
-    fun checkForUpdates(currentVersionCode: Int) {
-        if (_updateState.value.isChecking) return
+    /** Manual or automatic check; [silent] skips status text for up-to-date / network errors. */
+    fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
+        if (_updateState.value.isChecking || _updateState.value.isDownloading) return
         viewModelScope.launch {
-            _updateState.update { it.copy(isChecking = true, statusMessage = null, statusIsError = false) }
+            _updateState.update {
+                it.copy(
+                    isChecking = true,
+                    statusMessage = if (silent) it.statusMessage else null,
+                    statusIsError = if (silent) it.statusIsError else false
+                )
+            }
             when (val result = updateChecker.checkForUpdate(currentVersionCode)) {
                 is UpdateCheckResult.Available -> _updateState.update {
                     it.copy(isChecking = false, updateInfo = result, statusMessage = null, statusIsError = false)
                 }
                 UpdateCheckResult.UpToDate -> _updateState.update {
-                    it.copy(isChecking = false, updateInfo = null, statusMessage = "You're on the latest version", statusIsError = false)
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = null,
+                        statusMessage = if (silent) null else "You're on the latest version",
+                        statusIsError = false
+                    )
                 }
                 is UpdateCheckResult.Error -> _updateState.update {
-                    it.copy(isChecking = false, updateInfo = null, statusMessage = result.message, statusIsError = true)
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = null,
+                        statusMessage = if (silent) null else result.message,
+                        statusIsError = !silent
+                    )
                 }
             }
         }
@@ -203,6 +222,43 @@ class MainViewModel(
 
     fun dismissUpdatePrompt() {
         _updateState.update { it.copy(updateInfo = null, statusMessage = null, statusIsError = false) }
+    }
+
+    fun beginUpdateDownload() {
+        _updateState.update {
+            it.copy(
+                isDownloading = true,
+                downloadProgress = null,
+                updateInfo = null,
+                statusMessage = null,
+                statusIsError = false
+            )
+        }
+    }
+
+    fun updateDownloadProgress(progress: Float) {
+        _updateState.update {
+            it.copy(
+                downloadProgress = progress.takeIf { p -> p >= 0f }
+            )
+        }
+    }
+
+    fun finishUpdateDownload() {
+        _updateState.update {
+            it.copy(isDownloading = false, downloadProgress = null)
+        }
+    }
+
+    fun failUpdateDownload(message: String) {
+        _updateState.update {
+            it.copy(
+                isDownloading = false,
+                downloadProgress = null,
+                statusMessage = message,
+                statusIsError = true
+            )
+        }
     }
 
     // --- Settings ---------------------------------------------------------------------------
