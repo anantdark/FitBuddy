@@ -26,10 +26,12 @@ progress charts, editable meal review, and reusable food presets.
 - Commands (run from repo root):
   - Compile check: `./gradlew :app:compileDebugKotlin`
   - Optimized build: `./gradlew :app:assembleRelease` (R8 + resource shrink enabled)
-  - Install optimized build over adb: `./gradlew installRelease` (release is signed with the
-    debug key for dev convenience — replace before publishing).
-  - Debug install has historically been done via direct `adb install -r <apk>` over wireless adb
-    (Gradle's adb push was unreliable on Wi-Fi: EOF/broken pipe).
+  - Install optimized build over adb (personal profile only — never work profile / user 10):
+    `./gradlew :app:assembleRelease && adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-*.apk`
+    (release is signed with the debug key for dev convenience — replace before publishing).
+  - Prefer `adb install -r --user 0 <apk>` over Gradle `installDebug`/`installRelease` (those omit
+    `--user 0` and can leave a copy in the work profile). Wireless adb historically preferred
+    direct `adb install` anyway (Gradle's adb push: EOF/broken pipe).
 
 ## Module / file map (`app/src/main/java/com/anant/fitbuddy/`)
 - `FitBuddyApp.kt` — Application/service locator; builds `SettingsRepository` + `FitnessRepository`.

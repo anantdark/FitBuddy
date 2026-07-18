@@ -156,50 +156,44 @@ fun SettingsScreen(
 
         // --- AI provider -----------------------------------------------------------------
         SettingsCard(title = "AI Provider") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Auto failover", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "When on, FitBuddy tries other API keys, then other models on the " +
-                            "same platform. When off, only your selected model is used, but " +
-                            "other API keys are still tried on failure. Change platform " +
-                            "manually if everything fails.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = aiAutoFailover,
-                    onCheckedChange = { aiAutoFailover = it }
-                )
-            }
+            SettingToggleRow(
+                title = "Auto failover",
+                checked = aiAutoFailover,
+                onCheckedChange = { aiAutoFailover = it },
+                hintTitle = "Auto failover",
+                hint = "When on, FitBuddy tries other API keys, then other models on the " +
+                    "same platform. When off, only your selected model is used, but " +
+                    "other API keys are still tried on failure. Change platform " +
+                    "manually if everything fails."
+            )
 
             if (aiAutoFailover) {
-                Text(
-                    text = "Active photo model: ${settings.activePhotoModelDisplay()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Active text model: ${settings.activeTextModelDisplay()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Active models update when you save AI settings, and after each " +
-                        "successful AI request. Rate-limited models are skipped until the " +
-                        "next UTC midnight.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Photo · ${settings.activePhotoModelDisplay()}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Text · ${settings.activeTextModelDisplay()}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    HintIconButton(
+                        title = "Active models",
+                        message = "Active models update when you save AI settings, and after " +
+                            "each successful AI request. Rate-limited models are skipped " +
+                            "until the next UTC midnight."
+                    )
+                }
             }
-
-            Spacer(Modifier.size(4.dp))
 
             val options = listOf(
                 AiProvider.OPENROUTER to "OpenRouter",
@@ -215,8 +209,6 @@ fun SettingsScreen(
                     ) { Text(label) }
                 }
             }
-
-            Spacer(Modifier.size(4.dp))
 
             // When Auto has an active model for this provider, keep local dropdown state in sync.
             // Never copy Gemini Studio ids into OpenRouter/Ollama fields.
@@ -276,7 +268,6 @@ fun SettingsScreen(
                         apiKey = openRouterKey,
                         onLoad = onLoadModels
                     )
-                    Spacer(Modifier.size(4.dp))
                     ModelDropdown(
                         label = "Text model (free)",
                         noun = "free",
@@ -285,9 +276,11 @@ fun SettingsScreen(
                         modelsState = textModelsState,
                         provider = AiProvider.OPENROUTER,
                         apiKey = openRouterKey,
-                        onLoad = onLoadTextModels
+                        onLoad = onLoadTextModels,
+                        hintTitle = "Text model",
+                        hint = "Used for typed logs and \"recalculate with AI\" (no photo). " +
+                            "Leave blank to reuse the photo model. Gemma models are listed first."
                     )
-                    HintText("Text model is used for typed logs and \"recalculate with AI\" (no photo). Leave blank to reuse the photo model. Gemma models are listed first.")
                 }
 
                 AiProvider.GEMINI -> {
@@ -304,9 +297,12 @@ fun SettingsScreen(
                         modelsState = modelsState,
                         provider = AiProvider.GEMINI,
                         apiKey = geminiKey,
-                        onLoad = onLoadModels
+                        onLoad = onLoadModels,
+                        hintTitle = "Gemini",
+                        hint = "Get a key from Google AI Studio (aistudio.google.com). Free " +
+                            "Flash models only (smartest-first). With Auto failover on, failed " +
+                            "keys then models rotate on Gemini only."
                     )
-                    Spacer(Modifier.size(4.dp))
                     ModelDropdown(
                         label = "Text model (free, by intelligence)",
                         noun = "free",
@@ -317,7 +313,6 @@ fun SettingsScreen(
                         apiKey = geminiKey,
                         onLoad = onLoadTextModels
                     )
-                    HintText("Get a key from Google AI Studio (aistudio.google.com). Free Flash models only (smartest-first). With Auto failover on, failed keys then models rotate on Gemini only.")
                 }
 
                 AiProvider.OLLAMA -> {
@@ -331,7 +326,6 @@ fun SettingsScreen(
                             ) { Text(label) }
                         }
                     }
-                    Spacer(Modifier.size(4.dp))
                     if (ollamaUseCloud) {
                         ApiKeyChipEditor(
                             label = "API keys",
@@ -343,7 +337,10 @@ fun SettingsScreen(
                             label = "Server URL",
                             value = ollamaUrl,
                             onValueChange = { ollamaUrl = it },
-                            keyboardType = KeyboardType.Uri
+                            keyboardType = KeyboardType.Uri,
+                            trailingHintTitle = "Server URL",
+                            trailingHint = "Reachable from the phone, e.g. http://192.168.1.10:11434. " +
+                                "Use a vision model (llava/gemma) for food photos."
                         )
                     }
                     val ollamaListKey = if (ollamaUseCloud) ollamaApiKey else ""
@@ -361,9 +358,16 @@ fun SettingsScreen(
                         provider = AiProvider.OLLAMA,
                         apiKey = ollamaListKey,
                         baseUrl = ollamaListUrl,
-                        onLoad = onLoadModels
+                        onLoad = onLoadModels,
+                        hintTitle = if (ollamaUseCloud) "Ollama Cloud" else "Ollama Local",
+                        hint = if (ollamaUseCloud) {
+                            "Cloud uses https://ollama.com. Create keys at ollama.com/settings/keys. " +
+                                "Gemma models are preferred. Leave text model blank to reuse the photo model."
+                        } else {
+                            "Use a vision model (llava/gemma) for food photos. Leave text model " +
+                                "blank to reuse the photo model."
+                        }
                     )
-                    Spacer(Modifier.size(4.dp))
                     ModelDropdown(
                         label = "Text model",
                         noun = "Ollama",
@@ -374,15 +378,6 @@ fun SettingsScreen(
                         apiKey = ollamaListKey,
                         baseUrl = ollamaListUrl,
                         onLoad = onLoadTextModels
-                    )
-                    HintText(
-                        if (ollamaUseCloud) {
-                            "Cloud uses https://ollama.com. Create keys at ollama.com/settings/keys. " +
-                                "Gemma models are preferred. Leave text model blank to reuse the photo model."
-                        } else {
-                            "Reachable from the phone, e.g. http://192.168.1.10:11434. Use a vision " +
-                                "model (llava/gemma) for food photos. Leave text model blank to reuse the photo model."
-                        }
                     )
                 }
             }
@@ -421,23 +416,13 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Check automatically", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Looks for a newer GitHub release shortly after startup.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = settings.autoCheckUpdates,
-                    onCheckedChange = onAutoCheckUpdatesChange
-                )
-            }
+            SettingToggleRow(
+                title = "Check automatically",
+                checked = settings.autoCheckUpdates,
+                onCheckedChange = onAutoCheckUpdatesChange,
+                hintTitle = "Automatic updates",
+                hint = "Looks for a newer GitHub release shortly after startup."
+            )
             OutlinedButton(
                 onClick = onCheckForUpdates,
                 enabled = !updateState.isChecking && !updateState.isDownloading,
@@ -468,33 +453,24 @@ fun SettingsScreen(
 
         // --- Appearance ------------------------------------------------------------------
         SettingsCard(title = "Appearance", initiallyExpanded = false) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Material You", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Use wallpaper-based dynamic colors (Android 12+)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = settings.dynamicColor,
-                    onCheckedChange = onDynamicColorChange
-                )
-            }
+            SettingToggleRow(
+                title = "Material You",
+                checked = settings.dynamicColor,
+                onCheckedChange = onDynamicColorChange,
+                hintTitle = "Material You",
+                hint = "Use wallpaper-based dynamic colors (Android 12+)."
+            )
         }
 
         // --- Backup & Data ---------------------------------------------------------------
-        SettingsCard(title = "Backup & Data", initiallyExpanded = false) {
-            Text(
-                "Export all your data (profile, readings, food and exercise logs, presets) to a " +
-                    "JSON file, or import a backup. Importing replaces everything currently in the app.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        SettingsCard(
+            title = "Backup & Data",
+            initiallyExpanded = false,
+            hintTitle = "Backup & Data",
+            hint = "Export all your data (profile, readings, food and exercise logs, presets) " +
+                "to a JSON file, or import a backup. Importing replaces everything currently " +
+                "in the app."
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -513,7 +489,15 @@ fun SettingsScreen(
         }
 
         // --- About -----------------------------------------------------------------------
-        SettingsCard(title = "About", collapsible = false) {
+        SettingsCard(
+            title = "About",
+            collapsible = false,
+            hintTitle = "About FitBuddy",
+            hint = "AI-powered health tracker optimised for Indian diets and lifestyles. " +
+                "Log meals and workouts via photo or loose text; the AI estimates calories " +
+                "and macros.\n\nBuilt with Kotlin, Jetpack Compose, MVVM + Room. Data stays " +
+                "on your device."
+        ) {
             AboutRow("App", "FitBuddy")
             AboutRow(
                 label = "Version",
@@ -540,10 +524,10 @@ fun SettingsScreen(
                     anantTapCount++
                     when {
                         anantTapCount >= EASTER_EGG_TAP_TARGET -> {
-                        anantTapCount = 0
-                        onAnantTapHintDismiss()
-                        onEasterEggTriggered()
-                    }
+                            anantTapCount = 0
+                            onAnantTapHintDismiss()
+                            onEasterEggTriggered()
+                        }
                         anantTapCount >= EASTER_EGG_HINT_START -> {
                             onAnantTapHint(EASTER_EGG_TAP_TARGET - anantTapCount)
                         }
@@ -551,19 +535,6 @@ fun SettingsScreen(
                 }
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
-            Spacer(Modifier.size(4.dp))
-            Text(
-                "AI-powered health tracker optimised for Indian diets and lifestyles. Log meals " +
-                    "and workouts via photo or loose text; the AI estimates calories and macros.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.size(4.dp))
-            Text(
-                "Built with Kotlin, Jetpack Compose, MVVM + Room. Data stays on your device.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -726,7 +697,9 @@ private fun ModelDropdown(
     provider: AiProvider,
     apiKey: String,
     onLoad: (AiProvider, String, Boolean, String) -> Unit,
-    baseUrl: String = ""
+    baseUrl: String = "",
+    hintTitle: String? = null,
+    hint: String? = null
 ) {
     // Re-fetch when the provider, key, or Ollama URL changes.
     LaunchedEffect(provider, apiKey, baseUrl) { onLoad(provider, apiKey, false, baseUrl) }
@@ -834,6 +807,9 @@ private fun ModelDropdown(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        if (hint != null && hintTitle != null) {
+            HintIconButton(title = hintTitle, message = hint)
+        }
         IconButton(
             onClick = { onLoad(provider, apiKey, true, baseUrl) },
             enabled = !modelsState.isLoading
@@ -892,6 +868,8 @@ private fun SettingsCard(
     title: String,
     collapsible: Boolean = true,
     initiallyExpanded: Boolean = true,
+    hintTitle: String? = null,
+    hint: String? = null,
     content: @Composable () -> Unit
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded || !collapsible) }
@@ -908,27 +886,31 @@ private fun SettingsCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (collapsible) {
-                            Modifier.clickable { expanded = !expanded }
-                        } else {
-                            Modifier
-                        }
-                    ),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (collapsible) {
+                                Modifier.clickable { expanded = !expanded }
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
+                if (hint != null && hintTitle != null) {
+                    HintIconButton(title = hintTitle, message = hint)
+                }
                 if (collapsible) {
                     Icon(
                         imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (expanded) "Collapse" else "Expand"
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        modifier = Modifier.clickable { expanded = !expanded }
                     )
                 }
             }
@@ -942,20 +924,55 @@ private fun SettingsCard(
 }
 
 @Composable
+private fun SettingToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    hintTitle: String? = null,
+    hint: String? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        if (hint != null && hintTitle != null) {
+            HintIconButton(title = hintTitle, message = hint)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
 private fun SettingField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     isSecret: Boolean = false,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    trailingHintTitle: String? = null,
+    trailingHint: String? = null
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
-        visualTransformation = if (isSecret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        visualTransformation = if (isSecret) {
+            PasswordVisualTransformation()
+        } else {
+            androidx.compose.ui.text.input.VisualTransformation.None
+        },
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        trailingIcon = if (trailingHint != null && trailingHintTitle != null) {
+            { HintIconButton(title = trailingHintTitle, message = trailingHint) }
+        } else {
+            null
+        },
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -978,7 +995,18 @@ fun ApiKeyChipEditor(
     }
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            HintIconButton(
+                title = "API keys",
+                message = "Paste multiple keys separated by commas or new lines. Keys are " +
+                    "masked and can't be copied after adding."
+            )
+        }
         if (keys.isNotEmpty()) {
             // Column instead of FlowRow — BOM 2024.09 lacks the FlowRowOverflow overload
             // that the compiler was linking, which crashed Settings with NoSuchMethodError.
@@ -1032,7 +1060,6 @@ fun ApiKeyChipEditor(
                 }
             ) { Text("Add") }
         }
-        HintText("Paste multiple keys separated by commas or new lines. Keys are masked and can't be copied after adding.")
     }
 }
 
@@ -1058,19 +1085,42 @@ private object NoCopyTextToolbar : TextToolbar {
 }
 
 @Composable
-private fun HintText(text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun HintIconButton(
+    title: String,
+    message: String
+) {
+    var show by remember { mutableStateOf(false) }
+    IconButton(
+        onClick = { show = true },
+        modifier = Modifier.size(40.dp)
+    ) {
         Icon(
             imageVector = Icons.Filled.Info,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp),
+            contentDescription = "About $title",
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.size(6.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    if (show) {
+        AlertDialog(
+            onDismissRequest = { show = false },
+            icon = {
+                Icon(
+                    Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text(title) },
+            text = {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { show = false }) { Text("Got it") }
+            }
         )
     }
 }

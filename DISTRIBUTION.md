@@ -39,7 +39,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 ```
 
 Outputs:
-- APK: `app/build/outputs/apk/release/app-release.apk`
+- APK: `app/build/outputs/apk/release/FitBuddy-<versionName>.apk` (e.g. `FitBuddy-2.1.0-dev.apk`)
 - AAB: `app/build/outputs/bundle/release/app-release.aab`
 
 ## 4. Play Console checklist

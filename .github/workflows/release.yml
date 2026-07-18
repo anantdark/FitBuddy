@@ -108,7 +108,7 @@ jobs:
           prerelease: false
           generate_release_notes: false
           files: |
-            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
             app/build/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

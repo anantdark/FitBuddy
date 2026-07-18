@@ -89,6 +89,16 @@ android {
     }
 }
 
+// Release APK: FitBuddy-<versionName>.apk (not app-release.apk).
+val releaseApkVersionName = ciVersionName ?: "2.1.0-dev"
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("FitBuddy-$releaseApkVersionName.apk")
+        }
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.accompanist.permissions)

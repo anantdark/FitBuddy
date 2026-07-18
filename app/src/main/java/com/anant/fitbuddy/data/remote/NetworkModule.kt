@@ -17,6 +17,8 @@ object NetworkModule {
 
     val moshi: Moshi by lazy {
         Moshi.Builder()
+            // Round fractional JSON numbers into Int fields (backup macros, AI payloads).
+            .add(CoercingIntJsonAdapter.FACTORY)
             // Codegen adapters are used for our own DTOs; the reflect factory is a safety net
             // for anything not annotated with @JsonClass.
             .addLast(KotlinJsonAdapterFactory())
