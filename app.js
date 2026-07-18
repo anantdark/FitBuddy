@@ -230,6 +230,7 @@
   function setDownload(url) {
     buttons.forEach((btn) => {
       btn.href = url;
+      btn.setAttribute("download", "");
     });
   }
 
@@ -241,7 +242,10 @@
 
   if (!buttons.length && !versionLine) return;
 
-  // Bust caches so each visit sees the current GitHub "latest" release.
+  // Always point at the APK file (never the releases HTML page).
+  setDownload(STABLE_APK);
+
+  // Bust caches so the version label matches the current GitHub "latest" release.
   fetch(`https://api.github.com/repos/${REPO}/releases/latest?_=${Date.now()}`, {
     cache: "no-store",
     headers: { Accept: "application/vnd.github+json" },
@@ -259,12 +263,11 @@
           a.name !== "FitBuddy-latest.apk"
       );
       const apk = stable || versioned;
-      if (apk && apk.browser_download_url) {
-        setDownload(apk.browser_download_url);
-      } else if (stable || assets.some((a) => a.name === "FitBuddy-latest.apk")) {
+      // Prefer the stable alias URL so the button always downloads "latest".
+      if (stable) {
         setDownload(STABLE_APK);
-      } else {
-        setDownload(release.html_url || RELEASES_PAGE);
+      } else if (apk && apk.browser_download_url) {
+        setDownload(apk.browser_download_url);
       }
 
       const label = release.name || release.tag_name;
@@ -279,16 +282,11 @@
       }
     })
     .catch(() => {
-      // Prefer stable alias if CI has published it; otherwise the releases page.
-      fetch(STABLE_APK, { method: "HEAD", redirect: "follow", cache: "no-store" })
-        .then((res) => {
-          setDownload(res.ok ? STABLE_APK : RELEASES_PAGE);
-        })
-        .catch(() => setDownload(RELEASES_PAGE));
+      setDownload(STABLE_APK);
       if (versionLine) {
         versionLine.hidden = false;
         versionLine.innerHTML =
-          `See <a href="${RELEASES_PAGE}">GitHub Releases</a> for the newest build.`;
+          `Latest APK · <a href="${RELEASES_PAGE}">all releases</a>`;
       }
     });
 })();
