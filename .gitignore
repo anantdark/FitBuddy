@@ -75,3 +75,6 @@ output.json
 .env.*
 !.env.example
 .signing-secrets/
+
+# Local device screenshot captures for marketing site
+.screenshots/

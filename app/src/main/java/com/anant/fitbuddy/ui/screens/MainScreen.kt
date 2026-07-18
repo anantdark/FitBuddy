@@ -16,11 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +52,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import com.anant.fitbuddy.BuildConfig
@@ -75,12 +79,10 @@ import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 private enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    TODAY("Today", Icons.Filled.Today),
     PROGRESS("Progress", Icons.Filled.Insights),
+    DASHBOARD("Dashboard", Icons.Filled.Dashboard),
     BODY("Body", Icons.Filled.MonitorWeight)
 }
 
@@ -103,13 +105,17 @@ fun MainScreen(viewModel: MainViewModel) {
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
-    val foodLogs by viewModel.foodLogsToday.collectAsStateWithLifecycle()
-    val exerciseLogs by viewModel.exerciseLogsToday.collectAsStateWithLifecycle()
+    val weekDates by viewModel.weekDates.collectAsStateWithLifecycle()
+    val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
+    val realToday by viewModel.realToday.collectAsStateWithLifecycle()
+    val weekSnapshots by viewModel.weekSnapshots.collectAsStateWithLifecycle()
+    val cloneMealRequest by viewModel.cloneMealRequest.collectAsStateWithLifecycle()
 
     val weeklyFood by viewModel.weeklyFood.collectAsStateWithLifecycle()
     val monthlyFood by viewModel.monthlyFood.collectAsStateWithLifecycle()
     val weeklyExercise by viewModel.weeklyExercise.collectAsStateWithLifecycle()
     val monthlyExercise by viewModel.monthlyExercise.collectAsStateWithLifecycle()
+    val analyticsMonthYm by viewModel.analyticsMonthYm.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val hasSettingsSnapshot by viewModel.hasSettingsSnapshot.collectAsStateWithLifecycle()
     val modelsState by viewModel.models.collectAsStateWithLifecycle()
@@ -128,15 +134,33 @@ fun MainScreen(viewModel: MainViewModel) {
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
 
-    var selectedTab by rememberSaveable { mutableStateOf(Tab.TODAY) }
+    var selectedTab by rememberSaveable { mutableStateOf(Tab.DASHBOARD) }
     // Tabs are composed once on first visit and then kept alive (just hidden) so switching back
     // and forth is instant and doesn't lose scroll/animation/unsaved-edit state or re-run
     // expensive first-composition work (e.g. the Progress tab's charts) every time.
     var visitedTabs by remember { mutableStateOf(setOf(selectedTab)) }
-    LaunchedEffect(selectedTab) { visitedTabs = visitedTabs + selectedTab }
+    LaunchedEffect(selectedTab) {
+        visitedTabs = visitedTabs + selectedTab
+        if (selectedTab == Tab.DASHBOARD) {
+            viewModel.refreshToToday()
+        }
+    }
     LaunchedEffect(Unit) { viewModel.onDashboardLaunched() }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshToToday()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     var showSettings by remember { mutableStateOf(false) }
     var showProgressChat by remember { mutableStateOf(false) }
+    var showWeekHistory by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }
     var showTextDialog by remember { mutableStateOf(false) }
     var showMealPresetSheet by remember { mutableStateOf(false) }
@@ -158,6 +182,12 @@ fun MainScreen(viewModel: MainViewModel) {
     var easterEggTriggeredThisSession by rememberSaveable { mutableStateOf(false) }
     var livePillMessage by remember { mutableStateOf<String?>(null) }
     var showAnantEasterEgg by remember { mutableStateOf(false) }
+
+    LaunchedEffect(cloneMealRequest) {
+        val draft = cloneMealRequest ?: return@LaunchedEffect
+        mealReviewDraft = draft.snapshot()
+        viewModel.consumeCloneMealRequest()
+    }
 
     val editingMealId = analysisState.editingFoodLogId
     LaunchedEffect(editingMealId, analysisState.mealDraft) {
@@ -374,31 +404,14 @@ fun MainScreen(viewModel: MainViewModel) {
             onSendMessage = viewModel::sendProgressChatMessage
         )
     } else {
+        // Keep the main tab scaffold composed while Week history is open. Replacing it in an
+        // if/else disposed every visited tab (Progress charts etc.) and made Back feel lagged.
         Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = {
-                        if (selectedTab == Tab.TODAY) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "Today",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = LocalDate.now().format(
-                                        DateTimeFormatter.ofPattern("EEEE, MMM d")
-                                    ),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            Text(selectedTab.label)
-                        }
-                    },
+                    title = { Text(selectedTab.label) },
                     actions = {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
@@ -420,7 +433,7 @@ fun MainScreen(viewModel: MainViewModel) {
                 }
             },
             floatingActionButton = {
-                if (selectedTab == Tab.TODAY) {
+                if (selectedTab == Tab.DASHBOARD && !showWeekHistory) {
                     ExtendedFloatingActionButton(
                         onClick = { showLogHub = true },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -443,15 +456,21 @@ fun MainScreen(viewModel: MainViewModel) {
                             .graphicsLayer { alpha = if (isSelected) 1f else 0f }
                     ) {
                         when (tab) {
-                            Tab.TODAY -> DashboardScreen(
-                                state = dashboardState,
-                                foodLogs = foodLogs,
-                                exerciseLogs = exerciseLogs,
+                            Tab.DASHBOARD -> DashboardHomeScreen(
+                                realToday = realToday,
+                                weekSnapshots = weekSnapshots,
+                                profileState = dashboardState,
                                 isAnalyzing = analysisState.isLoading,
+                                onOpenWeekHistory = {
+                                    viewModel.refreshToToday()
+                                    showWeekHistory = true
+                                },
                                 onEditFood = viewModel::editFoodLog,
                                 onDeleteFood = viewModel::deleteFoodLog,
+                                onCloneFood = viewModel::cloneFoodLogToToday,
                                 onViewExercise = viewModel::openWorkoutDetails,
-                                onDeleteExercise = viewModel::deleteExerciseLog
+                                onDeleteExercise = viewModel::deleteExerciseLog,
+                                onCloneExercise = viewModel::cloneWorkoutToToday
                             )
 
                             Tab.PROGRESS -> AnalyticsScreen(
@@ -461,8 +480,11 @@ fun MainScreen(viewModel: MainViewModel) {
                                 monthlyExercise = monthlyExercise,
                                 measurements = measurements,
                                 targetCalories = dashboardState.targetCalories,
+                                analyticsMonthYm = analyticsMonthYm,
+                                realToday = realToday,
                                 progressInsightState = progressInsightState,
                                 isAiConfigured = isAiOnline,
+                                onShiftMonth = viewModel::shiftAnalyticsMonth,
                                 onRequestInsight = viewModel::requestProgressInsight,
                                 onOpenChat = { showProgressChat = true }
                             )
@@ -492,13 +514,76 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         }
 
+            if (showWeekHistory) {
+                BackHandler {
+                    showWeekHistory = false
+                    viewModel.refreshToToday()
+                }
+                Scaffold(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(2f),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    topBar = {
+                        TopAppBar(
+                            title = { Text("Week history") },
+                            navigationIcon = {
+                                IconButton(onClick = {
+                                    showWeekHistory = false
+                                    viewModel.refreshToToday()
+                                }) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back"
+                                    )
+                                }
+                            },
+                            actions = {
+                                IconButton(onClick = { showSettings = true }) {
+                                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                                }
+                            }
+                        )
+                    },
+                    floatingActionButton = {
+                        ExtendedFloatingActionButton(
+                            onClick = { showLogHub = true },
+                            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                            text = { Text("Log") }
+                        )
+                    }
+                ) { innerPadding ->
+                    WeekHistoryScreen(
+                        weekDates = weekDates,
+                        selectedDate = selectedDate,
+                        realToday = realToday,
+                        weekSnapshots = weekSnapshots,
+                        profileState = dashboardState,
+                        isAnalyzing = analysisState.isLoading,
+                        onSelectDate = viewModel::selectDate,
+                        onShiftWeek = viewModel::shiftHistoryWeek,
+                        onEditFood = viewModel::editFoodLog,
+                        onDeleteFood = viewModel::deleteFoodLog,
+                        onCloneFood = viewModel::cloneFoodLogToToday,
+                        onViewExercise = viewModel::openWorkoutDetails,
+                        onDeleteExercise = viewModel::deleteExerciseLog,
+                        onCloneExercise = viewModel::cloneWorkoutToToday,
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
+            }
+
             FitBuddySnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(3f)
             )
             FitBuddyLivePill(
                 message = if (showAnantEasterEgg) null else livePillMessage,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(3f)
             )
         }
     }
@@ -584,7 +669,7 @@ fun MainScreen(viewModel: MainViewModel) {
             initialDraft = mealBuilderInitial,
             items = mealItems,
             onReview = { draft ->
-                val ts = mealBuilderInitial?.timestamp ?: draft.timestamp
+                val ts = mealBuilderInitial?.timestamp ?: viewModel.activeDayTimestamp()
                 val snapshot = draft.copy(timestamp = ts).snapshot()
                 mealReviewDraft = snapshot
                 showMealBuilder = false
@@ -685,7 +770,7 @@ fun MainScreen(viewModel: MainViewModel) {
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
-            onSave = viewModel::updateWorkoutSession,
+            onSave = viewModel::saveEditingWorkout,
             onDismiss = viewModel::dismissWorkoutDetails
         )
     }

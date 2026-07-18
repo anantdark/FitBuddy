@@ -171,8 +171,26 @@ class FitnessRepository(
     fun getWeeklyFoodSummaries(): Flow<List<FoodDailySummary>> = foodLogDao.getHistoricalFoodSummaries(7)
     fun getMonthlyFoodSummaries(): Flow<List<FoodDailySummary>> = foodLogDao.getHistoricalFoodSummaries(30)
 
+    fun getFoodSummariesBetween(startDate: String, endDate: String): Flow<List<FoodDailySummary>> =
+        foodLogDao.getFoodSummariesBetween(startDate, endDate)
+
     fun getWeeklyExerciseSummaries(): Flow<List<ExerciseDailySummary>> = exerciseLogDao.getHistoricalExerciseSummaries(7)
     fun getMonthlyExerciseSummaries(): Flow<List<ExerciseDailySummary>> = exerciseLogDao.getHistoricalExerciseSummaries(30)
+
+    fun getExerciseSummariesBetween(startDate: String, endDate: String): Flow<List<ExerciseDailySummary>> =
+        exerciseLogDao.getExerciseSummariesBetween(startDate, endDate)
+
+    /** All logged food days (newest first) for AI progress insights. */
+    suspend fun getAllFoodDailySummaries(): List<FoodDailySummary> =
+        foodLogDao.getAllFoodDailySummaries()
+
+    /** All logged exercise days (newest first) for AI progress insights. */
+    suspend fun getAllExerciseDailySummaries(): List<ExerciseDailySummary> =
+        exerciseLogDao.getAllExerciseDailySummaries()
+
+    /** All body readings (newest first) for AI progress insights. */
+    suspend fun getAllBodyMeasurementsOnce(): List<BodyMeasurement> =
+        bodyMeasurementDao.getAllOnce()
 
     suspend fun saveProfile(profile: UserProfile) {
         userProfileDao.insertOrUpdateProfile(profile)
@@ -217,11 +235,11 @@ class FitnessRepository(
     suspend fun logWorkoutSession(
         draft: WorkoutDraft,
         weightKg: Double,
-        contextJson: String
+        contextJson: String,
+        timestamp: Long = System.currentTimeMillis()
     ): WorkoutCaloriesResponse {
         val result = estimateWorkoutCalories(draft, weightKg, contextJson)
 
-        val timestamp = System.currentTimeMillis()
         val dateString = DateUtils.format(timestamp)
 
         val sessionId = workoutSessionDao.insert(
@@ -387,7 +405,8 @@ class FitnessRepository(
         userText: String,
         imageBytes: ByteArray?,
         userStateContextJson: String,
-        forceEstimate: Boolean = false
+        forceEstimate: Boolean = false,
+        customTimestamp: Long? = null
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
 
@@ -407,7 +426,8 @@ class FitnessRepository(
                         active, userText, userStateContextJson, dataUrl, forceEstimate
                     )
                 }
-                processResponse(response, userText = userText).withFailoverNote(failoverNote)
+                processResponse(response, customTimestamp = customTimestamp, userText = userText)
+                    .withFailoverNote(failoverNote)
             } catch (e: Exception) {
                 AnalysisOutcome.Error(formatAiConnectionError(e))
             }
@@ -421,7 +441,11 @@ class FitnessRepository(
         }
 
         return try {
-            processResponse(simulateAIService(userText, inferMode(userText, false)), userText = userText)
+            processResponse(
+                simulateAIService(userText, inferMode(userText, false)),
+                customTimestamp = customTimestamp,
+                userText = userText
+            )
         } catch (e: Exception) {
             AnalysisOutcome.Error(e.message ?: "Analysis failed")
         }
@@ -863,9 +887,12 @@ class FitnessRepository(
         return allowed.firstOrNull { it.equals(trimmed, ignoreCase = true) } ?: Equipment.OTHER
     }
 
-    /** Quick-logs a saved meal preset to today's log. */
-    suspend fun logMealPreset(preset: MealPreset) {
-        saveMealDraft(preset.toMealDraft())
+    /** Quick-logs a saved meal preset onto [timestamp]'s calendar day (default: now). */
+    suspend fun logMealPreset(
+        preset: MealPreset,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        saveMealDraft(preset.toMealDraft().copy(timestamp = timestamp))
     }
 
     /** Heuristic used only by the offline simulator to pick a plausible response type. */

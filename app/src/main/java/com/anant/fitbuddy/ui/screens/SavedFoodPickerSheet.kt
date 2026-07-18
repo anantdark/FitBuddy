@@ -1,6 +1,5 @@
 package com.anant.fitbuddy.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.SavedFood
+import com.anant.fitbuddy.ui.components.pressable
 
 enum class SavedFoodSheetMode { PICK_FOR_MEAL, MANAGE_LIBRARY }
 
@@ -93,7 +93,7 @@ private fun SavedFoodRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (pickEnabled) Modifier.clickable(onClick = onPick) else Modifier)
+            .then(if (pickEnabled) Modifier.pressable(onClick = onPick) else Modifier)
             .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -3,13 +3,19 @@ package com.anant.fitbuddy.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
@@ -38,6 +44,18 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(36.dp)
 )
 
+/**
+ * Stronger primary wash so Android 12+ sparkle ripples read like the system
+ * fingerprint / charge accent shimmer (AuthRipple uses theme accent).
+ */
+private val PrimarySparkleRippleAlpha = RippleAlpha(
+    pressedAlpha = 0.24f,
+    focusedAlpha = 0.14f,
+    draggedAlpha = 0.18f,
+    hoveredAlpha = 0.10f
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FitBuddyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -56,10 +74,22 @@ fun FitBuddyTheme(
         else -> LightColorScheme
     }
 
+    // Tint Material sparkle ripples with dynamic primary (wallpaper green when
+    // Material You is on). Platform RippleDrawable supplies the sparkle on API 31+.
+    val primaryRipple = remember(colorScheme.primary) {
+        RippleConfiguration(
+            color = colorScheme.primary,
+            rippleAlpha = PrimarySparkleRippleAlpha
+        )
+    }
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        shapes = AppShapes,
-        content = content
-    )
+        shapes = AppShapes
+    ) {
+        CompositionLocalProvider(LocalRippleConfiguration provides primaryRipple) {
+            content()
+        }
+    }
 }

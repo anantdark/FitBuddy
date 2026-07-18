@@ -15,6 +15,7 @@ import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.CommonExercise
 import com.anant.fitbuddy.data.model.ExerciseDraft
+import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.buildExercisePickerList
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.FoodEntryDraft
@@ -38,18 +39,22 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -161,7 +166,21 @@ data class WorkoutLogUiState(
 data class WorkoutEditUiState(
     val exerciseLogId: Int,
     val sessionId: Int,
-    val draft: WorkoutDraft
+    val draft: WorkoutDraft,
+    /** When true, Save inserts a new today entry instead of updating the source row. */
+    val isClone: Boolean = false
+)
+
+/** Per-day food/exercise snapshot for the swipeable week dashboard. */
+@Immutable
+data class DayLogSnapshot(
+    val foodLogs: List<FoodLog> = emptyList(),
+    val exerciseLogs: List<ExerciseLog> = emptyList(),
+    val consumedCalories: Int = 0,
+    val burnedCalories: Int = 0,
+    val consumedProtein: Int = 0,
+    val consumedCarbs: Int = 0,
+    val consumedFats: Int = 0
 )
 
 /** State of the manual "Check for Updates" flow in Settings. */
@@ -182,7 +201,73 @@ class MainViewModel(
     private val updateChecker: UpdateChecker
 ) : ViewModel() {
 
-    private val today: String = DateUtils.today()
+    // --- Selected calendar day (rolling week dashboard) ------------------------------------
+
+    private val _realToday = MutableStateFlow(DateUtils.today())
+    val realToday: StateFlow<String> = _realToday.asStateFlow()
+
+    private val _selectedDate = MutableStateFlow(DateUtils.today())
+    val selectedDate: StateFlow<String> = _selectedDate.asStateFlow()
+
+    /** Last day of the week strip shown in Week history (defaults to [realToday]). */
+    private val _weekEndDate = MutableStateFlow(DateUtils.today())
+
+    /** Calendar month (`yyyy-MM`) shown on the Progress Monthly charts. */
+    private val _analyticsMonthYm = MutableStateFlow(DateUtils.yearMonth())
+    val analyticsMonthYm: StateFlow<String> = _analyticsMonthYm.asStateFlow()
+
+    val weekDates: StateFlow<List<String>> = _weekEndDate
+        .map { DateUtils.rollingWeekDates(it) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            DateUtils.rollingWeekDates()
+        )
+
+    /** Snap dashboard back to the real local today (cold start, resume, tab re-show). */
+    fun refreshToToday() {
+        val now = DateUtils.today()
+        _realToday.value = now
+        _weekEndDate.value = now
+        _selectedDate.value = now
+        _analyticsMonthYm.value = DateUtils.yearMonth(now)
+    }
+
+    fun selectDate(date: String) {
+        if (date in weekDates.value) {
+            _selectedDate.value = date
+        }
+    }
+
+    /**
+     * Shift the Week history strip by [deltaWeeks] (−1 = older, +1 = newer).
+     * Never past [realToday]; keeps the same weekday index when possible.
+     */
+    fun shiftHistoryWeek(deltaWeeks: Int) {
+        if (deltaWeeks == 0) return
+        val today = _realToday.value
+        val currentEnd = _weekEndDate.value
+        val proposed = DateUtils.addDays(currentEnd, deltaWeeks * DateUtils.ROLLING_WEEK_DAYS)
+        val newEnd = if (proposed > today) today else proposed
+        if (newEnd == currentEnd) return
+
+        val oldDates = DateUtils.rollingWeekDates(currentEnd)
+        val newDates = DateUtils.rollingWeekDates(newEnd)
+        val idx = oldDates.indexOf(_selectedDate.value).let { if (it < 0) oldDates.lastIndex else it }
+            .coerceIn(0, newDates.lastIndex)
+        _weekEndDate.value = newEnd
+        _selectedDate.value = newDates[idx]
+    }
+
+    fun shiftAnalyticsMonth(deltaMonths: Int) {
+        if (deltaMonths == 0) return
+        val currentYm = DateUtils.yearMonth(_realToday.value)
+        val proposed = DateUtils.addMonths(_analyticsMonthYm.value, deltaMonths)
+        _analyticsMonthYm.value = if (proposed > currentYm) currentYm else proposed
+    }
+
+    /** Wall-clock time relocated onto the active (selected) calendar day. */
+    fun activeDayTimestamp(): Long = DateUtils.timestampOnDate(_selectedDate.value)
 
     // --- Update check -------------------------------------------------------------------------
 
@@ -424,28 +509,52 @@ class MainViewModel(
 
     // --- Dashboard --------------------------------------------------------------------------
 
-    private val totalsFlow = combine(
-        repository.getFoodTotalsToday(today),
-        repository.getExerciseBurnToday(today)
-    ) { food, burned ->
-        Totals(
-            calories = food.totalCalories,
-            burned = burned ?: 0,
-            protein = food.totalProtein,
-            carbs = food.totalCarbs,
-            fats = food.totalFats
-        )
-    }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val weekSnapshots: StateFlow<Map<String, DayLogSnapshot>> =
+        combine(weekDates, _realToday) { dates, today ->
+            // Always keep today loaded so the home dashboard stays correct while browsing
+            // older weeks in the Week history overlay.
+            if (today.isEmpty() || today in dates) dates else dates + today
+        }
+            .flatMapLatest { dates ->
+                if (dates.isEmpty()) {
+                    flowOf(emptyMap())
+                } else {
+                    combine(dates.map { date -> daySnapshotFlow(date) }) { pairs ->
+                        pairs.associate { it }
+                    }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private fun daySnapshotFlow(date: String) =
+        combine(
+            repository.getFoodLogsForDate(date),
+            repository.getExerciseLogsForDate(date),
+            repository.getFoodTotalsToday(date),
+            repository.getExerciseBurnToday(date)
+        ) { food, exercise, totals, burned ->
+            date to DayLogSnapshot(
+                foodLogs = food,
+                exerciseLogs = exercise,
+                consumedCalories = totals.totalCalories,
+                burnedCalories = burned ?: 0,
+                consumedProtein = totals.totalProtein,
+                consumedCarbs = totals.totalCarbs,
+                consumedFats = totals.totalFats
+            )
+        }
 
     val dashboardState: StateFlow<DashboardUiState> =
-        combine(repository.activeProfile, totalsFlow) { profile, totals ->
+        combine(repository.activeProfile, _selectedDate, weekSnapshots) { profile, date, snaps ->
+            val snap = snaps[date] ?: DayLogSnapshot()
             DashboardUiState(
                 profile = profile,
-                consumedCalories = totals.calories,
-                burnedCalories = totals.burned,
-                consumedProtein = totals.protein,
-                consumedCarbs = totals.carbs,
-                consumedFats = totals.fats
+                consumedCalories = snap.consumedCalories,
+                burnedCalories = snap.burnedCalories,
+                consumedProtein = snap.consumedProtein,
+                consumedCarbs = snap.consumedCarbs,
+                consumedFats = snap.consumedFats
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
@@ -464,13 +573,22 @@ class MainViewModel(
     /** When true, dashboard launch should run a one-shot AI calorie/macro target design. */
     private var pendingInitialTargetDesign = false
 
-    val foodLogsToday: StateFlow<List<FoodLog>> =
-        repository.getFoodLogsForDate(today)
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Logs for the currently selected dashboard day. */
+    val foodLogsForSelectedDay: StateFlow<List<FoodLog>> =
+        combine(_selectedDate, weekSnapshots) { date, snaps ->
+            snaps[date]?.foodLogs.orEmpty()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val exerciseLogsToday: StateFlow<List<ExerciseLog>> =
-        repository.getExerciseLogsForDate(today)
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val exerciseLogsForSelectedDay: StateFlow<List<ExerciseLog>> =
+        combine(_selectedDate, weekSnapshots) { date, snaps ->
+            snaps[date]?.exerciseLogs.orEmpty()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** @deprecated Prefer [foodLogsForSelectedDay]; kept for any remaining call sites. */
+    val foodLogsToday: StateFlow<List<FoodLog>> = foodLogsForSelectedDay
+
+    /** @deprecated Prefer [exerciseLogsForSelectedDay]; kept for any remaining call sites. */
+    val exerciseLogsToday: StateFlow<List<ExerciseLog>> = exerciseLogsForSelectedDay
 
     // --- Saved foods & meal presets ---------------------------------------------------------
 
@@ -484,7 +602,7 @@ class MainViewModel(
 
     fun logMealPreset(preset: MealPreset) {
         viewModelScope.launch {
-            repository.logMealPreset(preset)
+            repository.logMealPreset(preset, activeDayTimestamp())
             _analysisState.update {
                 it.copy(userMessage = "Logged ${preset.name} · ${preset.calories} kcal")
             }
@@ -621,16 +739,26 @@ class MainViewModel(
         repository.getWeeklyFoodSummaries()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val monthlyFood: StateFlow<List<FoodDailySummary>> =
-        repository.getMonthlyFoodSummaries()
+        _analyticsMonthYm
+            .flatMapLatest { ym ->
+                val (start, end) = DateUtils.monthBounds(ym)
+                repository.getFoodSummariesBetween(start, end)
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val weeklyExercise: StateFlow<List<ExerciseDailySummary>> =
         repository.getWeeklyExerciseSummaries()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val monthlyExercise: StateFlow<List<ExerciseDailySummary>> =
-        repository.getMonthlyExerciseSummaries()
+        _analyticsMonthYm
+            .flatMapLatest { ym ->
+                val (start, end) = DateUtils.monthBounds(ym)
+                repository.getExerciseSummariesBetween(start, end)
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // --- Body measurements ------------------------------------------------------------------
@@ -682,7 +810,14 @@ class MainViewModel(
         _workoutLog.update { WorkoutLogUiState(isSaving = true) }
         viewModelScope.launch {
             val weightKg = currentWeightKg()
-            runCatching { repository.logWorkoutSession(draft, weightKg, buildWorkoutContext(draft, weightKg)) }
+            runCatching {
+                repository.logWorkoutSession(
+                    draft,
+                    weightKg,
+                    buildWorkoutContext(draft, weightKg),
+                    timestamp = activeDayTimestamp()
+                )
+            }
                 .onSuccess { result ->
                     _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
                     _analysisState.update {
@@ -739,6 +874,49 @@ class MainViewModel(
     fun dismissWorkoutDetails() {
         _editingWorkout.value = null
         _workoutLog.update { WorkoutLogUiState() }
+    }
+
+    /**
+     * Saves the workout currently open in [editingWorkout]. Clone mode inserts a new today
+     * session; otherwise updates the existing session in place.
+     */
+    fun saveEditingWorkout(draft: WorkoutDraft) {
+        val editing = _editingWorkout.value ?: return
+        if (editing.isClone) {
+            logClonedWorkout(draft)
+        } else {
+            updateWorkoutSession(draft)
+        }
+    }
+
+    /** Inserts a cloned workout onto real today (ignores the source session ids). */
+    private fun logClonedWorkout(draft: WorkoutDraft) {
+        if (draft.exercises.isEmpty()) return
+        _workoutLog.update { WorkoutLogUiState(isSaving = true) }
+        viewModelScope.launch {
+            val weightKg = currentWeightKg()
+            val todayTs = DateUtils.timestampOnDate(_realToday.value)
+            runCatching {
+                repository.logWorkoutSession(
+                    draft,
+                    weightKg,
+                    buildWorkoutContext(draft, weightKg),
+                    timestamp = todayTs
+                )
+            }
+                .onSuccess { result ->
+                    _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
+                    _editingWorkout.value = null
+                    _analysisState.update {
+                        it.copy(userMessage = "Cloned ${draft.name} · -${result.caloriesBurned} kcal")
+                    }
+                }
+                .onFailure { e ->
+                    _workoutLog.update {
+                        it.copy(isSaving = false, error = e.message ?: "Couldn't clone this workout")
+                    }
+                }
+        }
     }
 
     /** Saves edits to the workout currently open in [editingWorkout] and re-estimates calories. */
@@ -1022,7 +1200,12 @@ class MainViewModel(
         )
         _analysisState.update { it.copy(isLoading = true, clarificationMessage = null) }
         viewModelScope.launch {
-            val outcome = repository.analyze(text, image, buildUserStateContext())
+            val outcome = repository.analyze(
+                text,
+                image,
+                buildUserStateContext(),
+                customTimestamp = activeDayTimestamp()
+            )
             handleOutcome(outcome)
         }
     }
@@ -1152,6 +1335,83 @@ class MainViewModel(
         viewModelScope.launch {
             repository.deleteExercise(log)
             _analysisState.update { it.copy(userMessage = "Removed ${log.activityName}") }
+        }
+    }
+
+    private val _cloneMealRequest = MutableStateFlow<MealDraft?>(null)
+    /** One-shot: open meal review with a clone-to-today draft. */
+    val cloneMealRequest: StateFlow<MealDraft?> = _cloneMealRequest.asStateFlow()
+
+    fun consumeCloneMealRequest() {
+        _cloneMealRequest.value = null
+    }
+
+    /**
+     * Opens meal review prefilled from [log], stamped for real today. Save inserts a new row
+     * ([editingFoodLogId] stays null).
+     */
+    fun cloneFoodLogToToday(log: FoodLog) {
+        viewModelScope.launch {
+            val draft = repository.mealLogToMealDraft(log).copy(
+                timestamp = DateUtils.timestampOnDate(_realToday.value)
+            )
+            _analysisState.update {
+                it.copy(
+                    mealDraft = draft,
+                    foodDraft = null,
+                    editingFoodLogId = null,
+                    reviewMessage = null
+                )
+            }
+            _cloneMealRequest.value = draft
+        }
+    }
+
+    /**
+     * Opens the workout editor prefilled from [log] in clone mode. Save inserts a new today
+     * session. Simple AI exercise logs (no set breakdown) get a cardio draft so the user can
+     * still confirm or tweak before saving.
+     */
+    fun cloneWorkoutToToday(log: ExerciseLog) {
+        viewModelScope.launch {
+            val details = repository.getWorkoutDetails(log.id)
+            val draft = if (details != null) {
+                WorkoutDraft(
+                    name = details.session.name,
+                    durationMinutes = details.session.durationMinutes,
+                    exercises = details.exercises.map {
+                        ExerciseDraft(
+                            name = it.name,
+                            sets = it.sets,
+                            reps = it.reps,
+                            weightKg = it.weightKg,
+                            equipment = it.equipment,
+                            durationMinutes = it.durationMinutes,
+                            distanceKm = it.distanceKm
+                        )
+                    }
+                )
+            } else {
+                WorkoutDraft(
+                    name = log.activityName,
+                    durationMinutes = log.durationMinutes.coerceAtLeast(5),
+                    exercises = listOf(
+                        ExerciseDraft(
+                            name = log.activityName,
+                            sets = 1,
+                            reps = 1,
+                            equipment = Equipment.CARDIO,
+                            durationMinutes = log.durationMinutes.coerceAtLeast(1)
+                        )
+                    )
+                )
+            }
+            _editingWorkout.value = WorkoutEditUiState(
+                exerciseLogId = 0,
+                sessionId = 0,
+                draft = draft,
+                isClone = true
+            )
         }
     }
 
@@ -1429,18 +1689,22 @@ class MainViewModel(
     private fun buildUserStateContext(): String {
         val state = dashboardState.value
         val profile = state.profile
+        val latest = latestMeasurement.value
         return JSONObject().apply {
-            put("date", today)
+            put("date", _selectedDate.value)
             put("age", profile?.age ?: JSONObject.NULL)
             put("sex", profile?.sex ?: JSONObject.NULL)
             put("goal", profile?.goal ?: JSONObject.NULL)
+            put("activity_level", profile?.activityLevel ?: JSONObject.NULL)
             put("weight_kg", profile?.weightKg ?: JSONObject.NULL)
             put("height_cm", profile?.heightCm ?: JSONObject.NULL)
             put("daily_target_calories", state.targetCalories)
+            put("target_protein_g", state.targetProtein)
             put("consumed_calories_today", state.consumedCalories)
             put("burned_calories_today", state.burnedCalories)
             put("net_calories_today", state.netCalories)
             put("remaining_calories_today", state.remainingCalories)
+            put("latest_measurement", latest?.let(::measurementJson) ?: JSONObject.NULL)
         }.toString()
     }
 
@@ -1483,36 +1747,56 @@ class MainViewModel(
         }.toString()
     }
 
-    /** Body-composition series + nutrition/exercise trends, for the AI progress insight. */
-    private fun buildProgressContext(): String {
+    /**
+     * Body-composition series + nutrition/exercise trends for the AI progress insight.
+     * Past ~30 days are day-level detail; older history is rolled into concise calendar-month
+     * averages so the prompt stays token-efficient.
+     */
+    private suspend fun buildProgressContext(): String {
         val profile = dashboardState.value.profile
-        val measurements = bodyMeasurements.value.take(30)
-        val weeklyFoodData = weeklyFood.value
-        val monthlyFoodData = monthlyFood.value
-        val weeklyExerciseData = weeklyExercise.value
-        val monthlyExerciseData = monthlyExercise.value
-        val monthlyBurnedByDate = monthlyExerciseData.associate { it.dateString to it.totalBurned }
-        val weeklyBurnedByDate = weeklyExerciseData.associate { it.dateString to it.totalBurned }
+        val today = _realToday.value.ifBlank { DateUtils.today() }
+        // Inclusive 30-day window ending today.
+        val detailCutoff = DateUtils.addDays(today, -(PROGRESS_DETAIL_DAYS - 1))
+
+        val allFood = repository.getAllFoodDailySummaries()
+        val allExercise = repository.getAllExerciseDailySummaries()
+        val allMeasurements = repository.getAllBodyMeasurementsOnce()
+
+        val burnedByDate = allExercise.associate { it.dateString to it.totalBurned }
+
+        val recentFood = allFood.filter { it.dateString >= detailCutoff }
+        val olderFood = allFood.filter { it.dateString < detailCutoff }
+        val recentExercise = allExercise.filter { it.dateString >= detailCutoff }
+        val olderExercise = allExercise.filter { it.dateString < detailCutoff }
+
+        val recentMeasurements = allMeasurements.filter { it.dateString >= detailCutoff }
+        val olderMeasurements = allMeasurements.filter { it.dateString < detailCutoff }
 
         val measurementSeries = JSONArray().apply {
-            measurements.reversed().forEach { put(measurementJson(it)) }
+            recentMeasurements.asReversed().forEach { put(measurementJson(it)) }
         }
-        val weeklyFoodSeries = buildNutritionSeries(weeklyFoodData, weeklyBurnedByDate)
-        val monthlyFoodSeries = buildNutritionSeries(monthlyFoodData, monthlyBurnedByDate)
-        val weeklyExerciseSeries = buildExerciseSeries(weeklyExerciseData)
-        val monthlyExerciseSeries = buildExerciseSeries(monthlyExerciseData)
+        val priorBodyMonths = buildPriorMonthBodySeries(olderMeasurements)
+        val dailyFoodSeries = buildNutritionSeries(recentFood, burnedByDate)
+        val priorFoodMonths = buildPriorMonthNutritionSeries(olderFood, burnedByDate)
+        val dailyExerciseSeries = buildExerciseSeries(recentExercise)
+        val priorExerciseMonths = buildPriorMonthExerciseSeries(olderExercise)
 
-        val avgNet = monthlyFoodData.takeIf { it.isNotEmpty() }
-            ?.map { it.totalCalories - (monthlyBurnedByDate[it.dateString] ?: 0) }
+        val avgNet = recentFood.takeIf { it.isNotEmpty() }
+            ?.map { it.totalCalories - (burnedByDate[it.dateString] ?: 0) }
             ?.average()
-        val eatBackRatio = monthlyExerciseData.sumOf { it.totalBurned }.takeIf { it > 0 }?.let { totalBurned ->
-            val avgIntakeOnExerciseDays = monthlyFoodData
-                .filter { (monthlyBurnedByDate[it.dateString] ?: 0) > 0 }
+        val eatBackRatio = recentExercise.sumOf { it.totalBurned }.takeIf { it > 0 }?.let { totalBurned ->
+            val avgIntakeOnExerciseDays = recentFood
+                .filter { (burnedByDate[it.dateString] ?: 0) > 0 }
                 .sumOf { it.totalCalories }
             avgIntakeOnExerciseDays.toDouble() / totalBurned
         }
 
         return JSONObject().apply {
+            put("age", profile?.age?.takeIf { it > 0 } ?: JSONObject.NULL)
+            put("sex", profile?.sex?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
+            put("height_cm", profile?.heightCm?.takeIf { it > 0 } ?: JSONObject.NULL)
+            put("weight_kg", profile?.weightKg?.takeIf { it > 0 } ?: JSONObject.NULL)
+            put("activity_level", profile?.activityLevel ?: JSONObject.NULL)
             put("goal", profile?.goal ?: JSONObject.NULL)
             put("target_calories_rest_day_baseline", dashboardState.value.targetCalories)
             put("target_protein_g", dashboardState.value.targetProtein)
@@ -1524,13 +1808,21 @@ class MainViewModel(
                     "(calories eaten minus calories burned via exercise) each day, so exercise " +
                     "calories are automatically credited back to that day's eating allowance."
             )
+            put(
+                "metrics_granularity_note",
+                "nutrition_daily / exercise_daily / body_measurements cover the past " +
+                    "$PROGRESS_DETAIL_DAYS days in detail. nutrition_prior_months / " +
+                    "exercise_prior_months / body_prior_months summarise older history as " +
+                    "calendar-month averages (omit if empty)."
+            )
             put("avg_daily_net_calories_recent", avgNet ?: JSONObject.NULL)
             put("avg_exercise_calorie_eat_back_ratio", eatBackRatio ?: JSONObject.NULL)
             put("body_measurements", measurementSeries)
-            put("nutrition_weekly", weeklyFoodSeries)
-            put("nutrition_daily", monthlyFoodSeries)
-            put("exercise_weekly", weeklyExerciseSeries)
-            put("exercise_daily", monthlyExerciseSeries)
+            put("body_prior_months", priorBodyMonths)
+            put("nutrition_daily", dailyFoodSeries)
+            put("nutrition_prior_months", priorFoodMonths)
+            put("exercise_daily", dailyExerciseSeries)
+            put("exercise_prior_months", priorExerciseMonths)
         }.toString()
     }
 
@@ -1538,7 +1830,7 @@ class MainViewModel(
         food: List<FoodDailySummary>,
         burnedByDate: Map<String, Int>
     ): JSONArray = JSONArray().apply {
-        food.reversed().forEach { s ->
+        food.asReversed().forEach { s ->
             val burned = burnedByDate[s.dateString] ?: 0
             put(JSONObject().apply {
                 put("date", s.dateString)
@@ -1554,13 +1846,87 @@ class MainViewModel(
 
     private fun buildExerciseSeries(exercise: List<ExerciseDailySummary>): JSONArray =
         JSONArray().apply {
-            exercise.reversed().forEach { s ->
+            exercise.asReversed().forEach { s ->
                 put(JSONObject().apply {
                     put("date", s.dateString)
                     put("calories_burned", s.totalBurned)
                 })
             }
         }
+
+    /** Calendar-month averages for food days older than the detailed window (oldest → newest). */
+    private fun buildPriorMonthNutritionSeries(
+        food: List<FoodDailySummary>,
+        burnedByDate: Map<String, Int>
+    ): JSONArray {
+        if (food.isEmpty()) return JSONArray()
+        val byMonth = food.groupBy { it.dateString.take(7) }.toSortedMap()
+        return JSONArray().apply {
+            byMonth.forEach { (month, days) ->
+                val n = days.size
+                val burned = days.map { burnedByDate[it.dateString] ?: 0 }
+                put(JSONObject().apply {
+                    put("month", month)
+                    put("days_logged", n)
+                    put("avg_calories", days.map { it.totalCalories }.average().roundToInt())
+                    put("avg_protein_g", days.map { it.totalProtein }.average().roundToInt())
+                    put("avg_carbs_g", days.map { it.totalCarbs }.average().roundToInt())
+                    put("avg_fats_g", days.map { it.totalFats }.average().roundToInt())
+                    put("avg_calories_burned", burned.average().roundToInt())
+                    put(
+                        "avg_net_calories",
+                        days.map { it.totalCalories - (burnedByDate[it.dateString] ?: 0) }
+                            .average()
+                            .roundToInt()
+                    )
+                    put("exercise_days", burned.count { it > 0 })
+                })
+            }
+        }
+    }
+
+    /** Calendar-month exercise totals for days older than the detailed window (oldest → newest). */
+    private fun buildPriorMonthExerciseSeries(
+        exercise: List<ExerciseDailySummary>
+    ): JSONArray {
+        if (exercise.isEmpty()) return JSONArray()
+        val byMonth = exercise.groupBy { it.dateString.take(7) }.toSortedMap()
+        return JSONArray().apply {
+            byMonth.forEach { (month, days) ->
+                put(JSONObject().apply {
+                    put("month", month)
+                    put("days_trained", days.size)
+                    put("avg_burn_kcal", days.map { it.totalBurned }.average().roundToInt())
+                    put("total_burn_kcal", days.sumOf { it.totalBurned })
+                })
+            }
+        }
+    }
+
+    /** One concise row per calendar month of older body readings (oldest → newest). */
+    private fun buildPriorMonthBodySeries(measurements: List<BodyMeasurement>): JSONArray {
+        if (measurements.isEmpty()) return JSONArray()
+        val byMonth = measurements.groupBy { it.dateString.take(7) }.toSortedMap()
+        return JSONArray().apply {
+            byMonth.forEach { (month, readings) ->
+                // readings arrive newest-first from Room; pick chronological ends within the month.
+                val oldest = readings.last()
+                val newest = readings.first()
+                put(JSONObject().apply {
+                    put("month", month)
+                    put("readings", readings.size)
+                    put("avg_weight_kg", readings.map { it.weightKg }.average())
+                    put("start_weight_kg", oldest.weightKg)
+                    put("end_weight_kg", newest.weightKg)
+                    newest.bodyFatPct?.let { put("end_body_fat_pct", it) }
+                    newest.muscleMassKg?.let { put("end_muscle_mass_kg", it) }
+                    newest.visceralFat?.let { put("end_visceral_fat", it) }
+                    newest.bmr?.let { put("end_bmr", it) }
+                    newest.bmi?.let { put("end_bmi", it) }
+                })
+            }
+        }
+    }
 
     /** Serializes a body reading to JSON, omitting null smart-scale fields. */
     private fun measurementJson(m: BodyMeasurement): JSONObject = JSONObject().apply {
@@ -1583,13 +1949,10 @@ class MainViewModel(
         m.fatMassKg?.let { put("fat_mass_kg", it) }
     }
 
-    private data class Totals(
-        val calories: Int,
-        val burned: Int,
-        val protein: Int,
-        val carbs: Int,
-        val fats: Int
-    )
+    companion object {
+        /** Calendar days of day-level nutrition/exercise/body detail for AI insights. */
+        private const val PROGRESS_DETAIL_DAYS = 30
+    }
 }
 
 /** Manual ViewModel factory (no DI framework); wires the shared repositories in. */

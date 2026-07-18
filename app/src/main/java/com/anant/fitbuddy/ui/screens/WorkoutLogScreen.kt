@@ -63,6 +63,7 @@ import com.anant.fitbuddy.data.model.EXERCISE_EQUIPMENT_GROUPS
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.WorkoutDraft
+import com.anant.fitbuddy.ui.components.pressable
 import com.anant.fitbuddy.ui.viewmodel.WorkoutLogUiState
 
 /**
@@ -466,7 +467,7 @@ private fun ExercisePickerRow(exercise: CommonExercise, enabled: Boolean, onPick
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onPick)
+            .pressable(enabled = enabled, onClick = onPick)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -487,7 +488,7 @@ private fun CustomExerciseRow(name: String, isLoading: Boolean, onPick: () -> Un
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !isLoading, onClick = onPick),
+            .pressable(enabled = !isLoading, onClick = onPick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Row(

@@ -19,6 +19,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -26,6 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ScrollableTabRow
@@ -53,13 +56,17 @@ import com.anant.fitbuddy.ui.components.CalorieRing
 import com.anant.fitbuddy.ui.components.CustomBarChart
 import com.anant.fitbuddy.ui.components.CustomLineChart
 import com.anant.fitbuddy.ui.components.CustomStackedBarChart
+import com.anant.fitbuddy.ui.components.MacroCarbsColor
+import com.anant.fitbuddy.ui.components.MacroFatsColor
+import com.anant.fitbuddy.ui.components.MacroProteinColor
 import com.anant.fitbuddy.ui.components.MetricLineChart
 import com.anant.fitbuddy.ui.viewmodel.ProgressInsightUiState
+import com.anant.fitbuddy.util.DateUtils
 import kotlinx.coroutines.launch
 
-private val ProteinColor = Color(0xFFFF7043)
-private val CarbsColor = Color(0xFF26A69A)
-private val FatsColor = Color(0xFFFFCA28)
+private val ProteinColor = MacroProteinColor
+private val CarbsColor = MacroCarbsColor
+private val FatsColor = MacroFatsColor
 
 private data class BodyMetric(
     val label: String,
@@ -95,8 +102,11 @@ fun AnalyticsScreen(
     monthlyExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCalories: Int,
+    analyticsMonthYm: String,
+    realToday: String,
     progressInsightState: ProgressInsightUiState,
     isAiConfigured: Boolean,
+    onShiftMonth: (Int) -> Unit,
     onRequestInsight: () -> Unit,
     onOpenChat: () -> Unit,
     modifier: Modifier = Modifier
@@ -106,6 +116,11 @@ fun AnalyticsScreen(
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
     val exerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
+    val currentMonthYm = DateUtils.yearMonth(realToday)
+    val isCurrentMonth = analyticsMonthYm == currentMonthYm
+    val monthLabel = remember(analyticsMonthYm, isCurrentMonth) {
+        if (isCurrentMonth) "This month" else DateUtils.monthLabel(analyticsMonthYm)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -123,6 +138,23 @@ fun AnalyticsScreen(
                         Text(label)
                     }
                 }
+            }
+        }
+
+        if (selectedRange == 1) {
+            item {
+                MonthRangeNavigator(
+                    label = monthLabel,
+                    rangeSubtitle = if (isCurrentMonth) {
+                        DateUtils.monthLabel(analyticsMonthYm)
+                    } else {
+                        null
+                    },
+                    canGoPrev = true,
+                    canGoNext = analyticsMonthYm < currentMonthYm,
+                    onPrev = { onShiftMonth(-1) },
+                    onNext = { onShiftMonth(1) }
+                )
             }
         }
 
@@ -145,6 +177,12 @@ fun AnalyticsScreen(
             ChartCard(title = "Macronutrient Trend") {
                 MacroLegend()
                 Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Bar height = calories · color share = P/C/F · scrub to inspect",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
                 CustomStackedBarChart(
                     foodSummaries = foodSummaries,
                     modifier = Modifier
@@ -162,6 +200,62 @@ fun AnalyticsScreen(
                 isAiConfigured = isAiConfigured,
                 onRequestInsight = onRequestInsight,
                 onOpenChat = onOpenChat
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthRangeNavigator(
+    label: String,
+    rangeSubtitle: String?,
+    canGoPrev: Boolean,
+    canGoNext: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        IconButton(onClick = onPrev, enabled = canGoPrev) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = "Previous month",
+                tint = if (canGoPrev) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                }
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (rangeSubtitle != null) {
+                Text(
+                    text = rangeSubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        IconButton(onClick = onNext, enabled = canGoNext) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Next month",
+                tint = if (canGoNext) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                }
             )
         }
     }

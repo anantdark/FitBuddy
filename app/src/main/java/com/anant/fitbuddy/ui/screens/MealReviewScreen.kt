@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
+import com.anant.fitbuddy.ui.components.pressable
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -172,7 +173,7 @@ private fun MealFoodReviewCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .pressable(onClick = onEdit)
     ) {
         Row(
             modifier = Modifier

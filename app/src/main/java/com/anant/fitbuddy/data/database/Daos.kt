@@ -74,7 +74,7 @@ interface FoodLogDao {
     @Query("DELETE FROM food_logs")
     suspend fun clearAll()
 
-    // For graphs: returns daily totals for last N days
+    // For graphs: returns daily totals for last N days that have logs
     @Query("""
         SELECT dateString, SUM(calories) as totalCalories, SUM(proteinG) as totalProtein, SUM(carbsG) as totalCarbs, SUM(fatsG) as totalFats 
         FROM food_logs 
@@ -83,6 +83,24 @@ interface FoodLogDao {
         LIMIT :limit
     """)
     fun getHistoricalFoodSummaries(limit: Int): Flow<List<FoodDailySummary>>
+
+    /** Every day that has food logs (newest first) — for AI progress context. */
+    @Query("""
+        SELECT dateString, SUM(calories) as totalCalories, SUM(proteinG) as totalProtein, SUM(carbsG) as totalCarbs, SUM(fatsG) as totalFats 
+        FROM food_logs 
+        GROUP BY dateString 
+        ORDER BY dateString DESC
+    """)
+    suspend fun getAllFoodDailySummaries(): List<FoodDailySummary>
+
+    @Query("""
+        SELECT dateString, SUM(calories) as totalCalories, SUM(proteinG) as totalProtein, SUM(carbsG) as totalCarbs, SUM(fatsG) as totalFats 
+        FROM food_logs 
+        WHERE dateString >= :startDate AND dateString <= :endDate
+        GROUP BY dateString 
+        ORDER BY dateString DESC
+    """)
+    fun getFoodSummariesBetween(startDate: String, endDate: String): Flow<List<FoodDailySummary>>
 }
 
 @Dao
@@ -149,7 +167,7 @@ interface ExerciseLogDao {
     @Query("DELETE FROM exercise_logs")
     suspend fun clearAll()
 
-    // For graphs: returns daily total burned for last N days
+    // For graphs: returns daily total burned for last N days that have logs
     @Query("""
         SELECT dateString, SUM(caloriesBurned) as totalBurned 
         FROM exercise_logs 
@@ -158,6 +176,24 @@ interface ExerciseLogDao {
         LIMIT :limit
     """)
     fun getHistoricalExerciseSummaries(limit: Int): Flow<List<ExerciseDailySummary>>
+
+    /** Every day that has exercise logs (newest first) — for AI progress context. */
+    @Query("""
+        SELECT dateString, SUM(caloriesBurned) as totalBurned 
+        FROM exercise_logs 
+        GROUP BY dateString 
+        ORDER BY dateString DESC
+    """)
+    suspend fun getAllExerciseDailySummaries(): List<ExerciseDailySummary>
+
+    @Query("""
+        SELECT dateString, SUM(caloriesBurned) as totalBurned 
+        FROM exercise_logs 
+        WHERE dateString >= :startDate AND dateString <= :endDate
+        GROUP BY dateString 
+        ORDER BY dateString DESC
+    """)
+    fun getExerciseSummariesBetween(startDate: String, endDate: String): Flow<List<ExerciseDailySummary>>
 }
 
 data class ExerciseDailySummary(

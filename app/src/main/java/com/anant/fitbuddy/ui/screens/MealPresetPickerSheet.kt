@@ -1,6 +1,5 @@
 package com.anant.fitbuddy.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,8 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.MealPreset
+import com.anant.fitbuddy.ui.components.pressable
 
-/** Bottom sheet listing saved meals; tap to quick-log the whole meal to today's log. */
+/** Bottom sheet listing saved meals; tap to quick-log the whole meal to the active day. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MealPresetPickerSheet(
@@ -47,7 +47,7 @@ fun MealPresetPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = "Tap a meal to log it to today. Save meals from the review screen bookmark.",
+                text = "Tap a meal to log it to the day you're viewing. Save meals from the review screen bookmark.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -85,7 +85,7 @@ private fun MealPresetRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onPick)
+            .pressable(onClick = onPick)
             .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

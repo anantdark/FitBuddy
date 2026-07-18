@@ -550,8 +550,10 @@ class RemoteAiDataSource(
           }
         }
 
-        Use the user's current state to personalise estimates (e.g. body weight affects calories
-        burned). Current user state (JSON):
+        Use the user's current state only to personalise exercise burn (body weight, age, sex)
+        and remaining-calorie awareness. Do NOT inflate or deflate food-macro estimates to match
+        daily targets — report realistic dish macros from what is seen/described. Current user
+        state (JSON):
         $userStateContextJson
 
         ${if (hasImage) "An image is attached. First check whether it actually contains food; if it does not, return NOT_IDENTIFIED." else ""}
@@ -586,16 +588,41 @@ class RemoteAiDataSource(
         surplus; mention this "eat-back" mechanic briefly in the rationale if the user logs
         exercise often, per "avg_daily_calories_burned_recent" in the data below.
 
+        Personalise from the ACTUAL fields present in the JSON — never invent missing demographics
+        or scale metrics. Required anchors when available: age, sex, height_cm, current_weight_kg,
+        activity_level, stated_goal. When "latest_measurement" is present, prefer its fields over
+        guesses: bmr, bmi, body_fat_pct, muscle_mass_kg / skeletal_muscle_mass_kg /
+        fat_free_mass_kg, fat_mass_kg, visceral_fat, metabolic_age, etc. Example: an older
+        FEMALE with LOSE_WEIGHT needs a lower calorie budget and about 1 g/kg protein — do NOT
+        assign young-male bodybuilding macros just because "protein is good".
+
         Design realistic daily targets:
-        - "daily_target_calories": an integer kcal target appropriate for the goal and their BMR /
-          activity level (use provided BMR when available; otherwise estimate). This is the REST-DAY
-          baseline described above, not an exercise-inclusive number.
-        - Macros in grams, summing (roughly) to the calorie target (protein 4 kcal/g, carbs 4 kcal/g,
-          fats 9 kcal/g). Bias protein high enough to protect/build muscle (about 1.6-2.2 g/kg
-          bodyweight). Keep it practical for North Indian meals (roti/dal/sabzi, dal-chawal,
-          paratha breakfasts, paneer/chole/rajma plates — not Western meal templates).
-        - "rationale": 2-4 sentences explaining the goal choice and the numbers, referencing the
-          user's actual data (weight, body fat, muscle, BMR, etc.) where relevant.
+        - Calories: sex-specific BMR (prefer measured bmr from latest_measurement; else
+          Mifflin–St Jeor using age, sex, height_cm, current_weight_kg). Scale by activity_level
+          to a rest-day TDEE. Then adjust for the goal with modest, sustainable deltas:
+          LOSE_WEIGHT ~300–500 kcal below TDEE (smaller deficit for older adults / lower BMR /
+          smaller women; floor ~1200 kcal women / ~1500 kcal men unless the person is notably
+          small); RECOMP near maintenance; GAIN_MUSCLE ~200–300 kcal above TDEE. Prefer
+          conservative numbers. This is the REST-DAY baseline, not exercise-inclusive.
+        - Protein (g per kg CURRENT bodyweight) — match goal; modulate with age/sex/body comp;
+          never default to bodybuilding-high protein:
+            · LOSE_WEIGHT: ~1.0 g/kg. Fine for muscle preservation in general fat loss. Older
+              adults and many women do not need more than this for weight loss; do not push
+              1.5–2 g/kg on a cut unless stated_goal is RECOMP/GAIN_MUSCLE.
+            · RECOMP or GAIN_MUSCLE: 1.5–2.0 g/kg (high protein). Use the LOWER end when heavier,
+              older, female, calorie budget is tight, or body_fat_pct is high; UPPER end only when
+              lean, actively strength-training, and younger/mid-adult. Cap at ~2.0 g/kg — never
+              invent 2.2+ g/kg.
+          If muscle_mass_kg or fat_free_mass_kg is logged and protein-at-bodyweight looks
+          extreme for a high-BF person on LOSE_WEIGHT, stay near 1.0 g/kg bodyweight (do not
+          secretly switch to 2 g/kg "per lean mass" for fat-loss goals).
+        - Fats ~0.8–1.0 g/kg or ~20–30% of calories (do not starve fats for older women). Fill
+          remaining calories with carbs. Macros must sum roughly to the calorie target
+          (protein/carbs 4 kcal/g, fats 9 kcal/g). Keep splits practical for North Indian meals
+          (roti/dal/sabzi, dal-chawal, paratha, paneer/chole/rajma — not Western templates).
+          Round to whole grams.
+        - "rationale": 2–4 sentences citing age, sex, weight/height, goal, and any used
+          body-comp metrics (bf%, muscle, BMR/BMI), plus the protein g/kg you applied.
 
         Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
         EXACTLY this schema:
@@ -620,9 +647,12 @@ class RemoteAiDataSource(
         (dal, roti, sabzi, dahi, paneer, chole, rajma) over unfamiliar Western substitutes.
 
         The data is a COMPRESSED snapshot (oldest→newest):
-        - BODY: date|kg|bf%|muscle_kg|visceral|bmr
-        - NUT7 / NUT30: date|calories_in|calories_burned|net|protein|carbs|fats
-        - EX7 / EX30: date|burn_kcal
+        - Header may include age, sex, height_cm, weight_kg, activity, goal, and macro targets
+        - BODY30: past-month day-level scale readings (date|kg|bf%|muscle_kg|visceral|bmr|bmi)
+        - BODY_PRIOR: older months as concise averages (month|n|avg_kg|start/end weights + end comps)
+        - NUT30: past-month daily nutrition (date|calories_in|calories_burned|net|protein|carbs|fats)
+        - NUT_PRIOR: older months as averages (month|days|avg_in|avg_burn|avg_net|macros|ex_days)
+        - EX30 / EX_PRIOR: past-month daily burn vs older month averages/totals
         - "targets" kcal is a REST-DAY baseline compared against NET calories (in - burn) each day.
 
         IMPORTANT — this app credits exercise calories back onto the day's eating allowance
@@ -634,15 +664,18 @@ class RemoteAiDataSource(
         Don't assume this is happening if the data doesn't support it.
 
         Focus on: direction of weight/body-fat/muscle trends, whether intake and training align with
-        their goal, and 2-4 specific, actionable recommendations. Be encouraging and realistic; do
-        NOT invent data that isn't present. If there is too little data, say so and suggest logging
-        more consistently.
+        their goal, and 2-4 specific, actionable recommendations grounded in THEIR age, sex, and
+        body-comp data when present. Be encouraging and realistic; do NOT invent data that isn't
+        present. If there is too little data, say so and suggest logging more consistently.
+        Protein advice: ~1 g/kg bodyweight is enough for LOSE_WEIGHT / maintenance (especially
+        older adults and many women — do not tell them to "stuff protein"); reserve 1.5–2 g/kg
+        only for RECOMP or GAIN_MUSCLE. Never push 2+ g/kg as a default.
 
         Also compute "body_score": an integer 0-100 holistic body-composition score (higher is
         better) reflecting how well the user's CURRENT body composition and its recent trend align
-        with their stated goal. Weigh body fat %, muscle mass, visceral fat, and trend direction.
-        Set "body_score" to null (not a guess) if BODY has fewer than 2 readings or lacks enough
-        fields to judge.
+        with their stated goal. Weigh body fat %, muscle mass, visceral fat, and trend direction
+        relative to age/sex norms when those fields exist. Set "body_score" to null (not a guess)
+        if BODY30 / body_measurements has fewer than 2 readings or lacks enough fields to judge.
 
         Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
         EXACTLY this schema:
@@ -663,8 +696,12 @@ class RemoteAiDataSource(
         default to North Indian staples (roti, dal, sabzi, dahi, rice, paneer) when relevant.
 
         Below is the FULL progress dataset (JSON). Treat it as authoritative — do not invent numbers
-        not present here. Use "body_measurements", "nutrition_weekly", "nutrition_daily",
-        "exercise_weekly", and "exercise_daily" for detailed per-day analysis.
+        not present here. Use profile fields (age, sex, height_cm, weight_kg, activity_level, goal)
+        plus day-level "body_measurements", "nutrition_daily", and "exercise_daily" for the past
+        ~30 days, and concise calendar-month averages in "body_prior_months",
+        "nutrition_prior_months", and "exercise_prior_months" for older history. When scale metrics
+        exist (bmi, body_fat_pct, muscle_mass_kg, bmr, visceral_fat, etc.), use them to personalise
+        advice.
 
         --- DATA START ---
         $contextJson
@@ -677,6 +714,10 @@ class RemoteAiDataSource(
         - On exercise days, check whether intake rose to match burn; exercise estimates often run
           high, so eating back all of it can stall fat loss.
 
+        Macro guidance if asked: personalise to age, sex, goal, and body composition. ~1 g/kg
+        protein is enough for fat loss / maintenance (do not push high protein on older women
+        cutting weight); 1.5–2 g/kg only for recomp / muscle-gain goals. Never default to 2+ g/kg.
+
         You already opened the conversation with an initial progress insight (in chat history).
         Continue naturally: answer follow-ups about trends, graphs, body composition, macros,
         training, and goal alignment. Reference specific dates/values from the data when useful.
@@ -686,8 +727,9 @@ class RemoteAiDataSource(
 
     private fun buildWorkoutCaloriesPrompt(contextJson: String): String = """
         You are FitBuddy, an exercise-physiology estimator. Estimate the energy expenditure
-        of the logged workout session below, personalised to the user's body factors (weight, age,
-        sex, activity level) using standard MET (metabolic equivalent) methodology.
+        of the logged workout session below, personalised to the user's body factors (weight_kg,
+        age, sex, activity_level) using standard MET (metabolic equivalent) methodology. Prefer
+        measured fields from the JSON when present; do not invent missing demographics.
 
         Guidance:
         - Use each exercise's equipment/type, sets, reps and weight to judge intensity (heavier
@@ -700,8 +742,12 @@ class RemoteAiDataSource(
           clearly unrealistic for the number of exercises/sets logged; otherwise estimate a
           realistic total including rest between sets.
         - "calories_burned": kcal = MET * weight_kg * (duration_minutes / 60), personalised to the
-          provided body weight (heavier users burn more for the same activity).
+          provided body weight (heavier users burn more for the same activity). Sex/age mainly
+          inform intensity judgement when the session description is ambiguous — do not invent
+          a different formula.
         - "intensity_note": ONE short phrase (e.g. "Moderate strength session").
+        - Be conservative: exercise calorie estimates often run high; prefer the lower plausible
+          MET when uncertain.
 
         Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
         EXACTLY this schema:
