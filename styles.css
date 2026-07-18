@@ -61,22 +61,22 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-body);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 1.15rem;
   color: var(--ink);
   background: var(--paper);
   line-height: 1.6;
   letter-spacing: 0.01em;
   /* subpixel smoothing reads thicker than antialiased on macOS */
-  -webkit-font-smoothing: auto;
-  -moz-osx-font-smoothing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   transition: background-color 0.22s ease, color 0.22s ease;
 }
 
 a {
   color: var(--flame-deep);
-  font-weight: 800;
+  font-weight: 400;
   text-decoration-thickness: 2px;
   text-underline-offset: 0.16em;
 }
@@ -123,7 +123,7 @@ a:hover {
   color: var(--ink);
   text-decoration: none;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 1.15rem;
   letter-spacing: -0.03em;
 }
@@ -155,13 +155,13 @@ a:hover {
   align-items: center;
   gap: 0.85rem;
   font-size: 0.95rem;
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .site-header nav a {
   color: var(--ink-soft);
   text-decoration: none;
-  font-weight: 800;
+  font-weight: 400;
   padding: 0.2rem 0;
   white-space: nowrap;
 }
@@ -180,7 +180,7 @@ a:hover {
   border-radius: 10px;
   background: var(--ink);
   color: var(--paper) !important;
-  font-weight: 800;
+  font-weight: 400;
 }
 
 [data-theme="dark"] .site-header nav .nav-download {
@@ -284,7 +284,7 @@ a:hover {
 .brand-wordmark {
   margin: 0 0 0.75rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: clamp(3.6rem, 9vw, 5.75rem);
   line-height: 0.92;
   letter-spacing: -0.045em;
@@ -307,7 +307,7 @@ a:hover {
 .hero h1 {
   margin: 0 0 1rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: clamp(1.85rem, 3.6vw, 2.55rem);
   line-height: 1.12;
   letter-spacing: -0.03em;
@@ -319,7 +319,7 @@ a:hover {
   margin: 0 0 1.75rem;
   max-width: 34ch;
   font-size: 1.25rem;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.5;
   color: var(--ink);
   animation: rise 0.7s ease-out 0.12s both;
@@ -341,7 +341,7 @@ a:hover {
   padding: 0.75rem 1.45rem;
   border-radius: 11px;
   font-family: var(--font-body);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 1.02rem;
   letter-spacing: -0.015em;
   text-decoration: none;
@@ -378,7 +378,7 @@ a:hover {
 .version-line {
   margin: 1.05rem 0 0;
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--ink-soft);
   animation: rise 0.7s ease-out 0.24s both;
 }
@@ -442,7 +442,7 @@ a:hover {
   max-width: 28ch;
   text-align: center;
   font-size: 0.95rem;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--ink-soft);
   min-height: 2.8em;
@@ -530,7 +530,7 @@ a:hover {
 .doc-band h2 {
   margin: 0 0 0.65rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: clamp(2rem, 3.6vw, 2.7rem);
   letter-spacing: -0.035em;
   color: var(--ink);
@@ -541,7 +541,7 @@ a:hover {
   max-width: 42ch;
   color: var(--ink);
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.55;
 }
 
@@ -573,7 +573,7 @@ a:hover {
   display: block;
   margin-bottom: 0.55rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 0.95rem;
   letter-spacing: 0.08em;
   color: var(--mint);
@@ -583,7 +583,7 @@ a:hover {
 .doc-grid h3 {
   margin: 0 0 0.45rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 1.35rem;
   letter-spacing: -0.025em;
   color: var(--ink);
@@ -594,7 +594,7 @@ a:hover {
   margin: 0;
   color: var(--ink);
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.55;
 }
 
@@ -620,7 +620,7 @@ a:hover {
   display: block;
   margin-bottom: 0.5rem;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 400;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--mint);
@@ -639,7 +639,7 @@ a:hover {
   margin: 1.35rem 0 0;
   color: var(--ink-soft);
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: 400;
   max-width: 50ch;
   line-height: 1.55;
 }
@@ -655,7 +655,7 @@ a:hover {
   border-top: 1px solid var(--line);
   color: var(--ink-soft);
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .site-footer p {
@@ -665,7 +665,7 @@ a:hover {
 .site-footer a {
   color: var(--ink-soft);
   text-decoration: none;
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .site-footer a:hover {
@@ -694,7 +694,7 @@ a:hover {
   margin: 0 0 0.75rem;
   font-family: var(--font-body);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 400;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mint);
@@ -715,7 +715,7 @@ a:hover {
   color: var(--ink-soft);
   text-decoration: none;
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .docs-nav a:hover,
@@ -737,7 +737,7 @@ a:hover {
 .docs-hero .eyebrow {
   margin: 0 0 0.45rem;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 400;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--mint);
@@ -746,7 +746,7 @@ a:hover {
 .docs-hero h1 {
   margin: 0 0 0.7rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: clamp(2.2rem, 4.5vw, 3.1rem);
   letter-spacing: -0.035em;
   line-height: 1.05;
@@ -758,14 +758,14 @@ a:hover {
   max-width: 48ch;
   color: var(--ink-soft);
   font-size: 1.12rem;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.55;
 }
 
 .docs-article h2 {
   margin: 2.4rem 0 0.7rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 1.5rem;
   letter-spacing: -0.025em;
   color: var(--ink);
@@ -774,7 +774,7 @@ a:hover {
 .docs-article h3 {
   margin: 1.55rem 0 0.45rem;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 400;
   font-size: 1.2rem;
   color: var(--ink);
 }
@@ -782,7 +782,7 @@ a:hover {
 .docs-article p,
 .docs-article li {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .docs-article p {
@@ -804,13 +804,13 @@ a:hover {
 
 .docs-article strong {
   color: var(--ink);
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .docs-article code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9em;
-  font-weight: 700;
+  font-weight: 400;
   padding: 0.12em 0.4em;
   border-radius: 5px;
   background: var(--paper-deep);
@@ -829,13 +829,13 @@ a:hover {
 .callout p {
   margin: 0;
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .callout p + p {
   margin-top: 0.5rem;
   color: var(--ink-soft);
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .ui-label {
@@ -846,7 +846,7 @@ a:hover {
   background: var(--surface);
   color: var(--ink);
   font-size: 0.9em;
-  font-weight: 800;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -861,7 +861,7 @@ a:hover {
 
 .faq summary {
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 400;
   color: var(--ink);
   list-style: none;
 }
@@ -876,7 +876,7 @@ a:hover {
   width: 1.15em;
   margin-right: 0.3em;
   color: var(--flame);
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .faq details[open] summary::before {
@@ -885,7 +885,7 @@ a:hover {
 
 .faq details p {
   margin: 0.75rem 0 0;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .toc {
@@ -900,7 +900,7 @@ a:hover {
 .toc strong {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 800;
+  font-weight: 400;
   color: var(--ink);
 }
 
@@ -912,7 +912,7 @@ a:hover {
 .toc a {
   color: var(--ink-soft);
   text-decoration: none;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .toc a:hover {
