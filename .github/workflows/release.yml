@@ -65,7 +65,7 @@ jobs:
         id: version
         run: |
           VERSION_CODE="${GITHUB_RUN_NUMBER}"
-          VERSION_NAME="2.2.0"
+          VERSION_NAME="2.2.${GITHUB_RUN_NUMBER}"
           TAG="v${VERSION_NAME}-build${GITHUB_RUN_NUMBER}"
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
@@ -103,7 +103,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: FitBuddy ${{ steps.version.outputs.version_name }}
+          name: FitBuddy ${{ steps.version.outputs.version_name }} (build ${{ github.run_number }})
           body: ${{ steps.notes.outputs.notes }}
           draft: false
           prerelease: false

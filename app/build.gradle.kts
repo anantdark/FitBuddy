@@ -23,7 +23,7 @@ val sentryDsnEscaped: String = sentryDsnRaw
     .replace("\"", "\\\"")
 
 // CI overrides versionCode/versionName per build via -PappVersionCode=<GITHUB_RUN_NUMBER> and
-// -PappVersionName=2.2.0 so every commit to main produces an installable
+// -PappVersionName=2.2.<GITHUB_RUN_NUMBER> so every commit to main produces an installable
 // update (same applicationId + signature + strictly higher versionCode = update, not reinstall);
 // local/dev builds keep the fallback.
 val ciVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull()
