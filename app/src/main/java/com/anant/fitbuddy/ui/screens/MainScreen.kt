@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.ui.screens
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -242,6 +243,7 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 
     if (showSettings) {
+        BackHandler { showSettings = false }
         Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
