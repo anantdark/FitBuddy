@@ -15,6 +15,12 @@ val localProperties = Properties().apply {
 }
 val openRouterApiKey: String = localProperties.getProperty("OPENROUTER_API_KEY", "")
 val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemini-2.0-flash-001")
+val sentryDsnRaw: String =
+    System.getenv("SENTRY_DSN")
+        ?: localProperties.getProperty("SENTRY_DSN", "")
+val sentryDsnEscaped: String = sentryDsnRaw
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 // CI overrides versionCode/versionName per build via -PappVersionCode=<GITHUB_RUN_NUMBER> and
 // -PappVersionName=2.1.<GITHUB_RUN_NUMBER> so every commit to main produces an installable
@@ -50,6 +56,7 @@ android {
 
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "AI_MODEL", "\"$aiModel\"")
+        buildConfigField("String", "SENTRY_DSN", "\"$sentryDsnEscaped\"")
     }
 
     signingConfigs {
@@ -141,6 +148,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.play.services.location)
     implementation(libs.retrofit)
+    implementation(libs.sentry.android)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)

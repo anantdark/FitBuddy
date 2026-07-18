@@ -27,6 +27,8 @@ import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
+import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.repository.AnalysisOutcome
@@ -282,6 +284,28 @@ class MainViewModel(
         }
     }
 
+    fun setCrashReportingEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(current.copy(crashReportingEnabled = enabled))
+            CrashReporter.setReportingEnabled(enabled)
+            if (enabled) {
+                val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+                if (settingsRepository.lastHeartbeatUtcDay() != today) {
+                    val info = HeartbeatInfo(aiProvider = settings.value.provider.name)
+                    if (CrashReporter.sendDailyHeartbeat(info)) {
+                        settingsRepository.markHeartbeatSent(today)
+                    }
+                }
+            }
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (enabled) "Crash reports enabled" else "Crash reports disabled"
+                )
+            }
+        }
+    }
+
     fun markEasterEggDiscovered() {
         viewModelScope.launch {
             val current = settings.value
@@ -479,6 +503,7 @@ class MainViewModel(
     fun lookupBarcode(barcode: String, onSuccess: (ScannedProduct) -> Unit) {
         if (_barcodeLookupLoading.value) return
         _barcodeLookupLoading.value = true
+        CrashReporter.breadcrumb("barcode", "lookup")
         viewModelScope.launch {
             runCatching { repository.lookupProductByBarcode(barcode) }
                 .onSuccess(onSuccess)
@@ -983,6 +1008,10 @@ class MainViewModel(
             pendingText = text
             pendingImage = image
         }
+        CrashReporter.breadcrumb(
+            "ai",
+            if (image != null) "analyze_photo" else "analyze_text"
+        )
         _analysisState.update { it.copy(isLoading = true, clarificationMessage = null) }
         viewModelScope.launch {
             val outcome = repository.analyze(text, image, buildUserStateContext())

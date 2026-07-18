@@ -332,6 +332,24 @@ fun MainScreen(viewModel: MainViewModel) {
                 onAutoCheckUpdatesChange = { enabled ->
                     viewModel.saveSettings(settings.copy(autoCheckUpdates = enabled))
                 },
+                onCrashReportingChange = { enabled ->
+                    viewModel.setCrashReportingEnabled(enabled)
+                },
+                onSupportIdCopied = {
+                    scope.launch {
+                        snackbarHostState.showFitBuddyPill("Support ID copied")
+                    }
+                },
+                onDeveloperUnlockHint = { remaining ->
+                    livePillMessage = "$remaining taps to go"
+                },
+                onDeveloperUnlockHintDismiss = { livePillMessage = null },
+                onDeveloperUnlocked = {
+                    livePillMessage = null
+                    scope.launch {
+                        snackbarHostState.showFitBuddyPill("Developer settings unlocked")
+                    }
+                },
                 modifier = Modifier.padding(innerPadding)
             )
         }

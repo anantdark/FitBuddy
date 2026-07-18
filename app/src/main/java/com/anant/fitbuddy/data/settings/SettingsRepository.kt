@@ -86,8 +86,27 @@ class SettingsRepository(context: Context) {
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: true,
+            supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
+            crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: true,
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false
         )
+    }
+
+    /** Ensures a stable anonymous support id exists; returns it. */
+    suspend fun ensureSupportId(): String {
+        val existing = dataStore.data.first()[KEY_SUPPORT_ID].orEmpty()
+        if (existing.isNotBlank()) return existing
+        val id = java.util.UUID.randomUUID().toString()
+        dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
+        return id
+    }
+
+    /** UTC calendar day `yyyy-MM-dd` of the last Sentry heartbeat, or null. */
+    suspend fun lastHeartbeatUtcDay(): String? =
+        dataStore.data.first()[KEY_LAST_HEARTBEAT_DAY]
+
+    suspend fun markHeartbeatSent(utcDay: String) {
+        dataStore.edit { prefs -> prefs[KEY_LAST_HEARTBEAT_DAY] = utcDay }
     }
 
     /** Active model cooldowns (expired entries already pruned). Survives process death. */
@@ -162,6 +181,10 @@ class SettingsRepository(context: Context) {
             prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
             prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
+            prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
+            if (settings.supportId.isNotBlank()) {
+                prefs[KEY_SUPPORT_ID] = settings.supportId
+            }
             prefs[KEY_EASTER_EGG] = settings.easterEggDiscovered
             // Cooldowns stay until UTC midnight; AI calls still update active after success.
             // Save always resets Auto selection to the preferred provider's current models
@@ -207,6 +230,9 @@ class SettingsRepository(context: Context) {
         val KEY_ACTIVE_TEXT_MODEL = stringPreferencesKey("active_text_model")
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
+        val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
+        val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
+        val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
         val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
         val KEY_MODEL_COOLDOWNS = stringPreferencesKey("ai_model_cooldowns")
     }

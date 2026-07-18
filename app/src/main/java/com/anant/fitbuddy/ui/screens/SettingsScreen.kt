@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -50,23 +51,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
@@ -79,6 +83,8 @@ import kotlinx.coroutines.delay
 private const val EASTER_EGG_TAP_TARGET = 31
 private const val EASTER_EGG_HINT_START = 25
 private const val VERSION_RESET_TAPS = 8
+private const val DEVELOPER_UNLOCK_TAPS = 8
+private const val DEVELOPER_HINT_START = 3
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +106,11 @@ fun SettingsScreen(
     updateState: UpdateUiState,
     onCheckForUpdates: () -> Unit,
     onAutoCheckUpdatesChange: (Boolean) -> Unit,
+    onCrashReportingChange: (Boolean) -> Unit,
+    onSupportIdCopied: () -> Unit = {},
+    onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
+    onDeveloperUnlockHintDismiss: () -> Unit = {},
+    onDeveloperUnlocked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Local editable copies, re-seeded whenever persisted settings change.
@@ -125,6 +136,8 @@ fun SettingsScreen(
 
     var anantTapCount by remember { mutableIntStateOf(0) }
     var versionTapCount by remember { mutableIntStateOf(0) }
+    var packageTapCount by remember { mutableIntStateOf(0) }
+    var developerUnlocked by rememberSaveable { mutableStateOf(false) }
 
     val openRouterKey = openRouterKeys.firstOrNull().orEmpty()
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
@@ -142,6 +155,14 @@ fun SettingsScreen(
         if (versionTapCount in 1 until VERSION_RESET_TAPS) {
             delay(2_000)
             versionTapCount = 0
+        }
+    }
+
+    LaunchedEffect(packageTapCount) {
+        if (packageTapCount in 1 until DEVELOPER_UNLOCK_TAPS) {
+            delay(2_000)
+            packageTapCount = 0
+            onDeveloperUnlockHintDismiss()
         }
     }
 
@@ -451,6 +472,48 @@ fun SettingsScreen(
             }
         }
 
+        // --- Crash reports ---------------------------------------------------------------
+        SettingsCard(title = "Crash reports", initiallyExpanded = false) {
+            val clipboard = LocalClipboardManager.current
+            SettingToggleRow(
+                title = "Send crash reports",
+                checked = settings.crashReportingEnabled,
+                onCheckedChange = onCrashReportingChange,
+                hintTitle = "Crash reports",
+                hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
+                    "When on, the app may send one anonymous daily heartbeat " +
+                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime."
+            )
+            Text(
+                text = "Support ID — share this if you report a bug:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = settings.supportId.ifBlank { "(generating…)" },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        val id = settings.supportId
+                        if (id.isNotBlank()) {
+                            clipboard.setText(AnnotatedString(id))
+                            onSupportIdCopied()
+                        }
+                    },
+                    enabled = settings.supportId.isNotBlank()
+                ) {
+                    Icon(Icons.Filled.ContentCopy, contentDescription = "Copy support ID")
+                }
+            }
+        }
+
         // --- Appearance ------------------------------------------------------------------
         SettingsCard(title = "Appearance", initiallyExpanded = false) {
             SettingToggleRow(
@@ -512,7 +575,25 @@ fun SettingsScreen(
                     }
                 }
             )
-            AboutRow("Package", BuildConfig.APPLICATION_ID)
+            AboutRow(
+                label = "Package",
+                value = BuildConfig.APPLICATION_ID,
+                onValueClick = {
+                    if (developerUnlocked) return@AboutRow
+                    packageTapCount++
+                    when {
+                        packageTapCount >= DEVELOPER_UNLOCK_TAPS -> {
+                            packageTapCount = 0
+                            onDeveloperUnlockHintDismiss()
+                            developerUnlocked = true
+                            onDeveloperUnlocked()
+                        }
+                        packageTapCount >= DEVELOPER_HINT_START -> {
+                            onDeveloperUnlockHint(DEVELOPER_UNLOCK_TAPS - packageTapCount)
+                        }
+                    }
+                }
+            )
             AboutRow(
                 label = "Created by",
                 value = "Anant",
@@ -536,6 +617,26 @@ fun SettingsScreen(
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
         }
+
+        if (developerUnlocked) {
+            SettingsCard(title = "Developer", initiallyExpanded = true) {
+                Text(
+                    text = "Tools for debugging. Force crash sends a test event to Sentry " +
+                        "(if crash reports are enabled).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = {
+                        throw RuntimeException("FitBuddy Sentry test crash")
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Force test crash")
+                }
+            }
+        }
+
     }
 }
 

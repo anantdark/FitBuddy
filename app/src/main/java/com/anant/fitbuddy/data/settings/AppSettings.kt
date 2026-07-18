@@ -59,6 +59,13 @@ data class AppSettings(
      * (and still allows a manual check in Settings).
      */
     val autoCheckUpdates: Boolean = true,
+    /**
+     * Anonymous install id for crash support (Sentry user.id). Generated once, never PII.
+     * Share this with the developer when reporting a bug.
+     */
+    val supportId: String = "",
+    /** When false, Sentry does not send crash events (SDK may still be initialized). */
+    val crashReportingEnabled: Boolean = true,
     /** Set when the Settings "Created by" easter egg is discovered — hides startup credit toast. */
     val easterEggDiscovered: Boolean = false
 ) {
