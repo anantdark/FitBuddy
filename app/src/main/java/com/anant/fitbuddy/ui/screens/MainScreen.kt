@@ -134,6 +134,7 @@ fun MainScreen(viewModel: MainViewModel) {
     // expensive first-composition work (e.g. the Progress tab's charts) every time.
     var visitedTabs by remember { mutableStateOf(setOf(selectedTab)) }
     LaunchedEffect(selectedTab) { visitedTabs = visitedTabs + selectedTab }
+    LaunchedEffect(Unit) { viewModel.onDashboardLaunched() }
     var showSettings by remember { mutableStateOf(false) }
     var showProgressChat by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }

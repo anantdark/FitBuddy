@@ -43,7 +43,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -455,6 +457,12 @@ class MainViewModel(
 
     private val _onboardingSaving = MutableStateFlow(false)
     val onboardingSaving: StateFlow<Boolean> = _onboardingSaving.asStateFlow()
+
+    private val _onboardingValidating = MutableStateFlow(false)
+    val onboardingValidating: StateFlow<Boolean> = _onboardingValidating.asStateFlow()
+
+    /** When true, dashboard launch should run a one-shot AI calorie/macro target design. */
+    private var pendingInitialTargetDesign = false
 
     val foodLogsToday: StateFlow<List<FoodLog>> =
         repository.getFoodLogsForDate(today)
@@ -1235,8 +1243,26 @@ class MainViewModel(
     // --- Profile ----------------------------------------------------------------------------
 
     /**
-     * First-run setup: saves profile with default targets, seeds an initial body reading, and
-     * (when the user didn't skip the AI step) persists their chosen provider/API key.
+     * Verifies onboarding AI credentials by listing models from the chosen provider.
+     * Calls [onResult] with success/failure on the main thread when done.
+     */
+    fun validateOnboardingAi(settings: AppSettings, onResult: (Boolean, String?) -> Unit) {
+        if (_onboardingValidating.value) return
+        _onboardingValidating.value = true
+        viewModelScope.launch {
+            val result = runCatching { probeAiCredentials(settings) }
+            _onboardingValidating.value = false
+            result
+                .onSuccess { onResult(true, null) }
+                .onFailure { e ->
+                    onResult(false, e.message ?: "Couldn't validate that API key")
+                }
+        }
+    }
+
+    /**
+     * First-run setup: persists AI settings (required), saves profile with placeholder targets,
+     * seeds an initial body reading, then flags a one-shot target design for dashboard launch.
      */
     fun completeOnboarding(
         age: Int,
@@ -1245,12 +1271,13 @@ class MainViewModel(
         sex: String?,
         goal: String,
         activityLevel: String,
-        aiSettings: AppSettings?
+        aiSettings: AppSettings
     ) {
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
         viewModelScope.launch {
             runCatching {
+                settingsRepository.save(aiSettings)
                 repository.saveProfile(
                     UserProfile(
                         id = 1,
@@ -1275,13 +1302,88 @@ class MainViewModel(
                         weightKg = weightKg
                     )
                 )
-                aiSettings?.let { settingsRepository.save(it) }
+                pendingInitialTargetDesign = true
             }.onFailure { e ->
                 _analysisState.update {
                     it.copy(userMessage = e.message ?: "Couldn't save your profile")
                 }
             }
             _onboardingSaving.value = false
+        }
+    }
+
+    /**
+     * Called when the main UI becomes active after onboarding. Designs calorie/macro targets
+     * once via AI and applies them to the profile.
+     */
+    fun onDashboardLaunched() {
+        if (!pendingInitialTargetDesign) return
+        pendingInitialTargetDesign = false
+        viewModelScope.launch {
+            val profile = repository.activeProfile
+                .mapNotNull { p -> p?.takeIf { it.hasBasicsConfigured() } }
+                .first()
+            _analysisState.update { it.copy(userMessage = "Calculating your calorie targets…") }
+            val context = buildTargetContext(
+                age = profile.age,
+                heightCm = profile.heightCm,
+                weightKg = profile.weightKg,
+                sex = profile.sex,
+                activityLevel = profile.activityLevel,
+                goal = profile.goal
+            )
+            runCatching { repository.designTargets(context) }
+                .onSuccess { plan ->
+                    repository.saveProfile(
+                        profile.copy(
+                            dailyTargetCalories = plan.dailyTargetCalories,
+                            targetProteinG = plan.targetProteinG,
+                            targetCarbsG = plan.targetCarbsG,
+                            targetFatsG = plan.targetFatsG,
+                            goal = plan.recommendedGoal.ifBlank { profile.goal },
+                            goalRationale = plan.rationale,
+                            lastUpdatedTimestamp = System.currentTimeMillis()
+                        )
+                    )
+                    _analysisState.update {
+                        it.copy(userMessage = "Your personalized targets are ready")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(
+                            userMessage = e.message
+                                ?: "Using default targets — refine anytime in Body"
+                        )
+                    }
+                }
+        }
+    }
+
+    /** Hits the provider's model-list endpoint to confirm credentials work. */
+    private suspend fun probeAiCredentials(settings: AppSettings) {
+        when (settings.provider) {
+            AiProvider.OPENROUTER -> {
+                val key = settings.activeKey(AiProvider.OPENROUTER)
+                check(key.isNotBlank()) { "Enter an OpenRouter API key" }
+                repository.fetchFreeVisionModels(key)
+            }
+            AiProvider.GEMINI -> {
+                val key = settings.activeKey(AiProvider.GEMINI)
+                check(key.isNotBlank()) { "Enter a Gemini API key" }
+                repository.fetchGeminiVisionModels(key)
+            }
+            AiProvider.OLLAMA -> {
+                val base = settings.ollamaEffectiveBaseUrl
+                check(base.isNotBlank()) { "Enter your Ollama server URL" }
+                if (settings.ollamaUseCloud) {
+                    val key = settings.activeKey(AiProvider.OLLAMA)
+                    check(key.isNotBlank()) { "Enter an Ollama Cloud API key" }
+                    repository.fetchOllamaVisionModels(base, key)
+                } else {
+                    repository.fetchOllamaVisionModels(base)
+                }
+            }
         }
     }
 

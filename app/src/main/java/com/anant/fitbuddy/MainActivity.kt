@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
                 )
                 val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
                 val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
+                val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
 
                 when (needsOnboarding) {
                     null -> {
@@ -47,6 +48,8 @@ class MainActivity : ComponentActivity() {
                     true -> {
                         OnboardingScreen(
                             isSaving = onboardingSaving,
+                            isValidating = onboardingValidating,
+                            onValidateAi = viewModel::validateOnboardingAi,
                             onComplete = viewModel::completeOnboarding
                         )
                     }

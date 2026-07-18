@@ -16,8 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,7 +34,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -92,6 +89,8 @@ private val OLLAMA_CLOUD_KEYS_URL = "https://ollama.com/settings/keys"
 @Composable
 fun OnboardingScreen(
     isSaving: Boolean,
+    isValidating: Boolean,
+    onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
         age: Int,
         weightKg: Double,
@@ -99,7 +98,7 @@ fun OnboardingScreen(
         sex: String?,
         goal: String,
         activityLevel: String,
-        aiSettings: AppSettings?
+        aiSettings: AppSettings
     ) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -115,7 +114,8 @@ fun OnboardingScreen(
     var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
     var ollamaUseCloud by remember { mutableStateOf(false) }
     var ollamaKeys by remember { mutableStateOf(emptyList<String>()) }
-    var showSkipWarning by remember { mutableStateOf(false) }
+    var aiValidated by remember { mutableStateOf(false) }
+    var aiError by remember { mutableStateOf<String?>(null) }
 
     val stepOneValid = (age.toIntOrNull() ?: 0) in 10..120 &&
         (height.toDoubleOrNull() ?: 0.0) in 50.0..280.0 &&
@@ -151,7 +151,12 @@ fun OnboardingScreen(
         )
     }
 
-    fun finishOnboarding(aiSettings: AppSettings?) {
+    fun invalidateAi() {
+        aiValidated = false
+        aiError = null
+    }
+
+    fun finishOnboarding() {
         onComplete(
             age.toIntOrNull() ?: 0,
             weight.toDoubleOrNull() ?: 0.0,
@@ -159,19 +164,29 @@ fun OnboardingScreen(
             sex.ifBlank { null },
             goal,
             activity,
-            aiSettings
+            buildAiSettings()
         )
     }
 
-    if (showSkipWarning) {
-        AiSkipWarningDialog(
-            onDismiss = { showSkipWarning = false },
-            onConfirm = {
-                showSkipWarning = false
-                finishOnboarding(null)
+    fun advanceFromAiStep() {
+        if (aiValidated) {
+            step = 1
+            return
+        }
+        aiError = null
+        onValidateAi(buildAiSettings()) { ok, error ->
+            if (ok) {
+                aiValidated = true
+                aiError = null
+                step = 1
+            } else {
+                aiValidated = false
+                aiError = error ?: "Couldn't validate that API key"
             }
-        )
+        }
     }
+
+    val busy = isSaving || isValidating
 
     Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
         Column(
@@ -189,8 +204,8 @@ fun OnboardingScreen(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Tell us a bit about yourself so we can personalise calorie targets, " +
-                    "workout estimates, and AI insights.",
+                text = "Connect an AI provider first, then tell us about yourself so we can " +
+                    "personalise calorie targets, workout estimates, and meal logging.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -218,110 +233,150 @@ fun OnboardingScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (step == 0) {
-                        Text(
-                            text = "About you",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        OnboardingNumberField("Age", age) { age = it }
-                        OnboardingNumberField("Height (cm)", height, decimal = true) { height = it }
-                        OnboardingNumberField("Current weight (kg)", weight, decimal = true) { weight = it }
-                        OnboardingDropdown("Sex", sex, SEX_OPTIONS) { sex = it }
-                    } else if (step == 1) {
-                        Text(
-                            text = "Your lifestyle",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "We use this to set sensible daily targets. You can fine-tune " +
-                                "calories and macros anytime in Body.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OnboardingDropdown("Activity level", activity, ACTIVITY_OPTIONS) { activity = it }
-                        OnboardingDropdown("Goal", goal, GOAL_OPTIONS) { goal = it }
-                    } else {
-                        Text(
-                            text = "Connect an AI",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "FitBuddy uses an LLM to read food photos and freeform text logs. " +
-                                "Add a key now, or skip to use built-in estimates until you set one up " +
-                                "later in Settings.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        val providerOptions = listOf(
-                            AiProvider.OPENROUTER to "OpenRouter",
-                            AiProvider.GEMINI to "Gemini",
-                            AiProvider.OLLAMA to "Ollama"
-                        )
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            providerOptions.forEachIndexed { index, (value, label) ->
-                                SegmentedButton(
-                                    selected = aiProvider == value,
-                                    onClick = { aiProvider = value },
-                                    shape = SegmentedButtonDefaults.itemShape(index, providerOptions.size)
-                                ) { Text(label) }
-                            }
-                        }
-
-                        AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
-                            OnboardingDocsLink(label = label, url = url)
-                        }
-
-                        when (aiProvider) {
-                            AiProvider.OPENROUTER, AiProvider.GEMINI -> ApiKeyChipEditor(
-                                label = "API keys",
-                                keys = apiKeys,
-                                onKeysChange = { apiKeys = it }
+                    when (step) {
+                        0 -> {
+                            Text(
+                                text = "Connect an AI",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "FitBuddy needs an LLM to read food photos, freeform text logs, " +
+                                    "and set your initial calorie targets. Add a key to continue.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
-                            AiProvider.OLLAMA -> {
-                                val modeOptions = listOf(false to "Local", true to "Cloud")
-                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                    modeOptions.forEachIndexed { index, (useCloud, label) ->
-                                        SegmentedButton(
-                                            selected = ollamaUseCloud == useCloud,
-                                            onClick = { ollamaUseCloud = useCloud },
-                                            shape = SegmentedButtonDefaults.itemShape(
-                                                index,
-                                                modeOptions.size
-                                            )
-                                        ) { Text(label) }
-                                    }
-                                }
-                                if (ollamaUseCloud) {
-                                    OnboardingDocsLink(
-                                        label = "Create an Ollama Cloud API key",
-                                        url = OLLAMA_CLOUD_KEYS_URL
-                                    )
-                                    ApiKeyChipEditor(
-                                        label = "API keys",
-                                        keys = ollamaKeys,
-                                        onKeysChange = { ollamaKeys = it }
-                                    )
-                                } else {
-                                    OnboardingTextField(
-                                        label = "Server URL",
-                                        value = ollamaUrl,
-                                        keyboardType = KeyboardType.Uri
-                                    ) { ollamaUrl = it }
+                            val providerOptions = listOf(
+                                AiProvider.OPENROUTER to "OpenRouter",
+                                AiProvider.GEMINI to "Gemini",
+                                AiProvider.OLLAMA to "Ollama"
+                            )
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                providerOptions.forEachIndexed { index, (value, label) ->
+                                    SegmentedButton(
+                                        selected = aiProvider == value,
+                                        onClick = {
+                                            if (aiProvider != value) {
+                                                aiProvider = value
+                                                invalidateAi()
+                                            }
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index,
+                                            providerOptions.size
+                                        )
+                                    ) { Text(label) }
                                 }
                             }
+
+                            AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
+                                OnboardingDocsLink(label = label, url = url)
+                            }
+
+                            when (aiProvider) {
+                                AiProvider.OPENROUTER, AiProvider.GEMINI -> ApiKeyChipEditor(
+                                    label = "API keys",
+                                    keys = apiKeys,
+                                    onKeysChange = {
+                                        apiKeys = it
+                                        invalidateAi()
+                                    }
+                                )
+
+                                AiProvider.OLLAMA -> {
+                                    val modeOptions = listOf(false to "Local", true to "Cloud")
+                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                        modeOptions.forEachIndexed { index, (useCloud, label) ->
+                                            SegmentedButton(
+                                                selected = ollamaUseCloud == useCloud,
+                                                onClick = {
+                                                    if (ollamaUseCloud != useCloud) {
+                                                        ollamaUseCloud = useCloud
+                                                        invalidateAi()
+                                                    }
+                                                },
+                                                shape = SegmentedButtonDefaults.itemShape(
+                                                    index,
+                                                    modeOptions.size
+                                                )
+                                            ) { Text(label) }
+                                        }
+                                    }
+                                    if (ollamaUseCloud) {
+                                        OnboardingDocsLink(
+                                            label = "Create an Ollama Cloud API key",
+                                            url = OLLAMA_CLOUD_KEYS_URL
+                                        )
+                                        ApiKeyChipEditor(
+                                            label = "API keys",
+                                            keys = ollamaKeys,
+                                            onKeysChange = {
+                                                ollamaKeys = it
+                                                invalidateAi()
+                                            }
+                                        )
+                                    } else {
+                                        OnboardingTextField(
+                                            label = "Server URL",
+                                            value = ollamaUrl,
+                                            keyboardType = KeyboardType.Uri
+                                        ) {
+                                            ollamaUrl = it
+                                            invalidateAi()
+                                        }
+                                    }
+                                }
+                            }
+
+                            aiError?.let { message ->
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+
+                            Text(
+                                text = "Your key is stored on-device and never leaves your phone except " +
+                                    "to call the provider you chose.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
-                        Text(
-                            text = "Your key is stored on-device and never leaves your phone except " +
-                                "to call the provider you chose.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        1 -> {
+                            Text(
+                                text = "About you",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            OnboardingNumberField("Age", age) { age = it }
+                            OnboardingNumberField("Height (cm)", height, decimal = true) { height = it }
+                            OnboardingNumberField("Current weight (kg)", weight, decimal = true) {
+                                weight = it
+                            }
+                            OnboardingDropdown("Sex", sex, SEX_OPTIONS) { sex = it }
+                        }
+
+                        else -> {
+                            Text(
+                                text = "Your lifestyle",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "We'll use this with AI to set your daily calorie and macro " +
+                                    "targets when you open the dashboard. You can fine-tune them " +
+                                    "anytime in Body.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OnboardingDropdown("Activity level", activity, ACTIVITY_OPTIONS) {
+                                activity = it
+                            }
+                            OnboardingDropdown("Goal", goal, GOAL_OPTIONS) { goal = it }
+                        }
                     }
                 }
             }
@@ -332,40 +387,31 @@ fun OnboardingScreen(
                 if (step > 0) {
                     OutlinedButton(
                         onClick = { step -= 1 },
-                        enabled = !isSaving,
+                        enabled = !busy,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Back")
                     }
                     Spacer(Modifier.width(12.dp))
                 }
-                if (step == 2) {
-                    OutlinedButton(
-                        onClick = { showSkipWarning = true },
-                        enabled = !isSaving,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Skip")
-                    }
-                    Spacer(Modifier.width(12.dp))
-                }
                 Button(
                     modifier = Modifier.weight(1f),
                     enabled = when (step) {
-                        0 -> stepOneValid && !isSaving
-                        2 -> aiConfigValid && !isSaving
-                        else -> !isSaving
+                        0 -> aiConfigValid && !busy
+                        1 -> stepOneValid && !busy
+                        else -> !busy
                     },
                     onClick = {
                         when (step) {
-                            0 -> step = 1
+                            0 -> advanceFromAiStep()
                             1 -> step = 2
-                            else -> finishOnboarding(buildAiSettings())
+                            else -> finishOnboarding()
                         }
                     }
                 ) {
                     Text(
                         when {
+                            isValidating -> "Validating…"
                             isSaving -> "Setting up…"
                             step == 2 -> "Finish setup"
                             else -> "Continue"
@@ -443,31 +489,6 @@ private fun OnboardingDocsLink(label: String, url: String) {
             color = MaterialTheme.colorScheme.primary
         )
     }
-}
-
-@Composable
-private fun AiSkipWarningDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.WarningAmber, contentDescription = null) },
-        title = { Text("Skip AI setup?") },
-        text = {
-            Text(
-                "Without an AI key, FitBuddy can't read food photos or freeform text logs " +
-                    "automatically — it will fall back to built-in estimates instead. You can add " +
-                    "a key anytime from Settings."
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Continue without AI") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Go back") }
-        }
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
