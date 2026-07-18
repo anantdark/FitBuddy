@@ -92,7 +92,7 @@
         <p class="eyebrow">Day to day</p>
         <h1>Usage guide</h1>
         <p>
-          After onboarding, FitBuddy has three tabs — Today, Progress, and Body —
+          After onboarding, FitBuddy has three tabs — Dashboard, Progress, and Body —
           plus a Log button and Settings.
         </p>
       </header>
@@ -101,6 +101,7 @@
         <strong>On this page</strong>
         <ol>
           <li><a href="#tabs">Main tabs</a></li>
+          <li><a href="#days">Browse &amp; log past days</a></li>
           <li><a href="#log-food">Log food</a></li>
           <li><a href="#review">Review &amp; edit</a></li>
           <li><a href="#workout">Log a workout</a></li>
@@ -114,11 +115,11 @@
       <h2 id="tabs">Main tabs</h2>
       <ul>
         <li>
-          <strong>Today</strong> — calorie ring, macros remaining, today’s food and exercise log.
-          Empty state: <em>Tap Log to add food or a workout.</em>
+          <strong>Dashboard</strong> — calorie ring, macros remaining, and the food / exercise log
+          for the selected day. Empty state: <em>Tap Log to add food or a workout.</em>
         </li>
         <li>
-          <strong>Progress</strong> — charts (net calories, macros, body composition, burn)
+          <strong>Progress</strong> — Weekly or Monthly charts (net calories, macros, body composition, burn)
           and the AI Progress Coach.
         </li>
         <li>
@@ -126,9 +127,32 @@
         </li>
       </ul>
       <p>
-        On Today, the floating <span class="ui-label">Log</span> button opens the log hub.
+        On Dashboard, the floating <span class="ui-label">Log</span> button opens the log hub.
         The gear opens <span class="ui-label">Settings</span>.
       </p>
+
+      <h2 id="days">Browse &amp; log past days</h2>
+      <p>
+        The Dashboard week strip shows the last seven days. Tap a day pill to jump there —
+        the ring, macros, and log update for that date. Labels like
+        <span class="ui-label">Today</span> / <span class="ui-label">Yesterday</span>
+        make it easy to spot where you are.
+      </p>
+      <ul>
+        <li>
+          <strong>Week history</strong> — open the week view for stacked calorie bars and that day’s entries;
+          swipe weeks to look further back.
+        </li>
+        <li>
+          <strong>Log onto a past day</strong> — select the day first, then use
+          <span class="ui-label">Log</span>. New meals and workouts are stamped on that calendar day
+          (not always “now”).
+        </li>
+        <li>
+          <strong>Clone to today</strong> — from an older entry you can copy a meal or workout onto real today
+          when you want to repeat it.
+        </li>
+      </ul>
 
       <h2 id="log-food">Log food</h2>
       <p>From <span class="ui-label">Log</span>, under Food:</p>
@@ -175,7 +199,7 @@
           <span class="ui-label">Update meal</span>
         </li>
       </ul>
-      <p>From Today’s log you can open an entry again to edit or delete it.</p>
+      <p>From the selected day’s log you can open an entry again to edit or delete it.</p>
 
       <h2 id="workout">Log a workout</h2>
       <p>
@@ -204,12 +228,19 @@
       </ul>
 
       <h2 id="progress">Progress &amp; coach</h2>
-      <p>Charts include net calories vs target, macronutrient trend, body composition, and calories burned.</p>
+      <p>
+        Toggle <span class="ui-label">Weekly</span> / <span class="ui-label">Monthly</span>.
+        In Monthly mode, use the month arrows to step through history
+        (e.g. <span class="ui-label">This month · Jul 2026</span>).
+        Charts include net calories vs target, macronutrient trend, body composition, and calories burned.
+      </p>
       <p>
         <span class="ui-label">AI Progress Coach</span>:
         <span class="ui-label">Generate insight</span> / <span class="ui-label">Refresh insight</span>,
         then <span class="ui-label">Ask follow-up questions</span> to open
         <span class="ui-label">Progress Coach</span> chat.
+        The coach now gets a compact multi-month snapshot (recent days plus older monthly averages)
+        so insights stay useful as your history grows.
         Leaving may ask <em>Leave conversation?</em> with
         <span class="ui-label">Keep chat</span> or
         <span class="ui-label">Clear &amp; go back</span>.

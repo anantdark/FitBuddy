@@ -105,15 +105,15 @@
       },
       {
         src: "screens/today.png",
-        alt: "FitBuddy Today dashboard with calorie ring and meal log",
+        alt: "FitBuddy Dashboard with calorie ring and meal log",
         caption:
-          "Today — remaining calories, macros, and your food & workout log.",
+          "Dashboard — pick any day in the week strip; ring, macros, and log follow.",
       },
       {
         src: "screens/log-hub.png",
         alt: "FitBuddy log sheet with photo, text, and workout options",
         caption:
-          "Log hub — photo, gallery, freeform text, meals, or a workout.",
+          "Log hub — photo, gallery, freeform text, meals, or a workout (onto the selected day).",
       },
       {
         src: "screens/food-review.png",
@@ -125,7 +125,7 @@
         src: "screens/progress.png",
         alt: "FitBuddy Progress charts for weight and calories",
         caption:
-          "Progress — weight trend and net calories vs your daily target.",
+          "Progress — Weekly or Monthly charts, month navigator, and Progress Coach.",
       },
       {
         src: "screens/body.png",
