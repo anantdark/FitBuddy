@@ -49,6 +49,37 @@
 
   initThemeToggle();
 
+  function initNavToggle() {
+    const header = document.querySelector(".site-header");
+    const toggle = document.getElementById("nav-toggle");
+    const nav = document.getElementById("site-nav");
+    if (!header || !toggle || !nav) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", () => {
+      setOpen(!header.classList.contains("is-nav-open"));
+    });
+
+    nav.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => setOpen(false));
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    window.matchMedia("(min-width: 901px)").addEventListener("change", (event) => {
+      if (event.matches) setOpen(false);
+    });
+  }
+
+  initNavToggle();
+
   const REPO = "anantdark/FitBuddy";
   const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
   // Stable alias uploaded by CI on each release (see release.yml).

@@ -26,18 +26,27 @@
   <div class="atmosphere" aria-hidden="true"></div>
 
   <header class="site-header">
+  <div class="site-header-inner">
     <a class="brand-lockup" href="index.html" aria-label="FitBuddy home">
       <img src="icon-mark.png" alt="" width="36" height="36" />
       <span>FitBuddy</span>
     </a>
     <div class="header-actions">
-      <nav>
-      <a href="onboarding.html" class="nav-hide-sm">Onboarding</a>
-      <a href="guide.html">Guide</a>
-      <a href="faq.html">FAQ</a>
-      <a href="privacy.html" aria-current="page">Privacy</a>
-      <a href="index.html#download">Download</a>
-      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
+        <svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+        <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+      <nav id="site-nav" aria-label="Primary">
+        <a href="onboarding.html">Onboarding</a>
+        <a href="guide.html">Guide</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html" aria-current="page">Privacy</a>
+        <a class="nav-download" href="index.html#download">Download</a>
+        <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
       </nav>
       <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
         <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
@@ -49,7 +58,8 @@
         </svg>
       </button>
     </div>
-  </header>
+  </div>
+</header>
 
   <div class="docs-shell">
     <aside class="docs-nav" aria-label="Docs">
