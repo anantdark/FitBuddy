@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FitBuddy — AI health tracker for Indian diets</title>
+  <meta name="description" content="Log meals and workouts with a photo or loose text. FitBuddy estimates calories and macros — built for Indian food and daily routines." />
+  <meta property="og:title" content="FitBuddy" />
+  <meta property="og:description" content="AI-powered health tracker for Android, tuned for Indian diets." />
+  <meta property="og:image" content="icon.png" />
+  <link rel="icon" href="icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand-lockup" href="#top" aria-label="FitBuddy home">
+      <img src="icon-mark.png" alt="" width="36" height="36" />
+      <span>FitBuddy</span>
+    </a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="brand-wordmark">FitBuddy</p>
+        <h1>Log the thali. Track the burn.</h1>
+        <p class="lede">
+          AI-powered health tracking for Android — photo or freeform text in,
+          calories and macros out. Tuned for Indian diets and everyday routines.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" id="download-btn" href="https://github.com/anantdark/FitBuddy/releases/latest">
+            Download APK
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/anantdark/FitBuddy" rel="noopener">
+            View source
+          </a>
+        </div>
+        <p class="version-line" id="version-line" hidden></p>
+      </div>
+      <div class="hero-visual">
+        <img
+          class="hero-icon"
+          src="icon.png"
+          width="640"
+          height="640"
+          alt="FitBuddy app icon — calorie ring with a runner"
+        />
+      </div>
+    </section>
+
+    <section class="how" id="how">
+      <h2>One flow. Real food.</h2>
+      <p class="section-lede">
+        Snap a plate or type what you ate. Review the estimate, tweak weights,
+        save presets — then watch the day add up on the dashboard.
+      </p>
+      <ol class="steps">
+        <li>
+          <span class="step-num">01</span>
+          <h3>Capture</h3>
+          <p>Photo or loose text. FitBuddy talks to the AI provider you choose.</p>
+        </li>
+        <li>
+          <span class="step-num">02</span>
+          <h3>Review</h3>
+          <p>Edit the dish, rescale ingredients live, bookmark meals you repeat.</p>
+        </li>
+        <li>
+          <span class="step-num">03</span>
+          <h3>See progress</h3>
+          <p>Daily ring, macros, workouts, and charts that stay on your device.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="download" id="download">
+      <h2>Get the latest build</h2>
+      <p class="section-lede">
+        Sideload the release APK from GitHub. Requires Android 10 or newer.
+      </p>
+      <div class="download-actions">
+        <a class="btn btn-primary" id="download-btn-secondary" href="https://github.com/anantdark/FitBuddy/releases/latest">
+          Download latest APK
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/anantdark/FitBuddy/releases" rel="noopener">
+          All releases
+        </a>
+      </div>
+      <p class="fineprint">
+        Open source under GPL-3.0. Your API keys and meal data stay on your phone.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
+    <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
