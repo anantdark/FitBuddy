@@ -80,6 +80,13 @@ jobs:
           -PappVersionCode=${{ steps.version.outputs.version_code }}
           -PappVersionName=${{ steps.version.outputs.version_name }}
 
+      # Stable name so the website can always use:
+      # https://github.com/.../releases/latest/download/FitBuddy-latest.apk
+      - name: Publish stable latest APK alias
+        run: |
+          VERSIONED="app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk"
+          cp "$VERSIONED" app/build/outputs/apk/release/FitBuddy-latest.apk
+
       - name: Prepare release notes
         id: notes
         run: |
@@ -110,6 +117,7 @@ jobs:
           generate_release_notes: false
           files: |
             app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
+            app/build/outputs/apk/release/FitBuddy-latest.apk
             app/build/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
