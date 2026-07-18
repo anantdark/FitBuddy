@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FAQ — FitBuddy</title>
+  <meta name="description" content="Frequently asked questions about FitBuddy: API keys, accuracy, offline use, barcodes, updates, and troubleshooting." />
+  <link rel="icon" href="icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand-lockup" href="index.html" aria-label="FitBuddy home">
+      <img src="icon-mark.png" alt="" width="36" height="36" />
+      <span>FitBuddy</span>
+    </a>
+    <nav>
+      <a href="onboarding.html" class="nav-hide-sm">Onboarding</a>
+      <a href="guide.html">Guide</a>
+      <a href="faq.html" aria-current="page">FAQ</a>
+      <a href="privacy.html" class="nav-hide-sm">Privacy</a>
+      <a href="index.html#download">Download</a>
+      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="docs-shell">
+    <aside class="docs-nav" aria-label="Docs">
+      <h2>Docs</h2>
+      <ul>
+        <li><a href="onboarding.html">Onboarding</a></li>
+        <li><a href="guide.html">Usage guide</a></li>
+        <li><a href="faq.html" aria-current="page">FAQ</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="index.html">Home</a></li>
+      </ul>
+    </aside>
+
+    <article class="docs-article faq">
+      <header class="docs-hero">
+        <p class="eyebrow">Answers</p>
+        <h1>FAQ</h1>
+        <p>Common questions about setup, logging, AI providers, and updates.</p>
+      </header>
+
+      <h2>Setup &amp; AI</h2>
+
+      <details>
+        <summary>Do I need an API key?</summary>
+        <p>
+          Yes for signup. Onboarding requires a validated OpenRouter, Gemini, or Ollama
+          (Cloud key / Local URL) connection. Photo and freeform logging, target design,
+          and the Progress Coach all use that provider.
+        </p>
+      </details>
+
+      <details>
+        <summary>Which provider should I pick?</summary>
+        <p>
+          <strong>OpenRouter</strong> is convenient for free vision models.
+          <strong>Gemini</strong> works well if you already have a Google AI Studio key.
+          <strong>Ollama</strong> is best if you want local models on your LAN, or Ollama Cloud.
+          You can switch anytime in Settings — FitBuddy does not auto-switch platforms.
+        </p>
+      </details>
+
+      <details>
+        <summary>Validation failed during onboarding</summary>
+        <p>
+          Check the key (no extra spaces), that the provider account is active, and that
+          you have network access. For Ollama Local, confirm the phone can reach the
+          server URL (same Wi‑Fi, firewall, HTTP allowed). Change the key or URL and
+          tap Continue again.
+        </p>
+      </details>
+
+      <details>
+        <summary>What does Auto failover do?</summary>
+        <p>
+          When on, a failed request tries other API keys, then other models on the
+          <em>same</em> preferred platform. When off, only your selected model is used,
+          but keys still rotate on failure. It never jumps to another provider for you.
+        </p>
+      </details>
+
+      <details>
+        <summary>Is there an offline mode?</summary>
+        <p>
+          Text-only logging can fall back to a built-in simulator if no provider is
+          configured — but current onboarding requires a working key, so normal installs
+          stay online for AI. Photos always need a live provider.
+        </p>
+      </details>
+
+      <h2>Logging &amp; accuracy</h2>
+
+      <details>
+        <summary>How accurate are calorie estimates?</summary>
+        <p>
+          They are model estimates, not lab measurements — especially for mixed Indian
+          plates and homemade food. Always use Review to correct dish names and weights.
+          Prefer weighing ingredients when precision matters.
+        </p>
+      </details>
+
+      <details>
+        <summary>Why did the AI ask a clarifying question?</summary>
+        <p>
+          When the photo or text is ambiguous, FitBuddy may ask for more detail before
+          producing a draft. Answer and continue the analysis.
+        </p>
+      </details>
+
+      <details>
+        <summary>Barcode not found</summary>
+        <p>
+          Lookups use Open Food Facts. Regional or new products may be missing — enter
+          nutrition manually or describe the food instead. Check network connectivity.
+        </p>
+      </details>
+
+      <details>
+        <summary>Can I edit a meal after logging?</summary>
+        <p>
+          Yes. Open it from Today’s log to edit or delete. Meal review lets you tweak
+          individual foods and ingredients; food review supports live macro rescale and
+          Recalculate with AI.
+        </p>
+      </details>
+
+      <h2>Targets &amp; Body</h2>
+
+      <details>
+        <summary>Where do my calorie targets come from?</summary>
+        <p>
+          Right after onboarding, FitBuddy asks the AI for a plan using your age, size,
+          activity, and goal. You can change numbers manually on Body, or tap
+          Recommend with AI again later.
+        </p>
+      </details>
+
+      <details>
+        <summary>Exercise calories and the daily ring</summary>
+        <p>
+          Burned calories are credited toward the day’s balance (eat-back style).
+          The Today ring reflects net progress toward your target — see the Eaten / Burned / Target stats.
+        </p>
+      </details>
+
+      <h2>Updates &amp; data</h2>
+
+      <details>
+        <summary>How do I update the app?</summary>
+        <p>
+          Install a newer APK from GitHub Releases, or use Settings → Check for Updates
+          (and optional automatic checks). Keep FitBuddy open until the installer starts.
+        </p>
+      </details>
+
+      <details>
+        <summary>Update won’t install over my current app</summary>
+        <p>
+          Android requires the same signing certificate. Use official release APKs from
+          this project’s Releases page. A debug-signed local build may conflict with a
+          release build (or the reverse).
+        </p>
+      </details>
+
+      <details>
+        <summary>How do I back up my data?</summary>
+        <p>
+          Settings → Backup &amp; Data → Export creates a JSON backup you can Import later.
+          This does not replace a full device backup, but it preserves logs and profile data
+          you choose to move.
+        </p>
+      </details>
+
+      <details>
+        <summary>Something crashed — how do I report it?</summary>
+        <p>
+          If crash reports are enabled, events go to Sentry anonymously. Copy your
+          Support ID from Settings and include it when you contact the developer or open
+          a GitHub issue. You can turn reporting off anytime. Details:
+          <a href="privacy.html">Privacy</a>.
+        </p>
+      </details>
+
+      <details>
+        <summary>Where is the source code / license?</summary>
+        <p>
+          <a href="https://github.com/anantdark/FitBuddy" rel="noopener">github.com/anantdark/FitBuddy</a>,
+          licensed under GPL-3.0.
+        </p>
+      </details>
+
+      <p style="margin-top:2rem">
+        Still stuck? Open an issue on
+        <a href="https://github.com/anantdark/FitBuddy/issues" rel="noopener">GitHub</a>
+        or read the <a href="guide.html">usage guide</a>.
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
+    <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
+  </footer>
+</body>
+</html>

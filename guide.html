@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Usage guide — FitBuddy</title>
+  <meta name="description" content="How to use FitBuddy day to day: logging food and workouts, Body and Progress tabs, Settings, and updates." />
+  <link rel="icon" href="icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand-lockup" href="index.html" aria-label="FitBuddy home">
+      <img src="icon-mark.png" alt="" width="36" height="36" />
+      <span>FitBuddy</span>
+    </a>
+    <nav>
+      <a href="onboarding.html" class="nav-hide-sm">Onboarding</a>
+      <a href="guide.html" aria-current="page">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html" class="nav-hide-sm">Privacy</a>
+      <a href="index.html#download">Download</a>
+      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="docs-shell">
+    <aside class="docs-nav" aria-label="Docs">
+      <h2>Docs</h2>
+      <ul>
+        <li><a href="onboarding.html">Onboarding</a></li>
+        <li><a href="guide.html" aria-current="page">Usage guide</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="index.html">Home</a></li>
+      </ul>
+    </aside>
+
+    <article class="docs-article">
+      <header class="docs-hero">
+        <p class="eyebrow">Day to day</p>
+        <h1>Usage guide</h1>
+        <p>
+          After onboarding, FitBuddy has three tabs — Today, Progress, and Body —
+          plus a Log button and Settings.
+        </p>
+      </header>
+
+      <nav class="toc" aria-label="On this page">
+        <strong>On this page</strong>
+        <ol>
+          <li><a href="#tabs">Main tabs</a></li>
+          <li><a href="#log-food">Log food</a></li>
+          <li><a href="#review">Review &amp; edit</a></li>
+          <li><a href="#workout">Log a workout</a></li>
+          <li><a href="#body">Body tab</a></li>
+          <li><a href="#progress">Progress &amp; coach</a></li>
+          <li><a href="#settings">Settings</a></li>
+          <li><a href="#updates">Install &amp; updates</a></li>
+        </ol>
+      </nav>
+
+      <h2 id="tabs">Main tabs</h2>
+      <ul>
+        <li>
+          <strong>Today</strong> — calorie ring, macros remaining, today’s food and exercise log.
+          Empty state: <em>Tap Log to add food or a workout.</em>
+        </li>
+        <li>
+          <strong>Progress</strong> — charts (net calories, macros, body composition, burn)
+          and the AI Progress Coach.
+        </li>
+        <li>
+          <strong>Body</strong> — profile basics, body readings, daily targets, food library.
+        </li>
+      </ul>
+      <p>
+        On Today, the floating <span class="ui-label">Log</span> button opens the log hub.
+        The gear opens <span class="ui-label">Settings</span>.
+      </p>
+
+      <h2 id="log-food">Log food</h2>
+      <p>From <span class="ui-label">Log</span>, under Food:</p>
+      <ul>
+        <li><span class="ui-label">Photo</span> — take a picture of the plate</li>
+        <li><span class="ui-label">Gallery</span> — pick an existing image</li>
+        <li><span class="ui-label">Describe</span> — freeform text (<span class="ui-label">Food or activity</span> → <span class="ui-label">Analyze</span>)</li>
+        <li><span class="ui-label">Build meal</span> — assemble multiple foods</li>
+        <li><span class="ui-label">Saved meal</span> — log a meal preset in one tap</li>
+      </ul>
+
+      <h3>Build a meal</h3>
+      <p>
+        Opens <span class="ui-label">Build a meal</span>. Add items via
+        <span class="ui-label">Scan</span> (barcode),
+        <span class="ui-label">Saved food</span>,
+        <span class="ui-label">Create new food</span>, or
+        <span class="ui-label">Add food manually</span>,
+        then <span class="ui-label">Review &amp; save meal</span>.
+      </p>
+
+      <h3>Barcode</h3>
+      <p>
+        Point the camera at a barcode, or type an EAN/UPC. FitBuddy looks up the product
+        on Open Food Facts (needs network). From Body you can also
+        <span class="ui-label">Scan barcode</span> to save into your food library.
+      </p>
+
+      <h2 id="review">Review &amp; edit</h2>
+      <p>
+        After AI analysis you get <span class="ui-label">Review food</span>
+        (or a meal review). Typical actions:
+      </p>
+      <ul>
+        <li>Edit dish name and ingredient weights — macros rescale live</li>
+        <li><span class="ui-label">Recalculate with AI</span> if the estimate looks off</li>
+        <li>
+          Bookmark: <span class="ui-label">Save to food library</span> (single food)
+          or <span class="ui-label">Save as meal preset</span> (meal)
+        </li>
+        <li>
+          Confirm: <span class="ui-label">Log food</span> /
+          <span class="ui-label">Save meal</span> /
+          <span class="ui-label">Update meal</span>
+        </li>
+      </ul>
+      <p>From Today’s log you can open an entry again to edit or delete it.</p>
+
+      <h2 id="workout">Log a workout</h2>
+      <p>
+        <span class="ui-label">Log</span> → <span class="ui-label">Workout</span>
+        opens <span class="ui-label">Log Workout</span>.
+        Add exercises (sets, reps, weight, or duration/distance as needed),
+        then <span class="ui-label">Save &amp; Estimate Calories</span>.
+        FitBuddy uses AI (when configured) plus your body factors for the burn estimate.
+        Existing sessions can be opened as <span class="ui-label">Edit Workout</span>
+        and saved with <span class="ui-label">Save Changes</span>.
+      </p>
+
+      <h2 id="body">Body tab</h2>
+      <p>Under <span class="ui-label">Body &amp; goals</span>:</p>
+      <ul>
+        <li><strong>Body basics</strong> — age, height, weight, sex, activity, goal</li>
+        <li><strong>Body composition</strong> — <span class="ui-label">Add a reading</span> (weight and optional metrics)</li>
+        <li>
+          <strong>Daily targets</strong> — calories and macros; optional
+          <span class="ui-label">Recommend with AI</span> → review the plan →
+          <span class="ui-label">Apply</span> or <span class="ui-label">Discard</span>
+        </li>
+        <li><strong>Food library</strong> — saved foods; manage or scan new ones</li>
+        <li><span class="ui-label">Save body data</span> when you edit fields manually</li>
+        <li><strong>Reading history</strong> — past measurements</li>
+      </ul>
+
+      <h2 id="progress">Progress &amp; coach</h2>
+      <p>Charts include net calories vs target, macronutrient trend, body composition, and calories burned.</p>
+      <p>
+        <span class="ui-label">AI Progress Coach</span>:
+        <span class="ui-label">Generate insight</span> / <span class="ui-label">Refresh insight</span>,
+        then <span class="ui-label">Ask follow-up questions</span> to open
+        <span class="ui-label">Progress Coach</span> chat.
+        Leaving may ask <em>Leave conversation?</em> with
+        <span class="ui-label">Keep chat</span> or
+        <span class="ui-label">Clear &amp; go back</span>.
+      </p>
+      <p>Coach features need a configured AI provider (same as logging).</p>
+
+      <h2 id="settings">Settings</h2>
+      <h3>AI Provider</h3>
+      <ul>
+        <li>
+          <span class="ui-label">Auto failover</span> — on failure, try other API keys,
+          then other models on the <em>same</em> platform. Never switches platforms automatically.
+          When off, only the selected model is used; keys still rotate on failure.
+        </li>
+        <li>Provider segments: OpenRouter / Gemini / Ollama (Local or Cloud)</li>
+        <li>Multiple <span class="ui-label">API keys</span> as chips</li>
+        <li><span class="ui-label">Photo model</span> and <span class="ui-label">Text model</span> dropdowns</li>
+        <li><span class="ui-label">Save AI Settings</span></li>
+      </ul>
+
+      <h3>Other</h3>
+      <ul>
+        <li><span class="ui-label">Material You</span> — dynamic color on Android 12+</li>
+        <li>
+          <span class="ui-label">Backup &amp; Data</span> —
+          <span class="ui-label">Export</span> / <span class="ui-label">Import</span> JSON
+        </li>
+        <li>
+          <span class="ui-label">Send crash reports</span> and a copyable
+          <span class="ui-label">Support ID</span> (see <a href="privacy.html">Privacy</a>)
+        </li>
+        <li>
+          <span class="ui-label">Check automatically</span> for updates, or
+          <span class="ui-label">Check for Updates</span> manually
+        </li>
+      </ul>
+
+      <h2 id="updates">Install &amp; updates</h2>
+      <ol>
+        <li>Download the APK from <a href="https://github.com/anantdark/FitBuddy/releases" rel="noopener">GitHub Releases</a>.</li>
+        <li>Allow install from your browser/file manager if Android asks.</li>
+        <li>
+          Later, Settings (or automatic check) can show
+          <span class="ui-label">Update available</span> →
+          <span class="ui-label">Download &amp; install</span>.
+          Keep the app open until the system installer opens.
+        </li>
+      </ol>
+      <div class="callout">
+        <p>Same signing key required for in-app updates.</p>
+        <p>
+          Official GitHub release APKs share one release keystore. Mixing a locally
+          debug-signed build with a release update can fail to install over the existing app.
+        </p>
+      </div>
+
+      <p style="margin-top:2rem">
+        See also: <a href="onboarding.html">Onboarding</a> ·
+        <a href="faq.html">FAQ</a> ·
+        <a href="privacy.html">Privacy</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
+    <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
+  </footer>
+</body>
+</html>

@@ -13,6 +13,8 @@
     });
   }
 
+  if (!buttons.length && !versionLine) return;
+
   fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
     .then((res) => {
       if (!res.ok) throw new Error("release fetch failed");

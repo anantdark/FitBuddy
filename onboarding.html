@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Onboarding — FitBuddy</title>
+  <meta name="description" content="Set up FitBuddy: connect a validated AI key, enter your profile, and get personalized calorie targets." />
+  <link rel="icon" href="icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand-lockup" href="index.html" aria-label="FitBuddy home">
+      <img src="icon-mark.png" alt="" width="36" height="36" />
+      <span>FitBuddy</span>
+    </a>
+    <nav>
+      <a href="onboarding.html" aria-current="page">Onboarding</a>
+      <a href="guide.html">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html" class="nav-hide-sm">Privacy</a>
+      <a href="index.html#download">Download</a>
+      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="docs-shell">
+    <aside class="docs-nav" aria-label="Docs">
+      <h2>Docs</h2>
+      <ul>
+        <li><a href="onboarding.html" aria-current="page">Onboarding</a></li>
+        <li><a href="guide.html">Usage guide</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="index.html">Home</a></li>
+      </ul>
+    </aside>
+
+    <article class="docs-article">
+      <header class="docs-hero">
+        <p class="eyebrow">First launch</p>
+        <h1>Onboarding</h1>
+        <p>
+          FitBuddy walks you through three steps before the dashboard opens.
+          An AI connection is required — there is no skip.
+        </p>
+      </header>
+
+      <nav class="toc" aria-label="On this page">
+        <strong>On this page</strong>
+        <ol>
+          <li><a href="#step-ai">Step 1 — Connect an AI</a></li>
+          <li><a href="#step-you">Step 2 — About you</a></li>
+          <li><a href="#step-lifestyle">Step 3 — Your lifestyle</a></li>
+          <li><a href="#after">After Finish setup</a></li>
+          <li><a href="#providers">Getting an API key</a></li>
+        </ol>
+      </nav>
+
+      <h2 id="step-ai">Step 1 — Connect an AI</h2>
+      <p>
+        FitBuddy uses a large language model to read food photos, freeform text,
+        and to design your initial calorie targets. Choose a provider and add credentials
+        before you can continue.
+      </p>
+      <ul>
+        <li><span class="ui-label">OpenRouter</span> — paste one or more API keys</li>
+        <li><span class="ui-label">Gemini</span> — Google AI Studio API key(s)</li>
+        <li>
+          <span class="ui-label">Ollama</span> —
+          <span class="ui-label">Local</span> (server URL, e.g. a LAN host) or
+          <span class="ui-label">Cloud</span> (Ollama Cloud API key)
+        </li>
+      </ul>
+      <p>
+        Tap <span class="ui-label">Continue</span>. The app validates by listing models
+        from that provider (<span class="ui-label">Validating…</span>).
+        If the key or URL is wrong, you’ll see an error such as
+        <em>Couldn’t validate that API key</em> and stay on this step.
+      </p>
+      <div class="callout">
+        <p>Your key is stored on-device.</p>
+        <p>
+          It only leaves the phone when FitBuddy calls the provider you selected.
+          Docs links on this screen open the provider’s key-creation guides in the browser.
+        </p>
+      </div>
+
+      <h2 id="step-you">Step 2 — About you</h2>
+      <p>Enter the basics used for calorie and workout estimates:</p>
+      <ul>
+        <li><span class="ui-label">Age</span></li>
+        <li><span class="ui-label">Height (cm)</span></li>
+        <li><span class="ui-label">Current weight (kg)</span></li>
+        <li>
+          <span class="ui-label">Sex</span> —
+          Prefer not to say / Male / Female
+        </li>
+      </ul>
+      <p>Continue unlocks when age, height, and weight are in a sensible range.</p>
+
+      <h2 id="step-lifestyle">Step 3 — Your lifestyle</h2>
+      <ul>
+        <li>
+          <span class="ui-label">Activity level</span> —
+          Sedentary → Very active
+        </li>
+        <li>
+          <span class="ui-label">Goal</span> —
+          Let AI decide / Lose weight / Gain muscle / Body recomposition
+        </li>
+      </ul>
+      <p>
+        Tap <span class="ui-label">Finish setup</span>
+        (<span class="ui-label">Setting up…</span> while saving).
+      </p>
+
+      <h2 id="after">After Finish setup</h2>
+      <ol>
+        <li>AI settings and your profile are saved locally.</li>
+        <li>An initial body weight reading is recorded.</li>
+        <li>The main dashboard opens.</li>
+        <li>
+          FitBuddy requests an AI calorie/macro plan. You’ll see
+          <em>Calculating your calorie targets…</em>, then
+          <em>Your personalized targets are ready</em>
+          (or defaults with a note to refine anytime in <strong>Body</strong>).
+        </li>
+      </ol>
+      <p>
+        You can change providers, keys, and models later under
+        <span class="ui-label">Settings</span> (gear icon).
+        Targets and body data live under the <span class="ui-label">Body</span> tab.
+      </p>
+
+      <h2 id="providers">Getting an API key</h2>
+      <ul>
+        <li>
+          <strong>OpenRouter</strong> —
+          <a href="https://openrouter.ai/docs/api/reference/authentication" rel="noopener">Authentication docs</a>
+        </li>
+        <li>
+          <strong>Gemini</strong> —
+          <a href="https://ai.google.dev/gemini-api/docs/api-key" rel="noopener">API key guide</a>
+        </li>
+        <li>
+          <strong>Ollama</strong> —
+          <a href="https://docs.ollama.com/quickstart" rel="noopener">Install &amp; setup</a>
+          · Cloud keys:
+          <a href="https://ollama.com/settings/keys" rel="noopener">ollama.com/settings/keys</a>
+        </li>
+      </ul>
+
+      <p style="margin-top:2rem">
+        Next: <a href="guide.html">Usage guide</a> ·
+        <a href="faq.html">FAQ</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
+    <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
+  </footer>
+</body>
+</html>

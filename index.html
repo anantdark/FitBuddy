@@ -18,12 +18,15 @@
   <div class="atmosphere" aria-hidden="true"></div>
 
   <header class="site-header">
-    <a class="brand-lockup" href="#top" aria-label="FitBuddy home">
+    <a class="brand-lockup" href="index.html" aria-label="FitBuddy home">
       <img src="icon-mark.png" alt="" width="36" height="36" />
       <span>FitBuddy</span>
     </a>
     <nav>
-      <a href="#how">How it works</a>
+      <a href="onboarding.html" class="nav-hide-sm">Onboarding</a>
+      <a href="guide.html">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html" class="nav-hide-sm">Privacy</a>
       <a href="#download">Download</a>
       <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
     </nav>
@@ -42,9 +45,7 @@
           <a class="btn btn-primary" id="download-btn" href="https://github.com/anantdark/FitBuddy/releases/latest">
             Download APK
           </a>
-          <a class="btn btn-ghost" href="https://github.com/anantdark/FitBuddy" rel="noopener">
-            View source
-          </a>
+          <a class="btn btn-ghost" href="guide.html">Usage guide</a>
         </div>
         <p class="version-line" id="version-line" hidden></p>
       </div>
@@ -84,6 +85,31 @@
       </ol>
     </section>
 
+    <section class="doc-band" id="docs">
+      <h2>Learn the app</h2>
+      <p class="section-lede">
+        First-run setup, day-to-day logging, settings, and answers to common questions.
+      </p>
+      <div class="doc-grid">
+        <a href="onboarding.html">
+          <h3>Onboarding</h3>
+          <p>Connect an AI key, enter your basics, and get personalized calorie targets.</p>
+        </a>
+        <a href="guide.html">
+          <h3>Usage guide</h3>
+          <p>Food, workouts, Body tab, Progress coach, Settings, and updates.</p>
+        </a>
+        <a href="faq.html">
+          <h3>FAQ</h3>
+          <p>API keys, accuracy, offline mode, barcode lookup, and troubleshooting.</p>
+        </a>
+        <a href="privacy.html">
+          <h3>Privacy</h3>
+          <p>What stays on your phone, what is sent to AI providers, and crash reports.</p>
+        </a>
+      </div>
+    </section>
+
     <section class="download" id="download">
       <h2>Get the latest build</h2>
       <p class="section-lede">
@@ -98,7 +124,8 @@
         </a>
       </div>
       <p class="fineprint">
-        Open source under GPL-3.0. Your API keys and meal data stay on your phone.
+        Open source under GPL-3.0. Your API keys and meal data stay on your phone
+        except when calling the AI provider you chose — see <a href="privacy.html">Privacy</a>.
       </p>
     </section>
   </main>
