@@ -38,6 +38,8 @@ jobs:
         run: ./gradlew :app:compileDebugKotlin --no-daemon
 
       - name: Compile release
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: ./gradlew :app:compileReleaseKotlin --no-daemon
 
       - name: Unit tests

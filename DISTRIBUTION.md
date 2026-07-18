@@ -37,8 +37,9 @@ uses a different debug keystore and in-app updates fail between releases):
 | `RELEASE_STORE_PASSWORD` | Same as `storePassword` |
 | `RELEASE_KEY_ALIAS` | Same as `keyAlias` (default `fitbuddy`) |
 | `RELEASE_KEY_PASSWORD` | Same as `keyPassword` |
+| `SENTRY_DSN` | Same DSN as in `local.properties` (optional; empty = crash SDK off in CI builds) |
 
-The release workflow fails if any of these are missing. After switching to a new keystore,
+The release workflow fails if any of the `RELEASE_*` secrets are missing. After switching to a new keystore,
 uninstall older installs once and install the first APK signed with that key.
 
 ## 3. Build a release APK / AAB

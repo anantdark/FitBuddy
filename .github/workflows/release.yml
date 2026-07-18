@@ -72,6 +72,9 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
+        env:
+          # Baked into BuildConfig; empty = crash SDK stays uninitialized.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: >
           ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
           -PappVersionCode=${{ steps.version.outputs.version_code }}
