@@ -46,8 +46,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
@@ -430,7 +432,15 @@ fun MainScreen(viewModel: MainViewModel) {
                 Tab.entries.forEach { tab ->
                     if (tab !in visitedTabs) return@forEach
                     val isSelected = tab == selectedTab
-                    Box(modifier = if (isSelected) Modifier.fillMaxSize() else Modifier.size(0.dp)) {
+                    // Keep visited tabs composed for instant switches, but never measure them at
+                    // 0×0 — Progress/Body use fixed-size charts (e.g. height(240.dp)) whose min
+                    // constraints exceed a zero max and crash Compose layout.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(if (isSelected) 1f else 0f)
+                            .graphicsLayer { alpha = if (isSelected) 1f else 0f }
+                    ) {
                         when (tab) {
                             Tab.TODAY -> DashboardScreen(
                                 state = dashboardState,
