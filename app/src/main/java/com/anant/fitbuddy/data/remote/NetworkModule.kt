@@ -57,4 +57,14 @@ object NetworkModule {
     }
 
     fun provideOpenFoodFactsApi(): OpenFoodFactsApi = openFoodFactsRetrofit.create(OpenFoodFactsApi::class.java)
+
+    private val githubRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
+    fun provideGithubApi(): GithubApi = githubRetrofit.create(GithubApi::class.java)
 }

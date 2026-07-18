@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,10 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -19,23 +25,34 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.data.settings.AiProvider
+import com.anant.fitbuddy.data.settings.AppSettings
 
 private val GOAL_OPTIONS = listOf(
     "AUTO" to "Let AI decide",
@@ -56,6 +73,19 @@ private val ACTIVITY_OPTIONS = listOf(
     "VERY_ACTIVE" to "Very active"
 )
 
+/** Per-provider "how to get set up" doc, linked from the onboarding AI step. */
+private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
+    AiProvider.OPENROUTER to (
+        "How to create an OpenRouter API key" to "https://openrouter.ai/docs/api/reference/authentication"
+    ),
+    AiProvider.GEMINI to (
+        "How to create a Gemini API key" to "https://ai.google.dev/gemini-api/docs/api-key"
+    ),
+    AiProvider.OLLAMA to (
+        "Ollama install & setup guide" to "https://docs.ollama.com/quickstart"
+    )
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
@@ -66,7 +96,8 @@ fun OnboardingScreen(
         heightCm: Double,
         sex: String?,
         goal: String,
-        activityLevel: String
+        activityLevel: String,
+        aiSettings: AppSettings?
     ) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -77,10 +108,51 @@ fun OnboardingScreen(
     var sex by remember { mutableStateOf("") }
     var goal by remember { mutableStateOf("RECOMP") }
     var activity by remember { mutableStateOf("MODERATE") }
+    var aiProvider by remember { mutableStateOf(AiProvider.OPENROUTER) }
+    var apiKey by remember { mutableStateOf("") }
+    var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
+    var showSkipWarning by remember { mutableStateOf(false) }
 
     val stepOneValid = (age.toIntOrNull() ?: 0) in 10..120 &&
         (height.toDoubleOrNull() ?: 0.0) in 50.0..280.0 &&
         (weight.toDoubleOrNull() ?: 0.0) in 20.0..400.0
+    val aiConfigValid = when (aiProvider) {
+        AiProvider.OPENROUTER, AiProvider.GEMINI -> apiKey.isNotBlank()
+        AiProvider.OLLAMA -> ollamaUrl.isNotBlank()
+    }
+
+    fun buildAiSettings(): AppSettings = AppSettings(
+        provider = aiProvider,
+        openRouterApiKey = if (aiProvider == AiProvider.OPENROUTER) apiKey.trim() else "",
+        geminiApiKey = if (aiProvider == AiProvider.GEMINI) apiKey.trim() else "",
+        ollamaBaseUrl = if (aiProvider == AiProvider.OLLAMA) {
+            ollamaUrl.trim()
+        } else {
+            AppSettings.DEFAULT_OLLAMA_URL
+        }
+    )
+
+    fun finishOnboarding(aiSettings: AppSettings?) {
+        onComplete(
+            age.toIntOrNull() ?: 0,
+            weight.toDoubleOrNull() ?: 0.0,
+            height.toDoubleOrNull() ?: 0.0,
+            sex.ifBlank { null },
+            goal,
+            activity,
+            aiSettings
+        )
+    }
+
+    if (showSkipWarning) {
+        AiSkipWarningDialog(
+            onDismiss = { showSkipWarning = false },
+            onConfirm = {
+                showSkipWarning = false
+                finishOnboarding(null)
+            }
+        )
+    }
 
     Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
         Column(
@@ -106,12 +178,12 @@ fun OnboardingScreen(
             Spacer(Modifier.height(24.dp))
 
             LinearProgressIndicator(
-                progress = { (step + 1) / 2f },
+                progress = { (step + 1) / 3f },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Step ${step + 1} of 2",
+                text = "Step ${step + 1} of 3",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -137,7 +209,7 @@ fun OnboardingScreen(
                         OnboardingNumberField("Height (cm)", height, decimal = true) { height = it }
                         OnboardingNumberField("Current weight (kg)", weight, decimal = true) { weight = it }
                         OnboardingDropdown("Sex", sex, SEX_OPTIONS) { sex = it }
-                    } else {
+                    } else if (step == 1) {
                         Text(
                             text = "Your lifestyle",
                             style = MaterialTheme.typography.titleMedium,
@@ -151,6 +223,59 @@ fun OnboardingScreen(
                         )
                         OnboardingDropdown("Activity level", activity, ACTIVITY_OPTIONS) { activity = it }
                         OnboardingDropdown("Goal", goal, GOAL_OPTIONS) { goal = it }
+                    } else {
+                        Text(
+                            text = "Connect an AI",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "FitBuddy uses an LLM to read food photos and freeform text logs. " +
+                                "Add a key now, or skip to use built-in estimates until you set one up " +
+                                "later in Settings.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        val providerOptions = listOf(
+                            AiProvider.OPENROUTER to "OpenRouter",
+                            AiProvider.GEMINI to "Gemini",
+                            AiProvider.OLLAMA to "Ollama"
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            providerOptions.forEachIndexed { index, (value, label) ->
+                                SegmentedButton(
+                                    selected = aiProvider == value,
+                                    onClick = { aiProvider = value },
+                                    shape = SegmentedButtonDefaults.itemShape(index, providerOptions.size)
+                                ) { Text(label) }
+                            }
+                        }
+
+                        AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
+                            OnboardingDocsLink(label = label, url = url)
+                        }
+
+                        when (aiProvider) {
+                            AiProvider.OPENROUTER, AiProvider.GEMINI -> OnboardingTextField(
+                                label = "API Key",
+                                value = apiKey,
+                                isSecret = true
+                            ) { apiKey = it }
+
+                            AiProvider.OLLAMA -> OnboardingTextField(
+                                label = "Server URL",
+                                value = ollamaUrl,
+                                keyboardType = KeyboardType.Uri
+                            ) { ollamaUrl = it }
+                        }
+
+                        Text(
+                            text = "Your key is stored on-device and never leaves your phone except " +
+                                "to call the provider you chose.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -168,29 +293,36 @@ fun OnboardingScreen(
                     }
                     Spacer(Modifier.width(12.dp))
                 }
+                if (step == 2) {
+                    OutlinedButton(
+                        onClick = { showSkipWarning = true },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Skip")
+                    }
+                    Spacer(Modifier.width(12.dp))
+                }
                 Button(
                     modifier = Modifier.weight(1f),
-                    enabled = if (step == 0) stepOneValid && !isSaving else !isSaving,
+                    enabled = when (step) {
+                        0 -> stepOneValid && !isSaving
+                        2 -> aiConfigValid && !isSaving
+                        else -> !isSaving
+                    },
                     onClick = {
-                        if (step == 0) {
-                            step = 1
-                        } else {
-                            onComplete(
-                                age.toIntOrNull() ?: 0,
-                                weight.toDoubleOrNull() ?: 0.0,
-                                height.toDoubleOrNull() ?: 0.0,
-                                sex.ifBlank { null },
-                                goal,
-                                activity
-                            )
+                        when (step) {
+                            0 -> step = 1
+                            1 -> step = 2
+                            else -> finishOnboarding(buildAiSettings())
                         }
                     }
                 ) {
                     Text(
                         when {
                             isSaving -> "Setting up…"
-                            step == 0 -> "Continue"
-                            else -> "Get started"
+                            step == 2 -> "Finish setup"
+                            else -> "Continue"
                         }
                     )
                 }
@@ -219,6 +351,76 @@ private fun OnboardingNumberField(
             keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number
         ),
         modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun OnboardingTextField(
+    label: String,
+    value: String,
+    isSecret: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = if (isSecret) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+/** Tappable link to the provider's key-creation/setup docs, opened in the browser. */
+@Composable
+private fun OnboardingDocsLink(label: String, url: String) {
+    val uriHandler = LocalUriHandler.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { uriHandler.openUri(url) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun AiSkipWarningDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.WarningAmber, contentDescription = null) },
+        title = { Text("Skip AI setup?") },
+        text = {
+            Text(
+                "Without an AI key, FitBuddy can't read food photos or freeform text logs " +
+                    "automatically — it will fall back to built-in estimates instead. You can add " +
+                    "a key anytime from Settings."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Continue without AI") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Go back") }
+        }
     )
 }
 

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
+import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.MealDraft
@@ -62,6 +63,7 @@ import com.anant.fitbuddy.ui.components.FitBuddyPillConfig
 import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
+import com.anant.fitbuddy.util.ApkInstaller
 import com.anant.fitbuddy.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -112,6 +114,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val targetPlanState by viewModel.targetPlanState.collectAsStateWithLifecycle()
     val progressInsightState by viewModel.progressInsightState.collectAsStateWithLifecycle()
     val isAiOnline by viewModel.isAiOnline.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val workoutLogState by viewModel.workoutLogState.collectAsStateWithLifecycle()
     val editingWorkout by viewModel.editingWorkout.collectAsStateWithLifecycle()
     val exercisePickerExercises by viewModel.exercisePickerExercises.collectAsStateWithLifecycle()
@@ -294,6 +297,19 @@ fun MainScreen(viewModel: MainViewModel) {
                     livePillMessage = null
                     showAnantEasterEgg = false
                     snackbarHostState.currentSnackbarData?.dismiss()
+                },
+                updateState = updateState,
+                onCheckForUpdates = { viewModel.checkForUpdates(BuildConfig.VERSION_CODE) },
+                onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
+                onConfirmUpdate = { downloadUrl ->
+                    scope.launch {
+                        try {
+                            ApkInstaller.downloadAndInstall(context, downloadUrl)
+                            viewModel.dismissUpdatePrompt()
+                        } catch (e: Exception) {
+                            snackbarHostState.showFitBuddyPill("Update download failed: ${e.message}")
+                        }
+                    }
                 },
                 modifier = Modifier.padding(innerPadding)
             )

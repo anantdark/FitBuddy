@@ -27,6 +27,8 @@ import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
+import com.anant.fitbuddy.data.remote.UpdateChecker
+import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.repository.AnalysisOutcome
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.AiProvider
@@ -158,12 +160,50 @@ data class WorkoutEditUiState(
     val draft: WorkoutDraft
 )
 
+/** State of the manual "Check for Updates" flow in Settings. */
+@Immutable
+data class UpdateUiState(
+    val isChecking: Boolean = false,
+    val updateInfo: UpdateCheckResult.Available? = null,
+    val statusMessage: String? = null,
+    val statusIsError: Boolean = false
+)
+
 class MainViewModel(
     private val repository: FitnessRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val updateChecker: UpdateChecker
 ) : ViewModel() {
 
     private val today: String = DateUtils.today()
+
+    // --- Update check -------------------------------------------------------------------------
+
+    private val _updateState = MutableStateFlow(UpdateUiState())
+    val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
+
+    /** Manual check triggered from Settings; app is sideloaded, so there's no store-driven prompt. */
+    fun checkForUpdates(currentVersionCode: Int) {
+        if (_updateState.value.isChecking) return
+        viewModelScope.launch {
+            _updateState.update { it.copy(isChecking = true, statusMessage = null, statusIsError = false) }
+            when (val result = updateChecker.checkForUpdate(currentVersionCode)) {
+                is UpdateCheckResult.Available -> _updateState.update {
+                    it.copy(isChecking = false, updateInfo = result, statusMessage = null, statusIsError = false)
+                }
+                UpdateCheckResult.UpToDate -> _updateState.update {
+                    it.copy(isChecking = false, updateInfo = null, statusMessage = "You're on the latest version", statusIsError = false)
+                }
+                is UpdateCheckResult.Error -> _updateState.update {
+                    it.copy(isChecking = false, updateInfo = null, statusMessage = result.message, statusIsError = true)
+                }
+            }
+        }
+    }
+
+    fun dismissUpdatePrompt() {
+        _updateState.update { it.copy(updateInfo = null, statusMessage = null, statusIsError = false) }
+    }
 
     // --- Settings ---------------------------------------------------------------------------
 
@@ -1071,14 +1111,18 @@ class MainViewModel(
 
     // --- Profile ----------------------------------------------------------------------------
 
-    /** First-run setup: saves profile with default targets and seeds an initial body reading. */
+    /**
+     * First-run setup: saves profile with default targets, seeds an initial body reading, and
+     * (when the user didn't skip the AI step) persists their chosen provider/API key.
+     */
     fun completeOnboarding(
         age: Int,
         weightKg: Double,
         heightCm: Double,
         sex: String?,
         goal: String,
-        activityLevel: String
+        activityLevel: String,
+        aiSettings: AppSettings?
     ) {
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
@@ -1108,6 +1152,7 @@ class MainViewModel(
                         weightKg = weightKg
                     )
                 )
+                aiSettings?.let { settingsRepository.save(it) }
             }.onFailure { e ->
                 _analysisState.update {
                     it.copy(userMessage = e.message ?: "Couldn't save your profile")
@@ -1325,13 +1370,14 @@ class MainViewModel(
 /** Manual ViewModel factory (no DI framework); wires the shared repositories in. */
 class MainViewModelFactory(
     private val repository: FitnessRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val updateChecker: UpdateChecker
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(MainViewModel::class.java)) {
             "Unknown ViewModel class: ${modelClass.name}"
         }
-        return MainViewModel(repository, settingsRepository) as T
+        return MainViewModel(repository, settingsRepository, updateChecker) as T
     }
 }

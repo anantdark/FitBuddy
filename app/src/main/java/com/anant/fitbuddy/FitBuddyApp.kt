@@ -6,6 +6,7 @@ import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
+import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.SettingsRepository
 
@@ -18,6 +19,8 @@ class FitBuddyApp : Application() {
     private val database by lazy { AppDatabase.getDatabase(this) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+
+    val updateChecker: UpdateChecker by lazy { UpdateChecker(NetworkModule.provideGithubApi()) }
 
     val repository: FitnessRepository by lazy {
         FitnessRepository(

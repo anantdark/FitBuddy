@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,6 +57,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.viewmodel.ModelsUiState
+import com.anant.fitbuddy.ui.viewmodel.UpdateUiState
 import kotlinx.coroutines.delay
 
 private const val EASTER_EGG_TAP_TARGET = 31
@@ -79,6 +81,10 @@ fun SettingsScreen(
     onAnantTapHintDismiss: () -> Unit,
     onAnantTapWhenUnlocked: () -> Unit,
     onResetEasterEggData: () -> Unit,
+    updateState: UpdateUiState,
+    onCheckForUpdates: () -> Unit,
+    onDismissUpdatePrompt: () -> Unit,
+    onConfirmUpdate: (downloadUrl: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Local editable copies, re-seeded whenever persisted settings change.
@@ -342,7 +348,60 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.size(8.dp))
+            OutlinedButton(
+                onClick = onCheckForUpdates,
+                enabled = !updateState.isChecking,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (updateState.isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Checking...")
+                } else {
+                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Check for Updates")
+                }
+            }
+            updateState.statusMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (updateState.statusIsError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
         }
+    }
+
+    updateState.updateInfo?.let { info ->
+        AlertDialog(
+            onDismissRequest = onDismissUpdatePrompt,
+            title = { Text("Update available") },
+            text = {
+                Column {
+                    Text("Version ${info.versionName} (build ${info.versionCode}) is available.")
+                    if (info.releaseNotes.isNotBlank()) {
+                        Spacer(Modifier.size(8.dp))
+                        Text(
+                            text = info.releaseNotes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { onConfirmUpdate(info.downloadUrl) }) { Text("Update") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = onDismissUpdatePrompt) { Text("Later") }
+            }
+        )
     }
 }
 

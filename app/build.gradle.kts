@@ -16,9 +16,12 @@ val localProperties = Properties().apply {
 val openRouterApiKey: String = localProperties.getProperty("OPENROUTER_API_KEY", "")
 val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemini-2.0-flash-001")
 
-// CI overrides versionCode per build via -PappVersionCode=<GITHUB_RUN_NUMBER> so every
-// commit to main produces an installable update; local/dev builds keep the fallback.
+// CI overrides versionCode/versionName per build via -PappVersionCode=<GITHUB_RUN_NUMBER> and
+// -PappVersionName=1.0.<GITHUB_RUN_NUMBER> so every commit to main produces an installable
+// update (same applicationId + signature + strictly higher versionCode = update, not reinstall);
+// local/dev builds keep the fallback.
 val ciVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull()
+val ciVersionName = project.findProperty("appVersionName") as String?
 
 // Release signing — copy keystore.properties.example → keystore.properties before publishing.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -41,7 +44,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = ciVersionCode ?: 1
-        versionName = "1.0.0"
+        versionName = ciVersionName ?: "1.0.0-dev"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

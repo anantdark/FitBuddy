@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
             val settings by app.settingsRepository.settings.collectAsStateWithLifecycle(AppSettings())
             FitBuddyTheme(dynamicColor = settings.dynamicColor) {
                 val viewModel: MainViewModel = viewModel(
-                    factory = MainViewModelFactory(app.repository, app.settingsRepository)
+                    factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
                 )
                 val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
                 val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
