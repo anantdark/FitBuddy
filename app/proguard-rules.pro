@@ -41,3 +41,20 @@
 -keepclasseswithmembers class * {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# --- ML Kit barcode (AGP 9 R8 full mode) ----------------------------------------------------
+# BarcodeScanning.getClient() uses Firebase ComponentRuntime + reflection. AGP 9's
+# strictFullModeForKeepRules breaks the library's consumer rules (wildcard + extends),
+# so R8 merges/strips internals and getClient() NPEs on release builds.
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_barcode.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_barcode_bundled.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }
+-keep class com.google.firebase.components.** { *; }
+-keepclassmembers class * extends com.google.android.gms.internal.mlkit_vision_barcode_bundled.zzeh {
+  <fields>;
+}
+-keepclasseswithmembernames class * {
+    native <methods>;
+}

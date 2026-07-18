@@ -1,16 +1,15 @@
 package com.anant.fitbuddy.ui.screens
 
 import android.Manifest
+import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -26,6 +25,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,10 +38,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+
+private const val TAG = "BarcodeScan"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -116,27 +120,31 @@ private fun BarcodeCameraPreview(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var lastCode by remember { mutableStateOf<String?>(null) }
-    val executor = remember { Executors.newSingleThreadExecutor() }
-    val scanner = remember { BarcodeScanning.getClient() }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            scanner.close()
-            executor.shutdown()
+    val onBarcodeState by rememberUpdatedState(onBarcode)
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
+    var cameraError by remember { mutableStateOf<String?>(null) }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
-            PreviewView(ctx).apply {
-                scaleType = PreviewView.ScaleType.FILL_CENTER
-            }
-        },
-        update = { previewView ->
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-            cameraProviderFuture.addListener({
+    DisposableEffect(lifecycleOwner) {
+        val executor = Executors.newSingleThreadExecutor()
+        val delivered = AtomicBoolean(false)
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E
+            )
+            .build()
+        val scanner = BarcodeScanning.getClient(options)
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+
+        val bindListener = Runnable {
+            try {
                 val cameraProvider = cameraProviderFuture.get()
                 val preview = Preview.Builder().build().also {
                     it.surfaceProvider = previewView.surfaceProvider
@@ -147,7 +155,7 @@ private fun BarcodeCameraPreview(
                     .build()
                 analysis.setAnalyzer(executor) { imageProxy ->
                     val mediaImage = imageProxy.image
-                    if (mediaImage == null) {
+                    if (mediaImage == null || delivered.get()) {
                         imageProxy.close()
                         return@setAnalyzer
                     }
@@ -156,16 +164,10 @@ private fun BarcodeCameraPreview(
                         imageProxy.imageInfo.rotationDegrees
                     )
                     scanner.process(image)
-                        .addOnSuccessListener { barcodes ->
-                            barcodes.firstOrNull { it.format == Barcode.FORMAT_EAN_13 ||
-                                it.format == Barcode.FORMAT_EAN_8 ||
-                                it.format == Barcode.FORMAT_UPC_A ||
-                                it.format == Barcode.FORMAT_UPC_E
-                            }?.rawValue?.let { code ->
-                                if (code != lastCode) {
-                                    lastCode = code
-                                    onBarcode(code)
-                                }
+                        .addOnSuccessListener(mainExecutor) { barcodes ->
+                            val code = barcodes.firstOrNull()?.rawValue ?: return@addOnSuccessListener
+                            if (delivered.compareAndSet(false, true)) {
+                                onBarcodeState(code)
                             }
                         }
                         .addOnCompleteListener { imageProxy.close() }
@@ -177,7 +179,34 @@ private fun BarcodeCameraPreview(
                     preview,
                     analysis
                 )
-            }, ContextCompat.getMainExecutor(context))
+            } catch (e: Exception) {
+                Log.e(TAG, "Camera bind failed", e)
+                cameraError = e.message ?: "Couldn't open camera"
+            }
         }
-    )
+        cameraProviderFuture.addListener(bindListener, mainExecutor)
+
+        onDispose {
+            runCatching {
+                if (cameraProviderFuture.isDone) {
+                    cameraProviderFuture.get().unbindAll()
+                }
+            }
+            scanner.close()
+            executor.shutdown()
+        }
+    }
+
+    if (cameraError != null) {
+        Text(
+            text = cameraError ?: "",
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(16.dp)
+        )
+    } else {
+        AndroidView(
+            factory = { previewView },
+            modifier = modifier
+        )
+    }
 }

@@ -64,6 +64,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Side-by-side with release: com.anant.fitbuddy.debug vs com.anant.fitbuddy
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -86,6 +91,10 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    // Always install into the personal profile (user 0), never the work profile (user 10).
+    installation {
+        installOptions += listOf("--user", "0")
     }
 }
 

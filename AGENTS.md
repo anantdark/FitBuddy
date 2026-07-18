@@ -29,9 +29,9 @@ progress charts, editable meal review, and reusable food presets.
   - Install optimized build over adb (personal profile only — never work profile / user 10):
     `./gradlew :app:assembleRelease && adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-*.apk`
     (release is signed with the debug key for dev convenience — replace before publishing).
-  - Prefer `adb install -r --user 0 <apk>` over Gradle `installDebug`/`installRelease` (those omit
-    `--user 0` and can leave a copy in the work profile). Wireless adb historically preferred
-    direct `adb install` anyway (Gradle's adb push: EOF/broken pipe).
+  - `installDebug`/`installRelease` also pass `--user 0` via `android.installation.installOptions`.
+    Wireless adb: prefer direct `adb install -r --user 0 <apk>` if Gradle's adb push hits
+    EOF/broken pipe.
 
 ## Module / file map (`app/src/main/java/com/anant/fitbuddy/`)
 - `FitBuddyApp.kt` — Application/service locator; builds `SettingsRepository` + `FitnessRepository`.
