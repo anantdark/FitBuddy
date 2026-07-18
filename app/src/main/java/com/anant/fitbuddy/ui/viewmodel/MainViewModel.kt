@@ -214,7 +214,7 @@ class MainViewModel(
         .onEach { _hasSettingsSnapshot.value = true }
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
-    /** Reactive: true when the active provider is configured for live AI calls. */
+    /** Reactive: true when the preferred provider is configured for live AI calls. */
     val isAiOnline: StateFlow<Boolean> = settingsRepository.settings
         .map { it.isConfigured }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -254,11 +254,17 @@ class MainViewModel(
     private var lastTextModelsCacheKey: String? = null
 
     /**
-     * Loads the vision-capable model list for [provider] using [apiKey]. Results are cached per
-     * provider+key; a change invalidates the cache. No-op re-entry while already loading.
+     * Loads the vision-capable model list for [provider] using [apiKey] (and [baseUrl] for Ollama).
+     * Results are cached per provider+key+url; a change invalidates the cache. No-op re-entry
+     * while already loading.
      */
-    fun loadFreeVisionModels(provider: AiProvider, apiKey: String, force: Boolean = false) {
-        val cacheKey = "${provider.name}:$apiKey"
+    fun loadFreeVisionModels(
+        provider: AiProvider,
+        apiKey: String,
+        force: Boolean = false,
+        baseUrl: String = ""
+    ) {
+        val cacheKey = "${provider.name}:$apiKey:$baseUrl"
         if (_models.value.isLoading) return
         if (!force && _models.value.loaded && lastModelsCacheKey == cacheKey) return
         _models.update { it.copy(isLoading = true, error = null) }
@@ -267,7 +273,14 @@ class MainViewModel(
                 when (provider) {
                     AiProvider.OPENROUTER -> repository.fetchFreeVisionModels(apiKey)
                     AiProvider.GEMINI -> repository.fetchGeminiVisionModels(apiKey)
-                    AiProvider.OLLAMA -> emptyList()
+                    AiProvider.OLLAMA -> {
+                        val url = baseUrl.trim().trimEnd('/')
+                        when {
+                            url.isBlank() -> emptyList()
+                            url == AppSettings.OLLAMA_CLOUD_BASE_URL && apiKey.isBlank() -> emptyList()
+                            else -> repository.fetchOllamaVisionModels(url, apiKey)
+                        }
+                    }
                 }
             }
                 .onSuccess { list ->
@@ -286,10 +299,15 @@ class MainViewModel(
 
     /**
      * Loads the free (text) model list for [provider] used by the text-query model dropdown.
-     * Cached per provider+key like [loadFreeVisionModels].
+     * Cached per provider+key+url like [loadFreeVisionModels].
      */
-    fun loadFreeTextModels(provider: AiProvider, apiKey: String, force: Boolean = false) {
-        val cacheKey = "${provider.name}:$apiKey"
+    fun loadFreeTextModels(
+        provider: AiProvider,
+        apiKey: String,
+        force: Boolean = false,
+        baseUrl: String = ""
+    ) {
+        val cacheKey = "${provider.name}:$apiKey:$baseUrl"
         if (_textModels.value.isLoading) return
         if (!force && _textModels.value.loaded && lastTextModelsCacheKey == cacheKey) return
         _textModels.update { it.copy(isLoading = true, error = null) }
@@ -298,7 +316,14 @@ class MainViewModel(
                 when (provider) {
                     AiProvider.OPENROUTER -> repository.fetchFreeModels(apiKey)
                     AiProvider.GEMINI -> repository.fetchGeminiTextModels(apiKey)
-                    AiProvider.OLLAMA -> emptyList()
+                    AiProvider.OLLAMA -> {
+                        val url = baseUrl.trim().trimEnd('/')
+                        when {
+                            url.isBlank() -> emptyList()
+                            url == AppSettings.OLLAMA_CLOUD_BASE_URL && apiKey.isBlank() -> emptyList()
+                            else -> repository.fetchOllamaTextModels(url, apiKey)
+                        }
+                    }
                 }
             }
                 .onSuccess { list ->
@@ -916,7 +941,8 @@ class MainViewModel(
                         isLoading = false,
                         clarificationMessage = null,
                         foodDraft = outcome.draft,
-                        mealDraft = null
+                        mealDraft = null,
+                        userMessage = outcome.failoverNote
                     )
                 }
             }
@@ -927,13 +953,18 @@ class MainViewModel(
                     it.copy(
                         isLoading = false,
                         clarificationMessage = null,
-                        userMessage = "Logged ${outcome.activityName} · -${outcome.caloriesBurned} kcal"
+                        userMessage = outcome.failoverNote
+                            ?: "Logged ${outcome.activityName} · -${outcome.caloriesBurned} kcal"
                     )
                 }
             }
 
             is AnalysisOutcome.NeedsClarification -> _analysisState.update {
-                it.copy(isLoading = false, clarificationMessage = outcome.message)
+                it.copy(
+                    isLoading = false,
+                    clarificationMessage = outcome.message,
+                    userMessage = outcome.failoverNote
+                )
             }
 
             is AnalysisOutcome.NotIdentified -> {
@@ -942,7 +973,8 @@ class MainViewModel(
                     it.copy(
                         isLoading = false,
                         errorDialogTitle = "Item not identified",
-                        errorDialogMessage = outcome.message
+                        errorDialogMessage = outcome.message,
+                        userMessage = outcome.failoverNote
                     )
                 }
             }
@@ -1075,7 +1107,11 @@ class MainViewModel(
             _analysisState.update { state ->
                 when (outcome) {
                     is AnalysisOutcome.FoodReady ->
-                        state.copy(isReanalyzing = false, foodDraft = outcome.draft)
+                        state.copy(
+                            isReanalyzing = false,
+                            foodDraft = outcome.draft,
+                            reviewMessage = outcome.failoverNote
+                        )
 
                     // Non-success outcomes keep the current draft; report via the dialog's own
                     // snackbar (the app-level one is hidden behind the full-screen review dialog).

@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
@@ -31,6 +35,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -39,6 +44,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,14 +54,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.CompositionLocalProvider
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
+import com.anant.fitbuddy.data.settings.parseApiKeys
 import com.anant.fitbuddy.ui.viewmodel.ModelsUiState
 import com.anant.fitbuddy.ui.viewmodel.UpdateUiState
 import kotlinx.coroutines.delay
@@ -70,8 +83,8 @@ fun SettingsScreen(
     settings: AppSettings,
     modelsState: ModelsUiState,
     textModelsState: ModelsUiState,
-    onLoadModels: (AiProvider, String, Boolean) -> Unit,
-    onLoadTextModels: (AiProvider, String, Boolean) -> Unit,
+    onLoadModels: (AiProvider, String, Boolean, String) -> Unit,
+    onLoadTextModels: (AiProvider, String, Boolean, String) -> Unit,
     onSave: (AppSettings) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
     onExport: () -> Unit,
@@ -89,18 +102,31 @@ fun SettingsScreen(
 ) {
     // Local editable copies, re-seeded whenever persisted settings change.
     var provider by remember(settings) { mutableStateOf(settings.provider) }
-    var openRouterKey by remember(settings) { mutableStateOf(settings.openRouterApiKey) }
+    var openRouterKeys by remember(settings) {
+        mutableStateOf(settings.keysFor(AiProvider.OPENROUTER))
+    }
     var openRouterModel by remember(settings) { mutableStateOf(settings.openRouterModel) }
     var openRouterTextModel by remember(settings) { mutableStateOf(settings.openRouterTextModel) }
-    var geminiKey by remember(settings) { mutableStateOf(settings.geminiApiKey) }
+    var geminiKeys by remember(settings) {
+        mutableStateOf(settings.keysFor(AiProvider.GEMINI))
+    }
     var geminiModel by remember(settings) { mutableStateOf(settings.geminiModel) }
     var geminiTextModel by remember(settings) { mutableStateOf(settings.geminiTextModel) }
     var ollamaUrl by remember(settings) { mutableStateOf(settings.ollamaBaseUrl) }
     var ollamaModel by remember(settings) { mutableStateOf(settings.ollamaModel) }
     var ollamaTextModel by remember(settings) { mutableStateOf(settings.ollamaTextModel) }
+    var ollamaUseCloud by remember(settings) { mutableStateOf(settings.ollamaUseCloud) }
+    var ollamaKeys by remember(settings) {
+        mutableStateOf(settings.keysFor(AiProvider.OLLAMA))
+    }
+    var aiAutoFailover by remember(settings) { mutableStateOf(settings.aiAutoFailover) }
 
     var anantTapCount by remember { mutableIntStateOf(0) }
     var versionTapCount by remember { mutableIntStateOf(0) }
+
+    val openRouterKey = openRouterKeys.firstOrNull().orEmpty()
+    val geminiKey = geminiKeys.firstOrNull().orEmpty()
+    val ollamaApiKey = ollamaKeys.firstOrNull().orEmpty()
 
     LaunchedEffect(anantTapCount) {
         if (anantTapCount in 1 until EASTER_EGG_TAP_TARGET) {
@@ -128,6 +154,51 @@ fun SettingsScreen(
 
         // --- AI provider -----------------------------------------------------------------
         SettingsCard(title = "AI Provider") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Auto failover", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "When on, FitBuddy tries other API keys, then other models on the " +
+                            "same platform. When off, only your selected model is used, but " +
+                            "other API keys are still tried on failure. Change platform " +
+                            "manually if everything fails.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = aiAutoFailover,
+                    onCheckedChange = { aiAutoFailover = it }
+                )
+            }
+
+            if (aiAutoFailover) {
+                Text(
+                    text = "Active photo model: ${settings.activePhotoModelDisplay()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Active text model: ${settings.activeTextModelDisplay()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Active models update when you save AI settings, and after each " +
+                        "successful AI request. Rate-limited models are skipped until the " +
+                        "next UTC midnight.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.size(4.dp))
+
             val options = listOf(
                 AiProvider.OPENROUTER to "OpenRouter",
                 AiProvider.GEMINI to "Gemini",
@@ -145,13 +216,53 @@ fun SettingsScreen(
 
             Spacer(Modifier.size(4.dp))
 
+            // When Auto has an active model for this provider, keep local dropdown state in sync.
+            // Never copy Gemini Studio ids into OpenRouter/Ollama fields.
+            LaunchedEffect(
+                aiAutoFailover,
+                settings.activeAiProvider,
+                settings.activePhotoModel,
+                settings.activeTextModel,
+                provider
+            ) {
+                if (!aiAutoFailover) return@LaunchedEffect
+                if (settings.activeAiProvider != provider) return@LaunchedEffect
+                settings.activePhotoModel.takeIf { isPlausibleModelIdFor(provider, it) }?.let { active ->
+                    when (provider) {
+                        AiProvider.OPENROUTER -> openRouterModel = active
+                        AiProvider.GEMINI -> geminiModel = active
+                        AiProvider.OLLAMA -> ollamaModel = active
+                    }
+                }
+                settings.activeTextModel.takeIf { isPlausibleModelIdFor(provider, it) }?.let { active ->
+                    when (provider) {
+                        AiProvider.OPENROUTER -> openRouterTextModel = active
+                        AiProvider.GEMINI -> geminiTextModel = active
+                        AiProvider.OLLAMA -> ollamaTextModel = active
+                    }
+                }
+            }
+
+            // One-shot cleanup if a bad Gemini Studio id was previously saved under OpenRouter.
+            LaunchedEffect(settings.openRouterModel, settings.openRouterTextModel) {
+                if (!isPlausibleModelIdFor(AiProvider.OPENROUTER, openRouterModel) &&
+                    openRouterModel.isNotBlank()
+                ) {
+                    openRouterModel = AppSettings.DEFAULT_OPENROUTER_MODEL
+                }
+                if (openRouterTextModel.isNotBlank() &&
+                    !isPlausibleModelIdFor(AiProvider.OPENROUTER, openRouterTextModel)
+                ) {
+                    openRouterTextModel = ""
+                }
+            }
+
             when (provider) {
                 AiProvider.OPENROUTER -> {
-                    SettingField(
-                        label = "API Key",
-                        value = openRouterKey,
-                        onValueChange = { openRouterKey = it },
-                        isSecret = true
+                    ApiKeyChipEditor(
+                        label = "API keys",
+                        keys = openRouterKeys,
+                        onKeysChange = { openRouterKeys = it }
                     )
                     ModelDropdown(
                         label = "Photo model (free + vision)",
@@ -174,19 +285,18 @@ fun SettingsScreen(
                         apiKey = openRouterKey,
                         onLoad = onLoadTextModels
                     )
-                    HintText("Text model is used for typed logs and \"recalculate with AI\" (no photo). Leave blank to reuse the photo model.")
+                    HintText("Text model is used for typed logs and \"recalculate with AI\" (no photo). Leave blank to reuse the photo model. Gemma models are listed first.")
                 }
 
                 AiProvider.GEMINI -> {
-                    SettingField(
-                        label = "API Key",
-                        value = geminiKey,
-                        onValueChange = { geminiKey = it },
-                        isSecret = true
+                    ApiKeyChipEditor(
+                        label = "API keys",
+                        keys = geminiKeys,
+                        onKeysChange = { geminiKeys = it }
                     )
                     ModelDropdown(
-                        label = "Photo model (vision)",
-                        noun = "vision",
+                        label = "Photo model (free, by intelligence)",
+                        noun = "free vision",
                         selectedModel = geminiModel,
                         onModelChange = { geminiModel = it },
                         modelsState = modelsState,
@@ -196,7 +306,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.size(4.dp))
                     ModelDropdown(
-                        label = "Text model (free tier)",
+                        label = "Text model (free, by intelligence)",
                         noun = "free",
                         selectedModel = geminiTextModel,
                         onModelChange = { geminiTextModel = it },
@@ -205,27 +315,73 @@ fun SettingsScreen(
                         apiKey = geminiKey,
                         onLoad = onLoadTextModels
                     )
-                    HintText("Get a key from Google AI Studio (aistudio.google.com), enter it above, then pick a vision model like gemini-2.0-flash or gemini-2.5-flash (NOT an image-generation model). Text model (used for typed logs / recalculate) can be a lighter model like gemini-2.0-flash-lite. Free tier is rate-limited (HTTP 429) — wait a bit between requests.")
+                    HintText("Get a key from Google AI Studio (aistudio.google.com). Free Flash models only (smartest-first). With Auto failover on, failed keys then models rotate on Gemini only.")
                 }
 
                 AiProvider.OLLAMA -> {
-                    SettingField(
-                        label = "Server URL",
-                        value = ollamaUrl,
-                        onValueChange = { ollamaUrl = it },
-                        keyboardType = KeyboardType.Uri
-                    )
-                    SettingField(
+                    val modeOptions = listOf(false to "Local", true to "Cloud")
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        modeOptions.forEachIndexed { index, (useCloud, label) ->
+                            SegmentedButton(
+                                selected = ollamaUseCloud == useCloud,
+                                onClick = { ollamaUseCloud = useCloud },
+                                shape = SegmentedButtonDefaults.itemShape(index, modeOptions.size)
+                            ) { Text(label) }
+                        }
+                    }
+                    Spacer(Modifier.size(4.dp))
+                    if (ollamaUseCloud) {
+                        ApiKeyChipEditor(
+                            label = "API keys",
+                            keys = ollamaKeys,
+                            onKeysChange = { ollamaKeys = it }
+                        )
+                    } else {
+                        SettingField(
+                            label = "Server URL",
+                            value = ollamaUrl,
+                            onValueChange = { ollamaUrl = it },
+                            keyboardType = KeyboardType.Uri
+                        )
+                    }
+                    val ollamaListKey = if (ollamaUseCloud) ollamaApiKey else ""
+                    val ollamaListUrl = if (ollamaUseCloud) {
+                        AppSettings.OLLAMA_CLOUD_BASE_URL
+                    } else {
+                        ollamaUrl
+                    }
+                    ModelDropdown(
                         label = "Photo model (vision)",
-                        value = ollamaModel,
-                        onValueChange = { ollamaModel = it }
+                        noun = "vision",
+                        selectedModel = ollamaModel,
+                        onModelChange = { ollamaModel = it },
+                        modelsState = modelsState,
+                        provider = AiProvider.OLLAMA,
+                        apiKey = ollamaListKey,
+                        baseUrl = ollamaListUrl,
+                        onLoad = onLoadModels
                     )
-                    SettingField(
+                    Spacer(Modifier.size(4.dp))
+                    ModelDropdown(
                         label = "Text model",
-                        value = ollamaTextModel,
-                        onValueChange = { ollamaTextModel = it }
+                        noun = "Ollama",
+                        selectedModel = ollamaTextModel,
+                        onModelChange = { ollamaTextModel = it },
+                        modelsState = textModelsState,
+                        provider = AiProvider.OLLAMA,
+                        apiKey = ollamaListKey,
+                        baseUrl = ollamaListUrl,
+                        onLoad = onLoadTextModels
                     )
-                    HintText("Reachable from the phone, e.g. http://192.168.1.10:11434. Use a vision model (llava) for food photos; the text model (e.g. llama3) handles typed logs. Leave text model blank to reuse the photo model.")
+                    HintText(
+                        if (ollamaUseCloud) {
+                            "Cloud uses https://ollama.com. Create keys at ollama.com/settings/keys. " +
+                                "Gemma models are preferred. Leave text model blank to reuse the photo model."
+                        } else {
+                            "Reachable from the phone, e.g. http://192.168.1.10:11434. Use a vision " +
+                                "model (llava/gemma) for food photos. Leave text model blank to reuse the photo model."
+                        }
+                    )
                 }
             }
 
@@ -235,15 +391,21 @@ fun SettingsScreen(
                     onSave(
                         settings.copy(
                             provider = provider,
-                            openRouterApiKey = openRouterKey.trim(),
+                            openRouterApiKeys = openRouterKeys,
+                            openRouterApiKey = openRouterKey,
                             openRouterModel = openRouterModel.trim(),
                             openRouterTextModel = openRouterTextModel.trim(),
-                            geminiApiKey = geminiKey.trim(),
+                            geminiApiKeys = geminiKeys,
+                            geminiApiKey = geminiKey,
                             geminiModel = geminiModel.trim(),
                             geminiTextModel = geminiTextModel.trim(),
                             ollamaBaseUrl = ollamaUrl.trim(),
                             ollamaModel = ollamaModel.trim(),
-                            ollamaTextModel = ollamaTextModel.trim()
+                            ollamaTextModel = ollamaTextModel.trim(),
+                            ollamaUseCloud = ollamaUseCloud,
+                            ollamaApiKeys = ollamaKeys,
+                            ollamaApiKey = ollamaApiKey,
+                            aiAutoFailover = aiAutoFailover
                         )
                     )
                 }
@@ -251,7 +413,7 @@ fun SettingsScreen(
         }
 
         // --- Appearance ------------------------------------------------------------------
-        SettingsCard(title = "Appearance") {
+        SettingsCard(title = "Appearance", initiallyExpanded = false) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -272,7 +434,7 @@ fun SettingsScreen(
         }
 
         // --- Backup & Data ---------------------------------------------------------------
-        SettingsCard(title = "Backup & Data") {
+        SettingsCard(title = "Backup & Data", initiallyExpanded = false) {
             Text(
                 "Export all your data (profile, readings, food and exercise logs, presets) to a " +
                     "JSON file, or import a backup. Importing replaces everything currently in the app.",
@@ -297,7 +459,7 @@ fun SettingsScreen(
         }
 
         // --- About -----------------------------------------------------------------------
-        SettingsCard(title = "About") {
+        SettingsCard(title = "About", collapsible = false) {
             AboutRow("App", "FitBuddy")
             AboutRow(
                 label = "Version",
@@ -407,8 +569,9 @@ fun SettingsScreen(
 
 /**
  * Read-only exposed-dropdown listing vision-capable models for the active [provider] (free-only
- * for OpenRouter, all vision models for Gemini). Tapping the field opens the list; a separate
- * field below allows typing a custom model id. Auto-loads when the provider/key changes.
+ * for OpenRouter, all vision models for Gemini). Tapping the field opens the list; a Model id
+ * field follows for custom entry, then the available-count / reload row. Auto-loads when the
+ * provider/key changes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -420,13 +583,20 @@ private fun ModelDropdown(
     modelsState: ModelsUiState,
     provider: AiProvider,
     apiKey: String,
-    onLoad: (AiProvider, String, Boolean) -> Unit
+    onLoad: (AiProvider, String, Boolean, String) -> Unit,
+    baseUrl: String = ""
 ) {
-    // Re-fetch when the provider or key changes (Gemini needs a key to list models).
-    LaunchedEffect(provider, apiKey) { onLoad(provider, apiKey, false) }
+    // Re-fetch when the provider, key, or Ollama URL changes.
+    LaunchedEffect(provider, apiKey, baseUrl) { onLoad(provider, apiKey, false, baseUrl) }
 
     var expanded by remember { mutableStateOf(false) }
     val options = modelsState.options
+    val ollamaNeedsUrl = provider == AiProvider.OLLAMA &&
+        baseUrl != AppSettings.OLLAMA_CLOUD_BASE_URL &&
+        baseUrl.isBlank()
+    val ollamaNeedsKey = provider == AiProvider.OLLAMA &&
+        baseUrl == AppSettings.OLLAMA_CLOUD_BASE_URL &&
+        apiKey.isBlank()
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -464,6 +634,8 @@ private fun ModelDropdown(
                                 modelsState.isLoading -> "Loading $noun models…"
                                 provider == AiProvider.GEMINI && apiKey.isBlank() ->
                                     "Enter your API key first"
+                                ollamaNeedsKey -> "Enter your Ollama Cloud API key first"
+                                ollamaNeedsUrl -> "Enter your Ollama server URL first"
                                 modelsState.error != null -> "Couldn't load models"
                                 else -> "No $noun models found"
                             }
@@ -494,13 +666,24 @@ private fun ModelDropdown(
         }
     }
 
+    // Manual override / advanced entry — always available, even if the list is empty.
+    OutlinedTextField(
+        value = selectedModel,
+        onValueChange = onModelChange,
+        label = { Text("Model id") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         val statusText = when {
             modelsState.isLoading -> "Loading $noun models…"
             modelsState.error != null -> "Couldn't load list: ${modelsState.error}"
             options.isNotEmpty() -> "${options.size} $noun models available"
             provider == AiProvider.GEMINI && apiKey.isBlank() -> "Enter your API key to load models"
-            modelsState.loaded -> "No $noun models found; type an id below"
+            ollamaNeedsKey -> "Enter your Ollama Cloud API key to load models"
+            ollamaNeedsUrl -> "Enter your Ollama server URL to load models"
+            modelsState.loaded -> "No $noun models found; type an id above"
             else -> "Pick an image-capable model"
         }
         Text(
@@ -510,21 +693,12 @@ private fun ModelDropdown(
             modifier = Modifier.weight(1f)
         )
         IconButton(
-            onClick = { onLoad(provider, apiKey, true) },
+            onClick = { onLoad(provider, apiKey, true, baseUrl) },
             enabled = !modelsState.isLoading
         ) {
             Icon(Icons.Filled.Refresh, contentDescription = "Reload models")
         }
     }
-
-    // Manual override / advanced entry — always available, even if the list is empty.
-    OutlinedTextField(
-        value = selectedModel,
-        onValueChange = onModelChange,
-        label = { Text("Model id") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
 }
 
 @Composable
@@ -572,7 +746,14 @@ private fun AiStatusBanner(isConfigured: Boolean, provider: AiProvider) {
 }
 
 @Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
+private fun SettingsCard(
+    title: String,
+    collapsible: Boolean = true,
+    initiallyExpanded: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    var expanded by remember { mutableStateOf(initiallyExpanded || !collapsible) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -584,12 +765,36 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            content()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (collapsible) {
+                            Modifier.clickable { expanded = !expanded }
+                        } else {
+                            Modifier
+                        }
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (collapsible) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand"
+                    )
+                }
+            }
+            AnimatedVisibility(visible = expanded || !collapsible) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    content()
+                }
+            }
         }
     }
 }
@@ -611,6 +816,103 @@ private fun SettingField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+/** Multi-key editor: chips with remove; Add field accepts comma/newline paste. */
+@Composable
+fun ApiKeyChipEditor(
+    label: String,
+    keys: List<String>,
+    onKeysChange: (List<String>) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var draft by remember { mutableStateOf("") }
+
+    fun commitRaw(raw: String): Boolean {
+        val added = parseApiKeys(raw)
+        if (added.isEmpty()) return false
+        onKeysChange((keys + added).distinct())
+        return true
+    }
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        if (keys.isNotEmpty()) {
+            // Column instead of FlowRow — BOM 2024.09 lacks the FlowRowOverflow overload
+            // that the compiler was linking, which crashed Settings with NoSuchMethodError.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                keys.forEach { key ->
+                    InputChip(
+                        selected = false,
+                        onClick = { },
+                        // Fully masked — never show raw key text that could be copied.
+                        label = { Text(maskApiKey(key), maxLines = 1) },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Remove key",
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clickable { onKeysChange(keys - key) }
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Hide cut/copy toolbar so a pasted key can't be copied back out of the field.
+            CompositionLocalProvider(LocalTextToolbar provides NoCopyTextToolbar) {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { new ->
+                        val pasted = new.length - draft.length > 1 ||
+                            '\n' in new || ',' in new || ';' in new
+                        if (pasted && commitRaw(new)) {
+                            draft = ""
+                        } else {
+                            draft = new
+                        }
+                    },
+                    label = { Text("Add key (paste several)") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            TextButton(
+                onClick = {
+                    if (commitRaw(draft)) draft = ""
+                }
+            ) { Text("Add") }
+        }
+        HintText("Paste multiple keys separated by commas or new lines. Keys are masked and can't be copied after adding.")
+    }
+}
+
+/** Bullets only — no suffix of the real key. */
+private fun maskApiKey(key: String): String {
+    val n = key.length.coerceIn(8, 16)
+    return "•".repeat(n)
+}
+
+/** Disables the selection action mode (copy/cut) on Compose text fields. */
+private object NoCopyTextToolbar : TextToolbar {
+    override val status: TextToolbarStatus = TextToolbarStatus.Hidden
+    override fun hide() {}
+    override fun showMenu(
+        rect: Rect,
+        onCopyRequested: (() -> Unit)?,
+        onPasteRequested: (() -> Unit)?,
+        onCutRequested: (() -> Unit)?,
+        onSelectAllRequested: (() -> Unit)?
+    ) {
+        // Intentionally empty — paste still works via the IME / system paste into onValueChange.
+    }
 }
 
 @Composable

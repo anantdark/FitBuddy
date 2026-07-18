@@ -86,6 +86,8 @@ private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
     )
 )
 
+private val OLLAMA_CLOUD_KEYS_URL = "https://ollama.com/settings/keys"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
@@ -109,28 +111,45 @@ fun OnboardingScreen(
     var goal by remember { mutableStateOf("RECOMP") }
     var activity by remember { mutableStateOf("MODERATE") }
     var aiProvider by remember { mutableStateOf(AiProvider.OPENROUTER) }
-    var apiKey by remember { mutableStateOf("") }
+    var apiKeys by remember { mutableStateOf(emptyList<String>()) }
     var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
+    var ollamaUseCloud by remember { mutableStateOf(false) }
+    var ollamaKeys by remember { mutableStateOf(emptyList<String>()) }
     var showSkipWarning by remember { mutableStateOf(false) }
 
     val stepOneValid = (age.toIntOrNull() ?: 0) in 10..120 &&
         (height.toDoubleOrNull() ?: 0.0) in 50.0..280.0 &&
         (weight.toDoubleOrNull() ?: 0.0) in 20.0..400.0
     val aiConfigValid = when (aiProvider) {
-        AiProvider.OPENROUTER, AiProvider.GEMINI -> apiKey.isNotBlank()
-        AiProvider.OLLAMA -> ollamaUrl.isNotBlank()
+        AiProvider.OPENROUTER, AiProvider.GEMINI -> apiKeys.isNotEmpty()
+        AiProvider.OLLAMA -> if (ollamaUseCloud) {
+            ollamaKeys.isNotEmpty()
+        } else {
+            ollamaUrl.isNotBlank()
+        }
     }
 
-    fun buildAiSettings(): AppSettings = AppSettings(
-        provider = aiProvider,
-        openRouterApiKey = if (aiProvider == AiProvider.OPENROUTER) apiKey.trim() else "",
-        geminiApiKey = if (aiProvider == AiProvider.GEMINI) apiKey.trim() else "",
-        ollamaBaseUrl = if (aiProvider == AiProvider.OLLAMA) {
-            ollamaUrl.trim()
-        } else {
-            AppSettings.DEFAULT_OLLAMA_URL
-        }
-    )
+    fun buildAiSettings(): AppSettings {
+        val orKeys = if (aiProvider == AiProvider.OPENROUTER) apiKeys else emptyList()
+        val gemKeys = if (aiProvider == AiProvider.GEMINI) apiKeys else emptyList()
+        val olKeys = if (aiProvider == AiProvider.OLLAMA && ollamaUseCloud) ollamaKeys else emptyList()
+        return AppSettings(
+            provider = aiProvider,
+            openRouterApiKeys = orKeys,
+            openRouterApiKey = orKeys.firstOrNull().orEmpty(),
+            geminiApiKeys = gemKeys,
+            geminiApiKey = gemKeys.firstOrNull().orEmpty(),
+            ollamaBaseUrl = if (aiProvider == AiProvider.OLLAMA && !ollamaUseCloud) {
+                ollamaUrl.trim()
+            } else {
+                AppSettings.DEFAULT_OLLAMA_URL
+            },
+            ollamaUseCloud = aiProvider == AiProvider.OLLAMA && ollamaUseCloud,
+            ollamaApiKeys = olKeys,
+            ollamaApiKey = olKeys.firstOrNull().orEmpty(),
+            aiAutoFailover = true
+        )
+    }
 
     fun finishOnboarding(aiSettings: AppSettings?) {
         onComplete(
@@ -257,17 +276,44 @@ fun OnboardingScreen(
                         }
 
                         when (aiProvider) {
-                            AiProvider.OPENROUTER, AiProvider.GEMINI -> OnboardingTextField(
-                                label = "API Key",
-                                value = apiKey,
-                                isSecret = true
-                            ) { apiKey = it }
+                            AiProvider.OPENROUTER, AiProvider.GEMINI -> ApiKeyChipEditor(
+                                label = "API keys",
+                                keys = apiKeys,
+                                onKeysChange = { apiKeys = it }
+                            )
 
-                            AiProvider.OLLAMA -> OnboardingTextField(
-                                label = "Server URL",
-                                value = ollamaUrl,
-                                keyboardType = KeyboardType.Uri
-                            ) { ollamaUrl = it }
+                            AiProvider.OLLAMA -> {
+                                val modeOptions = listOf(false to "Local", true to "Cloud")
+                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                    modeOptions.forEachIndexed { index, (useCloud, label) ->
+                                        SegmentedButton(
+                                            selected = ollamaUseCloud == useCloud,
+                                            onClick = { ollamaUseCloud = useCloud },
+                                            shape = SegmentedButtonDefaults.itemShape(
+                                                index,
+                                                modeOptions.size
+                                            )
+                                        ) { Text(label) }
+                                    }
+                                }
+                                if (ollamaUseCloud) {
+                                    OnboardingDocsLink(
+                                        label = "Create an Ollama Cloud API key",
+                                        url = OLLAMA_CLOUD_KEYS_URL
+                                    )
+                                    ApiKeyChipEditor(
+                                        label = "API keys",
+                                        keys = ollamaKeys,
+                                        onKeysChange = { ollamaKeys = it }
+                                    )
+                                } else {
+                                    OnboardingTextField(
+                                        label = "Server URL",
+                                        value = ollamaUrl,
+                                        keyboardType = KeyboardType.Uri
+                                    ) { ollamaUrl = it }
+                                }
+                            }
                         }
 
                         Text(

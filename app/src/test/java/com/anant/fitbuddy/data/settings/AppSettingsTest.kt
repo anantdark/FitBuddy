@@ -59,9 +59,59 @@ class AppSettingsTest {
 
     @Test
     fun `isConfigured requires both key and model per provider`() {
-        assertFalse(AppSettings(provider = AiProvider.OPENROUTER, openRouterApiKey = "", openRouterModel = "m").isConfigured)
-        assertTrue(AppSettings(provider = AiProvider.OPENROUTER, openRouterApiKey = "k", openRouterModel = "m").isConfigured)
-        assertFalse(AppSettings(provider = AiProvider.GEMINI, geminiApiKey = "", geminiModel = "m").isConfigured)
-        assertTrue(AppSettings(provider = AiProvider.OLLAMA, ollamaBaseUrl = "http://h", ollamaModel = "llava").isConfigured)
+        assertFalse(
+            AppSettings(
+                provider = AiProvider.OPENROUTER,
+                openRouterApiKey = "",
+                openRouterModel = "m"
+            ).isConfigured
+        )
+        assertTrue(
+            AppSettings(
+                provider = AiProvider.OPENROUTER,
+                openRouterApiKeys = listOf("k"),
+                openRouterApiKey = "k",
+                openRouterModel = "m"
+            ).isConfigured
+        )
+        assertFalse(
+            AppSettings(provider = AiProvider.GEMINI, geminiApiKey = "", geminiModel = "m").isConfigured
+        )
+        assertTrue(
+            AppSettings(
+                provider = AiProvider.OLLAMA,
+                ollamaBaseUrl = "http://h",
+                ollamaModel = "llava"
+            ).isConfigured
+        )
+    }
+
+    @Test
+    fun `keysFor merges list and active key`() {
+        val fromList = AppSettings(openRouterApiKeys = listOf("a", "b"))
+        assertEquals(listOf("a", "b"), fromList.keysFor(AiProvider.OPENROUTER))
+
+        val legacy = AppSettings(openRouterApiKey = "solo")
+        assertEquals(listOf("solo"), legacy.keysFor(AiProvider.OPENROUTER))
+    }
+
+    @Test
+    fun `withKey sets active credential for attempt`() {
+        val base = AppSettings(
+            openRouterApiKeys = listOf("a", "b"),
+            openRouterApiKey = "a"
+        )
+        val attempt = base.withKey(AiProvider.OPENROUTER, "b")
+        assertEquals("b", attempt.openRouterApiKey)
+        assertEquals("Bearer b", attempt.copy(provider = AiProvider.OPENROUTER).authHeader)
+    }
+
+    @Test
+    fun `parseApiKeys splits commas newlines and dedupes`() {
+        assertEquals(
+            listOf("k1", "k2", "k3"),
+            parseApiKeys("k1\nk2, k3\n k2 ")
+        )
+        assertEquals(emptyList<String>(), parseApiKeys("  \n,"))
     }
 }

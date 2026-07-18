@@ -218,4 +218,56 @@ class RemoteAiDataSourceTest {
 
         assertEquals(listOf("gemini-2.0-flash"), result.map { it.id })
     }
+
+    @Test
+    fun `fetchGeminiVisionModels keeps free flash only and sorts by intelligence`() = runTest {
+        val flash20 = GeminiModelDto(
+            name = "models/gemini-2.0-flash",
+            displayName = "Gemini 2.0 Flash",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val flash25 = GeminiModelDto(
+            name = "models/gemini-2.5-flash",
+            displayName = "Gemini 2.5 Flash",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val flash35 = GeminiModelDto(
+            name = "models/gemini-3.5-flash",
+            displayName = "Gemini 3.5 Flash",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val lite = GeminiModelDto(
+            name = "models/gemini-2.0-flash-lite",
+            displayName = "Gemini 2.0 Flash Lite",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val pro = GeminiModelDto(
+            name = "models/gemini-2.5-pro",
+            displayName = "Gemini 2.5 Pro",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val omni = GeminiModelDto(
+            name = "models/gemini-omni-flash-preview",
+            displayName = "Gemini Omni Flash Preview",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val api = FakeAiApi(
+            geminiModelsResponse = GeminiModelsResponse(
+                listOf(flash20, pro, lite, omni, flash25, flash35)
+            )
+        )
+        val source = RemoteAiDataSource(api, moshi)
+
+        val result = source.fetchGeminiVisionModels("key")
+
+        assertEquals(
+            listOf(
+                "gemini-3.5-flash",
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-lite"
+            ),
+            result.map { it.id }
+        )
+    }
 }

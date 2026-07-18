@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import android.Manifest
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -66,6 +67,9 @@ import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.util.ApkInstaller
 import com.anant.fitbuddy.util.ImageUtils
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -90,7 +94,7 @@ private enum class FoodEditorTarget {
     MEAL_REVIEW
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
@@ -191,6 +195,20 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
+    // TakePicturePreview starts IMAGE_CAPTURE, which requires CAMERA at runtime on
+    // Android 6+. Launching without it crashes with SecurityException (permission denial).
+    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
+        if (granted) {
+            cameraLauncher.launch(null)
+        } else {
+            scope.launch {
+                snackbarHostState.showFitBuddyPill(
+                    "Camera permission is needed to photograph meals."
+                )
+            }
+        }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -263,11 +281,11 @@ fun MainScreen(viewModel: MainViewModel) {
                 settings = settings,
                 modelsState = modelsState,
                 textModelsState = textModelsState,
-                onLoadModels = { provider, apiKey, force ->
-                    viewModel.loadFreeVisionModels(provider, apiKey, force)
+                onLoadModels = { provider, apiKey, force, baseUrl ->
+                    viewModel.loadFreeVisionModels(provider, apiKey, force, baseUrl)
                 },
-                onLoadTextModels = { provider, apiKey, force ->
-                    viewModel.loadFreeTextModels(provider, apiKey, force)
+                onLoadTextModels = { provider, apiKey, force, baseUrl ->
+                    viewModel.loadFreeTextModels(provider, apiKey, force, baseUrl)
                 },
                 onSave = viewModel::saveSettings,
                 onDynamicColorChange = { enabled ->
@@ -464,7 +482,11 @@ fun MainScreen(viewModel: MainViewModel) {
             onDismiss = { showLogHub = false },
             onLogPhoto = {
                 showLogHub = false
-                cameraLauncher.launch(null)
+                if (cameraPermission.status.isGranted) {
+                    cameraLauncher.launch(null)
+                } else {
+                    cameraPermission.launchPermissionRequest()
+                }
             },
             onLogGallery = {
                 showLogHub = false

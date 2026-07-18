@@ -18,6 +18,8 @@ import com.anant.fitbuddy.data.remote.dto.ContentPart
 import com.anant.fitbuddy.data.remote.dto.ImageUrl
 import com.anant.fitbuddy.data.remote.dto.ModelDto
 import com.anant.fitbuddy.data.remote.dto.ResponseFormat
+import com.anant.fitbuddy.data.remote.dto.gemmaFirstIntelligenceRank
+import com.anant.fitbuddy.data.remote.dto.geminiIntelligenceRank
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonDataException
@@ -338,7 +340,7 @@ class RemoteAiDataSource(
 
     /**
      * Fetches the OpenRouter model catalog and returns only the free, vision-capable models,
-     * sorted by display name. Auth is optional for this endpoint (used if a key is present).
+     * Gemma-first then by size. Auth is optional for this endpoint (used if a key is present).
      */
     suspend fun fetchFreeVisionModels(apiKey: String): List<ModelOption> {
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
@@ -346,7 +348,7 @@ class RemoteAiDataSource(
         return response.data
             .filter { it.isFree && it.supportsVision && !isUnsuitableModel(it) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-            .sortedBy { it.displayName.lowercase() }
+            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
     }
 
     /**
@@ -375,8 +377,8 @@ class RemoteAiDataSource(
     }
 
     /**
-     * Fetches the OpenRouter catalog and returns all free (chat) models, sorted by name. Used for
-     * the text-only query model dropdown, where vision capability is not required.
+     * Fetches the OpenRouter catalog and returns all free (chat) models, Gemma-first then by size.
+     * Used for the text-only query model dropdown.
      */
     suspend fun fetchFreeModels(apiKey: String): List<ModelOption> {
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
@@ -384,35 +386,67 @@ class RemoteAiDataSource(
         return response.data
             .filter { it.isFree && !isUnsuitableModel(it) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-            .sortedBy { it.displayName.lowercase() }
+            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
     }
 
     /**
-     * Fetches the Gemini catalog and returns all chat-usable Gemini models (Gemini's free tier is
-     * keyed, so the list API exposes no per-model pricing). Used for the text-query dropdown.
+     * Free-tier Gemini chat models for the text-query dropdown, ordered by estimated intelligence
+     * (smartest first). List API has no pricing field — see [GeminiModelDto.isFreeTier].
      */
-    suspend fun fetchGeminiTextModels(apiKey: String): List<ModelOption> {
+    suspend fun fetchGeminiTextModels(apiKey: String): List<ModelOption> =
+        fetchGeminiFreeModels(apiKey)
+
+    /**
+     * Free-tier vision Gemini models for the photo dropdown / in-request model failover,
+     * ordered by estimated intelligence (smartest first).
+     */
+    suspend fun fetchGeminiVisionModels(apiKey: String): List<ModelOption> =
+        fetchGeminiFreeModels(apiKey)
+
+    private suspend fun fetchGeminiFreeModels(apiKey: String): List<ModelOption> {
         require(apiKey.isNotBlank()) { "A Gemini API key is required to list models" }
         val url = "$GEMINI_MODELS_URL?key=$apiKey&pageSize=200"
         val response = api.listGeminiModels(url)
         return response.models
-            .filter { it.supportsVision }
+            .filter { it.supportsVision && it.isFreeTier }
             .map { ModelOption(id = it.modelId, displayName = it.displayName ?: it.modelId) }
-            .sortedBy { it.displayName.lowercase() }
+            .sortedByDescending { geminiIntelligenceRank(it.id) }
     }
 
     /**
-     * Fetches the Gemini model catalog and returns only the vision-capable, chat-usable models.
-     * The key is passed as an `?key=` query param (this endpoint takes no auth header).
+     * Lists models from an Ollama host (local/LAN or ollama.com Cloud) via OpenAI-compat
+     * `GET /v1/models`. [apiKey] is required for Cloud; omit for local.
      */
-    suspend fun fetchGeminiVisionModels(apiKey: String): List<ModelOption> {
-        require(apiKey.isNotBlank()) { "A Gemini API key is required to list models" }
-        val url = "$GEMINI_MODELS_URL?key=$apiKey&pageSize=200"
-        val response = api.listGeminiModels(url)
-        return response.models
-            .filter { it.supportsVision }
-            .map { ModelOption(id = it.modelId, displayName = it.displayName ?: it.modelId) }
-            .sortedBy { it.displayName.lowercase() }
+    suspend fun fetchOllamaModels(baseUrl: String, apiKey: String = ""): List<ModelOption> {
+        val base = baseUrl.trim().trimEnd('/')
+        require(base.isNotBlank()) { "Ollama server URL is required to list models" }
+        val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
+        val response = api.listModels("$base/v1/models", auth)
+        return response.data
+            .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
+            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
+    }
+
+    /** Vision-capable Ollama models (name heuristic — `/v1/models` has no modality flag). */
+    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
+        fetchOllamaModels(baseUrl, apiKey).filter { isLikelyOllamaVisionModel(it.id) }
+
+    /** Text/chat Ollama models (full catalog from the host). */
+    suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
+        fetchOllamaModels(baseUrl, apiKey)
+
+    /**
+     * Ollama's list endpoint does not expose input modalities. Match common multimodal model
+     * name tokens used for meal-photo analysis.
+     */
+    private fun isLikelyOllamaVisionModel(modelId: String): Boolean {
+        val id = modelId.lowercase()
+        val tokens = listOf(
+            "llava", "bakllava", "vision", "moondream", "minicpm-v", "minicpm_v",
+            "qwen2-vl", "qwen2.5-vl", "qwen2_5_vl", "qwen3-vl", "qwen3.5-vl",
+            "llama3.2-vision", "llama-3.2-vision", "gemma3", "gemma4", "gemini"
+        )
+        return tokens.any { id.contains(it) }
     }
 
     /** Some models wrap JSON in ```json ... ``` fences; strip them before parsing. */

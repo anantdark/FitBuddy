@@ -47,7 +47,7 @@ progress charts, editable meal review, and reusable food presets.
     (OpenRouter), `listGeminiModels` (@Url with `?key=`).
   - `NetworkModule.kt` — Moshi (codegen + reflective fallback), OkHttp, Retrofit (placeholder base URL; calls use @Url).
   - `RemoteAiDataSource.kt` — prompt assembly, image attach, JSON parse, `fetchFreeVisionModels`
-    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini, vision heuristic).
+    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free Flash, intelligence-sorted).
   - `dto/` — `ChatDtos.kt`, `ModelsDtos.kt` (OpenRouter `ModelDto` + Gemini `GeminiModelDto`).
 - `data/repository/`
   - `FitnessRepository.kt` — single `analyze()` entry point; routes by response `status`
@@ -55,8 +55,8 @@ progress charts, editable meal review, and reusable food presets.
     `simulateAIService` fallback; presets CRUD; `getFoodTotalsToday` (single consolidated query).
   - `AnalysisOutcome.kt` — sealed: `FoodReady(draft)`, `ExerciseSaved`, `NeedsClarification`, `Error`.
 - `data/settings/`
-  - `AppSettings.kt` — `AiProvider { OPENROUTER, GEMINI, OLLAMA }`; derives `model`/`chatUrl`/
-    `authHeader`/`isConfigured` per provider.
+  - `AppSettings.kt` — `AiProvider { OPENROUTER, GEMINI, OLLAMA }`; Ollama Local/Cloud
+    (`ollamaUseCloud` + `ollamaApiKey`); derives `model`/`chatUrl`/`authHeader`/`isConfigured`.
   - `SettingsRepository.kt` — DataStore-backed; first-run defaults seed from `BuildConfig`
     (which reads `local.properties`).
 - `ui/viewmodel/MainViewModel.kt` — all screen state; `settings`, `isAiOnline`, dashboard,
@@ -72,12 +72,21 @@ progress charts, editable meal review, and reusable food presets.
 - **Gemini**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`; Bearer key;
   model list via `.../v1beta/models?key=...`; dropdown = vision-capable Gemini models (heuristic,
   since the list API exposes no modality flag). Model ids strip the `models/` prefix.
-- **Ollama**: user-supplied base URL + model (e.g. `llava`); no auth; needs
-  `usesCleartextTraffic=true` (already set) for local HTTP.
+- **Ollama**: Local or Cloud (Settings toggle). Local = user-supplied base URL, no auth,
+  `GET {url}/v1/models` for dropdowns, cleartext LAN HTTP (`usesCleartextTraffic=true`).
+  Cloud = `https://ollama.com` + Bearer API key from ollama.com/settings/keys; same
+  `/v1/models` + `/v1/chat/completions`. Vision dropdown uses a name heuristic (llava, etc.).
 - Config is **runtime** via Settings screen (DataStore), not compile-time. `BuildConfig`
   (`OPENROUTER_API_KEY`, `AI_MODEL` from `local.properties`) only seeds first-run defaults.
-- If not configured / on network failure, the repo falls back to the offline simulator so the app
-  always works.
+- Multiple API keys per provider (Settings chips). **Auto failover** (default on): same model →
+  next key → other models on the **same** preferred platform only. Never switches platforms;
+  if all keys/models fail, the error is surfaced and the user must change platform in Settings.
+  Auto off: selected model only (no model/platform change); still rotates API keys on failure,
+  then surfaces the error. Rate-limited models are skipped until the **next UTC midnight**
+  (persisted); then newer requests try the highest models again. Gemini uses free Flash
+  intelligence ranking; OpenRouter/Ollama prefer Gemma. Pills note model switches within the
+  platform.
+- If no provider is configured at all, text logs use the offline simulator (photos require a key).
 
 ## Key flows
 - **Food logging**: analyze → `FoodReady(FoodDraft)` → `FoodReviewDialog` (edit dish name,

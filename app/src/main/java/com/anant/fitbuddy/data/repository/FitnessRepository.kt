@@ -56,7 +56,12 @@ import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
+import com.anant.fitbuddy.data.settings.AiProvider
+import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.data.settings.ModelCooldown
+import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
+import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.FoodQuantityParser
 import kotlinx.coroutines.flow.Flow
@@ -116,7 +121,10 @@ class FitnessRepository(
         check(settings.isConfigured) {
             "Connect an AI provider in Settings to get AI target recommendations."
         }
-        return remoteAiDataSource.designTargets(settings, contextJson)
+        val (result, _) = withAiFailover(settings) { s ->
+            remoteAiDataSource.designTargets(s, contextJson)
+        }
+        return result
     }
 
     /** Asks the AI to summarise progress and give recommendations from compressed trend data. */
@@ -125,7 +133,10 @@ class FitnessRepository(
         check(settings.isConfigured) {
             "Connect an AI provider in Settings to get AI progress insights."
         }
-        return remoteAiDataSource.summarizeProgress(settings, compressedMetrics)
+        val (result, _) = withAiFailover(settings) { s ->
+            remoteAiDataSource.summarizeProgress(s, compressedMetrics)
+        }
+        return result
     }
 
     /** Follow-up progress coach chat using full progress JSON in the system prompt. */
@@ -137,7 +148,10 @@ class FitnessRepository(
         check(settings.isConfigured) {
             "Connect an AI provider in Settings to chat about your progress."
         }
-        return remoteAiDataSource.chatProgressCoach(settings, contextJson, history)
+        val (result, _) = withAiFailover(settings) { s ->
+            remoteAiDataSource.chatProgressCoach(s, contextJson, history)
+        }
+        return result
     }
 
     // --- Backup -----------------------------------------------------------------------------
@@ -321,9 +335,11 @@ class FitnessRepository(
             return estimateWorkoutCaloriesOffline(draft, weightKg)
         }
 
-        val aiResult = runCatching {
-            remoteAiDataSource.estimateWorkoutCalories(settings, contextJson)
-        }.getOrElse { e ->
+        val (aiResult, _) = try {
+            withAiFailover(settings) { s ->
+                remoteAiDataSource.estimateWorkoutCalories(s, contextJson)
+            }
+        } catch (e: Exception) {
             throw IllegalStateException(formatAiConnectionError(e), e)
         }
 
@@ -364,7 +380,8 @@ class FitnessRepository(
      * along with the locally computed user-state context to the AI, then routes the reply.
      *
      * Falls back to the bundled offline simulator when no API key is configured (text only).
-     * When configured, network/API failures are returned as [AnalysisOutcome.Error].
+     * When the preferred provider is configured: Auto rotates keys then models on that platform
+     * only; if all fail, returns [AnalysisOutcome.Error] (user must change platform manually).
      */
     suspend fun analyze(
         userText: String,
@@ -374,17 +391,23 @@ class FitnessRepository(
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
 
-        // Configured: use the live AI. Surface real failures instead of silently faking a result
-        // (silent fallback made every photo come back as the simulator's "Mixed Plate").
+        // Preferred provider configured: live AI with same-platform key/model failover.
+        // Surface real failures instead of silently faking a result (silent offline fallback
+        // made every photo come back as the simulator's "Mixed Plate").
         if (settings.isConfigured) {
             return try {
                 val dataUrl = imageBytes?.let {
                     "data:image/jpeg;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
                 }
-                val response = remoteAiDataSource.analyze(
-                    settings, userText, userStateContextJson, dataUrl, forceEstimate
-                )
-                processResponse(response, userText = userText)
+                val (response, failoverNote) = withAiFailover(
+                    settings,
+                    preferVisionModels = imageBytes != null
+                ) { active ->
+                    remoteAiDataSource.analyze(
+                        active, userText, userStateContextJson, dataUrl, forceEstimate
+                    )
+                }
+                processResponse(response, userText = userText).withFailoverNote(failoverNote)
             } catch (e: Exception) {
                 AnalysisOutcome.Error(formatAiConnectionError(e))
             }
@@ -509,6 +532,14 @@ class FitnessRepository(
     /** Gemini chat models for the text-query model dropdown. */
     suspend fun fetchGeminiTextModels(apiKey: String): List<ModelOption> =
         remoteAiDataSource.fetchGeminiTextModels(apiKey)
+
+    /** Vision-capable Ollama models (local or Cloud). */
+    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
+        remoteAiDataSource.fetchOllamaVisionModels(baseUrl, apiKey)
+
+    /** All Ollama models on the host for the text-query dropdown. */
+    suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
+        remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey)
 
     /**
      * Persists a user-confirmed (possibly edited) meal to Room using its live totals. Pass a
@@ -714,7 +745,10 @@ class FitnessRepository(
 
         val classified = if (settings.isConfigured) {
             runCatching {
-                remoteAiDataSource.classifyExercise(settings, trimmed, knownNames)
+                val (result, _) = withAiFailover(settings) { s ->
+                    remoteAiDataSource.classifyExercise(s, trimmed, knownNames)
+                }
+                result
             }.getOrElse { classifyExerciseOffline(trimmed) }
         } else {
             classifyExerciseOffline(trimmed)
@@ -747,7 +781,9 @@ class FitnessRepository(
             exercisePresetDao.getAllOnce().map { it.name to it.equipment }
         ).map { it.name }
 
-        val parsed = remoteAiDataSource.parseWorkoutDescription(settings, trimmed, knownNames)
+        val (parsed, _) = withAiFailover(settings) { s ->
+            remoteAiDataSource.parseWorkoutDescription(s, trimmed, knownNames)
+        }
         if (parsed.exercises.isEmpty()) {
             throw IllegalStateException("Couldn't find any exercises in that description.")
         }
@@ -1010,6 +1046,143 @@ class FitnessRepository(
 
     private data class Quintet<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
     private data class Triplet<A, B, C>(val first: A, val second: B, val third: C)
+
+    /**
+     * Tries AI calls within the preferred platform when [AppSettings.aiAutoFailover] is on:
+     * same model + next API key → other models. Never switches platforms — if every key/model
+     * fails (timeout, rate limit, etc.), the last error is thrown so the user can change
+     * platform in Settings.
+     * Rate-limited models are skipped until the next UTC midnight (persisted across app
+     * restarts). After that, newer requests try the highest models again. No background retry.
+     * When Auto is off: preferred provider + selected model only; rotates API keys on failure,
+     * then surfaces the error (no model or platform change).
+     */
+    private suspend fun <T> withAiFailover(
+        settings: AppSettings,
+        preferVisionModels: Boolean = false,
+        block: suspend (AppSettings) -> T
+    ): Pair<T, String?> {
+        check(settings.isConfigured) { "No AI provider configured" }
+
+        val platform = settings.provider
+        val preferredSelected = settings.modelFor(preferVisionModels)
+        val keys = attemptKeys(settings, platform)
+
+        if (!settings.aiAutoFailover) {
+            var lastError: Exception? = null
+            for (key in keys) {
+                try {
+                    val attempt = settings.withKey(platform, key)
+                    val result = block(attempt)
+                    settingsRepository.setActiveAiModel(
+                        platform,
+                        attempt.modelFor(preferVisionModels),
+                        forPhoto = preferVisionModels
+                    )
+                    return result to null
+                } catch (e: Exception) {
+                    lastError = e
+                }
+            }
+            throw lastError ?: IllegalStateException("Couldn't connect to AI")
+        }
+
+        val now = System.currentTimeMillis()
+        val cooldowns = settingsRepository.modelCooldowns()
+        var lastError: Exception? = null
+        val models = modelLadder(settings, platform, preferVisionModels)
+            .filter { modelId ->
+                val until = cooldowns[ModelCooldown.keyOf(platform, modelId)] ?: 0L
+                until <= now
+            }
+        for (modelId in models) {
+            var rateLimitedOnModel = false
+            var lastModelError: Exception? = null
+            for (key in keys) {
+                try {
+                    val attempt = settings
+                        .withModel(platform, modelId)
+                        .withKey(platform, key)
+                    val result = block(attempt)
+                    settingsRepository.setActiveAiModel(
+                        platform,
+                        modelId,
+                        forPhoto = preferVisionModels
+                    )
+                    val note = if (
+                        modelId != preferredSelected && preferredSelected.isNotBlank()
+                    ) {
+                        "Switched model to $modelId"
+                    } else {
+                        null
+                    }
+                    return result to note
+                } catch (e: Exception) {
+                    lastError = e
+                    lastModelError = e
+                    if (ModelCooldownPolicy.isRateLimitError(e)) rateLimitedOnModel = true
+                }
+            }
+            if (rateLimitedOnModel && lastModelError != null) {
+                settingsRepository.markModelCooldown(platform, modelId, lastModelError, now)
+            }
+        }
+        throw lastError ?: IllegalStateException("Couldn't connect to AI")
+    }
+
+    /** Keys to try for [platform]; local Ollama uses a single empty key (no auth). */
+    private fun attemptKeys(settings: AppSettings, platform: AiProvider): List<String> {
+        if (platform == AiProvider.OLLAMA && !settings.ollamaUseCloud) return listOf("")
+        val keys = settings.keysFor(platform)
+        return keys.ifEmpty { listOf("") }
+    }
+
+    /**
+     * Catalog ordered by platform ranking (Gemini Flash ladder, OpenRouter/Ollama Gemma-first).
+     * Selected model is tried first only when it is a plausible id for [platform] — prevents
+     * Gemini Studio ids (e.g. gemini-3-flash-preview) from being sent to OpenRouter.
+     */
+    private suspend fun modelLadder(
+        settings: AppSettings,
+        platform: AiProvider,
+        preferVisionModels: Boolean
+    ): List<String> {
+        val selectedRaw = settings.copy(provider = platform).modelFor(preferVisionModels)
+        val selected = selectedRaw.takeIf { isPlausibleModelIdFor(platform, it) }.orEmpty()
+        val listKey = settings.keysFor(platform).firstOrNull().orEmpty()
+        val catalog = runCatching {
+            when (platform) {
+                AiProvider.OPENROUTER -> if (preferVisionModels) {
+                    remoteAiDataSource.fetchFreeVisionModels(listKey)
+                } else {
+                    remoteAiDataSource.fetchFreeModels(listKey)
+                }
+                AiProvider.GEMINI -> if (preferVisionModels) {
+                    remoteAiDataSource.fetchGeminiVisionModels(listKey)
+                } else {
+                    remoteAiDataSource.fetchGeminiTextModels(listKey)
+                }
+                AiProvider.OLLAMA -> {
+                    val base = settings.ollamaEffectiveBaseUrl
+                    val key = if (settings.ollamaUseCloud) listKey else ""
+                    if (preferVisionModels) {
+                        remoteAiDataSource.fetchOllamaVisionModels(base, key)
+                    } else {
+                        remoteAiDataSource.fetchOllamaTextModels(base, key)
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
+            .map { it.id }
+            .filter { isPlausibleModelIdFor(platform, it) }
+
+        return buildList {
+            if (selected.isNotBlank()) add(selected)
+            catalog.filter { it != selected }.forEach { add(it) }
+        }.ifEmpty {
+            listOfNotNull(selected.takeIf { it.isNotBlank() })
+        }
+    }
 
     private fun formatAiConnectionError(e: Throwable): String {
         val detail = e.message?.takeIf { it.isNotBlank() }
