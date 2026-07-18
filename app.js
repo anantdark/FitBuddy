@@ -80,6 +80,141 @@
 
   initNavToggle();
 
+  function initPhoneCarousel() {
+    const root = document.getElementById("phone-carousel");
+    if (!root) return;
+
+    const slides = [
+      {
+        src: "screens/onboarding-ai.png",
+        alt: "FitBuddy onboarding — connect an AI provider",
+        caption:
+          "Step 1 — connect Gemini, OpenRouter, or Ollama. Keys stay on your phone.",
+      },
+      {
+        src: "screens/onboarding-profile.png",
+        alt: "FitBuddy onboarding — about you profile form",
+        caption:
+          "Step 2 — age, height, and weight so targets fit your body.",
+      },
+      {
+        src: "screens/onboarding-goals.png",
+        alt: "FitBuddy onboarding — activity level and goal",
+        caption:
+          "Step 3 — activity and goal; AI sets calorie and macro targets.",
+      },
+      {
+        src: "screens/today.png",
+        alt: "FitBuddy Today dashboard with calorie ring and meal log",
+        caption:
+          "Today — remaining calories, macros, and your food & workout log.",
+      },
+      {
+        src: "screens/log-hub.png",
+        alt: "FitBuddy log sheet with photo, text, and workout options",
+        caption:
+          "Log hub — photo, gallery, freeform text, meals, or a workout.",
+      },
+      {
+        src: "screens/food-review.png",
+        alt: "FitBuddy food review with live macro scaling",
+        caption:
+          "Review food — change total weight; ingredients and macros rescale live.",
+      },
+      {
+        src: "screens/progress.png",
+        alt: "FitBuddy Progress charts for weight and calories",
+        caption:
+          "Progress — weight trend and net calories vs your daily target.",
+      },
+      {
+        src: "screens/body.png",
+        alt: "FitBuddy Body tab with composition readings",
+        caption:
+          "Body — composition readings, goals, and saved foods for meals.",
+      },
+      {
+        src: "screens/settings.png",
+        alt: "FitBuddy Settings with Gemini AI provider selected",
+        caption:
+          "Settings — pick a provider, rotate keys, and turn on auto failover.",
+      },
+    ];
+
+    const img = document.getElementById("carousel-image");
+    const caption = document.getElementById("carousel-caption");
+    const dots = document.getElementById("carousel-dots");
+    const prev = document.getElementById("carousel-prev");
+    const next = document.getElementById("carousel-next");
+    if (!img || !caption || !dots || !prev || !next) return;
+
+    let index = 3; // start on Today dashboard
+    let timer = null;
+    const INTERVAL_MS = 4500;
+
+    slides.forEach((slide, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "carousel-dot";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-label", `Show screen ${i + 1}`);
+      btn.addEventListener("click", () => goTo(i, true));
+      dots.appendChild(btn);
+    });
+
+    function render(fade) {
+      const slide = slides[index];
+      const apply = () => {
+        img.src = slide.src;
+        img.alt = slide.alt;
+        caption.textContent = slide.caption;
+        dots.querySelectorAll(".carousel-dot").forEach((dot, i) => {
+          dot.setAttribute("aria-selected", i === index ? "true" : "false");
+        });
+        img.classList.remove("is-fading");
+      };
+
+      if (fade) {
+        img.classList.add("is-fading");
+        window.setTimeout(apply, 180);
+      } else {
+        apply();
+      }
+    }
+
+    function goTo(i, userDriven) {
+      index = (i + slides.length) % slides.length;
+      render(true);
+      if (userDriven) restart();
+    }
+
+    function restart() {
+      if (timer) window.clearInterval(timer);
+      timer = window.setInterval(() => goTo(index + 1, false), INTERVAL_MS);
+    }
+
+    prev.addEventListener("click", () => goTo(index - 1, true));
+    next.addEventListener("click", () => goTo(index + 1, true));
+
+    root.addEventListener("mouseenter", () => {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+    });
+    root.addEventListener("mouseleave", restart);
+    root.addEventListener("focusin", () => {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+    });
+    root.addEventListener("focusout", (event) => {
+      if (!root.contains(event.relatedTarget)) restart();
+    });
+
+    render(false);
+    restart();
+  }
+
+  initPhoneCarousel();
+
   const REPO = "anantdark/FitBuddy";
   const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
   // Stable alias uploaded by CI on each release (see release.yml).

@@ -83,7 +83,37 @@
           <p class="version-line" id="version-line" hidden></p>
         </div>
         <div class="hero-visual">
-          <img src="icon.png" width="900" height="900" alt="FitBuddy app icon — runner with flame and progress ring" />
+          <div
+            class="phone-carousel"
+            id="phone-carousel"
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="FitBuddy app screens"
+          >
+            <div class="phone-frame">
+              <div class="phone-screen">
+                <img
+                  id="carousel-image"
+                  src="screens/today.png"
+                  width="540"
+                  height="1124"
+                  alt="FitBuddy Today dashboard with calorie ring and meal log"
+                />
+              </div>
+            </div>
+            <p class="carousel-caption" id="carousel-caption">
+              Daily ring, macros, and today’s food &amp; workouts — all on-device.
+            </p>
+            <div class="carousel-controls">
+              <button type="button" class="carousel-btn" id="carousel-prev" aria-label="Previous screen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+              </button>
+              <div class="carousel-dots" id="carousel-dots" role="tablist" aria-label="Screens"></div>
+              <button type="button" class="carousel-btn" id="carousel-next" aria-label="Next screen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
