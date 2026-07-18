@@ -616,6 +616,11 @@ fun SettingsScreen(
                 }
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
+            AboutLinkRow(
+                "Docs",
+                "anantdark.github.io/FitBuddy",
+                "https://anantdark.github.io/FitBuddy/"
+            )
         }
 
         if (developerUnlocked) {
