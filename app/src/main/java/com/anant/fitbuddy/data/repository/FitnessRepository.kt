@@ -696,11 +696,11 @@ class FitnessRepository(
 
     /** Looks up a packaged product by EAN/UPC barcode via Open Food Facts. */
     suspend fun lookupProductByBarcode(barcode: String): ScannedProduct {
-        val trimmed = barcode.trim()
-        require(trimmed.isNotBlank()) { "Invalid barcode" }
-        savedFoodDao.findByBarcode(trimmed)?.let { saved ->
+        val code = OpenFoodFactsDataSource.normalizeBarcode(barcode)
+        require(code.isNotBlank()) { "Invalid barcode" }
+        savedFoodDao.findByBarcode(code)?.let { saved ->
             return ScannedProduct(
-                barcode = trimmed,
+                barcode = code,
                 name = saved.name,
                 calories = saved.calories,
                 proteinG = saved.proteinG,
@@ -708,7 +708,7 @@ class FitnessRepository(
                 fatsG = saved.fatsG
             )
         }
-        return openFoodFactsDataSource.lookupBarcode(trimmed)
+        return openFoodFactsDataSource.lookupBarcode(code)
     }
 
     /** Saves a scanned product to the saved-food library. */

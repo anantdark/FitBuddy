@@ -483,10 +483,12 @@ class MainViewModel(
             runCatching { repository.lookupProductByBarcode(barcode) }
                 .onSuccess(onSuccess)
                 .onFailure { e ->
+                    val code = barcode.filter { it.isDigit() }.ifBlank { barcode.trim() }
                     _analysisState.update {
                         it.copy(
                             errorDialogTitle = "Product not found",
-                            errorDialogMessage = e.message ?: "Couldn't look up this barcode"
+                            errorDialogMessage = e.message
+                                ?: "No Open Food Facts match for $code"
                         )
                     }
                 }

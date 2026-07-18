@@ -3,6 +3,7 @@ package com.anant.fitbuddy.data.remote
 import com.anant.fitbuddy.BuildConfig
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -15,6 +16,10 @@ object NetworkModule {
     // Placeholder base; every call supplies an absolute @Url resolved from user settings.
     private const val PLACEHOLDER_BASE_URL = "https://openrouter.ai/api/v1/"
 
+    /** OFF asks for a custom UA so clients aren't treated as anonymous bots. */
+    private val openFoodFactsUserAgent =
+        "FitBuddy/${BuildConfig.VERSION_NAME} (Android; https://github.com/anantdark/FitBuddy)"
+
     val moshi: Moshi by lazy {
         Moshi.Builder()
             // Round fractional JSON numbers into Int fields (backup macros, AI payloads).
@@ -25,18 +30,36 @@ object NetworkModule {
             .build()
     }
 
-    private val okHttpClient: OkHttpClient by lazy {
-        val logging = HttpLoggingInterceptor().apply {
+    private val loggingInterceptor: HttpLoggingInterceptor by lazy {
+        HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
         }
+    }
+
+    private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .addInterceptor(logging)
+            .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val openFoodFactsClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", openFoodFactsUserAgent)
+                    .header("Accept", "application/json")
+                    .build()
+                chain.proceed(request)
+            })
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
@@ -53,7 +76,7 @@ object NetworkModule {
     private val openFoodFactsRetrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl("https://world.openfoodfacts.org/")
-            .client(okHttpClient)
+            .client(openFoodFactsClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
     }

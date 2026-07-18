@@ -8,17 +8,25 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -29,6 +37,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -54,6 +64,13 @@ fun BarcodeScanDialog(
     onDismiss: () -> Unit
 ) {
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
+    var manualEntry by remember { mutableStateOf(false) }
+    var manualCode by remember { mutableStateOf("") }
+
+    fun submitManual() {
+        val code = manualCode.filter { it.isDigit() }
+        if (code.isNotBlank()) onBarcode(code)
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -63,7 +80,9 @@ fun BarcodeScanDialog(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
-                    title = { Text("Scan product barcode") },
+                    title = {
+                        Text(if (manualEntry) "Enter barcode" else "Scan product barcode")
+                    },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Filled.Close, contentDescription = "Close")
@@ -77,27 +96,55 @@ fun BarcodeScanDialog(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                when {
-                    cameraPermission.status.isGranted -> {
-                        Text(
-                            text = "Point at the barcode on the packet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                        BarcodeCameraPreview(
-                            modifier = Modifier.fillMaxSize(),
-                            onBarcode = onBarcode
-                        )
-                    }
-                    else -> {
-                        Text(
-                            text = "Camera access is needed to scan barcodes.",
-                            modifier = Modifier.padding(16.dp)
-                        )
-                        androidx.compose.material3.Button(
-                            onClick = { cameraPermission.launchPermissionRequest() },
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        ) { Text("Allow camera") }
+                if (manualEntry) {
+                    ManualBarcodeEntry(
+                        value = manualCode,
+                        onValueChange = { manualCode = it.filter { c -> c.isDigit() }.take(14) },
+                        onSubmit = ::submitManual,
+                        onUseCamera = { manualEntry = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    )
+                } else {
+                    when {
+                        cameraPermission.status.isGranted -> {
+                            Text(
+                                text = "Point at the barcode on the packet",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                            BarcodeCameraPreview(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                onBarcode = onBarcode
+                            )
+                            TextButton(
+                                onClick = { manualEntry = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) { Text("Enter barcode instead") }
+                        }
+                        else -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text("Camera access is needed to scan barcodes.")
+                                Button(
+                                    onClick = { cameraPermission.launchPermissionRequest() },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Allow camera") }
+                                OutlinedButton(
+                                    onClick = { manualEntry = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Enter barcode instead") }
+                            }
+                        }
                     }
                 }
             }
@@ -109,6 +156,48 @@ fun BarcodeScanDialog(
             cameraPermission.launchPermissionRequest()
         }
         onDispose { }
+    }
+}
+
+@Composable
+private fun ManualBarcodeEntry(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onUseCamera: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "Type the EAN or UPC digits printed under the barcode.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text("Barcode") },
+            placeholder = { Text("e.g. 8901030865422") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(
+            onClick = onSubmit,
+            enabled = value.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Look up") }
+        TextButton(
+            onClick = onUseCamera,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Use camera instead") }
     }
 }
 
