@@ -1,4 +1,54 @@
 (function () {
+  const STORAGE_KEY = "fitbuddy-theme";
+
+  function systemTheme() {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+
+  function currentTheme() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+    return systemTheme();
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    const toggle = document.getElementById("theme-toggle");
+    if (toggle) {
+      const next = theme === "dark" ? "light" : "dark";
+      toggle.setAttribute(
+        "aria-label",
+        next === "dark" ? "Switch to dark mode" : "Switch to light mode"
+      );
+      toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    }
+  }
+
+  function initThemeToggle() {
+    applyTheme(currentTheme());
+    const toggle = document.getElementById("theme-toggle");
+    if (!toggle) return;
+
+    toggle.addEventListener("click", () => {
+      const next =
+        document.documentElement.getAttribute("data-theme") === "dark"
+          ? "light"
+          : "dark";
+      localStorage.setItem(STORAGE_KEY, next);
+      applyTheme(next);
+    });
+
+    window
+      .matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", () => {
+        if (!localStorage.getItem(STORAGE_KEY)) applyTheme(systemTheme());
+      });
+  }
+
+  initThemeToggle();
+
   const REPO = "anantdark/FitBuddy";
   const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
   // Stable alias uploaded by CI on each release (see release.yml).
