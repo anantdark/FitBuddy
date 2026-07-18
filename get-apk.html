@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Download FitBuddy APK</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="icon-mark.png" type="image/png" />
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-content: center;
+      font-family: system-ui, sans-serif;
+      padding: 1.5rem;
+      text-align: center;
+      background: #0b1220;
+      color: #eef2f7;
+    }
+    a {
+      color: #2ec4b6;
+      font-weight: 600;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.85rem 1.25rem;
+      border-radius: 999px;
+      background: #0b8f84;
+      color: #fff;
+      text-decoration: none;
+    }
+    p { line-height: 1.5; opacity: 0.9; }
+  </style>
+  <script>
+    (function () {
+      var FALLBACK =
+        "https://github.com/anantdark/FitBuddy/releases/latest/download/FitBuddy-latest.apk";
+
+      function go(url) {
+        // Full navigation (not SPA soft-nav) so the browser treats it as a file download.
+        window.location.replace(url);
+      }
+
+      async function start() {
+        var manual = document.getElementById("manual");
+        try {
+          var res = await fetch(
+            "https://api.github.com/repos/anantdark/FitBuddy/releases/latest?_=" +
+              Date.now(),
+            {
+              cache: "no-store",
+              headers: { Accept: "application/vnd.github+json" },
+            }
+          );
+          if (!res.ok) throw new Error("release fetch failed");
+          var release = await res.json();
+          var assets = release.assets || [];
+          var stable = assets.find(function (a) {
+            return a.name === "FitBuddy-latest.apk";
+          });
+          var versioned = assets.find(function (a) {
+            return (
+              /^FitBuddy-.*\.apk$/i.test(a.name || "") &&
+              a.name !== "FitBuddy-latest.apk"
+            );
+          });
+          var apk = stable || versioned;
+          var url =
+            (apk && apk.browser_download_url) ||
+            FALLBACK;
+          if (manual) manual.href = url;
+          go(url);
+          return;
+        } catch (e) {
+          if (manual) manual.href = FALLBACK;
+          go(FALLBACK);
+        }
+      }
+
+      // Run ASAP — do not wait for DOMContentLoaded beyond the manual link.
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+      } else {
+        start();
+      }
+    })();
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Downloading FitBuddy…</h1>
+    <p>Your download should start automatically.</p>
+    <a
+      class="btn"
+      id="manual"
+      href="https://github.com/anantdark/FitBuddy/releases/latest/download/FitBuddy-latest.apk"
+      >Download APK now</a
+    >
+    <p>
+      Or see
+      <a href="https://github.com/anantdark/FitBuddy/releases/latest"
+        >all releases</a
+      >.
+    </p>
+  </main>
+</body>
+</html>

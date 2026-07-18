@@ -217,7 +217,9 @@
 
   const REPO = "anantdark/FitBuddy";
   const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
-  // Stable alias uploaded by CI on each release (see release.yml).
+  // Same-origin launcher resolves the real asset URL and forces a file download.
+  // Never point primary CTAs at /releases/latest (that is the HTML releases page).
+  const DOWNLOAD_PAGE = "get-apk.html";
   const STABLE_APK =
     `https://github.com/${REPO}/releases/latest/download/FitBuddy-latest.apk`;
 
@@ -230,7 +232,7 @@
   function setDownload(url) {
     buttons.forEach((btn) => {
       btn.href = url;
-      btn.setAttribute("download", "");
+      btn.removeAttribute("download");
     });
   }
 
@@ -240,12 +242,23 @@
     });
   }
 
+  function wireDirectDownload(apkUrl) {
+    buttons.forEach((btn) => {
+      btn.href = apkUrl;
+      btn.onclick = (event) => {
+        // Force a top-level navigation so GitHub soft-nav / in-app browsers
+        // cannot keep you on the releases HTML page.
+        event.preventDefault();
+        window.location.assign(apkUrl);
+      };
+    });
+  }
+
   if (!buttons.length && !versionLine) return;
 
-  // Always point at the APK file (never the releases HTML page).
-  setDownload(STABLE_APK);
+  // Safe default: same-origin bounce page (works even if the API call fails).
+  setDownload(DOWNLOAD_PAGE);
 
-  // Bust caches so the version label matches the current GitHub "latest" release.
   fetch(`https://api.github.com/repos/${REPO}/releases/latest?_=${Date.now()}`, {
     cache: "no-store",
     headers: { Accept: "application/vnd.github+json" },
@@ -263,12 +276,8 @@
           a.name !== "FitBuddy-latest.apk"
       );
       const apk = stable || versioned;
-      // Prefer the stable alias URL so the button always downloads "latest".
-      if (stable) {
-        setDownload(STABLE_APK);
-      } else if (apk && apk.browser_download_url) {
-        setDownload(apk.browser_download_url);
-      }
+      const apkUrl = (apk && apk.browser_download_url) || STABLE_APK;
+      wireDirectDownload(apkUrl);
 
       const label = release.name || release.tag_name;
       if (label) {
@@ -282,7 +291,7 @@
       }
     })
     .catch(() => {
-      setDownload(STABLE_APK);
+      wireDirectDownload(STABLE_APK);
       if (versionLine) {
         versionLine.hidden = false;
         versionLine.innerHTML =
