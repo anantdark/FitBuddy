@@ -1035,8 +1035,13 @@ fun ApiKeyChipEditor(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Hide cut/copy toolbar so a pasted key can't be copied back out of the field.
-            CompositionLocalProvider(LocalTextToolbar provides NoCopyTextToolbar) {
+            // Allow paste / select-all; block copy & cut so a key can't leave via the toolbar.
+            val parentToolbar = LocalTextToolbar.current
+            CompositionLocalProvider(
+                LocalTextToolbar provides remember(parentToolbar) {
+                    PasteOnlyTextToolbar(parentToolbar)
+                }
+            ) {
                 OutlinedTextField(
                     value = draft,
                     onValueChange = { new ->
@@ -1069,10 +1074,15 @@ private fun maskApiKey(key: String): String {
     return "•".repeat(n)
 }
 
-/** Disables the selection action mode (copy/cut) on Compose text fields. */
-private object NoCopyTextToolbar : TextToolbar {
-    override val status: TextToolbarStatus = TextToolbarStatus.Hidden
-    override fun hide() {}
+/**
+ * Delegates to the platform text toolbar but omits Copy/Cut so API keys can't be
+ * exfiltrated from the draft field. Paste and Select All still work (long-press menu).
+ */
+private class PasteOnlyTextToolbar(
+    private val delegate: TextToolbar
+) : TextToolbar {
+    override val status: TextToolbarStatus get() = delegate.status
+    override fun hide() = delegate.hide()
     override fun showMenu(
         rect: Rect,
         onCopyRequested: (() -> Unit)?,
@@ -1080,7 +1090,13 @@ private object NoCopyTextToolbar : TextToolbar {
         onCutRequested: (() -> Unit)?,
         onSelectAllRequested: (() -> Unit)?
     ) {
-        // Intentionally empty — paste still works via the IME / system paste into onValueChange.
+        delegate.showMenu(
+            rect = rect,
+            onCopyRequested = null,
+            onPasteRequested = onPasteRequested,
+            onCutRequested = null,
+            onSelectAllRequested = onSelectAllRequested
+        )
     }
 }
 
