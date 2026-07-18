@@ -891,14 +891,31 @@ class FitnessRepository(
         val query = input.lowercase().trim()
         return when (mode) {
             "SUCCESS" -> {
-                // Infer basic food types based on common Indian options
+                // Infer basic food types based on common North Indian options
                 val (dish, c, p, cr, f) = when {
+                    "chole" in query || "chana masala" in query || "chole bhature" in query ||
+                        "bhature" in query || "bhatura" in query ->
+                        Quintet("Chole Bhature", 650, 18, 78, 28)
+                    "rajma" in query -> Quintet("Rajma Chawal", 480, 18, 72, 10)
+                    "paratha" in query || "parantha" in query ->
+                        Quintet("Aloo Paratha with Curd", 420, 12, 48, 18)
+                    "kadhi" in query -> Quintet("Kadhi Pakora with Rice", 450, 14, 58, 16)
+                    "dal makhani" in query -> Quintet("Dal Makhani with Roti", 520, 20, 48, 24)
+                    "butter chicken" in query || "murgh makhani" in query ->
+                        Quintet("Butter Chicken with Naan", 680, 36, 52, 32)
+                    "palak paneer" in query -> Quintet("Palak Paneer with Roti", 480, 22, 40, 24)
                     "samosa" in query -> Quintet("Samosa (1 piece)", 260, 4, 32, 12)
                     "biryani" in query -> Quintet("Chicken Biryani", 540, 28, 62, 18)
                     "paneer" in query -> Quintet("Paneer Butter Masala & Roti", 620, 24, 70, 26)
-                    "chai" in query -> Quintet("Indian Milk Chai", 110, 3, 16, 4)
+                    "lassi" in query -> Quintet("Sweet Lassi", 220, 8, 32, 6)
+                    "chai" in query || "tea" in query -> Quintet("Indian Milk Chai", 110, 3, 16, 4)
+                    "sabzi" in query || "sabji" in query ->
+                        Quintet("Roti & Mixed Sabzi", 380, 12, 50, 12)
+                    "dal" in query && "chawal" in query -> Quintet("Dal Chawal", 420, 16, 68, 8)
+                    "dal" in query -> Quintet("Dal Tadka with Roti", 360, 16, 48, 8)
+                    "roti" in query || "chapati" in query || "phulka" in query ->
+                        Quintet("Wheat Roti & Dal", 320, 12, 48, 6)
                     "dosa" in query -> Quintet("Masala Dosa with Chutney", 390, 8, 54, 14)
-                    "roti" in query -> Quintet("Wheat Roti & Dal", 320, 12, 48, 6)
                     "idli" in query -> Quintet("Idli with Sambhar (2 pcs)", 210, 6, 40, 2)
                     "almond" in query -> {
                         val qty = FoodQuantityParser.parseSegments(input).firstOrNull()?.quantity ?: 1
@@ -911,7 +928,7 @@ class FitnessRepository(
                         )
                     }
                     else -> Quintet(
-                        input.ifBlank { "Mixed Plate" }
+                        input.ifBlank { "North Indian Thali" }
                             .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
                         350, 12, 45, 10
                     )
@@ -952,6 +969,10 @@ class FitnessRepository(
                     query.isEmpty() -> "What did you consume or what exercise did you perform?"
                     "samosa" in query -> "Did you have 1 single samosa, or a plate of 2?"
                     "biryani" in query -> "Was it veg biryani, or chicken biryani? Also, specify the portion size."
+                    "paratha" in query || "parantha" in query ->
+                        "Was it aloo, gobi, or plain paratha? How many, and with curd or butter?"
+                    "chole" in query || "bhature" in query ->
+                        "How many bhaturas, and was it a full chole plate or a small serving?"
                     "chai" in query -> "Was there sugar added to your tea, and did you use full-cream milk?"
                     else -> "Could you specify the quantity or serving portion of '$input' for a precise analysis?"
                 }
@@ -983,6 +1004,27 @@ class FitnessRepository(
     ): List<Ingredient> {
         // name to (weightG, fractionOfMacros)
         val parts: List<Pair<String, Pair<Int, Double>>> = when {
+            "chole" in query || "bhature" in query || "bhatura" in query -> listOf(
+                "Chole" to (180 to 0.40), "Bhatura" to (90 to 0.60)
+            )
+            "rajma" in query -> listOf(
+                "Rajma" to (180 to 0.45), "Cooked rice" to (180 to 0.55)
+            )
+            "paratha" in query || "parantha" in query -> listOf(
+                "Aloo paratha" to (110 to 0.70), "Curd" to (100 to 0.30)
+            )
+            "kadhi" in query -> listOf(
+                "Kadhi pakora" to (200 to 0.55), "Cooked rice" to (150 to 0.45)
+            )
+            "dal makhani" in query -> listOf(
+                "Dal makhani" to (200 to 0.70), "Wheat roti" to (70 to 0.30)
+            )
+            "butter chicken" in query || "murgh makhani" in query -> listOf(
+                "Butter chicken" to (200 to 0.55), "Naan" to (100 to 0.45)
+            )
+            "palak paneer" in query -> listOf(
+                "Palak paneer" to (180 to 0.70), "Wheat roti" to (70 to 0.30)
+            )
             "samosa" in query -> listOf(
                 "Potato & pea filling" to (60 to 0.45), "Fried pastry" to (40 to 0.55)
             )
@@ -992,13 +1034,25 @@ class FitnessRepository(
             "paneer" in query -> listOf(
                 "Paneer" to (100 to 0.40), "Butter gravy" to (120 to 0.35), "Roti" to (60 to 0.25)
             )
-            "chai" in query -> listOf(
+            "lassi" in query -> listOf(
+                "Curd" to (200 to 0.55), "Sugar" to (20 to 0.35), "Milk" to (50 to 0.10)
+            )
+            "chai" in query || "tea" in query -> listOf(
                 "Milk" to (100 to 0.60), "Sugar" to (10 to 0.30), "Tea decoction" to (90 to 0.10)
+            )
+            "sabzi" in query || "sabji" in query -> listOf(
+                "Wheat roti" to (80 to 0.40), "Mixed sabzi" to (150 to 0.60)
+            )
+            "dal" in query && "chawal" in query -> listOf(
+                "Dal tadka" to (180 to 0.40), "Cooked rice" to (180 to 0.60)
+            )
+            "dal" in query -> listOf(
+                "Dal tadka" to (180 to 0.55), "Wheat roti" to (70 to 0.45)
             )
             "dosa" in query -> listOf(
                 "Dosa crepe" to (90 to 0.45), "Potato masala" to (80 to 0.40), "Chutney" to (40 to 0.15)
             )
-            "roti" in query -> listOf(
+            "roti" in query || "chapati" in query || "phulka" in query -> listOf(
                 "Wheat roti" to (80 to 0.45), "Dal" to (150 to 0.55)
             )
             "idli" in query -> listOf(

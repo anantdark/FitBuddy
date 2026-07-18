@@ -87,7 +87,7 @@ fun AnantEasterEggDialog(onDismiss: () -> Unit) {
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "FitBuddy was crafted by Anant — for Indian kitchens, gym floors, " +
+                        text = "FitBuddy was crafted by Anant — for North Indian kitchens, gym floors, " +
                             "and everyone who logs \"2 rotis and dal\" without guilt.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,

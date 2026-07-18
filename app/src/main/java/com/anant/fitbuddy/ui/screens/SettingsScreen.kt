@@ -493,7 +493,7 @@ fun SettingsScreen(
             title = "About",
             collapsible = false,
             hintTitle = "About FitBuddy",
-            hint = "AI-powered health tracker optimised for Indian diets and lifestyles. " +
+            hint = "AI-powered health tracker optimised for North Indian diets and lifestyles. " +
                 "Log meals and workouts via photo or loose text; the AI estimates calories " +
                 "and macros.\n\nBuilt with Kotlin, Jetpack Compose, MVVM + Room. Data stays " +
                 "on your device."

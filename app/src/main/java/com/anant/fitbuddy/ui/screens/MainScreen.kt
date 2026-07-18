@@ -823,7 +823,7 @@ private fun TextLogDialog(
         text = {
             Column {
                 Text(
-                    "e.g. \"2 rotis with dal\" or \"walked fast for 40 mins\"",
+                    "e.g. \"2 rotis with dal tadka\" or \"aloo paratha with curd\"",
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.size(12.dp))
