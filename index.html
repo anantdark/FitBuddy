@@ -22,7 +22,7 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Nunito:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -56,24 +56,25 @@
 
   <main id="top">
     <section class="hero">
-      <div class="hero-stage" aria-hidden="true">
-        <img class="hero-icon" src="icon.png" width="900" height="900" alt="" />
-      </div>
-
-      <div class="hero-copy">
-        <p class="brand-wordmark">FitBuddy</p>
-        <h1>Log the thali.<br />Track the burn.</h1>
-        <p class="lede">
-          AI-powered health tracking for Android — photo or freeform text in,
-          calories and macros out. Tuned for Indian diets and everyday routines.
-        </p>
-        <div class="cta-row">
-          <a class="btn btn-primary" id="download-btn" href="https://github.com/anantdark/FitBuddy/releases/latest">
-            Download APK
-          </a>
-          <a class="btn btn-ghost" href="guide.html">Usage guide</a>
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="brand-wordmark">FitBuddy</p>
+          <h1>Log the thali.<br />Track the burn.</h1>
+          <p class="lede">
+            AI-powered health tracking for Android — photo or freeform text in,
+            calories and macros out. Tuned for Indian diets and everyday routines.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" id="download-btn" href="https://github.com/anantdark/FitBuddy/releases/latest">
+              Download APK
+            </a>
+            <a class="btn btn-ghost" href="guide.html">Usage guide</a>
+          </div>
+          <p class="version-line" id="version-line" hidden></p>
         </div>
-        <p class="version-line" id="version-line" hidden></p>
+        <div class="hero-visual">
+          <img src="icon.png" width="900" height="900" alt="FitBuddy app icon — runner with flame and progress ring" />
+        </div>
       </div>
     </section>
 
