@@ -80,7 +80,7 @@ Release builds use R8 minify + resource shrink. Without `keystore.properties`, r
 ```bash
 ./gradlew :app:assembleRelease
 # --user 0 = personal profile only (avoids installing into a work profile)
-adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-2.1.0-dev.apk
+adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-2.2.0-dev.apk
 ```
 
 For Play Store signing, see [DISTRIBUTION.md](DISTRIBUTION.md).

@@ -23,7 +23,7 @@ val sentryDsnEscaped: String = sentryDsnRaw
     .replace("\"", "\\\"")
 
 // CI overrides versionCode/versionName per build via -PappVersionCode=<GITHUB_RUN_NUMBER> and
-// -PappVersionName=2.1.<GITHUB_RUN_NUMBER> so every commit to main produces an installable
+// -PappVersionName=2.2.0 so every commit to main produces an installable
 // update (same applicationId + signature + strictly higher versionCode = update, not reinstall);
 // local/dev builds keep the fallback.
 val ciVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull()
@@ -50,7 +50,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = ciVersionCode ?: 1
-        versionName = ciVersionName ?: "2.1.0-dev"
+        versionName = ciVersionName ?: "2.2.0-dev"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -106,7 +106,7 @@ android {
 }
 
 // Release APK: FitBuddy-<versionName>.apk (not app-release.apk).
-val releaseApkVersionName = ciVersionName ?: "2.1.0-dev"
+val releaseApkVersionName = ciVersionName ?: "2.2.0-dev"
 androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->
         variant.outputs.forEach { output ->

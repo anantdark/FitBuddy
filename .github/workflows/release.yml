@@ -65,7 +65,7 @@ jobs:
         id: version
         run: |
           VERSION_CODE="${GITHUB_RUN_NUMBER}"
-          VERSION_NAME="2.1.${GITHUB_RUN_NUMBER}"
+          VERSION_NAME="2.2.0"
           TAG="v${VERSION_NAME}-build${GITHUB_RUN_NUMBER}"
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
