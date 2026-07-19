@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
 
 object FitBuddyPillConfig {
     const val DISPLAY_MS = 1_000L
-    const val STARTUP_DISPLAY_MS = 750L
 }
 
 /** Shows the FitBuddy pill and auto-dismisses after [displayMillis]. */

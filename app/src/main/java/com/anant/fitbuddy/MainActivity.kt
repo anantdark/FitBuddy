@@ -2,13 +2,17 @@ package com.anant.fitbuddy
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
 import com.anant.fitbuddy.ui.screens.MainScreen
@@ -28,10 +34,12 @@ import com.anant.fitbuddy.ui.viewmodel.MainViewModelFactory
 class MainActivity : ComponentActivity() {
 
     private var openLogHubRequest by mutableStateOf(false)
+    private var openRouterOAuthUri by mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openLogHubRequest = intent.consumeOpenLogHub()
+        openRouterOAuthUri = intent.data.takeIf { OpenRouterOAuth.isCallback(it) }
         enableEdgeToEdge()
         val app = application as FitBuddyApp
         setContent {
@@ -43,8 +51,27 @@ class MainActivity : ComponentActivity() {
                         factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
                     )
                     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
+                    val onboardingAiOnly by viewModel.onboardingAiOnly.collectAsStateWithLifecycle()
                     val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
                     val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
+                    val onboardingRestoring by viewModel.onboardingRestoring.collectAsStateWithLifecycle()
+                    val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
+                    val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
+
+                    val onboardingImportLauncher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) {
+                            viewModel.restoreOnboardingFromLocal(uri) { _, _ -> }
+                        }
+                    }
+
+                    LaunchedEffect(openRouterOAuthUri) {
+                        val uri = openRouterOAuthUri ?: return@LaunchedEffect
+                        viewModel.handleOpenRouterOAuthCallback(uri)
+                        openRouterOAuthUri = null
+                        intent?.data = null
+                    }
 
                     val onStartupPermissionsDenied: (List<String>) -> Unit = { denied ->
                         val cameraDenied = Manifest.permission.CAMERA in denied
@@ -87,8 +114,23 @@ class MainActivity : ComponentActivity() {
                             OnboardingScreen(
                                 isSaving = onboardingSaving,
                                 isValidating = onboardingValidating,
+                                isRestoring = onboardingRestoring,
+                                aiOnly = onboardingAiOnly,
+                                cloudRestoreAvailable = MongoUriVault.isAvailable(),
+                                openRouterOAuthBusy = openRouterOAuthBusy,
+                                openRouterOAuthKey = settings.openRouterOAuthKey,
+                                userMessage = analysisState.userMessage,
+                                onUserMessageConsumed = viewModel::consumeUserMessage,
+                                onConnectOpenRouter = viewModel::startOpenRouterOAuth,
+                                onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
+                                onStartGuest = viewModel::startGuestOnboarding,
+                                onRestoreCloud = viewModel::restoreOnboardingFromCloud,
+                                onRequestLocalRestore = {
+                                    onboardingImportLauncher.launch(arrayOf("application/json", "*/*"))
+                                },
                                 onValidateAi = viewModel::validateOnboardingAi,
-                                onComplete = viewModel::completeOnboarding
+                                onComplete = viewModel::completeOnboarding,
+                                onCompleteAiOnly = viewModel::completeAiSetupOnly
                             )
                         }
 
@@ -111,6 +153,9 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (intent.consumeOpenLogHub()) {
             openLogHubRequest = true
+        }
+        intent.data?.takeIf { OpenRouterOAuth.isCallback(it) }?.let {
+            openRouterOAuthUri = it
         }
     }
 

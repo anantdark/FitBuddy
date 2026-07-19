@@ -75,7 +75,9 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home 
 
 ### Install release build (dev)
 
-Release builds use R8 minify + resource shrink. Without `keystore.properties`, release is signed with the debug key for local sideloading:
+Release builds use R8 minify + resource shrink. Local `keystore.properties` should point at a
+**local/dev** keystore (see [DISTRIBUTION.md](DISTRIBUTION.md)) — not the CI/Play release key.
+Without `keystore.properties`, release falls back to the Android debug key:
 
 ```bash
 ./gradlew :app:assembleRelease
@@ -83,7 +85,7 @@ Release builds use R8 minify + resource shrink. Without `keystore.properties`, r
 adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-2.2.0-dev.apk
 ```
 
-For Play Store signing, see [DISTRIBUTION.md](DISTRIBUTION.md).
+CI release signing uses GitHub `RELEASE_*` secrets only. For Play Store setup, see [DISTRIBUTION.md](DISTRIBUTION.md).
 
 ## Project structure
 

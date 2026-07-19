@@ -75,6 +75,8 @@ jobs:
         env:
           # Baked into BuildConfig; empty = crash SDK stays uninitialized.
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # Password only — Gradle assembles mongodb+srv://… (empty = cloud backup off).
+          MONGO_DB_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
         run: >
           ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
           -PappVersionCode=${{ steps.version.outputs.version_code }}

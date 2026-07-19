@@ -131,6 +131,8 @@ fun MainScreen(
     val hasSettingsSnapshot by viewModel.hasSettingsSnapshot.collectAsStateWithLifecycle()
     val modelsState by viewModel.models.collectAsStateWithLifecycle()
     val textModelsState by viewModel.textModels.collectAsStateWithLifecycle()
+    val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
+    val mongoBackupBusy by viewModel.mongoBackupBusy.collectAsStateWithLifecycle()
     val mealPresets by viewModel.mealPresets.collectAsStateWithLifecycle()
     val savedFoods by viewModel.savedFoods.collectAsStateWithLifecycle()
     val measurements by viewModel.bodyMeasurements.collectAsStateWithLifecycle()
@@ -198,8 +200,6 @@ fun MainScreen(
     var mealReviewSavesAsPreset by remember { mutableStateOf(false) }
     var lastOpenedEditMealId by remember { mutableStateOf<Int?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
-    var startupCreditShown by rememberSaveable { mutableStateOf(false) }
-    var easterEggTriggeredThisSession by rememberSaveable { mutableStateOf(false) }
     var livePillMessage by remember { mutableStateOf<String?>(null) }
     var showAnantEasterEgg by remember { mutableStateOf(false) }
 
@@ -299,21 +299,6 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(settings.easterEggDiscovered, hasSettingsSnapshot, easterEggTriggeredThisSession) {
-        if (!hasSettingsSnapshot) return@LaunchedEffect
-        if (settings.easterEggDiscovered || easterEggTriggeredThisSession) {
-            startupCreditShown = true
-            snackbarHostState.currentSnackbarData?.dismiss()
-            return@LaunchedEffect
-        }
-        if (startupCreditShown) return@LaunchedEffect
-        startupCreditShown = true
-        snackbarHostState.showFitBuddyPill(
-            message = "Created by Anant",
-            displayMillis = FitBuddyPillConfig.STARTUP_DISPLAY_MS
-        )
-    }
-
     // One delayed silent update check per process when the toggle is on.
     var startupUpdateChecked by remember { mutableStateOf(false) }
     LaunchedEffect(hasSettingsSnapshot, settings.autoCheckUpdates) {
@@ -344,22 +329,23 @@ fun MainScreen(
                 settings = settings,
                 modelsState = modelsState,
                 textModelsState = textModelsState,
-                onLoadModels = { provider, apiKey, force, baseUrl ->
-                    viewModel.loadFreeVisionModels(provider, apiKey, force, baseUrl)
+                onLoadModels = { provider, apiKey, force, baseUrl, includePaid ->
+                    viewModel.loadFreeVisionModels(provider, apiKey, force, baseUrl, includePaid)
                 },
-                onLoadTextModels = { provider, apiKey, force, baseUrl ->
-                    viewModel.loadFreeTextModels(provider, apiKey, force, baseUrl)
+                onLoadTextModels = { provider, apiKey, force, baseUrl, includePaid ->
+                    viewModel.loadFreeTextModels(provider, apiKey, force, baseUrl, includePaid)
                 },
                 onSave = { viewModel.saveSettings(it, announce = true) },
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
+                onConnectOpenRouter = viewModel::startOpenRouterOAuth,
+                onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
+                openRouterOAuthBusy = openRouterOAuthBusy,
                 onDynamicColorChange = { enabled ->
                     viewModel.saveSettings(settings.copy(dynamicColor = enabled))
                 },
                 onExport = { exportLauncher.launch("fitness-backup.json") },
                 onImport = { importLauncher.launch(arrayOf("application/json")) },
                 onEasterEggTriggered = {
-                    easterEggTriggeredThisSession = true
-                    startupCreditShown = true
                     livePillMessage = null
                     snackbarHostState.currentSnackbarData?.dismiss()
                     showAnantEasterEgg = true
@@ -376,8 +362,6 @@ fun MainScreen(
                 },
                 onResetEasterEggData = {
                     viewModel.resetEasterEggData()
-                    startupCreditShown = false
-                    easterEggTriggeredThisSession = false
                     livePillMessage = null
                     showAnantEasterEgg = false
                     snackbarHostState.currentSnackbarData?.dismiss()
@@ -422,6 +406,13 @@ fun MainScreen(
                         snackbarHostState.showFitBuddyPill(message)
                     }
                 },
+                mongoBackupBusy = mongoBackupBusy,
+                onCloudBackupEnabledChange = viewModel::setCloudBackupEnabled,
+                onPrepareCloudBackupEnable = viewModel::prepareCloudBackupEnable,
+                onCloudAutoUploadChange = viewModel::setCloudAutoUploadEnabled,
+                onMongoUpload = viewModel::uploadMongoBackup,
+                onMongoDownload = viewModel::downloadMongoBackup,
+                onRegenerateSupportId = viewModel::regenerateSupportId,
                 modifier = Modifier.padding(innerPadding)
             )
         }

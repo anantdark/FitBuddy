@@ -7,13 +7,25 @@ import com.squareup.moshi.JsonClass
 
 /**
  * Serializable slice of [AppSettings] for backup JSON. Includes AI keys so a restore can
- * pick up on another device without re-entering Settings. Model cooldowns are omitted
- * (ephemeral rate-limit state).
+ * pick up on another device without re-entering Settings.
+ *
+ * Intentionally omitted (ephemeral / device-local / build-baked):
+ * - model rate-limit cooldowns
+ * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
+ * - Atlas connection URI (build-baked via MongoUriVault — never in backup JSON)
+ * - Sentry heartbeat day, in-flight OAuth PKCE verifier
+ *
+ * Active API key strings ([AppSettings.openRouterApiKey] etc.) are derived from the key lists
+ * on restore via [AppSettings.withKeys].
+ *
+ * When adding a user-facing [AppSettings] field, add it here + [from] + [toAppSettings],
+ * and extend [com.anant.fitbuddy.data.backup.BackupSettingsTest].
  */
 @JsonClass(generateAdapter = true)
 data class BackupSettings(
     val provider: String = AiProvider.OPENROUTER.name,
     val openRouterApiKeys: List<String> = emptyList(),
+    val openRouterOAuthKey: String = "",
     val openRouterModel: String = AppSettings.DEFAULT_OPENROUTER_MODEL,
     val openRouterTextModel: String = "",
     val geminiApiKeys: List<String> = emptyList(),
@@ -25,6 +37,7 @@ data class BackupSettings(
     val ollamaUseCloud: Boolean = false,
     val ollamaApiKeys: List<String> = emptyList(),
     val aiAutoFailover: Boolean = true,
+    val showPaidModels: Boolean = false,
     val activeAiProvider: String? = null,
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
@@ -40,7 +53,13 @@ data class BackupSettings(
     val forceOfflineAiSimulator: Boolean = false,
     val showRawAiJson: Boolean = false,
     val strictClarification: Boolean = false,
-    val verboseHttpLogging: Boolean = false
+    val verboseHttpLogging: Boolean = false,
+    val cloudBackupEnabled: Boolean = false,
+    val cloudAutoUploadEnabled: Boolean = true,
+    val mongoDbName: String = AppSettings.DEFAULT_MONGO_DB_NAME,
+    val mongoCollectionName: String = AppSettings.DEFAULT_MONGO_COLLECTION,
+    /** @deprecated Ignored on import — Atlas URI is build-baked. Kept for old JSON compatibility. */
+    val mongoDbUri: String = "",
 ) {
     fun toAppSettings(): AppSettings {
         val provider = runCatching { AiProvider.valueOf(provider) }.getOrDefault(AiProvider.OPENROUTER)
@@ -53,6 +72,7 @@ data class BackupSettings(
             ollamaKeys = ollamaApiKeys,
             base = AppSettings(
                 provider = provider,
+                openRouterOAuthKey = openRouterOAuthKey,
                 openRouterModel = openRouterModel,
                 openRouterTextModel = openRouterTextModel,
                 geminiModel = geminiModel,
@@ -62,6 +82,7 @@ data class BackupSettings(
                 ollamaTextModel = ollamaTextModel,
                 ollamaUseCloud = ollamaUseCloud,
                 aiAutoFailover = aiAutoFailover,
+                showPaidModels = showPaidModels,
                 activeAiProvider = activeProvider,
                 activePhotoModel = activePhotoModel,
                 activeTextModel = activeTextModel,
@@ -77,7 +98,13 @@ data class BackupSettings(
                 forceOfflineAiSimulator = forceOfflineAiSimulator,
                 showRawAiJson = showRawAiJson,
                 strictClarification = strictClarification,
-                verboseHttpLogging = verboseHttpLogging
+                verboseHttpLogging = verboseHttpLogging,
+                cloudBackupEnabled = cloudBackupEnabled,
+                cloudAutoUploadEnabled = cloudAutoUploadEnabled,
+                mongoDbName = mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                mongoCollectionName = mongoCollectionName.ifBlank {
+                    AppSettings.DEFAULT_MONGO_COLLECTION
+                }
             )
         )
     }
@@ -86,6 +113,7 @@ data class BackupSettings(
         fun from(settings: AppSettings): BackupSettings = BackupSettings(
             provider = settings.provider.name,
             openRouterApiKeys = settings.keysFor(AiProvider.OPENROUTER),
+            openRouterOAuthKey = settings.openRouterOAuthKey,
             openRouterModel = settings.openRouterModel,
             openRouterTextModel = settings.openRouterTextModel,
             geminiApiKeys = settings.keysFor(AiProvider.GEMINI),
@@ -97,6 +125,7 @@ data class BackupSettings(
             ollamaUseCloud = settings.ollamaUseCloud,
             ollamaApiKeys = settings.keysFor(AiProvider.OLLAMA),
             aiAutoFailover = settings.aiAutoFailover,
+            showPaidModels = settings.showPaidModels,
             activeAiProvider = settings.activeAiProvider?.name,
             activePhotoModel = settings.activePhotoModel,
             activeTextModel = settings.activeTextModel,
@@ -112,7 +141,14 @@ data class BackupSettings(
             forceOfflineAiSimulator = settings.forceOfflineAiSimulator,
             showRawAiJson = settings.showRawAiJson,
             strictClarification = settings.strictClarification,
-            verboseHttpLogging = settings.verboseHttpLogging
+            verboseHttpLogging = settings.verboseHttpLogging,
+            cloudBackupEnabled = settings.cloudBackupEnabled,
+            cloudAutoUploadEnabled = settings.cloudAutoUploadEnabled,
+            mongoDbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+            mongoCollectionName = settings.mongoCollectionName.ifBlank {
+                AppSettings.DEFAULT_MONGO_COLLECTION
+            },
+            mongoDbUri = ""
         )
     }
 }

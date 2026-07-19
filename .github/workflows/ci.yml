@@ -40,7 +40,10 @@ jobs:
       - name: Compile release
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          MONGO_DB_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
         run: ./gradlew :app:compileReleaseKotlin --no-daemon
 
       - name: Unit tests
+        env:
+          MONGO_DB_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
         run: ./gradlew :app:testDebugUnitTest --no-daemon

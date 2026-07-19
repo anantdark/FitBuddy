@@ -3,6 +3,8 @@ package com.anant.fitbuddy.data.repository
 import android.net.Uri
 import android.util.Base64
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.mongo.MongoBackupRepository
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -59,6 +61,7 @@ import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.util.DeviceIdentity
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
@@ -83,7 +86,8 @@ class FitnessRepository(
     private val remoteAiDataSource: RemoteAiDataSource,
     private val openFoodFactsDataSource: OpenFoodFactsDataSource,
     private val settingsRepository: SettingsRepository,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
     val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
@@ -160,6 +164,83 @@ class FitnessRepository(
     suspend fun exportData(uri: Uri): Int = backupManager.exportTo(uri)
 
     suspend fun importData(uri: Uri): Int = backupManager.importFrom(uri)
+
+    /**
+     * Uploads a BackupData v5 JSON snapshot to the build-baked Atlas cluster.
+     * Requires [AppSettings.cloudBackupEnabled] and a non-blank Support ID.
+     */
+    suspend fun uploadMongoBackup(): Int {
+        val settings = settingsRepository.settings.first()
+        if (!settings.cloudBackupEnabled) {
+            error("Cloud backup is disabled")
+        }
+        if (!MongoUriVault.isAvailable()) {
+            error("Cloud backup is not available in this build")
+        }
+        val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
+        return try {
+            val data = backupManager.buildBackupData()
+            val payloadJson = backupManager.encode(data)
+            mongoBackupRepository.upload(
+                connectionUri = MongoUriVault.resolve(),
+                databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                collectionName = settings.mongoCollectionName.ifBlank {
+                    AppSettings.DEFAULT_MONGO_COLLECTION
+                },
+                supportId = supportId,
+                payloadJson = payloadJson,
+                exportedAt = data.exportedAt,
+                deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                macId = DeviceIdentity.macId(backupManager.appContext)
+            )
+            val count = backupManager.countRecords(data)
+            settingsRepository.setMongoUploadStatus(ok = true)
+            count
+        } catch (e: Exception) {
+            settingsRepository.setMongoUploadStatus(
+                ok = false,
+                error = e.message ?: e.javaClass.simpleName
+            )
+            throw e
+        }
+    }
+
+    /**
+     * Restores the Atlas document whose `_id` is [supportId].
+     * Used from onboarding and Developer tools (does not require cloudBackupEnabled).
+     */
+    suspend fun downloadMongoBackup(supportId: String): Int {
+        if (!MongoUriVault.isAvailable()) {
+            error("Cloud backup is not available in this build")
+        }
+        val id = supportId.trim()
+        if (id.isBlank()) {
+            error("Support ID is required to restore")
+        }
+        val settings = settingsRepository.settings.first()
+        val payloadJson = mongoBackupRepository.downloadPayloadJson(
+            connectionUri = MongoUriVault.resolve(),
+            databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+            collectionName = settings.mongoCollectionName.ifBlank {
+                AppSettings.DEFAULT_MONGO_COLLECTION
+            },
+            supportId = id
+        )
+        return backupManager.importFromJson(payloadJson)
+    }
+
+    /**
+     * True when startup auto-upload should run: cloud + auto toggles on, vault present,
+     * and last upload older than [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
+     */
+    fun shouldAutoUploadNow(settings: AppSettings, nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (!settings.cloudBackupEnabled || !settings.cloudAutoUploadEnabled) return false
+        if (!MongoUriVault.isAvailable()) return false
+        if (settings.supportId.isBlank()) return false
+        val last = settings.mongoLastUploadAt
+        if (last <= 0L) return true
+        return nowMs - last >= AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS
+    }
 
     fun getFoodLogsForDate(dateString: String): Flow<List<FoodLog>> = foodLogDao.getFoodLogsByDate(dateString)
     fun getExerciseLogsForDate(dateString: String): Flow<List<ExerciseLog>> = exerciseLogDao.getExerciseLogsByDate(dateString)
@@ -552,21 +633,33 @@ class FitnessRepository(
         return FoodDraft(dishName = food.dishName, timestamp = timestamp, ingredients = ingredients)
     }
 
-    /** Free, vision-capable OpenRouter models for the Settings dropdown. */
-    suspend fun fetchFreeVisionModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchFreeVisionModels(apiKey)
+    /** OpenRouter vision models for the Settings dropdown (free, or free+paid). */
+    suspend fun fetchFreeVisionModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchFreeVisionModels(apiKey, includePaid)
 
-    /** Free OpenRouter models (any modality) for the text-query model dropdown. */
-    suspend fun fetchFreeModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchFreeModels(apiKey)
+    /** OpenRouter chat models for the text-query model dropdown. */
+    suspend fun fetchFreeModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchFreeModels(apiKey, includePaid)
 
     /** Vision-capable Gemini models for the Settings dropdown. */
-    suspend fun fetchGeminiVisionModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchGeminiVisionModels(apiKey)
+    suspend fun fetchGeminiVisionModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchGeminiVisionModels(apiKey, includePaid)
 
     /** Gemini chat models for the text-query model dropdown. */
-    suspend fun fetchGeminiTextModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchGeminiTextModels(apiKey)
+    suspend fun fetchGeminiTextModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchGeminiTextModels(apiKey, includePaid)
 
     /** Vision-capable Ollama models (local or Cloud). */
     suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
@@ -575,6 +668,16 @@ class FitnessRepository(
     /** All Ollama models on the host for the text-query dropdown. */
     suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
         remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey)
+
+    /**
+     * Drops models that do not answer chat with HTTP 200 or 429 (Refresh-models reachability).
+     */
+    suspend fun filterReachableModels(
+        models: List<ModelOption>,
+        chatUrl: String,
+        authHeader: String?
+    ): List<ModelOption> =
+        remoteAiDataSource.filterReachableModels(models, chatUrl, authHeader)
 
     /**
      * Persists a user-confirmed (possibly edited) meal to Room using its live totals. Pass a
@@ -1279,7 +1382,8 @@ class FitnessRepository(
      * fails (timeout, rate limit, etc.), the last error is thrown so the user can change
      * platform in Settings.
      * Rate-limited models are skipped until the next UTC midnight (persisted across app
-     * restarts). After that, newer requests try the highest models again. No background retry.
+     * restarts). After that, newer requests try the preferred selected model first again.
+     * No background retry. Success updates the green “active” model only — not the dropdown.
      * When Auto is off: preferred provider + selected model only; rotates API keys on failure,
      * then surfaces the error (no model or platform change).
      */
@@ -1360,7 +1464,11 @@ class FitnessRepository(
     /** Keys to try for [platform]; local Ollama uses a single empty key (no auth). */
     private fun attemptKeys(settings: AppSettings, platform: AiProvider): List<String> {
         if (platform == AiProvider.OLLAMA && !settings.ollamaUseCloud) return listOf("")
-        val keys = settings.keysFor(platform)
+        val keys = if (platform == AiProvider.OPENROUTER) {
+            settings.openRouterAttemptKeys()
+        } else {
+            settings.keysFor(platform)
+        }
         return keys.ifEmpty { listOf("") }
     }
 
@@ -1377,17 +1485,18 @@ class FitnessRepository(
         val selectedRaw = settings.copy(provider = platform).modelFor(preferVisionModels)
         val selected = selectedRaw.takeIf { isPlausibleModelIdFor(platform, it) }.orEmpty()
         val listKey = settings.keysFor(platform).firstOrNull().orEmpty()
+        val includePaid = settings.showPaidModels
         val catalog = runCatching {
             when (platform) {
                 AiProvider.OPENROUTER -> if (preferVisionModels) {
-                    remoteAiDataSource.fetchFreeVisionModels(listKey)
+                    remoteAiDataSource.fetchFreeVisionModels(listKey, includePaid)
                 } else {
-                    remoteAiDataSource.fetchFreeModels(listKey)
+                    remoteAiDataSource.fetchFreeModels(listKey, includePaid)
                 }
                 AiProvider.GEMINI -> if (preferVisionModels) {
-                    remoteAiDataSource.fetchGeminiVisionModels(listKey)
+                    remoteAiDataSource.fetchGeminiVisionModels(listKey, includePaid)
                 } else {
-                    remoteAiDataSource.fetchGeminiTextModels(listKey)
+                    remoteAiDataSource.fetchGeminiTextModels(listKey, includePaid)
                 }
                 AiProvider.OLLAMA -> {
                     val base = settings.ollamaEffectiveBaseUrl

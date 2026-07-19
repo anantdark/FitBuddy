@@ -10,6 +10,18 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Android 11+ package visibility: required to resolve Custom Tabs providers. -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".FitBuddyApp"
         android:allowBackup="true"
@@ -29,7 +41,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.FitBuddy"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -37,10 +49,25 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="openrouter"
+                    android:pathPrefix="/callback"
+                    android:scheme="fitbuddy" />
+            </intent-filter>
         </activity>
 
         <receiver
             android:name=".reminders.ReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".data.backup.mongo.MongoBackupReceiver"
             android:exported="false" />
 
         <receiver

@@ -58,3 +58,16 @@
 -keepclasseswithmembernames class * {
     native <methods>;
 }
+
+# --- MongoDB Java driver (Atlas personal backup) --------------------------------------------
+-keep class com.mongodb.** { *; }
+-keep class org.bson.** { *; }
+-keep class javax.security.sasl.** { *; }
+-dontwarn com.mongodb.**
+-dontwarn org.bson.**
+-dontwarn org.slf4j.**
+-dontwarn javax.annotation.**
+-dontwarn javax.security.sasl.**
+-dontwarn edu.umd.cs.findbugs.annotations.**
+-dontwarn com.google.common.**
+

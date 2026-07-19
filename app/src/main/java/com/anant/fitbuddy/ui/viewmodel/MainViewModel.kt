@@ -1,10 +1,13 @@
 package com.anant.fitbuddy.ui.viewmodel
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
 import com.anant.fitbuddy.data.database.ExerciseLog
@@ -32,6 +35,9 @@ import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
+import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
+import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuthCallbackServer
+import com.anant.fitbuddy.data.remote.oauth.OpenRouterPkce
 import com.anant.fitbuddy.data.repository.AnalysisOutcome
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.AiProvider
@@ -442,24 +448,26 @@ class MainViewModel(
 
     /**
      * Loads the vision-capable model list for [provider] using [apiKey] (and [baseUrl] for Ollama).
-     * Results are cached per provider+key+url; a change invalidates the cache. No-op re-entry
-     * while already loading.
+     * Results are cached per provider+key+url+paid; a change invalidates the cache. No-op re-entry
+     * while already loading. When [force] is true (Refresh button) and paid models are off, keeps
+     * only models whose chat endpoint returns HTTP 200 or 429. Paid-models mode never probes.
      */
     fun loadFreeVisionModels(
         provider: AiProvider,
         apiKey: String,
         force: Boolean = false,
-        baseUrl: String = ""
+        baseUrl: String = "",
+        includePaid: Boolean = settings.value.showPaidModels
     ) {
-        val cacheKey = "${provider.name}:$apiKey:$baseUrl"
+        val cacheKey = "${provider.name}:$apiKey:$baseUrl:$includePaid"
         if (_models.value.isLoading) return
         if (!force && _models.value.loaded && lastModelsCacheKey == cacheKey) return
         _models.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             runCatching {
-                when (provider) {
-                    AiProvider.OPENROUTER -> repository.fetchFreeVisionModels(apiKey)
-                    AiProvider.GEMINI -> repository.fetchGeminiVisionModels(apiKey)
+                val catalog = when (provider) {
+                    AiProvider.OPENROUTER -> repository.fetchFreeVisionModels(apiKey, includePaid)
+                    AiProvider.GEMINI -> repository.fetchGeminiVisionModels(apiKey, includePaid)
                     AiProvider.OLLAMA -> {
                         val url = baseUrl.trim().trimEnd('/')
                         when {
@@ -468,6 +476,12 @@ class MainViewModel(
                             else -> repository.fetchOllamaVisionModels(url, apiKey)
                         }
                     }
+                }
+                // Skip reachability probes when paid models are listed (never ping paid endpoints).
+                if (force && !includePaid) {
+                    filterReachableIfPossible(catalog, provider, apiKey, baseUrl)
+                } else {
+                    catalog
                 }
             }
                 .onSuccess { list ->
@@ -486,23 +500,25 @@ class MainViewModel(
 
     /**
      * Loads the free (text) model list for [provider] used by the text-query model dropdown.
-     * Cached per provider+key+url like [loadFreeVisionModels].
+     * Cached per provider+key+url+paid like [loadFreeVisionModels]. Refresh probes only when
+     * paid models are off.
      */
     fun loadFreeTextModels(
         provider: AiProvider,
         apiKey: String,
         force: Boolean = false,
-        baseUrl: String = ""
+        baseUrl: String = "",
+        includePaid: Boolean = settings.value.showPaidModels
     ) {
-        val cacheKey = "${provider.name}:$apiKey:$baseUrl"
+        val cacheKey = "${provider.name}:$apiKey:$baseUrl:$includePaid"
         if (_textModels.value.isLoading) return
         if (!force && _textModels.value.loaded && lastTextModelsCacheKey == cacheKey) return
         _textModels.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             runCatching {
-                when (provider) {
-                    AiProvider.OPENROUTER -> repository.fetchFreeModels(apiKey)
-                    AiProvider.GEMINI -> repository.fetchGeminiTextModels(apiKey)
+                val catalog = when (provider) {
+                    AiProvider.OPENROUTER -> repository.fetchFreeModels(apiKey, includePaid)
+                    AiProvider.GEMINI -> repository.fetchGeminiTextModels(apiKey, includePaid)
                     AiProvider.OLLAMA -> {
                         val url = baseUrl.trim().trimEnd('/')
                         when {
@@ -511,6 +527,11 @@ class MainViewModel(
                             else -> repository.fetchOllamaTextModels(url, apiKey)
                         }
                     }
+                }
+                if (force && !includePaid) {
+                    filterReachableIfPossible(catalog, provider, apiKey, baseUrl)
+                } else {
+                    catalog
                 }
             }
                 .onSuccess { list ->
@@ -525,6 +546,29 @@ class MainViewModel(
                     }
                 }
         }
+    }
+
+    /**
+     * Probes chat for each catalog entry when credentials (or local Ollama) allow it.
+     * Without a key, returns [catalog] unchanged — probes would all 401.
+     */
+    private suspend fun filterReachableIfPossible(
+        catalog: List<ModelOption>,
+        provider: AiProvider,
+        apiKey: String,
+        baseUrl: String
+    ): List<ModelOption> {
+        val ollamaLocal = provider == AiProvider.OLLAMA &&
+            baseUrl.trim().trimEnd('/') != AppSettings.OLLAMA_CLOUD_BASE_URL
+        if (apiKey.isBlank() && !ollamaLocal) return catalog
+        val chatUrl = when (provider) {
+            AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
+            AiProvider.GEMINI ->
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            AiProvider.OLLAMA -> baseUrl.trim().trimEnd('/') + "/v1/chat/completions"
+        }
+        val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
+        return repository.filterReachableModels(catalog, chatUrl, auth)
     }
 
     // --- Dashboard --------------------------------------------------------------------------
@@ -578,17 +622,43 @@ class MainViewModel(
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
-    /** null while the profile hasn't loaded yet; true when first-time setup is required. */
+    /**
+     * null while profile hasn't loaded; true when onboarding (full or AI-only) is required.
+     * Combines profile basics with AI setup / post-restore force-AI flag.
+     */
+    private val _forceAiSetup = MutableStateFlow(false)
+
     val needsOnboarding: StateFlow<Boolean?> =
-        repository.activeProfile
-            .map { profile -> profile == null || !profile.hasBasicsConfigured() }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        combine(repository.activeProfile, settings, _forceAiSetup) { profile, appSettings, forceAi ->
+            when {
+                // Room may emit null before first read settles; treat missing/incomplete as onboard.
+                profile == null || !profile.hasBasicsConfigured() -> true
+                forceAi || !appSettings.isConfigured -> true
+                else -> false
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** When true, onboarding shows only the AI credentials step (profile already restored). */
+    val onboardingAiOnly: StateFlow<Boolean> =
+        combine(repository.activeProfile, settings, _forceAiSetup) { profile, appSettings, forceAi ->
+            val basicsOk = profile != null && profile.hasBasicsConfigured()
+            basicsOk && (forceAi || !appSettings.isConfigured)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _onboardingSaving = MutableStateFlow(false)
     val onboardingSaving: StateFlow<Boolean> = _onboardingSaving.asStateFlow()
 
     private val _onboardingValidating = MutableStateFlow(false)
     val onboardingValidating: StateFlow<Boolean> = _onboardingValidating.asStateFlow()
+
+    private val _onboardingRestoring = MutableStateFlow(false)
+    val onboardingRestoring: StateFlow<Boolean> = _onboardingRestoring.asStateFlow()
+
+    private val _openRouterOAuthBusy = MutableStateFlow(false)
+    val openRouterOAuthBusy: StateFlow<Boolean> = _openRouterOAuthBusy.asStateFlow()
+
+    private var pendingOpenRouterCodeVerifier: String? = null
+    private var openRouterOAuthCallbackServer: OpenRouterOAuthCallbackServer? = null
 
     /** When true, dashboard launch should run a one-shot AI calorie/macro target design. */
     private var pendingInitialTargetDesign = false
@@ -1198,6 +1268,216 @@ class MainViewModel(
         }
     }
 
+    private val _mongoBackupBusy = MutableStateFlow(false)
+    val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
+
+    fun uploadMongoBackup() {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            runCatching { repository.uploadMongoBackup() }
+                .onSuccess { count ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Uploaded $count records to cloud backup")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Cloud upload failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    fun downloadMongoBackup(supportId: String) {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            val enteredId = supportId.trim()
+            runCatching {
+                val count = repository.downloadMongoBackup(enteredId)
+                val restored = settingsRepository.settings.first()
+                val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                settingsRepository.save(
+                    restored.copy(
+                        supportId = reusedId,
+                        cloudBackupEnabled = true
+                    )
+                )
+                CrashReporter.setSupportId(reusedId)
+                count
+            }
+                .onSuccess { count ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Restored $count records from cloud backup")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Cloud restore failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    fun prepareCloudBackupEnable() {
+        viewModelScope.launch {
+            settingsRepository.ensureSupportId()
+        }
+    }
+
+    fun setCloudBackupEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            if (enabled) {
+                settingsRepository.ensureSupportId()
+            }
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    cloudBackupEnabled = enabled,
+                    cloudAutoUploadEnabled = if (enabled) {
+                        // Default auto-upload on when first enabling.
+                        true
+                    } else {
+                        false
+                    }
+                )
+            )
+        }
+    }
+
+    fun setCloudAutoUploadEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.save(settings.value.copy(cloudAutoUploadEnabled = enabled))
+        }
+    }
+
+    /** Guest path: ensure a Support ID exists before the AI/profile steps. */
+    fun startGuestOnboarding() {
+        viewModelScope.launch {
+            settingsRepository.ensureSupportId()
+        }
+    }
+
+    /**
+     * Onboarding cloud restore. Reuses the Support ID from the backup payload (or the ID
+     * entered to fetch it), enables cloud backup, then probes AI credentials.
+     */
+    fun restoreOnboardingFromCloud(supportId: String, onResult: (Boolean, String?) -> Unit) {
+        if (_onboardingRestoring.value) return
+        _onboardingRestoring.value = true
+        viewModelScope.launch {
+            val enteredId = supportId.trim()
+            val result = runCatching {
+                repository.downloadMongoBackup(enteredId)
+                val restored = settingsRepository.settings.first()
+                // Prefer Support ID from restored settings; fall back to the ID used to fetch.
+                val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                settingsRepository.save(
+                    restored.copy(
+                        supportId = reusedId,
+                        cloudBackupEnabled = true,
+                        cloudAutoUploadEnabled = true
+                    )
+                )
+                CrashReporter.setSupportId(reusedId)
+                val after = settingsRepository.settings.first()
+                if (!after.isConfigured) {
+                    _forceAiSetup.value = true
+                    return@runCatching
+                }
+                runCatching { probeAiCredentials(after) }
+                    .onFailure { _forceAiSetup.value = true }
+                    .onSuccess { _forceAiSetup.value = false }
+            }
+            _onboardingRestoring.value = false
+            result
+                .onSuccess { onResult(true, null) }
+                .onFailure { e ->
+                    onResult(false, e.message ?: "Couldn't restore from cloud")
+                }
+        }
+    }
+
+    /** Onboarding local file restore. Keeps Support ID from backup when present. */
+    fun restoreOnboardingFromLocal(uri: Uri, onResult: (Boolean, String?) -> Unit) {
+        if (_onboardingRestoring.value) return
+        _onboardingRestoring.value = true
+        viewModelScope.launch {
+            val result = runCatching {
+                repository.importData(uri)
+                val after = settingsRepository.settings.first()
+                if (after.supportId.isNotBlank()) {
+                    CrashReporter.setSupportId(after.supportId)
+                }
+                if (!after.isConfigured) {
+                    _forceAiSetup.value = true
+                    return@runCatching
+                }
+                runCatching { probeAiCredentials(after) }
+                    .onFailure { _forceAiSetup.value = true }
+                    .onSuccess { _forceAiSetup.value = false }
+            }
+            _onboardingRestoring.value = false
+            result
+                .onSuccess { onResult(true, null) }
+                .onFailure { e ->
+                    onResult(false, e.message ?: "Couldn't restore from file")
+                }
+        }
+    }
+
+    /** Developer: mint a new Support ID for crash reporting and future cloud uploads. */
+    fun regenerateSupportId() {
+        viewModelScope.launch {
+            val id = settingsRepository.regenerateSupportId()
+            CrashReporter.setSupportId(id)
+            _analysisState.update {
+                it.copy(userMessage = "New Support ID generated — copy it from Backup settings")
+            }
+        }
+    }
+
+    /** AI-only onboarding finish: persist keys and clear the force-AI flag. */
+    fun completeAiSetupOnly(aiSettings: AppSettings) {
+        if (_onboardingSaving.value) return
+        _onboardingSaving.value = true
+        viewModelScope.launch {
+            runCatching {
+                val merged = settings.value.copy(
+                    provider = aiSettings.provider,
+                    openRouterApiKeys = aiSettings.openRouterApiKeys,
+                    openRouterApiKey = aiSettings.openRouterApiKey,
+                    openRouterOAuthKey = aiSettings.openRouterOAuthKey.ifBlank {
+                        settings.value.openRouterOAuthKey
+                    },
+                    openRouterModel = aiSettings.openRouterModel.ifBlank {
+                        settings.value.openRouterModel
+                    },
+                    openRouterTextModel = aiSettings.openRouterTextModel,
+                    geminiApiKeys = aiSettings.geminiApiKeys,
+                    geminiApiKey = aiSettings.geminiApiKey,
+                    geminiModel = aiSettings.geminiModel.ifBlank { settings.value.geminiModel },
+                    geminiTextModel = aiSettings.geminiTextModel,
+                    ollamaBaseUrl = aiSettings.ollamaBaseUrl,
+                    ollamaModel = aiSettings.ollamaModel.ifBlank { settings.value.ollamaModel },
+                    ollamaTextModel = aiSettings.ollamaTextModel,
+                    ollamaUseCloud = aiSettings.ollamaUseCloud,
+                    ollamaApiKeys = aiSettings.ollamaApiKeys,
+                    ollamaApiKey = aiSettings.ollamaApiKey,
+                    aiAutoFailover = aiSettings.aiAutoFailover
+                )
+                settingsRepository.save(merged)
+                _forceAiSetup.value = false
+            }.onFailure { e ->
+                _analysisState.update {
+                    it.copy(userMessage = e.message ?: "Couldn't save AI settings")
+                }
+            }
+            _onboardingSaving.value = false
+        }
+    }
+
     // --- AI analysis ------------------------------------------------------------------------
 
     private val _analysisState = MutableStateFlow(AnalysisUiState())
@@ -1600,6 +1880,110 @@ class MainViewModel(
 
     // --- Profile ----------------------------------------------------------------------------
 
+    /** Opens OpenRouter OAuth PKCE via loopback callback + Custom Tab / browser. */
+    fun startOpenRouterOAuth(context: Context) {
+        if (_openRouterOAuthBusy.value) return
+        val appContext = context.applicationContext
+        val verifier = OpenRouterPkce.generateVerifier()
+        pendingOpenRouterCodeVerifier = verifier
+        val challenge = OpenRouterPkce.challengeS256(verifier)
+        viewModelScope.launch {
+            settingsRepository.setPendingOpenRouterPkceVerifier(verifier)
+            openRouterOAuthCallbackServer?.stop()
+            val server = OpenRouterOAuthCallbackServer(
+                onCode = { code ->
+                    bringFitBuddyToForeground(appContext)
+                    handleOpenRouterOAuthCode(code)
+                },
+                onFailure = { message ->
+                    _analysisState.update { it.copy(userMessage = message) }
+                }
+            )
+            openRouterOAuthCallbackServer = server
+            val port = runCatching { server.start(viewModelScope) }.getOrElse {
+                _analysisState.update {
+                    it.copy(userMessage = "Couldn't start OpenRouter sign-in listener")
+                }
+                return@launch
+            }
+            val callbackUrl = OpenRouterOAuth.loopbackCallbackUrl(port)
+            OpenRouterOAuth.launchAuth(context, challenge, callbackUrl)
+        }
+    }
+
+    private fun bringFitBuddyToForeground(appContext: Context) {
+        runCatching {
+            val am = appContext.getSystemService(android.app.ActivityManager::class.java)
+            am?.appTasks?.firstOrNull()?.moveToFront()
+                ?: appContext.startActivity(
+                    Intent(appContext, MainActivity::class.java).addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+                )
+        }
+    }
+
+    /** Handles `fitbuddy://openrouter/callback?code=…` from a custom-scheme redirect. */
+    fun handleOpenRouterOAuthCallback(uri: Uri) {
+        if (!OpenRouterOAuth.isCallback(uri)) return
+        val code = OpenRouterOAuth.codeFromCallback(uri)
+        if (code.isNullOrBlank()) {
+            _analysisState.update {
+                it.copy(userMessage = "OpenRouter sign-in was cancelled or incomplete")
+            }
+            return
+        }
+        handleOpenRouterOAuthCode(code)
+    }
+
+    private fun handleOpenRouterOAuthCode(code: String) {
+        if (_openRouterOAuthBusy.value) return
+        _openRouterOAuthBusy.value = true
+        openRouterOAuthCallbackServer?.stop()
+        openRouterOAuthCallbackServer = null
+        viewModelScope.launch {
+            val verifier = pendingOpenRouterCodeVerifier
+                ?: settingsRepository.takePendingOpenRouterPkceVerifier()
+            pendingOpenRouterCodeVerifier = null
+            if (verifier.isNullOrBlank()) {
+                _analysisState.update {
+                    it.copy(userMessage = "OpenRouter sign-in expired — try Connect again")
+                }
+                _openRouterOAuthBusy.value = false
+                return@launch
+            }
+            runCatching {
+                val key = OpenRouterOAuth.exchangeCode(code, verifier)
+                settingsRepository.setOpenRouterOAuthKey(key)
+                key
+            }
+                .onSuccess {
+                    _analysisState.update {
+                        it.copy(userMessage = "Connected with OpenRouter")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = e.message ?: "Couldn't connect OpenRouter")
+                    }
+                }
+            _openRouterOAuthBusy.value = false
+        }
+    }
+
+    fun disconnectOpenRouterOAuth() {
+        viewModelScope.launch {
+            pendingOpenRouterCodeVerifier = null
+            openRouterOAuthCallbackServer?.stop()
+            openRouterOAuthCallbackServer = null
+            settingsRepository.takePendingOpenRouterPkceVerifier()
+            settingsRepository.clearOpenRouterOAuthKey()
+            _analysisState.update { it.copy(userMessage = "OpenRouter disconnected") }
+        }
+    }
+
     /**
      * Verifies onboarding AI credentials by listing models from the chosen provider.
      * Calls [onResult] with success/failure on the main thread when done.
@@ -1635,7 +2019,32 @@ class MainViewModel(
         _onboardingSaving.value = true
         viewModelScope.launch {
             runCatching {
-                settingsRepository.save(aiSettings)
+                val current = settings.value
+                settingsRepository.save(
+                    current.copy(
+                        provider = aiSettings.provider,
+                        openRouterApiKeys = aiSettings.openRouterApiKeys,
+                        openRouterApiKey = aiSettings.openRouterApiKey,
+                        openRouterOAuthKey = aiSettings.openRouterOAuthKey.ifBlank {
+                            current.openRouterOAuthKey
+                        },
+                        openRouterModel = aiSettings.openRouterModel.ifBlank {
+                            current.openRouterModel
+                        },
+                        openRouterTextModel = aiSettings.openRouterTextModel,
+                        geminiApiKeys = aiSettings.geminiApiKeys,
+                        geminiApiKey = aiSettings.geminiApiKey,
+                        geminiModel = aiSettings.geminiModel.ifBlank { current.geminiModel },
+                        geminiTextModel = aiSettings.geminiTextModel,
+                        ollamaBaseUrl = aiSettings.ollamaBaseUrl,
+                        ollamaModel = aiSettings.ollamaModel.ifBlank { current.ollamaModel },
+                        ollamaTextModel = aiSettings.ollamaTextModel,
+                        ollamaUseCloud = aiSettings.ollamaUseCloud,
+                        ollamaApiKeys = aiSettings.ollamaApiKeys,
+                        ollamaApiKey = aiSettings.ollamaApiKey,
+                        aiAutoFailover = aiSettings.aiAutoFailover
+                    )
+                )
                 repository.saveProfile(
                     UserProfile(
                         id = 1,
@@ -1723,7 +2132,8 @@ class MainViewModel(
         when (settings.provider) {
             AiProvider.OPENROUTER -> {
                 val key = settings.activeKey(AiProvider.OPENROUTER)
-                check(key.isNotBlank()) { "Enter an OpenRouter API key" }
+                    .ifBlank { settings.openRouterOAuthKey }
+                check(key.isNotBlank()) { "Connect OpenRouter or enter an API key" }
                 repository.fetchFreeVisionModels(key)
             }
             AiProvider.GEMINI -> {

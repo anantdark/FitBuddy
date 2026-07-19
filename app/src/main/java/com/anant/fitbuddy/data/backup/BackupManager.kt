@@ -35,9 +35,50 @@ class BackupManager(
 ) {
     private val adapter = moshi.adapter(BackupData::class.java).indent("  ")
 
+    val appContext: Context get() = context.applicationContext
+
+    suspend fun buildBackupData(): BackupData = withContext(Dispatchers.IO) {
+        snapshot()
+    }
+
+    /** Moshi JSON for [data] (same format as file export). */
+    fun encode(data: BackupData): String = adapter.toJson(data)
+
+    suspend fun toJson(): String = withContext(Dispatchers.IO) {
+        encode(snapshot())
+    }
+
+    fun countRecords(data: BackupData, legacyFoodCount: Int? = null): Int {
+        val foods = legacyFoodCount ?: data.savedFoods.size
+        return data.measurements.size + data.foodLogs.size + data.mealFoods.size +
+            data.exerciseLogs.size + foods + data.mealPresets.size +
+            data.exercisePresets.size + data.workoutSessions.size +
+            data.workoutExercises.size + if (data.settings != null) 1 else 0
+    }
+
     suspend fun exportTo(uri: Uri): Int = withContext(Dispatchers.IO) {
+        val data = snapshot()
+        val json = adapter.toJson(data)
+        context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+            out.write(json.toByteArray(Charsets.UTF_8))
+        } ?: error("Couldn't open the selected file for writing")
+        countRecords(data)
+    }
+
+    suspend fun importFrom(uri: Uri): Int = withContext(Dispatchers.IO) {
+        val json = context.contentResolver.openInputStream(uri)?.use { input ->
+            input.readBytes().toString(Charsets.UTF_8)
+        } ?: error("Couldn't open the selected file for reading")
+        importFromJsonInternal(json)
+    }
+
+    suspend fun importFromJson(json: String): Int = withContext(Dispatchers.IO) {
+        importFromJsonInternal(json)
+    }
+
+    private suspend fun snapshot(): BackupData {
         val settings = settingsRepository.settings.first()
-        val data = BackupData(
+        return BackupData(
             exportedAt = System.currentTimeMillis(),
             profile = userProfileDao.getProfileOnce(),
             measurements = bodyMeasurementDao.getAllOnce(),
@@ -51,18 +92,9 @@ class BackupManager(
             workoutExercises = workoutExerciseDao.getAllOnce(),
             settings = BackupSettings.from(settings)
         )
-        val json = adapter.toJson(data)
-        context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-            out.write(json.toByteArray(Charsets.UTF_8))
-        } ?: error("Couldn't open the selected file for writing")
-        countRecords(data)
     }
 
-    suspend fun importFrom(uri: Uri): Int = withContext(Dispatchers.IO) {
-        val json = context.contentResolver.openInputStream(uri)?.use { input ->
-            input.readBytes().toString(Charsets.UTF_8)
-        } ?: error("Couldn't open the selected file for reading")
-
+    private suspend fun importFromJsonInternal(json: String): Int {
         val data = adapter.fromJson(json)
             ?: error("The selected file isn't a valid FitBuddy backup")
 
@@ -126,14 +158,6 @@ class BackupManager(
 
         data.settings?.let { settingsRepository.save(it.toAppSettings()) }
 
-        countRecords(data, legacyFoodCount = legacyFoods.size)
-    }
-
-    private fun countRecords(data: BackupData, legacyFoodCount: Int? = null): Int {
-        val foods = legacyFoodCount ?: data.savedFoods.size
-        return data.measurements.size + data.foodLogs.size + data.mealFoods.size +
-            data.exerciseLogs.size + foods + data.mealPresets.size +
-            data.exercisePresets.size + data.workoutSessions.size +
-            data.workoutExercises.size + if (data.settings != null) 1 else 0
+        return countRecords(data, legacyFoodCount = legacyFoods.size)
     }
 }

@@ -49,13 +49,16 @@ object NetworkModule {
         }
     }
 
-    private val okHttpClient: OkHttpClient by lazy {
+    private val sharedOkHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build()
     }
+
+    /** Shared client for one-off calls (e.g. OpenRouter OAuth key exchange). */
+    fun okHttpClient(): OkHttpClient = sharedOkHttpClient
 
     private val openFoodFactsClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -75,7 +78,7 @@ object NetworkModule {
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(PLACEHOLDER_BASE_URL)
-            .client(okHttpClient)
+            .client(sharedOkHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
     }
@@ -95,7 +98,7 @@ object NetworkModule {
     private val githubRetrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl("https://api.github.com/")
-            .client(okHttpClient)
+            .client(sharedOkHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
     }

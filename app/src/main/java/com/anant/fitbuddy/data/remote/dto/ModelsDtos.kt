@@ -116,6 +116,15 @@ fun geminiIntelligenceRank(modelId: String): Int {
     val preview = "preview" in id || "exp" in id
 
     val base = when {
+        // Paid Pro / Ultra above Flash of the same generation
+        "ultra" in id -> 450
+        "pro" in id && geminiHasVersion(id, major = 3, minor = 5) -> 430
+        "pro" in id && geminiHasVersion(id, major = 3, minor = null) &&
+            !geminiHasVersion(id, major = 3, minor = 1) &&
+            !geminiHasVersion(id, major = 3, minor = 5) -> 420
+        "pro" in id && geminiHasVersion(id, major = 2, minor = 5) -> 410
+        "pro" in id -> 405
+
         // Group 2 — modern Flash
         geminiHasVersion(id, major = 3, minor = 5) && !lite -> 400
         geminiHasVersion(id, major = 3, minor = null) && !lite &&
@@ -169,15 +178,26 @@ private fun geminiHasVersion(id: String, major: Int, minor: Int?): Boolean {
 }
 
 /**
- * Higher = smarter for OpenRouter / Ollama catalogs. Gemma family is boosted to the top;
- * within a family, larger parameter sizes rank higher (27b > 12b > 4b > 2b).
+ * Higher = smarter for OpenRouter / Ollama catalogs. Gemma family is boosted to the top by
+ * generation (4 > 3 > 2), then by parameter size within a generation
+ * (Gemma 4: 31b > 26b; Gemma 3: 27b > 12b > 4b). Non-Gemma models rank by size only, below
+ * all Gemma.
  */
 fun gemmaFirstIntelligenceRank(modelId: String): Int {
     val id = modelId.lowercase()
-    val gemmaBoost = if ("gemma" in id) 1_000 else 0
+    val generation = gemmaGeneration(id)
+    val gemmaBoost = when {
+        generation != null -> generation * 1_000
+        "gemma" in id -> 1_000
+        else -> 0
+    }
     val sizeB = Regex("""(\d+(?:\.\d+)?)\s*b\b""").find(id)
         ?.groupValues?.get(1)
         ?.toDoubleOrNull()
         ?: 0.0
     return gemmaBoost + (sizeB * 10).toInt()
 }
+
+/** Gemma major version from ids like `gemma-4-31b`, `gemma4`, `gemma_3:27b`. */
+private fun gemmaGeneration(id: String): Int? =
+    Regex("""gemma[-_]?(\d+)""").find(id)?.groupValues?.get(1)?.toIntOrNull()

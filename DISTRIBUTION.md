@@ -3,7 +3,30 @@
 Package: `com.anant.fitbuddy`  
 Display name: **FitBuddy**
 
-## 1. Create a release keystore
+## 1. Create a local/dev keystore (machine testing)
+
+Use a **separate** keystore for local `assembleRelease` / sideloading. Do **not** put the
+CI/Play release keystore in `keystore.properties` on your laptop.
+
+```bash
+keytool -genkeypair -v \
+  -keystore fitbuddy-local.jks \
+  -alias fitbuddy-local \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -storetype JKS
+```
+
+```bash
+cp keystore.properties.example keystore.properties
+# Point storeFile at fitbuddy-local.jks and fill in the local passwords
+```
+
+`*.jks` and `keystore.properties` are gitignored.
+
+## 2. Create the Play/CI release keystore (once)
+
+Generate once, store only in a password manager + GitHub Actions secrets — not in the repo
+and not as your everyday local `keystore.properties`:
 
 ```bash
 keytool -genkeypair -v \
@@ -13,44 +36,42 @@ keytool -genkeypair -v \
   -storetype JKS
 ```
 
-Keep the `.jks` file and passwords safe. Add `fitbuddy-release.jks` to `.gitignore` (already listed).
+## 3. GitHub Actions (required for Releases)
 
-## 2. Configure signing
-
-```bash
-cp keystore.properties.example keystore.properties
-# Edit keystore.properties with your paths and passwords
-```
-
-Place `fitbuddy-release.jks` in the project root (or update `storeFile` in `keystore.properties`).
-
-Release builds automatically use the release keystore when `keystore.properties` exists; otherwise they fall back to the debug key for local testing.
-
-### GitHub Actions (required for Releases)
-
-Add these repository secrets so CI always signs with the same key (otherwise each runner
+Add these repository secrets so CI always signs with the **release** key (otherwise each runner
 uses a different debug keystore and in-app updates fail between releases):
 
 | Secret | Value |
 |--------|-------|
 | `RELEASE_KEYSTORE_BASE64` | `base64 -i fitbuddy-release.jks \| pbcopy` |
-| `RELEASE_STORE_PASSWORD` | Same as `storePassword` |
-| `RELEASE_KEY_ALIAS` | Same as `keyAlias` (default `fitbuddy`) |
-| `RELEASE_KEY_PASSWORD` | Same as `keyPassword` |
+| `RELEASE_STORE_PASSWORD` | Release store password |
+| `RELEASE_KEY_ALIAS` | Release alias (default `fitbuddy`) |
+| `RELEASE_KEY_PASSWORD` | Release key password |
 | `SENTRY_DSN` | Same DSN as in `local.properties` (optional; empty = crash SDK off in CI builds) |
+| `MONGO_DB_PASSWORD` | Atlas DB user password only (URI is assembled at build time; empty = cloud backup off) |
 
-The release workflow fails if any of the `RELEASE_*` secrets are missing. After switching to a new keystore,
-uninstall older installs once and install the first APK signed with that key.
+Non-secret Atlas defaults (`MONGO_DB_USER`, host, `MONGO_DB_NAME=fitbuddy`) live in
+`app/build.gradle.kts` / `local.properties.example`. Override via env if needed.
 
-## 3. Build a release APK / AAB
+Cloud backup uses a build-baked URI (never pasted in Settings). Guest installs opt in via
+**Enable cloud backup**; restores are onboarding-only (or Developer tools). Auto-upload runs on
+app startup with a 12-hour debounce unless the user taps **Upload now**.
+
+The release workflow writes a temporary `keystore.properties` on the runner from these secrets.
+Local `keystore.properties` is never used by CI.
+
+After switching to a new release keystore, uninstall older installs once and install the first
+APK signed with that key.
+
+## 4. Build a release APK / AAB
 
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
-# Optimized APK (side-loading / testing)
+# Optimized APK (side-loading / testing) — signed with local keystore.properties if present
 ./gradlew :app:assembleRelease
 
-# Play Store bundle (recommended for Play Console)
+# Play Store bundle (recommended for Play Console) — use CI or a machine with the release key
 ./gradlew :app:bundleRelease
 ```
 
@@ -58,7 +79,7 @@ Outputs:
 - APK: `app/build/outputs/apk/release/FitBuddy-<versionName>.apk` (e.g. `FitBuddy-2.2.0-dev.apk`)
 - AAB: `app/build/outputs/bundle/release/app-release.aab`
 
-## 4. Play Console checklist
+## 5. Play Console checklist
 
 - [ ] Upload `app-release.aab`
 - [ ] App icon: adaptive icon in `res/mipmap-anydpi/` + store listing PNG at `assets/fitbuddy_icon.png`
@@ -67,6 +88,7 @@ Outputs:
 - [ ] Target API level matches `targetSdk` in `app/build.gradle.kts`
 - [ ] Test on release build (debug Compose is slower; release uses R8 + resource shrink)
 
-## 5. Version bumps
+## 6. Version bumps
 
 Edit `versionCode` and `versionName` in `app/build.gradle.kts` before each store upload.
+Local/dev builds keep the fallback versions; CI sets them via `-PappVersionCode` / `-PappVersionName`.

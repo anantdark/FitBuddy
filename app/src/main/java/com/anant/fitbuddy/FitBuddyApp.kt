@@ -4,6 +4,7 @@ import android.app.Application
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
@@ -90,6 +91,8 @@ class FitBuddyApp : Application() {
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         ReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)
+        // Cancel legacy weekly Atlas alarms (replaced by startup + 12h debounce).
+        MongoBackupScheduler.cancel(this)
         appScope.launch {
             settingsRepository.settings
                 .map { s ->
@@ -110,11 +113,21 @@ class FitBuddyApp : Application() {
                     }
                 }
         }
+        appScope.launch {
+            maybeAutoUploadCloudBackup()
+        }
         if (settings.crashReportingEnabled) {
             Thread({
                 runBlocking(Dispatchers.IO) { maybeSendDailyHeartbeat() }
             }, "fitbuddy-heartbeat").start()
         }
+    }
+
+    /** Startup auto-upload when opted in and outside the 12h debounce window. */
+    private suspend fun maybeAutoUploadCloudBackup() {
+        val settings = settingsRepository.settings.first()
+        if (!repository.shouldAutoUploadNow(settings)) return
+        runCatching { repository.uploadMongoBackup() }
     }
 
     private suspend fun maybeSendDailyHeartbeat() {

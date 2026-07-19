@@ -107,6 +107,20 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `openRouterAttemptKeys prefers manual keys then oauth`() {
+        val oauthOnly = AppSettings(openRouterOAuthKey = "oauth-key")
+        assertEquals(listOf("oauth-key"), oauthOnly.openRouterAttemptKeys())
+        assertTrue(oauthOnly.copy(provider = AiProvider.OPENROUTER, openRouterModel = "m").isConfigured)
+
+        val both = AppSettings(
+            openRouterApiKeys = listOf("manual-a", "manual-b"),
+            openRouterOAuthKey = "oauth-key"
+        )
+        assertEquals(listOf("manual-a", "manual-b", "oauth-key"), both.openRouterAttemptKeys())
+        assertEquals(listOf("manual-a", "manual-b"), both.keysFor(AiProvider.OPENROUTER))
+    }
+
+    @Test
     fun `parseApiKeys splits commas newlines and dedupes`() {
         assertEquals(
             listOf("k1", "k2", "k3"),
