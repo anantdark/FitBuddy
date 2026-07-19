@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FAQ — FitBuddy</title>
-  <meta name="description" content="Frequently asked questions about FitBuddy: API keys, accuracy, offline use, barcodes, updates, and troubleshooting." />
+  <meta name="description" content="Frequently asked questions about FitBuddy: OpenRouter sign-in, cloud backup, reminders, API keys, accuracy, barcodes, updates, and troubleshooting." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="FitBuddy" />
   <meta property="og:title" content="FitBuddy FAQ" />
-  <meta property="og:description" content="Frequently asked questions about FitBuddy: API keys, accuracy, offline use, barcodes, updates, and troubleshooting." />
+  <meta property="og:description" content="Frequently asked questions about FitBuddy: OpenRouter sign-in, cloud backup, reminders, API keys, accuracy, barcodes, and updates." />
   <meta property="og:url" content="https://anantdark.github.io/FitBuddy/faq.html" />
   <meta property="og:image" content="https://anantdark.github.io/FitBuddy/og-image.jpg" />
   <meta property="og:image:type" content="image/jpeg" />
@@ -99,16 +99,27 @@
       <details>
         <summary>Do I need an API key?</summary>
         <p>
-          Yes for signup. Onboarding requires a validated OpenRouter, Gemini, or Ollama
-          (Cloud key / Local URL) connection. Photo and freeform logging, target design,
-          and the Progress Coach all use that provider.
+          Yes for signup — FitBuddy needs a working AI connection. For OpenRouter you can
+          tap <strong>Continue with OpenRouter</strong> (account sign-in, no paste) or add
+          API keys. Gemini and Ollama Cloud need keys; Ollama Local needs a reachable server URL.
+          Photo and freeform logging, target design, and the Progress Coach all use that provider.
+        </p>
+      </details>
+
+      <details>
+        <summary>How does OpenRouter sign-in work?</summary>
+        <p>
+          FitBuddy opens OpenRouter in the browser (or a Custom Tab). After you approve,
+          a short-lived callback returns a key stored on-device. You can disconnect anytime.
+          If you also paste manual API keys, those are preferred; the sign-in token is only
+          used when manual keys fail.
         </p>
       </details>
 
       <details>
         <summary>Which provider should I pick?</summary>
         <p>
-          <strong>OpenRouter</strong> is convenient for free vision models.
+          <strong>OpenRouter</strong> is convenient for free vision models and account sign-in.
           <strong>Gemini</strong> works well if you already have a Google AI Studio key.
           <strong>Ollama</strong> is best if you want local models on your LAN, or Ollama Cloud.
           You can switch anytime in Settings — FitBuddy does not auto-switch platforms.
@@ -116,10 +127,20 @@
       </details>
 
       <details>
+        <summary>What does Show paid models do?</summary>
+        <p>
+          Off by default, model dropdowns list free (or free-vision) options. Turn
+          <strong>Show paid models</strong> on in Settings to include paid models in the
+          Photo and Text lists for the current provider.
+        </p>
+      </details>
+
+      <details>
         <summary>Validation failed during onboarding</summary>
         <p>
           Check the key (no extra spaces), that the provider account is active, and that
-          you have network access. For Ollama Local, confirm the phone can reach the
+          you have network access. For OpenRouter sign-in, finish the browser flow and return
+          to the app. For Ollama Local, confirm the phone can reach the
           server URL (same Wi‑Fi, firewall, HTTP allowed). Change the key or URL and
           tap Continue again.
         </p>
@@ -140,6 +161,26 @@
           Text-only logging can fall back to a built-in simulator if no provider is
           configured — but current onboarding requires a working key, so normal installs
           stay online for AI. Photos always need a live provider.
+        </p>
+      </details>
+
+      <h2>Reminders</h2>
+
+      <details>
+        <summary>How do daily log reminders work?</summary>
+        <p>
+          Settings → Preferences → <strong>Daily log reminder</strong> schedules one local
+          notification per day (default 8:00 PM). Grant notification permission when asked.
+          For timely delivery, also allow Alarms &amp; reminders (exact alarms); otherwise
+          Android may delay the ping.
+        </p>
+      </details>
+
+      <details>
+        <summary>Reminder turned itself off</summary>
+        <p>
+          If notification permission is revoked or denied, FitBuddy disables the reminder
+          so it doesn’t silently fail. Re-enable the toggle and allow notifications again.
         </p>
       </details>
 
@@ -230,9 +271,21 @@
       <details>
         <summary>How do I back up my data?</summary>
         <p>
-          Settings → Backup &amp; Data → Export creates a JSON backup you can Import later.
-          This does not replace a full device backup, but it preserves logs and profile data
-          you choose to move.
+          Settings → Backup → <strong>Export</strong> creates a JSON file (logs, profile,
+          settings, presets, and related data). For personal cloud backup (when available in
+          your build): enable cloud backup, keep your <strong>Support ID</strong> safe, then
+          use Upload now or Auto-upload on startup. Restore from cloud or a local file during
+          onboarding after reinstall — day-to-day Settings does not show Import.
+        </p>
+      </details>
+
+      <details>
+        <summary>I reinstalled — how do I restore?</summary>
+        <p>
+          On first launch choose <strong>Restore from cloud backup</strong> (enter the Support ID
+          that uploaded the backup) or <strong>Restore from local backup</strong> (pick your
+          Export JSON). If AI credentials don’t validate after restore, FitBuddy asks you to
+          reconnect AI only.
         </p>
       </details>
 
@@ -266,5 +319,7 @@
     <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
     <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
   </footer>
+
+  <script src="app.js?v=4"></script>
 </body>
 </html>

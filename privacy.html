@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Privacy — FitBuddy</title>
-  <meta name="description" content="What FitBuddy stores on your device, what is sent to AI providers, Open Food Facts, GitHub updates, and optional Sentry crash reports." />
+  <meta name="description" content="What FitBuddy stores on your device, what is sent to AI providers and optional cloud backup, Open Food Facts, GitHub updates, and optional Sentry crash reports." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="FitBuddy" />
   <meta property="og:title" content="FitBuddy privacy" />
-  <meta property="og:description" content="What FitBuddy stores on your device, what is sent to AI providers, and optional crash reports." />
+  <meta property="og:description" content="What FitBuddy stores on your device, what is sent to AI providers and optional cloud backup, and optional crash reports." />
   <meta property="og:url" content="https://anantdark.github.io/FitBuddy/privacy.html" />
   <meta property="og:image" content="https://anantdark.github.io/FitBuddy/og-image.jpg" />
   <meta property="og:image:type" content="image/jpeg" />
@@ -101,13 +101,14 @@
       <ul>
         <li>Profile, body readings, daily targets</li>
         <li>Food and exercise logs, meal presets, saved foods</li>
-        <li>AI provider choice, API keys, and model preferences (DataStore)</li>
+        <li>AI provider choice, API keys, OpenRouter sign-in token, and model preferences (DataStore)</li>
+        <li>Reminder schedule (local notification preference)</li>
         <li>Optional JSON backups you export yourself</li>
-        <li>Anonymous Support ID for crash support (not your name or email)</li>
+        <li>Anonymous Support ID for crash support and cloud backup keying (not your name or email)</li>
       </ul>
       <p>
-        There is no FitBuddy cloud account. Uninstalling the app removes local data
-        unless you keep an export.
+        There is no FitBuddy user account. Uninstalling the app removes local data
+        unless you keep an export or a cloud backup under your Support ID.
       </p>
 
       <h2>Sent to your AI provider</h2>
@@ -122,8 +123,9 @@
         <li>Compressed progress metrics for insights/chat</li>
       </ul>
       <p>
-        Your API key is sent only as required by that provider’s auth (typically a Bearer header).
-        FitBuddy does not upload your full history to a FitBuddy server — there isn’t one.
+        Your API key or OpenRouter OAuth credential is sent only as required by that
+        provider’s auth (typically a Bearer header).
+        FitBuddy does not upload your full history to a FitBuddy app server — there isn’t one.
       </p>
       <div class="callout">
         <p>Choose a provider you trust.</p>
@@ -133,8 +135,38 @@
         </p>
       </div>
 
+      <h2>Optional personal cloud backup</h2>
+      <p>
+        When cloud backup is available in your build and you enable it, FitBuddy can
+        upload a backup document keyed by your
+        <span class="ui-label">Support ID</span> to the project’s MongoDB Atlas database
+        (connection credentials are baked into the official release build — not pasted in Settings).
+      </p>
+      <ul>
+        <li>
+          <strong>What goes up:</strong> the same BackupData JSON as a local export
+          (logs, profile, settings, presets, and related fields) so you can restore after reinstall.
+          Treat the Support ID like a restore password — anyone with it can request that document.
+        </li>
+        <li>
+          <strong>Control:</strong> off by default; you opt in, can Upload now, or use
+          Auto-upload on startup (12-hour debounce).
+        </li>
+        <li>
+          <strong>Restore:</strong> during onboarding via Support ID, or Developer tools.
+        </li>
+      </ul>
+      <p>
+        If the build shows <em>Cloud backup is not available</em>, no Atlas uploads occur.
+        Local Export still works entirely on-device.
+      </p>
+
       <h2>Other network use</h2>
       <ul>
+        <li>
+          <strong>OpenRouter OAuth</strong> — browser sign-in and token exchange when you
+          use Continue with OpenRouter.
+        </li>
         <li>
           <strong>Open Food Facts</strong> — barcode lookup (product name / nutrition).
           Needs internet when you scan or look up a code.
@@ -166,7 +198,9 @@
       <ul>
         <li>Camera — food photos and barcodes</li>
         <li>Photos / media — gallery pick</li>
-        <li>Internet — AI, barcode lookup, updates, optional crash reports</li>
+        <li>Notifications — daily log reminder (optional)</li>
+        <li>Alarms &amp; reminders — timely reminder delivery (optional; otherwise may be delayed)</li>
+        <li>Internet — AI, barcode lookup, updates, optional cloud backup, optional crash reports</li>
         <li>Install packages — applying an in-app downloaded update</li>
       </ul>
 
@@ -188,5 +222,7 @@
     <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
     <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
   </footer>
+
+  <script src="app.js?v=4"></script>
 </body>
 </html>

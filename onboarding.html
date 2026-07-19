@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Onboarding — FitBuddy</title>
-  <meta name="description" content="Set up FitBuddy: connect a validated AI key, enter your profile, and get personalized calorie targets." />
+  <meta name="description" content="Set up FitBuddy: start fresh or restore a backup, connect OpenRouter / Gemini / Ollama, enter your profile, and get personalized calorie targets." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="FitBuddy" />
   <meta property="og:title" content="FitBuddy onboarding — connect AI and set your profile" />
-  <meta property="og:description" content="Set up FitBuddy: connect a validated AI key, enter your profile, and get personalized calorie targets." />
+  <meta property="og:description" content="Set up FitBuddy: start fresh or restore a backup, connect a validated AI provider, enter your profile, and get personalized calorie targets." />
   <meta property="og:url" content="https://anantdark.github.io/FitBuddy/onboarding.html" />
   <meta property="og:image" content="https://anantdark.github.io/FitBuddy/og-image.jpg" />
   <meta property="og:image:type" content="image/jpeg" />
@@ -16,7 +16,7 @@
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="FitBuddy onboarding — connect AI and set your profile" />
-  <meta name="twitter:description" content="Set up FitBuddy: connect a validated AI key, enter your profile, and get personalized calorie targets." />
+  <meta name="twitter:description" content="Set up FitBuddy: start fresh or restore a backup, connect AI, and set your profile." />
   <meta name="twitter:image" content="https://anantdark.github.io/FitBuddy/og-image.jpg" />
   <link rel="canonical" href="https://anantdark.github.io/FitBuddy/onboarding.html" />
   <link rel="icon" href="icon-mark.png" type="image/png" />
@@ -92,14 +92,16 @@
         <p class="eyebrow">First launch</p>
         <h1>Onboarding</h1>
         <p>
-          FitBuddy walks you through three steps before the dashboard opens.
-          An AI connection is required — there is no skip.
+          First you choose how to start — fresh install or restore a backup —
+          then FitBuddy walks you through AI setup and your profile.
+          An AI connection is required; there is no skip.
         </p>
       </header>
 
       <nav class="toc" aria-label="On this page">
         <strong>On this page</strong>
         <ol>
+          <li><a href="#path">How do you want to start?</a></li>
           <li><a href="#step-ai">Step 1 — Connect an AI</a></li>
           <li><a href="#step-you">Step 2 — About you</a></li>
           <li><a href="#step-lifestyle">Step 3 — Your lifestyle</a></li>
@@ -108,6 +110,38 @@
         </ol>
       </nav>
 
+      <h2 id="path">How do you want to start?</h2>
+      <p>
+        On a new install you’ll see a path picker before the three setup steps:
+      </p>
+      <ul>
+        <li>
+          <span class="ui-label">Start Fresh</span> — mint a new Support ID and go through
+          AI + profile setup.
+        </li>
+        <li>
+          <span class="ui-label">Restore from cloud backup</span> — enter the
+          <span class="ui-label">Support ID</span> from the device that uploaded the backup
+          (same ID shown under Settings → Backup). Available when this build includes cloud backup.
+        </li>
+        <li>
+          <span class="ui-label">Restore from local backup</span> — pick a JSON file you
+          previously exported.
+        </li>
+      </ul>
+      <p>
+        After a successful restore, if AI credentials are missing or no longer work,
+        FitBuddy opens <span class="ui-label">Reconnect AI</span> so you can connect a
+        provider again without re-entering your whole profile.
+      </p>
+      <div class="callout">
+        <p>Keep your Support ID safe.</p>
+        <p>
+          Cloud backups are keyed by that ID. Copy it from Settings → Backup on the old
+          device before you wipe or reinstall.
+        </p>
+      </div>
+
       <h2 id="step-ai">Step 1 — Connect an AI</h2>
       <p>
         FitBuddy uses a large language model to read food photos, freeform text,
@@ -115,7 +149,13 @@
         before you can continue.
       </p>
       <ul>
-        <li><span class="ui-label">OpenRouter</span> — paste one or more API keys</li>
+        <li>
+          <span class="ui-label">OpenRouter</span> —
+          tap <span class="ui-label">Continue with OpenRouter</span> to sign in
+          (no API key paste required), or expand
+          <span class="ui-label">Use API keys instead</span> to add one or more keys manually.
+          If both are set, manual keys are preferred; the OpenRouter sign-in is used only if they fail.
+        </li>
         <li><span class="ui-label">Gemini</span> — Google AI Studio API key(s)</li>
         <li>
           <span class="ui-label">Ollama</span> —
@@ -125,15 +165,17 @@
       </ul>
       <p>
         Tap <span class="ui-label">Continue</span>. The app validates by listing models
-        from that provider (<span class="ui-label">Validating…</span>).
-        If the key or URL is wrong, you’ll see an error such as
+        from that provider (<span class="ui-label">Validating…</span> /
+        <span class="ui-label">Connecting…</span> during OpenRouter sign-in).
+        If the key, URL, or sign-in fails, you’ll see an error such as
         <em>Couldn’t validate that API key</em> and stay on this step.
       </p>
       <div class="callout">
-        <p>Your key is stored on-device.</p>
+        <p>Your credentials stay on-device.</p>
         <p>
-          It only leaves the phone when FitBuddy calls the provider you selected.
-          Docs links on this screen open the provider’s key-creation guides in the browser.
+          Keys and the OpenRouter OAuth token only leave the phone when FitBuddy calls
+          the provider you selected. Docs links on this screen open the provider’s
+          key-creation guides in the browser.
         </p>
       </div>
 
@@ -179,7 +221,7 @@
         </li>
       </ol>
       <p>
-        You can change providers, keys, and models later under
+        You can change providers, keys, models, reminders, and backup later under
         <span class="ui-label">Settings</span> (gear icon).
         Targets and body data live under the <span class="ui-label">Body</span> tab.
       </p>
@@ -188,6 +230,8 @@
       <ul>
         <li>
           <strong>OpenRouter</strong> —
+          easiest: use <span class="ui-label">Continue with OpenRouter</span> in the app.
+          Or create a key via
           <a href="https://openrouter.ai/docs/api/reference/authentication" rel="noopener">Authentication docs</a>
         </li>
         <li>
@@ -213,5 +257,7 @@
     <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
     <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
   </footer>
+
+  <script src="app.js?v=4"></script>
 </body>
 </html>

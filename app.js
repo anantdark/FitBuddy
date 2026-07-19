@@ -89,19 +89,19 @@
         src: "screens/onboarding-ai.png",
         alt: "FitBuddy onboarding — connect an AI provider",
         caption:
-          "Step 1 — connect Gemini, OpenRouter, or Ollama. Keys stay on your phone.",
+          "Start fresh or restore — then connect OpenRouter (sign-in or keys), Gemini, or Ollama.",
       },
       {
         src: "screens/onboarding-profile.png",
         alt: "FitBuddy onboarding — about you profile form",
         caption:
-          "Step 2 — age, height, and weight so targets fit your body.",
+          "About you — age, height, and weight so targets fit your body.",
       },
       {
         src: "screens/onboarding-goals.png",
         alt: "FitBuddy onboarding — activity level and goal",
         caption:
-          "Step 3 — activity and goal; AI sets calorie and macro targets.",
+          "Lifestyle — activity and goal; AI sets calorie and macro targets.",
       },
       {
         src: "screens/today.png",
@@ -113,7 +113,7 @@
         src: "screens/log-hub.png",
         alt: "FitBuddy log sheet with photo, text, and workout options",
         caption:
-          "Log hub — photo, gallery, freeform text, meals, or a workout (onto the selected day).",
+          "Log hub — photo, text, saved meals in one tap, or a workout onto the selected day.",
       },
       {
         src: "screens/food-review.png",
@@ -137,7 +137,7 @@
         src: "screens/settings.png",
         alt: "FitBuddy Settings with Gemini AI provider selected",
         caption:
-          "Settings — pick a provider, rotate keys, and turn on auto failover.",
+          "Settings — OpenRouter sign-in, reminders, cloud backup, and auto failover.",
       },
     ];
 

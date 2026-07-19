@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Usage guide — FitBuddy</title>
-  <meta name="description" content="How to use FitBuddy day to day: logging food and workouts, Body and Progress tabs, Settings, and updates." />
+  <meta name="description" content="How to use FitBuddy day to day: logging food and workouts, reminders, cloud backup, Body and Progress tabs, Settings, and updates." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="FitBuddy" />
   <meta property="og:title" content="FitBuddy usage guide" />
-  <meta property="og:description" content="How to use FitBuddy day to day: logging food and workouts, Body and Progress tabs, Settings, and updates." />
+  <meta property="og:description" content="How to use FitBuddy day to day: logging food and workouts, reminders, cloud backup, Body and Progress tabs, Settings, and updates." />
   <meta property="og:url" content="https://anantdark.github.io/FitBuddy/guide.html" />
   <meta property="og:image" content="https://anantdark.github.io/FitBuddy/og-image.jpg" />
   <meta property="og:image:type" content="image/jpeg" />
@@ -108,6 +108,8 @@
           <li><a href="#body">Body tab</a></li>
           <li><a href="#progress">Progress &amp; coach</a></li>
           <li><a href="#settings">Settings</a></li>
+          <li><a href="#reminders">Daily log reminder</a></li>
+          <li><a href="#backup">Backup &amp; cloud</a></li>
           <li><a href="#updates">Install &amp; updates</a></li>
         </ol>
       </nav>
@@ -161,8 +163,12 @@
         <li><span class="ui-label">Gallery</span> — pick an existing image</li>
         <li><span class="ui-label">Describe</span> — freeform text (<span class="ui-label">Food or activity</span> → <span class="ui-label">Analyze</span>)</li>
         <li><span class="ui-label">Build meal</span> — assemble multiple foods</li>
-        <li><span class="ui-label">Saved meal</span> — log a meal preset in one tap</li>
+        <li><span class="ui-label">Saved meal</span> — pick a meal preset; it logs immediately with a confirmation pill (name + kcal)</li>
       </ul>
+      <p>
+        From Build meal you can also pick a <span class="ui-label">Saved food</span> for
+        one-tap add into the meal you’re assembling.
+      </p>
 
       <h3>Build a meal</h3>
       <p>
@@ -256,21 +262,87 @@
           When off, only the selected model is used; keys still rotate on failure.
         </li>
         <li>Provider segments: OpenRouter / Gemini / Ollama (Local or Cloud)</li>
-        <li>Multiple <span class="ui-label">API keys</span> as chips</li>
+        <li>
+          <strong>OpenRouter</strong> —
+          <span class="ui-label">Continue with OpenRouter</span> for account sign-in, or
+          expand API keys to paste keys. Manual keys are preferred when both exist;
+          <span class="ui-label">Disconnect OpenRouter</span> clears the sign-in token.
+        </li>
+        <li>Multiple <span class="ui-label">API keys</span> as chips (Gemini / Ollama / optional OpenRouter keys)</li>
+        <li>
+          <span class="ui-label">Show paid models</span> — off by default (free vision / free text lists).
+          Turn on to include paid models in the Photo and Text dropdowns.
+        </li>
         <li><span class="ui-label">Photo model</span> and <span class="ui-label">Text model</span> dropdowns</li>
         <li><span class="ui-label">Save AI Settings</span></li>
       </ul>
 
-      <h3>Other</h3>
+      <h2 id="reminders">Daily log reminder</h2>
+      <p>
+        Under <span class="ui-label">Preferences</span>:
+      </p>
       <ul>
-        <li><span class="ui-label">Material You</span> — dynamic color on Android 12+</li>
         <li>
-          <span class="ui-label">Backup &amp; Data</span> —
-          <span class="ui-label">Export</span> / <span class="ui-label">Import</span> JSON
+          <span class="ui-label">Daily log reminder</span> — local notification once a day
+          (default <span class="ui-label">8:00 PM</span>). No Google Play Services required.
         </li>
         <li>
-          <span class="ui-label">Send crash reports</span> and a copyable
-          <span class="ui-label">Support ID</span> (see <a href="privacy.html">Privacy</a>)
+          <span class="ui-label">Reminder time</span> — tap to change the hour and minute.
+        </li>
+        <li>
+          Android may ask for notification permission. If you deny it, the reminder turns off.
+        </li>
+        <li>
+          For on-time delivery, allow <span class="ui-label">Alarms &amp; reminders</span>
+          (exact alarms). If they’re off, FitBuddy shows a warning and an
+          <span class="ui-label">Allow exact alarms</span> button — reminders may otherwise be delayed.
+        </li>
+        <li><span class="ui-label">Material You</span> — dynamic color on Android 12+</li>
+      </ul>
+
+      <h2 id="backup">Backup &amp; cloud</h2>
+      <p>
+        Under <span class="ui-label">Backup</span>:
+      </p>
+      <ul>
+        <li>
+          <span class="ui-label">Support ID</span> — copyable anonymous ID for crash support
+          and as the cloud backup document key. Keep it somewhere safe.
+        </li>
+        <li>
+          <span class="ui-label">Export</span> — write a JSON backup (logs, profile, settings,
+          presets, and related data) to a file you choose.
+        </li>
+        <li>
+          <span class="ui-label">Enable cloud backup</span> — opt in when the build includes
+          the cloud vault. You’ll be prompted to copy your Support ID first.
+        </li>
+        <li>
+          <span class="ui-label">Auto-upload on startup</span> — when enabled, uploads on app
+          start if the last upload was more than 12 hours ago.
+        </li>
+        <li>
+          <span class="ui-label">Upload now</span> — immediate upload while cloud backup is on.
+        </li>
+      </ul>
+      <p>
+        Restoring from cloud or a local file happens during
+        <a href="onboarding.html#path">onboarding</a> (or via Developer tools if unlocked).
+        Day-to-day Settings does not offer Import — use Export + onboarding restore.
+      </p>
+      <div class="callout">
+        <p>Cloud backup is optional and build-dependent.</p>
+        <p>
+          If you see <em>Cloud backup is not available in this build</em>, this APK was
+          built without the vault credentials. Local Export still works.
+        </p>
+      </div>
+
+      <h3>Other</h3>
+      <ul>
+        <li>
+          <span class="ui-label">Send crash reports</span> and your
+          <span class="ui-label">Support ID</span> under Backup (see <a href="privacy.html">Privacy</a>)
         </li>
         <li>
           <span class="ui-label">Check automatically</span> for updates, or
@@ -309,5 +381,7 @@
     <p>Built by <a href="https://github.com/anantdark" rel="noopener">Anant</a></p>
     <p><a href="https://github.com/anantdark/FitBuddy" rel="noopener">anantdark/FitBuddy</a></p>
   </footer>
+
+  <script src="app.js?v=4"></script>
 </body>
 </html>
