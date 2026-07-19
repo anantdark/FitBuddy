@@ -622,17 +622,37 @@ class MainViewModel(
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
-    /** null while the profile hasn't loaded yet; true when first-time setup is required. */
+    /**
+     * null while profile hasn't loaded; true when onboarding (full or AI-only) is required.
+     * Combines profile basics with AI setup / post-restore force-AI flag.
+     */
+    private val _forceAiSetup = MutableStateFlow(false)
+
     val needsOnboarding: StateFlow<Boolean?> =
-        repository.activeProfile
-            .map { profile -> profile == null || !profile.hasBasicsConfigured() }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        combine(repository.activeProfile, settings, _forceAiSetup) { profile, appSettings, forceAi ->
+            when {
+                // Room may emit null before first read settles; treat missing/incomplete as onboard.
+                profile == null || !profile.hasBasicsConfigured() -> true
+                forceAi || !appSettings.isConfigured -> true
+                else -> false
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** When true, onboarding shows only the AI credentials step (profile already restored). */
+    val onboardingAiOnly: StateFlow<Boolean> =
+        combine(repository.activeProfile, settings, _forceAiSetup) { profile, appSettings, forceAi ->
+            val basicsOk = profile != null && profile.hasBasicsConfigured()
+            basicsOk && (forceAi || !appSettings.isConfigured)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _onboardingSaving = MutableStateFlow(false)
     val onboardingSaving: StateFlow<Boolean> = _onboardingSaving.asStateFlow()
 
     private val _onboardingValidating = MutableStateFlow(false)
     val onboardingValidating: StateFlow<Boolean> = _onboardingValidating.asStateFlow()
+
+    private val _onboardingRestoring = MutableStateFlow(false)
+    val onboardingRestoring: StateFlow<Boolean> = _onboardingRestoring.asStateFlow()
 
     private val _openRouterOAuthBusy = MutableStateFlow(false)
     val openRouterOAuthBusy: StateFlow<Boolean> = _openRouterOAuthBusy.asStateFlow()
@@ -1251,55 +1271,210 @@ class MainViewModel(
     private val _mongoBackupBusy = MutableStateFlow(false)
     val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
 
-    fun uploadMongoBackup(uri: String, dbName: String) {
+    fun uploadMongoBackup() {
         viewModelScope.launch {
             _mongoBackupBusy.value = true
-            runCatching {
-                settingsRepository.save(
-                    settings.value.copy(
-                        mongoDbUri = uri.trim(),
-                        mongoDbName = dbName.trim().ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
-                    )
-                )
-                repository.uploadMongoBackup()
-            }
+            runCatching { repository.uploadMongoBackup() }
                 .onSuccess { count ->
                     _analysisState.update {
-                        it.copy(userMessage = "Uploaded $count records to MongoDB Atlas")
+                        it.copy(userMessage = "Uploaded $count records to cloud backup")
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = "MongoDB upload failed: ${e.message}")
+                        it.copy(userMessage = "Cloud upload failed: ${e.message}")
                     }
                 }
             _mongoBackupBusy.value = false
         }
     }
 
-    fun downloadMongoBackup(uri: String, dbName: String, supportId: String) {
+    fun downloadMongoBackup(supportId: String) {
         viewModelScope.launch {
             _mongoBackupBusy.value = true
+            val enteredId = supportId.trim()
             runCatching {
+                val count = repository.downloadMongoBackup(enteredId)
+                val restored = settingsRepository.settings.first()
+                val reusedId = restored.supportId.trim().ifBlank { enteredId }
                 settingsRepository.save(
-                    settings.value.copy(
-                        mongoDbUri = uri.trim(),
-                        mongoDbName = dbName.trim().ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                    restored.copy(
+                        supportId = reusedId,
+                        cloudBackupEnabled = true
                     )
                 )
-                repository.downloadMongoBackup(supportId)
+                CrashReporter.setSupportId(reusedId)
+                count
             }
                 .onSuccess { count ->
                     _analysisState.update {
-                        it.copy(userMessage = "Restored $count records from MongoDB Atlas")
+                        it.copy(userMessage = "Restored $count records from cloud backup")
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = "MongoDB restore failed: ${e.message}")
+                        it.copy(userMessage = "Cloud restore failed: ${e.message}")
                     }
                 }
             _mongoBackupBusy.value = false
+        }
+    }
+
+    fun prepareCloudBackupEnable() {
+        viewModelScope.launch {
+            settingsRepository.ensureSupportId()
+        }
+    }
+
+    fun setCloudBackupEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            if (enabled) {
+                settingsRepository.ensureSupportId()
+            }
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    cloudBackupEnabled = enabled,
+                    cloudAutoUploadEnabled = if (enabled) {
+                        // Default auto-upload on when first enabling.
+                        true
+                    } else {
+                        false
+                    }
+                )
+            )
+        }
+    }
+
+    fun setCloudAutoUploadEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.save(settings.value.copy(cloudAutoUploadEnabled = enabled))
+        }
+    }
+
+    /** Guest path: ensure a Support ID exists before the AI/profile steps. */
+    fun startGuestOnboarding() {
+        viewModelScope.launch {
+            settingsRepository.ensureSupportId()
+        }
+    }
+
+    /**
+     * Onboarding cloud restore. Reuses the Support ID from the backup payload (or the ID
+     * entered to fetch it), enables cloud backup, then probes AI credentials.
+     */
+    fun restoreOnboardingFromCloud(supportId: String, onResult: (Boolean, String?) -> Unit) {
+        if (_onboardingRestoring.value) return
+        _onboardingRestoring.value = true
+        viewModelScope.launch {
+            val enteredId = supportId.trim()
+            val result = runCatching {
+                repository.downloadMongoBackup(enteredId)
+                val restored = settingsRepository.settings.first()
+                // Prefer Support ID from restored settings; fall back to the ID used to fetch.
+                val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                settingsRepository.save(
+                    restored.copy(
+                        supportId = reusedId,
+                        cloudBackupEnabled = true,
+                        cloudAutoUploadEnabled = true
+                    )
+                )
+                CrashReporter.setSupportId(reusedId)
+                val after = settingsRepository.settings.first()
+                if (!after.isConfigured) {
+                    _forceAiSetup.value = true
+                    return@runCatching
+                }
+                runCatching { probeAiCredentials(after) }
+                    .onFailure { _forceAiSetup.value = true }
+                    .onSuccess { _forceAiSetup.value = false }
+            }
+            _onboardingRestoring.value = false
+            result
+                .onSuccess { onResult(true, null) }
+                .onFailure { e ->
+                    onResult(false, e.message ?: "Couldn't restore from cloud")
+                }
+        }
+    }
+
+    /** Onboarding local file restore. Keeps Support ID from backup when present. */
+    fun restoreOnboardingFromLocal(uri: Uri, onResult: (Boolean, String?) -> Unit) {
+        if (_onboardingRestoring.value) return
+        _onboardingRestoring.value = true
+        viewModelScope.launch {
+            val result = runCatching {
+                repository.importData(uri)
+                val after = settingsRepository.settings.first()
+                if (after.supportId.isNotBlank()) {
+                    CrashReporter.setSupportId(after.supportId)
+                }
+                if (!after.isConfigured) {
+                    _forceAiSetup.value = true
+                    return@runCatching
+                }
+                runCatching { probeAiCredentials(after) }
+                    .onFailure { _forceAiSetup.value = true }
+                    .onSuccess { _forceAiSetup.value = false }
+            }
+            _onboardingRestoring.value = false
+            result
+                .onSuccess { onResult(true, null) }
+                .onFailure { e ->
+                    onResult(false, e.message ?: "Couldn't restore from file")
+                }
+        }
+    }
+
+    /** Developer: mint a new Support ID for crash reporting and future cloud uploads. */
+    fun regenerateSupportId() {
+        viewModelScope.launch {
+            val id = settingsRepository.regenerateSupportId()
+            CrashReporter.setSupportId(id)
+            _analysisState.update {
+                it.copy(userMessage = "New Support ID generated — copy it from Backup settings")
+            }
+        }
+    }
+
+    /** AI-only onboarding finish: persist keys and clear the force-AI flag. */
+    fun completeAiSetupOnly(aiSettings: AppSettings) {
+        if (_onboardingSaving.value) return
+        _onboardingSaving.value = true
+        viewModelScope.launch {
+            runCatching {
+                val merged = settings.value.copy(
+                    provider = aiSettings.provider,
+                    openRouterApiKeys = aiSettings.openRouterApiKeys,
+                    openRouterApiKey = aiSettings.openRouterApiKey,
+                    openRouterOAuthKey = aiSettings.openRouterOAuthKey.ifBlank {
+                        settings.value.openRouterOAuthKey
+                    },
+                    openRouterModel = aiSettings.openRouterModel.ifBlank {
+                        settings.value.openRouterModel
+                    },
+                    openRouterTextModel = aiSettings.openRouterTextModel,
+                    geminiApiKeys = aiSettings.geminiApiKeys,
+                    geminiApiKey = aiSettings.geminiApiKey,
+                    geminiModel = aiSettings.geminiModel.ifBlank { settings.value.geminiModel },
+                    geminiTextModel = aiSettings.geminiTextModel,
+                    ollamaBaseUrl = aiSettings.ollamaBaseUrl,
+                    ollamaModel = aiSettings.ollamaModel.ifBlank { settings.value.ollamaModel },
+                    ollamaTextModel = aiSettings.ollamaTextModel,
+                    ollamaUseCloud = aiSettings.ollamaUseCloud,
+                    ollamaApiKeys = aiSettings.ollamaApiKeys,
+                    ollamaApiKey = aiSettings.ollamaApiKey,
+                    aiAutoFailover = aiSettings.aiAutoFailover
+                )
+                settingsRepository.save(merged)
+                _forceAiSetup.value = false
+            }.onFailure { e ->
+                _analysisState.update {
+                    it.copy(userMessage = e.message ?: "Couldn't save AI settings")
+                }
+            }
+            _onboardingSaving.value = false
         }
     }
 
@@ -1844,7 +2019,32 @@ class MainViewModel(
         _onboardingSaving.value = true
         viewModelScope.launch {
             runCatching {
-                settingsRepository.save(aiSettings)
+                val current = settings.value
+                settingsRepository.save(
+                    current.copy(
+                        provider = aiSettings.provider,
+                        openRouterApiKeys = aiSettings.openRouterApiKeys,
+                        openRouterApiKey = aiSettings.openRouterApiKey,
+                        openRouterOAuthKey = aiSettings.openRouterOAuthKey.ifBlank {
+                            current.openRouterOAuthKey
+                        },
+                        openRouterModel = aiSettings.openRouterModel.ifBlank {
+                            current.openRouterModel
+                        },
+                        openRouterTextModel = aiSettings.openRouterTextModel,
+                        geminiApiKeys = aiSettings.geminiApiKeys,
+                        geminiApiKey = aiSettings.geminiApiKey,
+                        geminiModel = aiSettings.geminiModel.ifBlank { current.geminiModel },
+                        geminiTextModel = aiSettings.geminiTextModel,
+                        ollamaBaseUrl = aiSettings.ollamaBaseUrl,
+                        ollamaModel = aiSettings.ollamaModel.ifBlank { current.ollamaModel },
+                        ollamaTextModel = aiSettings.ollamaTextModel,
+                        ollamaUseCloud = aiSettings.ollamaUseCloud,
+                        ollamaApiKeys = aiSettings.ollamaApiKeys,
+                        ollamaApiKey = aiSettings.ollamaApiKey,
+                        aiAutoFailover = aiSettings.aiAutoFailover
+                    )
+                )
                 repository.saveProfile(
                     UserProfile(
                         id = 1,

@@ -5,8 +5,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
@@ -48,10 +51,20 @@ class MainActivity : ComponentActivity() {
                         factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
                     )
                     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
+                    val onboardingAiOnly by viewModel.onboardingAiOnly.collectAsStateWithLifecycle()
                     val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
                     val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
+                    val onboardingRestoring by viewModel.onboardingRestoring.collectAsStateWithLifecycle()
                     val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
                     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
+
+                    val onboardingImportLauncher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) {
+                            viewModel.restoreOnboardingFromLocal(uri) { _, _ -> }
+                        }
+                    }
 
                     LaunchedEffect(openRouterOAuthUri) {
                         val uri = openRouterOAuthUri ?: return@LaunchedEffect
@@ -101,14 +114,23 @@ class MainActivity : ComponentActivity() {
                             OnboardingScreen(
                                 isSaving = onboardingSaving,
                                 isValidating = onboardingValidating,
+                                isRestoring = onboardingRestoring,
+                                aiOnly = onboardingAiOnly,
+                                cloudRestoreAvailable = MongoUriVault.isAvailable(),
                                 openRouterOAuthBusy = openRouterOAuthBusy,
                                 openRouterOAuthKey = settings.openRouterOAuthKey,
                                 userMessage = analysisState.userMessage,
                                 onUserMessageConsumed = viewModel::consumeUserMessage,
                                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
+                                onStartGuest = viewModel::startGuestOnboarding,
+                                onRestoreCloud = viewModel::restoreOnboardingFromCloud,
+                                onRequestLocalRestore = {
+                                    onboardingImportLauncher.launch(arrayOf("application/json", "*/*"))
+                                },
                                 onValidateAi = viewModel::validateOnboardingAi,
-                                onComplete = viewModel::completeOnboarding
+                                onComplete = viewModel::completeOnboarding,
+                                onCompleteAiOnly = viewModel::completeAiSetupOnly
                             )
                         }
 

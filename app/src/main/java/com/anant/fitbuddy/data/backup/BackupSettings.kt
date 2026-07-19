@@ -9,9 +9,10 @@ import com.squareup.moshi.JsonClass
  * Serializable slice of [AppSettings] for backup JSON. Includes AI keys so a restore can
  * pick up on another device without re-entering Settings.
  *
- * Intentionally omitted (ephemeral / device-local):
+ * Intentionally omitted (ephemeral / device-local / build-baked):
  * - model rate-limit cooldowns
  * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
+ * - Atlas connection URI (build-baked via MongoUriVault — never in backup JSON)
  * - Sentry heartbeat day, in-flight OAuth PKCE verifier
  *
  * Active API key strings ([AppSettings.openRouterApiKey] etc.) are derived from the key lists
@@ -53,8 +54,12 @@ data class BackupSettings(
     val showRawAiJson: Boolean = false,
     val strictClarification: Boolean = false,
     val verboseHttpLogging: Boolean = false,
+    val cloudBackupEnabled: Boolean = false,
+    val cloudAutoUploadEnabled: Boolean = true,
+    val mongoDbName: String = AppSettings.DEFAULT_MONGO_DB_NAME,
+    val mongoCollectionName: String = AppSettings.DEFAULT_MONGO_COLLECTION,
+    /** @deprecated Ignored on import — Atlas URI is build-baked. Kept for old JSON compatibility. */
     val mongoDbUri: String = "",
-    val mongoDbName: String = AppSettings.DEFAULT_MONGO_DB_NAME
 ) {
     fun toAppSettings(): AppSettings {
         val provider = runCatching { AiProvider.valueOf(provider) }.getOrDefault(AiProvider.OPENROUTER)
@@ -94,8 +99,12 @@ data class BackupSettings(
                 showRawAiJson = showRawAiJson,
                 strictClarification = strictClarification,
                 verboseHttpLogging = verboseHttpLogging,
-                mongoDbUri = mongoDbUri,
-                mongoDbName = mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                cloudBackupEnabled = cloudBackupEnabled,
+                cloudAutoUploadEnabled = cloudAutoUploadEnabled,
+                mongoDbName = mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                mongoCollectionName = mongoCollectionName.ifBlank {
+                    AppSettings.DEFAULT_MONGO_COLLECTION
+                }
             )
         )
     }
@@ -133,8 +142,13 @@ data class BackupSettings(
             showRawAiJson = settings.showRawAiJson,
             strictClarification = settings.strictClarification,
             verboseHttpLogging = settings.verboseHttpLogging,
-            mongoDbUri = settings.mongoDbUri,
-            mongoDbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+            cloudBackupEnabled = settings.cloudBackupEnabled,
+            cloudAutoUploadEnabled = settings.cloudAutoUploadEnabled,
+            mongoDbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+            mongoCollectionName = settings.mongoCollectionName.ifBlank {
+                AppSettings.DEFAULT_MONGO_COLLECTION
+            },
+            mongoDbUri = ""
         )
     }
 }

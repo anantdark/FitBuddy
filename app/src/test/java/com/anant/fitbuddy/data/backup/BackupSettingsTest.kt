@@ -16,6 +16,7 @@ import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,8 +58,10 @@ class BackupSettingsTest {
                 showRawAiJson = true,
                 strictClarification = true,
                 verboseHttpLogging = true,
-                mongoDbUri = "mongodb+srv://u:p@cluster.mongodb.net/",
+                cloudBackupEnabled = true,
+                cloudAutoUploadEnabled = false,
                 mongoDbName = "fitbuddy_prod",
+                mongoCollectionName = "fitbuddy_backup_dev",
                 // Ephemeral — must NOT round-trip through BackupSettings.
                 mongoLastUploadAt = 1_700_000_000_000L,
                 mongoLastUploadOk = true,
@@ -70,7 +73,18 @@ class BackupSettingsTest {
         assertEquals(0L, restored.mongoLastUploadAt)
         assertEquals(false, restored.mongoLastUploadOk)
         assertEquals("", restored.mongoLastError)
-        assertTrue(restored.isMongoBackupConfigured)
+        assertTrue(restored.cloudBackupEnabled)
+        assertFalse(restored.cloudAutoUploadEnabled)
+    }
+
+    @Test
+    fun from_doesNotExportMongoUri() {
+        val backup = BackupSettings.from(
+            AppSettings(cloudBackupEnabled = true, supportId = "abc")
+        )
+        assertEquals("", backup.mongoDbUri)
+        assertEquals(AppSettings.DEFAULT_MONGO_DB_NAME, backup.mongoDbName)
+        assertEquals(AppSettings.DEFAULT_MONGO_COLLECTION, backup.mongoCollectionName)
     }
 
     @Test
@@ -86,8 +100,7 @@ class BackupSettingsTest {
                 dailyLogReminderHour = 21,
                 dailyLogReminderMinute = 30,
                 supportId = "support-xyz",
-                mongoDbUri = "mongodb+srv://u:p@cluster.mongodb.net/",
-                mongoDbName = "fitbuddy"
+                cloudBackupEnabled = true
             )
         )
         val restored = BackupSettings.from(original).toAppSettings()
@@ -100,9 +113,7 @@ class BackupSettingsTest {
         assertEquals(21, restored.dailyLogReminderHour)
         assertEquals(30, restored.dailyLogReminderMinute)
         assertEquals("support-xyz", restored.supportId)
-        assertEquals("mongodb+srv://u:p@cluster.mongodb.net/", restored.mongoDbUri)
-        assertEquals("fitbuddy", restored.mongoDbName)
-        assertTrue(restored.isMongoBackupConfigured)
+        assertTrue(restored.cloudBackupEnabled)
     }
 
     @Test
@@ -277,8 +288,7 @@ class BackupSettingsTest {
                 AppSettings(
                     provider = AiProvider.OPENROUTER,
                     openRouterApiKeys = listOf("k"),
-                    mongoDbUri = "mongodb+srv://x/",
-                    mongoDbName = "fitbuddy"
+                    cloudBackupEnabled = true
                 )
             )
         )

@@ -1,14 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
 import android.Manifest
-import android.content.Intent
 import android.graphics.ImageDecoder
 import android.graphics.drawable.Animatable
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import android.widget.ImageView
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -16,18 +11,32 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.viewinterop.AndroidView
+import com.anant.fitbuddy.R
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,30 +44,26 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
-import com.anant.fitbuddy.ui.components.Button
-import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.InputChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -67,21 +72,21 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalTextToolbar
@@ -89,27 +94,28 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
-import com.anant.fitbuddy.R
+import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.settings.parseApiKeys
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
+import com.anant.fitbuddy.ui.components.Button
+import com.anant.fitbuddy.ui.components.ConfettiOverlay
+import com.anant.fitbuddy.ui.components.CraftedWithLoveCredit
+import com.anant.fitbuddy.ui.components.IconButton
+import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
+import com.anant.fitbuddy.ui.components.OutlinedButton
+import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.ModelsUiState
@@ -160,8 +166,12 @@ fun SettingsScreen(
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     onPermissionDenied: (message: String) -> Unit = {},
     mongoBackupBusy: Boolean = false,
-    onMongoUpload: (uri: String, dbName: String) -> Unit = { _, _ -> },
-    onMongoDownload: (uri: String, dbName: String, supportId: String) -> Unit = { _, _, _ -> },
+    onCloudBackupEnabledChange: (Boolean) -> Unit = {},
+    onPrepareCloudBackupEnable: () -> Unit = {},
+    onCloudAutoUploadChange: (Boolean) -> Unit = {},
+    onMongoUpload: () -> Unit = {},
+    onMongoDownload: (supportId: String) -> Unit = {},
+    onRegenerateSupportId: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -192,17 +202,20 @@ fun SettingsScreen(
     var versionTapCount by remember { mutableIntStateOf(0) }
     var packageTapCount by remember { mutableIntStateOf(0) }
     val developerUnlocked = settings.developerModeUnlocked
+    var confettiKey by remember { mutableIntStateOf(0) }
+    var showConfetti by remember { mutableStateOf(false) }
     var showReminderTimePicker by remember { mutableStateOf(false) }
     var pendingEnableReminder by remember { mutableStateOf(false) }
     var pendingTestNotification by remember { mutableStateOf(false) }
     var awaitingExactAlarmSettings by remember { mutableStateOf(false) }
-    var mongoUriDraft by remember(settings.mongoDbUri) { mutableStateOf(settings.mongoDbUri) }
-    var mongoDbNameDraft by remember(settings.mongoDbName) {
-        mutableStateOf(settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME })
-    }
     var showMongoRestoreConfirm by remember { mutableStateOf(false) }
     var mongoRestoreSupportIdDraft by remember(settings.supportId) {
         mutableStateOf(settings.supportId)
+    }
+    var showCloudBackupEnableConfirm by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+    val cloudVaultAvailable = remember {
+        com.anant.fitbuddy.data.backup.mongo.MongoUriVault.isAvailable()
     }
 
     val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -241,6 +254,13 @@ fun SettingsScreen(
         .ifBlank { settings.openRouterOAuthKey }
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
     val ollamaApiKey = ollamaKeys.firstOrNull().orEmpty()
+
+    LaunchedEffect(confettiKey) {
+        if (confettiKey == 0) return@LaunchedEffect
+        showConfetti = true
+        delay(4_000L)
+        showConfetti = false
+    }
 
     LaunchedEffect(anantTapCount) {
         if (anantTapCount in 1 until EASTER_EGG_TAP_TARGET) {
@@ -300,9 +320,10 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .dismissKeyboardOnTap()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
@@ -714,7 +735,6 @@ fun SettingsScreen(
 
         // --- Updates & support (updates + crash reports) ---------------------------------
         SettingsCard(title = "Updates & support", initiallyExpanded = false) {
-            val clipboard = LocalClipboardManager.current
             Text(
                 text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                 style = MaterialTheme.typography.bodyMedium,
@@ -760,10 +780,27 @@ fun SettingsScreen(
                 hintTitle = "Crash reports",
                 hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
                     "When on, the app may send one anonymous daily heartbeat " +
-                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime."
+                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
+                    "Your Support ID (under Backup) identifies reports without personal data."
+            )
+        }
+
+        // --- Backup ----------------------------------------------------------------------
+        SettingsCard(
+            title = "Backup",
+            initiallyExpanded = false,
+            hintTitle = "Backup",
+            hint = "Export a JSON file anytime. Cloud uploads use your Support ID as the " +
+                "document key — keep that ID safe to restore after reinstalling. Restore from " +
+                "cloud or local file is offered during onboarding (import also in Developer tools)."
+        ) {
+            Text(
+                text = "Support ID",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Support ID — share this if you report a bug:",
+                text = "Share this if you report a bug, and keep it safe for cloud restore.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -781,7 +818,7 @@ fun SettingsScreen(
                     onClick = {
                         val id = settings.supportId
                         if (id.isNotBlank()) {
-                            clipboard.setText(AnnotatedString(id))
+                            clipboardManager.setText(AnnotatedString(id))
                             onSupportIdCopied()
                         }
                     },
@@ -790,30 +827,88 @@ fun SettingsScreen(
                     Icon(Icons.Filled.ContentCopy, contentDescription = "Copy support ID")
                 }
             }
-        }
 
-        // --- Backup & Data ---------------------------------------------------------------
-        SettingsCard(
-            title = "Backup & Data",
-            initiallyExpanded = false,
-            hintTitle = "Backup & Data",
-            hint = "Export everything — profile, readings, food/exercise logs, custom foods " +
-                "and meal presets, custom exercises, workouts, and Settings (including AI " +
-                "keys) — to a JSON file. Import replaces all current data with the file."
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Text(
+                text = "Local backups",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Text(
+                text = "Save everything to a JSON file on this device.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = onExport,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onExport) {
-                    Icon(Icons.Filled.FileDownload, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Export")
+                Icon(Icons.Filled.FileUpload, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text("Export")
+            }
+
+            Text(
+                text = "Cloud",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            if (!cloudVaultAvailable) {
+                Text(
+                    text = "Cloud backup is not available in this build.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                SettingToggleRow(
+                    title = "Enable cloud backup",
+                    checked = settings.cloudBackupEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            onPrepareCloudBackupEnable()
+                            showCloudBackupEnableConfirm = true
+                        } else {
+                            onCloudBackupEnabledChange(false)
+                        }
+                    },
+                    hintTitle = "Enable cloud backup",
+                    hint = "When on, you can upload manually or automatically. Uploads use your " +
+                        "Support ID as the cloud document key."
+                )
+                SettingToggleRow(
+                    title = "Auto-upload on startup",
+                    checked = settings.cloudAutoUploadEnabled,
+                    onCheckedChange = onCloudAutoUploadChange,
+                    enabled = settings.cloudBackupEnabled,
+                    hintTitle = "Auto-upload",
+                    hint = "When enabled, FitBuddy uploads on app start if the last upload was " +
+                        "more than 12 hours ago. Manual Upload now always runs immediately."
+                )
+                val statusText = when {
+                    !settings.cloudBackupEnabled -> "Cloud backup off"
+                    settings.mongoLastUploadAt <= 0L -> "Enabled — no upload yet"
+                    settings.mongoLastUploadOk ->
+                        "Last upload OK · ${formatMongoUploadTime(settings.mongoLastUploadAt)}"
+                    else ->
+                        "Last upload failed · ${formatMongoUploadTime(settings.mongoLastUploadAt)}" +
+                            settings.mongoLastError.takeIf { it.isNotBlank() }?.let { "\n$it" }
+                                .orEmpty()
                 }
-                OutlinedButton(modifier = Modifier.weight(1f), onClick = onImport) {
-                    Icon(Icons.Filled.FileUpload, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Import")
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (mongoBackupBusy) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                OutlinedButton(
+                    onClick = onMongoUpload,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = settings.cloudBackupEnabled && !mongoBackupBusy
+                ) {
+                    Text("Upload now")
                 }
             }
         }
@@ -879,19 +974,11 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    if (settings.easterEggDiscovered) {
-                        Text(
-                            text = "Anant",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.clickable(onClick = onAnantClick)
-                        )
-                    } else {
-                        RainbowCreditBadge(
-                            name = "Anant",
-                            onClick = onAnantClick
-                        )
-                    }
+                    // Hue cycle stays on permanently (not gated by unlock).
+                    RainbowCreditBadge(
+                        name = "Anant",
+                        onClick = onAnantClick
+                    )
                 }
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
@@ -909,6 +996,109 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Text(
+                    text = "Local backup (debug)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Import a BackupData JSON file. Replaces all local data. " +
+                        "Export is under Backup → Local backups.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = onImport,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.FileDownload, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Import")
+                }
+                OutlinedButton(
+                    onClick = onRegenerateSupportId,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Generate new Support ID")
+                }
+                Text(
+                    text = "Creates a new ID for crash reports and future cloud uploads. " +
+                        "Existing cloud docs stay under the old ID.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Cloud backup (debug)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    text = "Atlas db/collection overrides and restore by Support ID. " +
+                        "Defaults: db ${AppSettings.DEFAULT_MONGO_DB_NAME}, " +
+                        "collection ${AppSettings.DEFAULT_MONGO_COLLECTION}.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                var mongoDbNameDraft by remember(settings.mongoDbName) {
+                    mutableStateOf(
+                        settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                    )
+                }
+                var mongoCollectionDraft by remember(settings.mongoCollectionName) {
+                    mutableStateOf(
+                        settings.mongoCollectionName.ifBlank {
+                            AppSettings.DEFAULT_MONGO_COLLECTION
+                        }
+                    )
+                }
+                OutlinedTextField(
+                    value = mongoDbNameDraft,
+                    onValueChange = { mongoDbNameDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Database name") },
+                    singleLine = true,
+                    placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
+                )
+                OutlinedTextField(
+                    value = mongoCollectionDraft,
+                    onValueChange = { mongoCollectionDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Collection name") },
+                    singleLine = true,
+                    placeholder = { Text(AppSettings.DEFAULT_MONGO_COLLECTION) }
+                )
+                OutlinedButton(
+                    onClick = {
+                        onSaveQuiet(
+                            settings.copy(
+                                mongoDbName = mongoDbNameDraft.trim()
+                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                                mongoCollectionName = mongoCollectionDraft.trim()
+                                    .ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Atlas db / collection")
+                }
+                if (mongoBackupBusy) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                OutlinedButton(
+                    onClick = {
+                        mongoRestoreSupportIdDraft = settings.supportId
+                        showMongoRestoreConfirm = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = cloudVaultAvailable && !mongoBackupBusy
+                ) {
+                    Text("Download & restore from cloud")
+                }
+
                 SettingToggleRow(
                     title = "Force offline AI simulator",
                     checked = settings.forceOfflineAiSimulator,
@@ -979,109 +1169,62 @@ fun SettingsScreen(
                     Text("Force test crash")
                 }
 
-                Text(
-                    text = "MongoDB Atlas backup",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Text(
-                    text = "Personal cluster only. Paste your Atlas connection string to enable " +
-                        "weekly auto-upload. Each install uploads under its Support ID " +
-                        "(document `_id`). Stays active after hiding Developer settings; " +
-                        "clear the URI to disable. Same BackupData v5 JSON as file export/import.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (settings.supportId.isNotBlank()) {
-                    Text(
-                        text = "This device’s Support ID: ${settings.supportId}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                OutlinedTextField(
-                    value = mongoUriDraft,
-                    onValueChange = { mongoUriDraft = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Atlas connection URI") },
-                    placeholder = { Text("mongodb+srv://…") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-                )
-                OutlinedTextField(
-                    value = mongoDbNameDraft,
-                    onValueChange = { mongoDbNameDraft = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Database name") },
-                    singleLine = true,
-                    placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
-                )
-                OutlinedButton(
-                    onClick = {
-                        onSaveQuiet(
-                            settings.copy(
-                                mongoDbUri = mongoUriDraft.trim(),
-                                mongoDbName = mongoDbNameDraft.trim()
-                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
-                            )
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !mongoBackupBusy
-                ) {
-                    Text("Save MongoDB settings")
-                }
-                val statusText = when {
-                    settings.mongoDbUri.isBlank() -> "Not configured — weekly upload off"
-                    settings.mongoLastUploadAt <= 0L ->
-                        "Configured — weekly upload on (no upload yet)"
-                    settings.mongoLastUploadOk ->
-                        "Last upload OK · ${formatMongoUploadTime(settings.mongoLastUploadAt)}"
-                    else ->
-                        "Last upload failed · ${formatMongoUploadTime(settings.mongoLastUploadAt)}" +
-                            settings.mongoLastError.takeIf { it.isNotBlank() }?.let { "\n$it" }
-                                .orEmpty()
-                }
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (mongoBackupBusy) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                OutlinedButton(
-                    onClick = {
-                        onMongoUpload(
-                            mongoUriDraft.trim(),
-                            mongoDbNameDraft.trim()
-                                .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = mongoUriDraft.isNotBlank() && !mongoBackupBusy
-                ) {
-                    Text("Upload now")
-                }
-                OutlinedButton(
-                    onClick = {
-                        mongoRestoreSupportIdDraft = settings.supportId
-                        showMongoRestoreConfirm = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = mongoUriDraft.isNotBlank() && !mongoBackupBusy
-                ) {
-                    Text("Download & restore")
-                }
             }
+        }
+
+        CraftedWithLoveCredit(
+            onHeartDoubleTap = { confettiKey += 1 },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 24.dp)
+        )
+
+        if (showCloudBackupEnableConfirm) {
+            AlertDialog(
+                onDismissRequest = { showCloudBackupEnableConfirm = false },
+                title = { Text("Keep your Support ID safe") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "Cloud backups are keyed by your Support ID. Copy it now and store it " +
+                                "somewhere safe — you will need it to restore after reinstalling."
+                        )
+                        Text(
+                            text = settings.supportId.ifBlank { "(generating…)" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val id = settings.supportId
+                            if (id.isNotBlank()) {
+                                clipboardManager.setText(
+                                    androidx.compose.ui.text.AnnotatedString(id)
+                                )
+                                onSupportIdCopied()
+                            }
+                            showCloudBackupEnableConfirm = false
+                            onCloudBackupEnabledChange(true)
+                        }
+                    ) {
+                        Text("Copy & enable")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCloudBackupEnableConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
 
         if (showMongoRestoreConfirm) {
             AlertDialog(
                 onDismissRequest = { showMongoRestoreConfirm = false },
-                title = { Text("Restore from Atlas?") },
+                title = { Text("Restore from cloud?") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
@@ -1102,12 +1245,7 @@ fun SettingsScreen(
                     TextButton(
                         onClick = {
                             showMongoRestoreConfirm = false
-                            onMongoDownload(
-                                mongoUriDraft.trim(),
-                                mongoDbNameDraft.trim()
-                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                                mongoRestoreSupportIdDraft.trim()
-                            )
+                            onMongoDownload(mongoRestoreSupportIdDraft.trim())
                         },
                         enabled = mongoRestoreSupportIdDraft.isNotBlank()
                     ) {
@@ -1122,6 +1260,17 @@ fun SettingsScreen(
             )
         }
 
+    }
+
+        if (showConfetti) {
+            key(confettiKey) {
+                ConfettiOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    durationMillis = 4_000,
+                    grand = true
+                )
+            }
+        }
     }
 }
 
@@ -1524,7 +1673,8 @@ private fun SettingToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     hintTitle: String? = null,
-    hint: String? = null
+    hint: String? = null,
+    enabled: Boolean = true
 ) {
     val dismiss = rememberDismissKeyboard()
     Row(
@@ -1534,14 +1684,20 @@ private fun SettingToggleRow(
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            }
         )
         if (hint != null && hintTitle != null) {
             HintIconButton(title = hintTitle, message = hint)
         }
         Switch(
             checked = checked,
-            onCheckedChange = { dismiss(); onCheckedChange(it) }
+            onCheckedChange = { dismiss(); onCheckedChange(it) },
+            enabled = enabled
         )
     }
 }

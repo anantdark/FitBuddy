@@ -91,7 +91,8 @@ class FitBuddyApp : Application() {
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         ReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)
-        MongoBackupScheduler.applyFromSettings(this, settings)
+        // Cancel legacy weekly Atlas alarms (replaced by startup + 12h debounce).
+        MongoBackupScheduler.cancel(this)
         appScope.launch {
             settingsRepository.settings
                 .map { s ->
@@ -113,22 +114,20 @@ class FitBuddyApp : Application() {
                 }
         }
         appScope.launch {
-            settingsRepository.settings
-                .map { Triple(it.mongoDbUri, it.mongoDbName, it.mongoLastUploadAt) }
-                .distinctUntilChanged()
-                .collect { (uri, _, lastUploadAt) ->
-                    if (uri.isNotBlank()) {
-                        MongoBackupScheduler.scheduleNext(this@FitBuddyApp, lastUploadAt)
-                    } else {
-                        MongoBackupScheduler.cancel(this@FitBuddyApp)
-                    }
-                }
+            maybeAutoUploadCloudBackup()
         }
         if (settings.crashReportingEnabled) {
             Thread({
                 runBlocking(Dispatchers.IO) { maybeSendDailyHeartbeat() }
             }, "fitbuddy-heartbeat").start()
         }
+    }
+
+    /** Startup auto-upload when opted in and outside the 12h debounce window. */
+    private suspend fun maybeAutoUploadCloudBackup() {
+        val settings = settingsRepository.settings.first()
+        if (!repository.shouldAutoUploadNow(settings)) return
+        runCatching { repository.uploadMongoBackup() }
     }
 
     private suspend fun maybeSendDailyHeartbeat() {

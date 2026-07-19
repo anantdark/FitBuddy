@@ -2,6 +2,7 @@ package com.anant.fitbuddy.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,10 +55,13 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.ui.components.ConfettiOverlay
+import com.anant.fitbuddy.ui.components.CraftedWithLoveCredit
 import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
+import kotlinx.coroutines.delay
 
 private val GOAL_OPTIONS = listOf(
     "AUTO" to "Let AI decide",
@@ -97,12 +102,18 @@ private val OLLAMA_CLOUD_KEYS_URL = "https://ollama.com/settings/keys"
 fun OnboardingScreen(
     isSaving: Boolean,
     isValidating: Boolean,
+    isRestoring: Boolean = false,
+    aiOnly: Boolean = false,
+    cloudRestoreAvailable: Boolean = false,
     openRouterOAuthBusy: Boolean = false,
     openRouterOAuthKey: String = "",
     userMessage: String? = null,
     onUserMessageConsumed: () -> Unit = {},
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
+    onStartGuest: () -> Unit = {},
+    onRestoreCloud: (supportId: String, onResult: (Boolean, String?) -> Unit) -> Unit = { _, _ -> },
+    onRequestLocalRestore: () -> Unit = {},
     onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
         age: Int,
@@ -113,9 +124,13 @@ fun OnboardingScreen(
         activityLevel: String,
         aiSettings: AppSettings
     ) -> Unit,
+    onCompleteAiOnly: (AppSettings) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var step by remember { mutableIntStateOf(0) }
+    // -1 = path picker; 0..2 = AI / profile / lifestyle (or AI-only when [aiOnly]).
+    var step by remember(aiOnly) { mutableIntStateOf(if (aiOnly) 0 else -1) }
+    var cloudSupportId by remember { mutableStateOf("") }
+    var cloudError by remember { mutableStateOf<String?>(null) }
     var age by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("") }
@@ -130,6 +145,9 @@ fun OnboardingScreen(
             snackbarHostState.showFitBuddyPill(message, displayMillis = 3_000L)
             onUserMessageConsumed()
         }
+    }
+    LaunchedEffect(aiOnly) {
+        if (aiOnly) step = 0
     }
     var apiKeys by remember { mutableStateOf(emptyList<String>()) }
     var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
@@ -180,7 +198,6 @@ fun OnboardingScreen(
         aiError = null
     }
 
-    // OAuth key arrives via settings after Custom Tab callback — reset validation once.
     LaunchedEffect(openRouterOAuthKey) {
         if (openRouterOAuthKey.isNotBlank()) {
             aiValidated = false
@@ -200,7 +217,29 @@ fun OnboardingScreen(
         )
     }
 
+    fun finishAiOnly() {
+        if (aiValidated) {
+            onCompleteAiOnly(buildAiSettings())
+            return
+        }
+        aiError = null
+        onValidateAi(buildAiSettings()) { ok, error ->
+            if (ok) {
+                aiValidated = true
+                aiError = null
+                onCompleteAiOnly(buildAiSettings())
+            } else {
+                aiValidated = false
+                aiError = error ?: "Couldn't validate that API key"
+            }
+        }
+    }
+
     fun advanceFromAiStep() {
+        if (aiOnly) {
+            finishAiOnly()
+            return
+        }
         if (aiValidated) {
             step = 1
             return
@@ -218,10 +257,25 @@ fun OnboardingScreen(
         }
     }
 
-    val busy = isSaving || isValidating
+    val busy = isSaving || isValidating || isRestoring
+    val onPathPicker = step < 0 && !aiOnly
+    val totalSteps = if (aiOnly) 1 else 3
+    val progressStep = if (onPathPicker) 0 else (if (aiOnly) 0 else step)
 
+    val showPathCredit = onPathPicker && step == -1
+    var confettiKey by remember { mutableIntStateOf(0) }
+    var showConfetti by remember { mutableStateOf(false) }
+
+    LaunchedEffect(confettiKey) {
+        if (confettiKey == 0) return@LaunchedEffect
+        showConfetti = true
+        delay(4_000L)
+        showConfetti = false
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         snackbarHost = { FitBuddySnackbarHost(snackbarHostState, bottomPadding = 24.dp) }
     ) { innerPadding ->
         Column(
@@ -230,34 +284,53 @@ fun OnboardingScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 24.dp)
                 .dismissKeyboardOnTap()
-                .verticalScroll(rememberScrollState())
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (showPathCredit) Modifier else Modifier.weight(1f))
+                    .verticalScroll(rememberScrollState())
+            ) {
             Spacer(Modifier.height(24.dp))
             Text(
-                text = "Welcome to FitBuddy",
+                text = if (aiOnly) "Reconnect AI" else "Welcome to FitBuddy",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Connect an AI provider first, then tell us about yourself so we can " +
-                    "personalise calorie targets, workout estimates, and meal logging.",
+                text = when {
+                    aiOnly ->
+                        "Your data was restored, but AI credentials are missing or no longer work. " +
+                            "Connect a provider to continue."
+                    onPathPicker ->
+                        "Start fresh, or restore a previous backup from the cloud or a local file."
+                    else ->
+                        "Connect an AI provider first, then tell us about yourself so we can " +
+                            "personalise calorie targets, workout estimates, and meal logging."
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(24.dp))
 
-            LinearProgressIndicator(
-                progress = { (step + 1) / 3f },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Step ${step + 1} of 3",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(20.dp))
+            if (!onPathPicker) {
+                LinearProgressIndicator(
+                    progress = { (progressStep + 1) / totalSteps.toFloat() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (aiOnly) {
+                        "AI setup"
+                    } else {
+                        "Step ${step + 1} of 3"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(20.dp))
+            }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -269,8 +342,80 @@ fun OnboardingScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    when (step) {
-                        0 -> {
+                    when {
+                        onPathPicker && step == -2 -> {
+                            // Cloud Support ID form (nested under path picker).
+                            Text(
+                                text = "Restore from cloud",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Enter the Support ID from the device that created the backup.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = cloudSupportId,
+                                onValueChange = {
+                                    cloudSupportId = it
+                                    cloudError = null
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Support ID") },
+                                singleLine = true,
+                                enabled = !busy
+                            )
+                            cloudError?.let { message ->
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+
+                        onPathPicker -> {
+                            Text(
+                                text = "How do you want to start?",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Button(
+                                onClick = {
+                                    onStartGuest()
+                                    step = 0
+                                },
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Start Fresh")
+                            }
+                            if (cloudRestoreAvailable) {
+                                OutlinedButton(
+                                    onClick = {
+                                        cloudSupportId = ""
+                                        cloudError = null
+                                        step = -2
+                                    },
+                                    enabled = !busy,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Restore from cloud backup")
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = onRequestLocalRestore,
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if (isRestoring) "Restoring…" else "Restore from local backup"
+                                )
+                            }
+                        }
+
+                        step == 0 -> {
                             Text(
                                 text = "Connect an AI",
                                 style = MaterialTheme.typography.titleMedium,
@@ -408,7 +553,7 @@ fun OnboardingScreen(
                             )
                         }
 
-                        1 -> {
+                        step == 1 -> {
                             Text(
                                 text = "About you",
                                 style = MaterialTheme.typography.titleMedium,
@@ -446,43 +591,100 @@ fun OnboardingScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                if (step > 0) {
-                    OutlinedButton(
-                        onClick = { step -= 1 },
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Back")
+            when {
+                step == -2 -> {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { step = -1 },
+                            enabled = !busy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Back")
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = cloudSupportId.isNotBlank() && !busy,
+                            onClick = {
+                                cloudError = null
+                                onRestoreCloud(cloudSupportId.trim()) { ok, error ->
+                                    if (!ok) {
+                                        cloudError = error ?: "Restore failed"
+                                    }
+                                    // On success, needsOnboarding / aiOnly gates update via VM.
+                                }
+                            }
+                        ) {
+                            Text(if (isRestoring) "Restoring…" else "Restore")
+                        }
                     }
-                    Spacer(Modifier.width(12.dp))
                 }
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = when (step) {
-                        0 -> aiConfigValid && !busy
-                        1 -> stepOneValid && !busy
-                        else -> !busy
-                    },
-                    onClick = {
-                        when (step) {
-                            0 -> advanceFromAiStep()
-                            1 -> step = 2
-                            else -> finishOnboarding()
+
+                !onPathPicker -> {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        if (!aiOnly) {
+                            OutlinedButton(
+                                onClick = { step = if (step == 0) -1 else step - 1 },
+                                enabled = !busy,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Back")
+                            }
+                            Spacer(Modifier.width(12.dp))
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = when (step) {
+                                0 -> aiConfigValid && !busy
+                                1 -> stepOneValid && !busy
+                                else -> !busy
+                            },
+                            onClick = {
+                                when (step) {
+                                    0 -> advanceFromAiStep()
+                                    1 -> step = 2
+                                    else -> finishOnboarding()
+                                }
+                            }
+                        ) {
+                            Text(
+                                when {
+                                    isValidating -> "Validating…"
+                                    isSaving -> "Setting up…"
+                                    aiOnly -> "Save & continue"
+                                    step == 2 -> "Finish setup"
+                                    else -> "Continue"
+                                }
+                            )
                         }
                     }
-                ) {
-                    Text(
-                        when {
-                            isValidating -> "Validating…"
-                            isSaving -> "Setting up…"
-                            step == 2 -> "Finish setup"
-                            else -> "Continue"
-                        }
-                    )
                 }
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
+            } // scrollable content
+
+            if (showPathCredit) {
+                CraftedWithLoveCredit(
+                    onHeartDoubleTap = { confettiKey += 1 },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(bottom = 40.dp)
+                )
+            } else {
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+    }
+
+        if (showConfetti) {
+            key(confettiKey) {
+                ConfettiOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    durationMillis = 4_000,
+                    grand = true
+                )
+            }
         }
     }
 }

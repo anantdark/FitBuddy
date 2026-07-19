@@ -8,9 +8,8 @@ import android.os.Build
 import com.anant.fitbuddy.data.settings.AppSettings
 
 /**
- * Weekly Atlas upload via [AlarmManager] (AOSP; no Play Services).
- * Next fire is derived from [AppSettings.mongoLastUploadAt] so process restarts do not
- * keep pushing the alarm out by another week.
+ * Legacy weekly Atlas AlarmManager helpers. Auto-upload is now startup + 12h debounce;
+ * [cancel] is still called on boot/upgrade to clear old alarms.
  */
 object MongoBackupScheduler {
 

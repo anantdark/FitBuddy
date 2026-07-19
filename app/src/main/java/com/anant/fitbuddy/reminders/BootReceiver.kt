@@ -8,7 +8,7 @@ import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
-/** Re-arms the daily log reminder and weekly Mongo backup after reboot or app update. */
+/** Re-arms the daily log reminder after reboot or app update; cancels legacy weekly Mongo alarms. */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -24,6 +24,6 @@ class BootReceiver : BroadcastReceiver() {
             (app as? FitBuddyApp)?.settingsRepository?.settings?.first()
         } ?: return
         ReminderScheduler.applyFromSettings(app, settings)
-        MongoBackupScheduler.applyFromSettings(app, settings)
+        MongoBackupScheduler.cancel(app)
     }
 }

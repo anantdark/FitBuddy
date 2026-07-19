@@ -35,6 +35,8 @@ class BackupManager(
 ) {
     private val adapter = moshi.adapter(BackupData::class.java).indent("  ")
 
+    val appContext: Context get() = context.applicationContext
+
     suspend fun buildBackupData(): BackupData = withContext(Dispatchers.IO) {
         snapshot()
     }

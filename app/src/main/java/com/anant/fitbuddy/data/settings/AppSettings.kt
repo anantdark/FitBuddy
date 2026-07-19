@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.data.settings
 
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
@@ -80,7 +81,7 @@ data class AppSettings(
     val supportId: String = "",
     /** When false, Sentry does not send crash events (SDK may still be initialized). */
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
-    /** Set when the Settings "Created by" easter egg is discovered — hides startup credit toast. */
+    /** Set when the Settings "Created by" easter egg is unlocked. */
     val easterEggDiscovered: Boolean = false,
     /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */
     val dailyLogReminderEnabled: Boolean = true,
@@ -97,20 +98,29 @@ data class AppSettings(
     /** Developer: OkHttp BODY logs even on release builds. */
     val verboseHttpLogging: Boolean = false,
     /**
-     * Personal MongoDB Atlas connection URI (Developer tools). When non-blank, weekly
-     * auto-upload and manual cloud backup stay enabled even if Developer mode is hidden.
+     * When true, uploads/downloads use the build-baked Atlas URI ([MongoUriVault]) and
+     * this install's [supportId]. Off by default for guest installs until the user opts in.
      */
-    val mongoDbUri: String = "",
-    /** Atlas database name for FitBuddy backups (default [DEFAULT_MONGO_DB_NAME]). */
+    val cloudBackupEnabled: Boolean = false,
+    /**
+     * When true (and [cloudBackupEnabled]), upload on app startup if the last successful
+     * upload was ≥ 12 hours ago. Manual upload always bypasses the debounce.
+     */
+    val cloudAutoUploadEnabled: Boolean = true,
+    /** Atlas database name (default [DEFAULT_MONGO_DB_NAME]). Overridable in Developer tools. */
     val mongoDbName: String = DEFAULT_MONGO_DB_NAME,
+    /** Atlas collection name (default [DEFAULT_MONGO_COLLECTION]). Overridable in Developer tools. */
+    val mongoCollectionName: String = DEFAULT_MONGO_COLLECTION,
     /** Epoch ms of the last cloud upload attempt (0 = never). */
     val mongoLastUploadAt: Long = 0L,
     val mongoLastUploadOk: Boolean = false,
     val mongoLastError: String = ""
 ) {
-    /** True when a MongoDB Atlas URI is configured (cloud backup enabled). */
+    /** True when cloud backup is opted in and this build has a vault URI + Support ID. */
     val isMongoBackupConfigured: Boolean
-        get() = mongoDbUri.isNotBlank()
+        get() = cloudBackupEnabled &&
+            supportId.isNotBlank() &&
+            MongoUriVault.isAvailable()
 
     /** Vision/multimodal model id sent for the active provider (used for photo analysis). */
     val model: String
@@ -256,7 +266,10 @@ data class AppSettings(
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
+        /** Debounce window for startup auto-upload (manual upload bypasses this). */
+        const val CLOUD_AUTO_UPLOAD_DEBOUNCE_MS: Long = 12L * 60L * 60L * 1000L
         const val DEFAULT_MONGO_DB_NAME = "fitbuddy"
+        const val DEFAULT_MONGO_COLLECTION = "fitbuddy_backup"
 
         /** Build settings from key lists, syncing active key to the first entry. */
         fun withKeys(

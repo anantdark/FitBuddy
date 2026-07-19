@@ -103,9 +103,12 @@ class SettingsRepository(context: Context) {
             showRawAiJson = prefs[KEY_SHOW_RAW_AI_JSON] ?: false,
             strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
-            mongoDbUri = prefs[KEY_MONGO_URI].orEmpty(),
+            cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false,
+            cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
             mongoDbName = prefs[KEY_MONGO_DB_NAME]?.ifBlank { null }
                 ?: AppSettings.DEFAULT_MONGO_DB_NAME,
+            mongoCollectionName = prefs[KEY_MONGO_COLLECTION]?.ifBlank { null }
+                ?: AppSettings.DEFAULT_MONGO_COLLECTION,
             mongoLastUploadAt = prefs[KEY_MONGO_LAST_UPLOAD_AT] ?: 0L,
             mongoLastUploadOk = prefs[KEY_MONGO_LAST_UPLOAD_OK] ?: false,
             mongoLastError = prefs[KEY_MONGO_LAST_ERROR].orEmpty()
@@ -119,6 +122,20 @@ class SettingsRepository(context: Context) {
         val id = java.util.UUID.randomUUID().toString()
         dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
         return id
+    }
+
+    /** Replaces the Support ID (crash reporting + cloud backup document key). */
+    suspend fun regenerateSupportId(): String {
+        val id = java.util.UUID.randomUUID().toString()
+        dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
+        return id
+    }
+
+    /** Forces [supportId] when non-blank (e.g. after cloud restore). */
+    suspend fun setSupportId(supportId: String) {
+        val id = supportId.trim()
+        if (id.isBlank()) return
+        dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
     }
 
     /** UTC calendar day `yyyy-MM-dd` of the last Sentry heartbeat, or null. */
@@ -212,9 +229,13 @@ class SettingsRepository(context: Context) {
             prefs[KEY_SHOW_RAW_AI_JSON] = settings.showRawAiJson
             prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
-            prefs[KEY_MONGO_URI] = settings.mongoDbUri
+            prefs[KEY_CLOUD_BACKUP_ENABLED] = settings.cloudBackupEnabled
+            prefs[KEY_CLOUD_AUTO_UPLOAD] = settings.cloudAutoUploadEnabled
             prefs[KEY_MONGO_DB_NAME] = settings.mongoDbName.ifBlank {
                 AppSettings.DEFAULT_MONGO_DB_NAME
+            }
+            prefs[KEY_MONGO_COLLECTION] = settings.mongoCollectionName.ifBlank {
+                AppSettings.DEFAULT_MONGO_COLLECTION
             }
             // Cooldowns stay until UTC midnight; AI calls still update active after success.
             // Save always resets Auto selection to the preferred provider's current models
@@ -310,8 +331,10 @@ class SettingsRepository(context: Context) {
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
         val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
-        val KEY_MONGO_URI = stringPreferencesKey("mongo_db_uri")
+        val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
+        val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")
         val KEY_MONGO_DB_NAME = stringPreferencesKey("mongo_db_name")
+        val KEY_MONGO_COLLECTION = stringPreferencesKey("mongo_collection_name")
         val KEY_MONGO_LAST_UPLOAD_AT = longPreferencesKey("mongo_last_upload_at")
         val KEY_MONGO_LAST_UPLOAD_OK = booleanPreferencesKey("mongo_last_upload_ok")
         val KEY_MONGO_LAST_ERROR = stringPreferencesKey("mongo_last_error")
