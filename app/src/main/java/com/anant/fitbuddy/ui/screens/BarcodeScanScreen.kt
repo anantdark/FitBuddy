@@ -17,16 +17,16 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
+import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -61,9 +61,15 @@ private const val TAG = "BarcodeScan"
 @Composable
 fun BarcodeScanDialog(
     onBarcode: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCameraPermissionDenied: () -> Unit = {}
 ) {
-    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
+    var requestedCameraOnce by remember { mutableStateOf(false) }
+    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
+        if (!granted && requestedCameraOnce) {
+            onCameraPermissionDenied()
+        }
+    }
     var manualEntry by remember { mutableStateOf(false) }
     var manualCode by remember { mutableStateOf("") }
 
@@ -136,7 +142,10 @@ fun BarcodeScanDialog(
                             ) {
                                 Text("Camera access is needed to scan barcodes.")
                                 Button(
-                                    onClick = { cameraPermission.launchPermissionRequest() },
+                                    onClick = {
+                                        requestedCameraOnce = true
+                                        cameraPermission.launchPermissionRequest()
+                                    },
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text("Allow camera") }
                                 OutlinedButton(
@@ -153,6 +162,7 @@ fun BarcodeScanDialog(
 
     DisposableEffect(Unit) {
         if (!cameraPermission.status.isGranted) {
+            requestedCameraOnce = true
             cameraPermission.launchPermissionRequest()
         }
         onDispose { }

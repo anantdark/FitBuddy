@@ -21,6 +21,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 
 /**
  * Material You sparkle ripple (primary-tinted) + light press scale.
@@ -37,6 +38,7 @@ fun Modifier.pressable(
     scaleDown: Float = 0.97f,
     onClick: () -> Unit
 ): Modifier = composed {
+    val dismiss = rememberDismissKeyboard()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -55,7 +57,7 @@ fun Modifier.pressable(
         interactionSource = interactionSource,
         indication = ripple(color = primary),
         enabled = enabled,
-        onClick = onClick
+        onClick = { dismiss(); onClick() }
     )
 }
 
@@ -74,6 +76,7 @@ fun PressableCard(
     scaleDown: Float = 0.98f,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val dismiss = rememberDismissKeyboard()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -85,7 +88,7 @@ fun PressableCard(
         label = "cardPressScale"
     )
     Card(
-        onClick = onClick,
+        onClick = { dismiss(); onClick() },
         enabled = enabled,
         interactionSource = interactionSource,
         modifier = modifier.graphicsLayer {

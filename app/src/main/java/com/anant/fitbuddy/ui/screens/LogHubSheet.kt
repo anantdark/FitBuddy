@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,7 @@ fun LogHubSheet(
     onLogText: () -> Unit,
     onBuildMeal: () -> Unit,
     onLogSavedMeal: () -> Unit,
+    onLogSavedFood: () -> Unit,
     onLogWorkout: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -63,7 +65,8 @@ fun LogHubSheet(
         LogAction("gallery", "Gallery", "From photos", Icons.Filled.PhotoLibrary, "Food", onLogGallery),
         LogAction("text", "Describe", "Type it loosely", Icons.Filled.Edit, "Food", onLogText),
         LogAction("meal", "Build meal", "Multiple foods", Icons.Filled.Restaurant, "Food", onBuildMeal),
-        LogAction("saved", "Saved meal", "One tap", Icons.Filled.Bookmark, "Food", onLogSavedMeal),
+        LogAction("savedMeal", "Saved meal", "One tap", Icons.Filled.Bookmark, "Food", onLogSavedMeal),
+        LogAction("savedFood", "Saved food", "From library", Icons.Filled.RestaurantMenu, "Food", onLogSavedFood),
         LogAction("workout", "Workout", "Gym or cardio", Icons.Filled.FitnessCenter, "Activity", onLogWorkout)
     )
 

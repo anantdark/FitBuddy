@@ -906,6 +906,20 @@ class FitnessRepository(
         saveMealDraft(preset.toMealDraft().copy(timestamp = timestamp))
     }
 
+    /** Quick-logs a single saved food as a one-food meal onto [timestamp]'s calendar day. */
+    suspend fun logSavedFood(
+        food: SavedFood,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        saveMealDraft(
+            MealDraft(
+                name = food.name,
+                timestamp = timestamp,
+                foods = listOf(food.toFoodEntry())
+            )
+        )
+    }
+
     /** Heuristic used only by the offline simulator to pick a plausible response type. */
     private fun inferMode(text: String, hasImage: Boolean): String {
         val query = text.lowercase()

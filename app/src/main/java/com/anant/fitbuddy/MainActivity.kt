@@ -1,5 +1,6 @@
 package com.anant.fitbuddy
 
+import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,6 +21,7 @@ import com.anant.fitbuddy.ui.RequestStartupPermissions
 import com.anant.fitbuddy.ui.screens.MainScreen
 import com.anant.fitbuddy.ui.screens.OnboardingScreen
 import com.anant.fitbuddy.ui.theme.FitBuddyTheme
+import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.ui.viewmodel.MainViewModelFactory
 
@@ -36,40 +38,68 @@ class MainActivity : ComponentActivity() {
             // Read dynamic-color preference before theming so Material You toggles live.
             val settings by app.settingsRepository.settings.collectAsStateWithLifecycle(AppSettings())
             FitBuddyTheme(dynamicColor = settings.dynamicColor) {
-                val viewModel: MainViewModel = viewModel(
-                    factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
-                )
-                val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
-                val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
-                val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
+                Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
+                    val viewModel: MainViewModel = viewModel(
+                        factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
+                    )
+                    val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
+                    val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
+                    val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
 
-                when (needsOnboarding) {
-                    null -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
+                    val onStartupPermissionsDenied: (List<String>) -> Unit = { denied ->
+                        val cameraDenied = Manifest.permission.CAMERA in denied
+                        val notificationsDenied =
+                            Manifest.permission.POST_NOTIFICATIONS in denied
+                        if (notificationsDenied) {
+                            viewModel.disableDailyLogReminder()
+                        }
+                        when {
+                            cameraDenied && notificationsDenied -> {
+                                viewModel.showTransientMessage(
+                                    "Camera and notifications not allowed."
+                                )
+                            }
+                            notificationsDenied -> {
+                                viewModel.showTransientMessage(
+                                    "Notifications not allowed."
+                                )
+                            }
+                            cameraDenied -> {
+                                viewModel.showTransientMessage(
+                                    "Camera permission not allowed."
+                                )
+                            }
                         }
                     }
 
-                    true -> {
-                        RequestStartupPermissions()
-                        OnboardingScreen(
-                            isSaving = onboardingSaving,
-                            isValidating = onboardingValidating,
-                            onValidateAi = viewModel::validateOnboardingAi,
-                            onComplete = viewModel::completeOnboarding
-                        )
-                    }
+                    when (needsOnboarding) {
+                        null -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
 
-                    false -> {
-                        RequestStartupPermissions()
-                        MainScreen(
-                            viewModel = viewModel,
-                            openLogHubRequest = openLogHubRequest,
-                            onOpenLogHubConsumed = { openLogHubRequest = false }
-                        )
+                        true -> {
+                            RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
+                            OnboardingScreen(
+                                isSaving = onboardingSaving,
+                                isValidating = onboardingValidating,
+                                onValidateAi = viewModel::validateOnboardingAi,
+                                onComplete = viewModel::completeOnboarding
+                            )
+                        }
+
+                        false -> {
+                            RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
+                            MainScreen(
+                                viewModel = viewModel,
+                                openLogHubRequest = openLogHubRequest,
+                                onOpenLogHubConsumed = { openLogHubRequest = false }
+                            )
+                        }
                     }
                 }
             }

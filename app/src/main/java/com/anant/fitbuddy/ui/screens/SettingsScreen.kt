@@ -45,18 +45,18 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -66,12 +66,16 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -105,12 +109,13 @@ import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.settings.parseApiKeys
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
+import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
+import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.ModelsUiState
 import com.anant.fitbuddy.ui.viewmodel.UpdateUiState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.accompanist.permissions.shouldShowRationale
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -129,6 +134,8 @@ fun SettingsScreen(
     onLoadModels: (AiProvider, String, Boolean, String) -> Unit,
     onLoadTextModels: (AiProvider, String, Boolean, String) -> Unit,
     onSave: (AppSettings) -> Unit,
+    /** Persist without a snackbar (e.g. Auto failover toggle). Defaults to [onSave]. */
+    onSaveQuiet: (AppSettings) -> Unit = onSave,
     onDynamicColorChange: (Boolean) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -144,12 +151,14 @@ fun SettingsScreen(
     onSupportIdCopied: () -> Unit = {},
     onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
     onDeveloperUnlockHintDismiss: () -> Unit = {},
-    onDeveloperUnlocked: () -> Unit = {},
+    onDeveloperModeToggled: (unlocked: Boolean) -> Unit = {},
     onClearModelCooldowns: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
+    onPermissionDenied: (message: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     // Local editable copies, re-seeded whenever persisted settings change.
     var provider by remember(settings) { mutableStateOf(settings.provider) }
     var openRouterKeys by remember(settings) {
@@ -178,9 +187,39 @@ fun SettingsScreen(
     var showReminderTimePicker by remember { mutableStateOf(false) }
     var pendingEnableReminder by remember { mutableStateOf(false) }
     var pendingTestNotification by remember { mutableStateOf(false) }
+    var awaitingExactAlarmSettings by remember { mutableStateOf(false) }
 
     val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+    val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS) { granted ->
+        if (granted) {
+            if (pendingEnableReminder) {
+                pendingEnableReminder = false
+                onSave(settings.copy(dailyLogReminderEnabled = true))
+                if (!ReminderScheduler.canScheduleExactAlarms(context)) {
+                    onPermissionDenied(
+                        "Exact alarms not allowed — reminders may be delayed."
+                    )
+                }
+            }
+            if (pendingTestNotification) {
+                pendingTestNotification = false
+                val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
+                onTestNotificationSent(ok)
+            }
+        } else {
+            if (pendingEnableReminder) {
+                pendingEnableReminder = false
+                if (settings.dailyLogReminderEnabled) {
+                    onSave(settings.copy(dailyLogReminderEnabled = false))
+                }
+                onPermissionDenied("Notifications not allowed — reminder turned off.")
+            }
+            if (pendingTestNotification) {
+                pendingTestNotification = false
+                onPermissionDenied("Notifications not allowed.")
+            }
+        }
+    }
 
     val openRouterKey = openRouterKeys.firstOrNull().orEmpty()
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
@@ -209,24 +248,45 @@ fun SettingsScreen(
         }
     }
 
-    LaunchedEffect(notificationPermission.status.isGranted, pendingEnableReminder) {
-        if (pendingEnableReminder && notificationPermission.status.isGranted) {
-            pendingEnableReminder = false
-            onSave(settings.copy(dailyLogReminderEnabled = true))
+    // Permission revoked in system settings while reminder was on → force toggle off.
+    LaunchedEffect(
+        notificationPermission.status.isGranted,
+        settings.dailyLogReminderEnabled,
+        pendingEnableReminder
+    ) {
+        if (
+            needsNotificationPermission &&
+            !notificationPermission.status.isGranted &&
+            settings.dailyLogReminderEnabled &&
+            !pendingEnableReminder
+        ) {
+            onSave(settings.copy(dailyLogReminderEnabled = false))
+            onPermissionDenied("Notifications not allowed — reminder turned off.")
         }
     }
 
-    LaunchedEffect(notificationPermission.status.isGranted, pendingTestNotification) {
-        if (pendingTestNotification && notificationPermission.status.isGranted) {
-            pendingTestNotification = false
-            val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
-            onTestNotificationSent(ok)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (
+                event == Lifecycle.Event.ON_RESUME &&
+                awaitingExactAlarmSettings
+            ) {
+                awaitingExactAlarmSettings = false
+                if (!ReminderScheduler.canScheduleExactAlarms(context)) {
+                    onPermissionDenied(
+                        "Exact alarms not allowed — reminders may be delayed."
+                    )
+                }
+            }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .dismissKeyboardOnTap()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -238,12 +298,16 @@ fun SettingsScreen(
             SettingToggleRow(
                 title = "Auto failover",
                 checked = aiAutoFailover,
-                onCheckedChange = { aiAutoFailover = it },
+                onCheckedChange = { enabled ->
+                    aiAutoFailover = enabled
+                    // Persist immediately; leave other draft AI fields for Save AI Settings.
+                    onSaveQuiet(settings.copy(aiAutoFailover = enabled))
+                },
                 hintTitle = "Auto failover",
                 hint = "When on, FitBuddy tries other API keys, then other models on the " +
                     "same platform. When off, only your selected model is used, but " +
                     "other API keys are still tried on failure. Change platform " +
-                    "manually if everything fails."
+                    "manually if everything fails. Saves as soon as you toggle."
             )
 
             if (aiAutoFailover) {
@@ -507,6 +571,11 @@ fun SettingsScreen(
                         notificationPermission.launchPermissionRequest()
                     } else {
                         onSave(settings.copy(dailyLogReminderEnabled = true))
+                        if (!ReminderScheduler.canScheduleExactAlarms(context)) {
+                            onPermissionDenied(
+                                "Exact alarms not allowed — reminders may be delayed."
+                            )
+                        }
                     }
                 },
                 hintTitle = "Daily log reminder",
@@ -554,6 +623,7 @@ fun SettingsScreen(
                     )
                     TextButton(
                         onClick = {
+                            awaitingExactAlarmSettings = true
                             val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                 Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                                     data = Uri.parse("package:${context.packageName}")
@@ -567,48 +637,6 @@ fun SettingsScreen(
                         }
                     ) { Text("Allow exact alarms") }
                 }
-                OutlinedButton(
-                    onClick = {
-                        if (
-                            needsNotificationPermission &&
-                            !notificationPermission.status.isGranted
-                        ) {
-                            pendingTestNotification = true
-                            notificationPermission.launchPermissionRequest()
-                            return@OutlinedButton
-                        }
-                        val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
-                        onTestNotificationSent(ok)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Send test notification")
-                }
-            }
-            if (
-                needsNotificationPermission &&
-                pendingEnableReminder &&
-                !notificationPermission.status.isGranted
-            ) {
-                Text(
-                    text = if (notificationPermission.status.shouldShowRationale) {
-                        "Notification permission is required to show reminders."
-                    } else {
-                        "Waiting for notification permission… If you dismissed the dialog, " +
-                            "enable notifications in system settings."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-                TextButton(
-                    onClick = {
-                        pendingEnableReminder = false
-                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        }
-                        runCatching { context.startActivity(intent) }
-                    }
-                ) { Text("Open notification settings") }
             }
             SettingToggleRow(
                 title = "Material You",
@@ -783,13 +811,12 @@ fun SettingsScreen(
                 label = "Package",
                 value = BuildConfig.APPLICATION_ID,
                 onValueClick = {
-                    if (developerUnlocked) return@AboutRow
                     packageTapCount++
                     when {
                         packageTapCount >= DEVELOPER_UNLOCK_TAPS -> {
                             packageTapCount = 0
                             onDeveloperUnlockHintDismiss()
-                            onDeveloperUnlocked()
+                            onDeveloperModeToggled(!developerUnlocked)
                         }
                         packageTapCount >= DEVELOPER_HINT_START -> {
                             onDeveloperUnlockHint(DEVELOPER_UNLOCK_TAPS - packageTapCount)
@@ -800,13 +827,10 @@ fun SettingsScreen(
             AboutRow(
                 label = "Created by",
                 valueContent = {
-                    RainbowCreditBadge(
-                        name = "Anant",
-                        onClick = {
-                            if (settings.easterEggDiscovered) {
-                                onAnantTapWhenUnlocked()
-                                return@RainbowCreditBadge
-                            }
+                    val onAnantClick = {
+                        if (settings.easterEggDiscovered) {
+                            onAnantTapWhenUnlocked()
+                        } else {
                             anantTapCount++
                             when {
                                 anantTapCount >= EASTER_EGG_TAP_TARGET -> {
@@ -819,7 +843,20 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    )
+                    }
+                    if (settings.easterEggDiscovered) {
+                        Text(
+                            text = "Anant",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable(onClick = onAnantClick)
+                        )
+                    } else {
+                        RainbowCreditBadge(
+                            name = "Anant",
+                            onClick = onAnantClick
+                        )
+                    }
                 }
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
@@ -833,7 +870,7 @@ fun SettingsScreen(
         if (developerUnlocked) {
             SettingsCard(title = "Developer", initiallyExpanded = false) {
                 Text(
-                    text = "Niche debug / experimental tools. Stay unlocked across restarts.",
+                    text = "Niche debug / experimental tools. Tap Package 8 times again to hide.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -880,6 +917,23 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Clear model cooldowns")
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (
+                            needsNotificationPermission &&
+                            !notificationPermission.status.isGranted
+                        ) {
+                            pendingTestNotification = true
+                            notificationPermission.launchPermissionRequest()
+                            return@OutlinedButton
+                        }
+                        val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
+                        onTestNotificationSent(ok)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Send test notification")
                 }
                 OutlinedButton(
                     onClick = {
@@ -1287,6 +1341,7 @@ private fun SettingToggleRow(
     hintTitle: String? = null,
     hint: String? = null
 ) {
+    val dismiss = rememberDismissKeyboard()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -1299,7 +1354,10 @@ private fun SettingToggleRow(
         if (hint != null && hintTitle != null) {
             HintIconButton(title = hintTitle, message = hint)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = { dismiss(); onCheckedChange(it) }
+        )
     }
 }
 

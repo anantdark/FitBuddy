@@ -366,18 +366,20 @@ class MainViewModel(
         .map { it.isConfigured }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    fun saveSettings(newSettings: AppSettings) {
+    fun saveSettings(newSettings: AppSettings, announce: Boolean = false) {
         viewModelScope.launch {
             settingsRepository.save(newSettings)
-            _analysisState.update { it.copy(userMessage = "Settings saved") }
+            if (announce) {
+                _analysisState.update { it.copy(userMessage = "Settings saved") }
+            }
         }
     }
 
-    fun unlockDeveloperMode() {
+    fun setDeveloperModeUnlocked(unlocked: Boolean) {
         viewModelScope.launch {
             val current = settings.value
-            if (!current.developerModeUnlocked) {
-                settingsRepository.save(current.copy(developerModeUnlocked = true))
+            if (current.developerModeUnlocked != unlocked) {
+                settingsRepository.save(current.copy(developerModeUnlocked = unlocked))
             }
         }
     }
@@ -623,6 +625,15 @@ class MainViewModel(
             repository.logMealPreset(preset, activeDayTimestamp())
             _analysisState.update {
                 it.copy(userMessage = "Logged ${preset.name} · ${preset.calories} kcal")
+            }
+        }
+    }
+
+    fun logSavedFood(food: SavedFood) {
+        viewModelScope.launch {
+            repository.logSavedFood(food, activeDayTimestamp())
+            _analysisState.update {
+                it.copy(userMessage = "Logged ${food.name} · ${food.calories} kcal")
             }
         }
     }
@@ -1555,6 +1566,21 @@ class MainViewModel(
                         reviewMessage = "That looks like an activity, not a food item.",
                         rawAiJson = rawJson
                     )
+            }
+        }
+    }
+
+    /** Surfaces a short pill message on [MainScreen] (permissions, one-shot status, etc.). */
+    fun showTransientMessage(message: String) {
+        _analysisState.update { it.copy(userMessage = message) }
+    }
+
+    /** Turns off the daily reminder when notification permission is unavailable. */
+    fun disableDailyLogReminder() {
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.dailyLogReminderEnabled) {
+                settingsRepository.save(current.copy(dailyLogReminderEnabled = false))
             }
         }
     }
