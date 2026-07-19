@@ -82,7 +82,7 @@ Without `keystore.properties`, release falls back to the Android debug key:
 ```bash
 ./gradlew :app:assembleRelease
 # --user 0 = personal profile only (avoids installing into a work profile)
-adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-2.2.0-dev.apk
+adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-3.0.0-dev.apk
 ```
 
 CI release signing uses GitHub `RELEASE_*` secrets only. For Play Store setup, see [DISTRIBUTION.md](DISTRIBUTION.md).
