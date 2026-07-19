@@ -5,14 +5,18 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import com.anant.fitbuddy.data.settings.AppSettings
 import java.util.Calendar
 
 /**
- * Schedules the daily log reminder with [AlarmManager.setAlarmClock] (AOSP; no Play Services).
- * Re-arm after each fire and on boot via [ReminderReceiver] / [BootReceiver].
+ * Schedules the daily log reminder via [AlarmManager].
+ * Prefers [AlarmManager.setAlarmClock] when exact alarms are allowed; otherwise falls back to
+ * an inexact [AlarmManager.setAndAllowWhileIdle] so app startup never crashes on Android 12+.
  */
 object ReminderScheduler {
+
+    private const val TAG = "ReminderScheduler"
 
     const val REQUEST_CODE = 7101
     /** New id so channel sound/vibration settings apply (Android freezes channel attrs after create). */
@@ -32,8 +36,21 @@ object ReminderScheduler {
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val triggerAt = nextTriggerMillis(hour, minute)
         val pending = pendingIntent(app)
-        val info = AlarmManager.AlarmClockInfo(triggerAt, pending)
-        alarmManager.setAlarmClock(info, pending)
+        try {
+            if (canScheduleExactAlarms(app)) {
+                val info = AlarmManager.AlarmClockInfo(triggerAt, pending)
+                alarmManager.setAlarmClock(info, pending)
+            } else {
+                // Inexact when SCHEDULE_EXACT_ALARM is not granted (default on Android 14+).
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+            }
+        } catch (e: SecurityException) {
+            // OEM / race: permission revoked between check and set — never crash the process.
+            Log.w(TAG, "Exact alarm denied; scheduling inexact fallback", e)
+            runCatching {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+            }.onFailure { Log.e(TAG, "Failed to schedule reminder", it) }
+        }
     }
 
     fun cancel(context: Context) {
@@ -64,7 +81,7 @@ object ReminderScheduler {
         return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags)
     }
 
-    /** True when the OS may still deliver exact alarm-clock alarms (always true for setAlarmClock). */
+    /** True when the OS allows exact / alarm-clock alarms (API 31+ special app-op). */
     fun canScheduleExactAlarms(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
