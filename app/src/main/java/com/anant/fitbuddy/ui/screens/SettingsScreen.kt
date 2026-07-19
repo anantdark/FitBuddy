@@ -549,9 +549,9 @@ fun SettingsScreen(
             title = "Backup & Data",
             initiallyExpanded = false,
             hintTitle = "Backup & Data",
-            hint = "Export all your data (profile, readings, food and exercise logs, presets) " +
-                "to a JSON file, or import a backup. Importing replaces everything currently " +
-                "in the app."
+            hint = "Export everything — profile, readings, food/exercise logs, custom foods " +
+                "and meal presets, custom exercises, workouts, and Settings (including AI " +
+                "keys) — to a JSON file. Import replaces all current data with the file."
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

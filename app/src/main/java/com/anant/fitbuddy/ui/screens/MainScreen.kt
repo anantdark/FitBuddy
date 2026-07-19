@@ -871,8 +871,10 @@ fun MainScreen(viewModel: MainViewModel) {
             title = { Text("Replace all data?") },
             text = {
                 Text(
-                    "Importing this backup will delete your current profile, readings, and logs, " +
-                        "then replace them with the file's contents. This can't be undone."
+                    "Importing this backup will replace your current profile, readings, logs, " +
+                        "and custom foods/meals/exercises with the file's contents. Settings " +
+                        "(including AI keys) are replaced when the backup includes them. " +
+                        "This can't be undone."
                 )
             },
             confirmButton = {

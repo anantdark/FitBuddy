@@ -57,9 +57,11 @@ class FitBuddyApp : Application() {
                 exerciseLogDao = database.exerciseLogDao(),
                 savedFoodDao = database.savedFoodDao(),
                 mealPresetDao = database.mealPresetDao(),
+                exercisePresetDao = database.exercisePresetDao(),
                 bodyMeasurementDao = database.bodyMeasurementDao(),
                 workoutSessionDao = database.workoutSessionDao(),
                 workoutExerciseDao = database.workoutExerciseDao(),
+                settingsRepository = settingsRepository,
                 moshi = NetworkModule.moshi
             )
         )

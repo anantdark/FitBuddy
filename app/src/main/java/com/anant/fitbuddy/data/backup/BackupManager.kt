@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseLogDao
+import com.anant.fitbuddy.data.database.ExercisePresetDao
 import com.anant.fitbuddy.data.database.FoodLogDao
 import com.anant.fitbuddy.data.database.MealFoodDao
 import com.anant.fitbuddy.data.database.MealPresetDao
@@ -11,8 +12,10 @@ import com.anant.fitbuddy.data.database.SavedFoodDao
 import com.anant.fitbuddy.data.database.UserProfileDao
 import com.anant.fitbuddy.data.database.WorkoutExerciseDao
 import com.anant.fitbuddy.data.database.WorkoutSessionDao
+import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class BackupManager(
@@ -23,14 +26,17 @@ class BackupManager(
     private val exerciseLogDao: ExerciseLogDao,
     private val savedFoodDao: SavedFoodDao,
     private val mealPresetDao: MealPresetDao,
+    private val exercisePresetDao: ExercisePresetDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val workoutExerciseDao: WorkoutExerciseDao,
+    private val settingsRepository: SettingsRepository,
     moshi: Moshi
 ) {
     private val adapter = moshi.adapter(BackupData::class.java).indent("  ")
 
     suspend fun exportTo(uri: Uri): Int = withContext(Dispatchers.IO) {
+        val settings = settingsRepository.settings.first()
         val data = BackupData(
             exportedAt = System.currentTimeMillis(),
             profile = userProfileDao.getProfileOnce(),
@@ -40,16 +46,16 @@ class BackupManager(
             exerciseLogs = exerciseLogDao.getAllOnce(),
             savedFoods = savedFoodDao.getAllOnce(),
             mealPresets = mealPresetDao.getAllOnce(),
+            exercisePresets = exercisePresetDao.getAllOnce(),
             workoutSessions = workoutSessionDao.getAllOnce(),
-            workoutExercises = workoutExerciseDao.getAllOnce()
+            workoutExercises = workoutExerciseDao.getAllOnce(),
+            settings = BackupSettings.from(settings)
         )
         val json = adapter.toJson(data)
         context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
             out.write(json.toByteArray(Charsets.UTF_8))
         } ?: error("Couldn't open the selected file for writing")
-        data.measurements.size + data.foodLogs.size + data.mealFoods.size +
-            data.exerciseLogs.size + data.savedFoods.size + data.mealPresets.size +
-            data.workoutSessions.size + data.workoutExercises.size
+        countRecords(data)
     }
 
     suspend fun importFrom(uri: Uri): Int = withContext(Dispatchers.IO) {
@@ -67,6 +73,7 @@ class BackupManager(
         exerciseLogDao.clearAll()
         savedFoodDao.clearAll()
         mealPresetDao.clearAll()
+        exercisePresetDao.clearAll()
         workoutExerciseDao.clearAll()
         workoutSessionDao.clearAll()
 
@@ -74,43 +81,59 @@ class BackupManager(
         bodyMeasurementDao.insertAll(data.measurements.map { it.copy(id = 0) })
 
         val legacyFoods = if (data.savedFoods.isNotEmpty()) data.savedFoods else data.presets
-        savedFoodDao.insertAll(legacyFoods.map { it.copy(id = 0) })
-        mealPresetDao.insertAll(data.mealPresets.map { it.copy(id = 0) })
+        val savedFoodIdMap = BackupIdRemapper.idMap(
+            oldIds = legacyFoods.map { it.id },
+            newIds = savedFoodDao.insertAll(legacyFoods.map { it.copy(id = 0) })
+        )
 
-        val mealLogIdMap = data.foodLogs.map { it.id }
-            .zip(foodLogDao.insertAll(data.foodLogs.map { it.copy(id = 0) }))
-            .toMap()
+        mealPresetDao.insertAll(
+            data.mealPresets.map { BackupIdRemapper.remapMealPreset(it, savedFoodIdMap) }
+        )
+        exercisePresetDao.insertAll(data.exercisePresets.map { it.copy(id = 0) })
+
+        val mealLogIdMap = BackupIdRemapper.idMap(
+            oldIds = data.foodLogs.map { it.id },
+            newIds = foodLogDao.insertAll(data.foodLogs.map { it.copy(id = 0) })
+        )
 
         val remappedMealFoods = data.mealFoods.mapNotNull { food ->
-            mealLogIdMap[food.mealLogId]?.let { newMealId ->
-                food.copy(id = 0, mealLogId = newMealId.toInt())
-            }
+            BackupIdRemapper.remapMealFood(food, mealLogIdMap, savedFoodIdMap)
         }
         mealFoodDao.insertAll(remappedMealFoods)
 
-        val exerciseLogIdMap = data.exerciseLogs.map { it.id }
-            .zip(exerciseLogDao.insertAll(data.exerciseLogs.map { it.copy(id = 0) }))
-            .toMap()
+        val exerciseLogIdMap = BackupIdRemapper.idMap(
+            oldIds = data.exerciseLogs.map { it.id },
+            newIds = exerciseLogDao.insertAll(data.exerciseLogs.map { it.copy(id = 0) })
+        )
 
         val remappedSessions = data.workoutSessions.map { session ->
             session.copy(
                 id = 0,
-                exerciseLogId = session.exerciseLogId?.let { exerciseLogIdMap[it]?.toInt() }
+                exerciseLogId = session.exerciseLogId?.let { exerciseLogIdMap[it] }
             )
         }
-        val sessionIdMap = data.workoutSessions.map { it.id }
-            .zip(workoutSessionDao.insertAll(remappedSessions))
-            .toMap()
+        val sessionIdMap = BackupIdRemapper.idMap(
+            oldIds = data.workoutSessions.map { it.id },
+            newIds = workoutSessionDao.insertAll(remappedSessions)
+        )
 
         val remappedExercises = data.workoutExercises.mapNotNull { exercise ->
             sessionIdMap[exercise.sessionId]?.let { newSessionId ->
-                exercise.copy(id = 0, sessionId = newSessionId.toInt())
+                exercise.copy(id = 0, sessionId = newSessionId)
             }
         }
         workoutExerciseDao.insertAll(remappedExercises)
 
-        data.measurements.size + data.foodLogs.size + data.mealFoods.size +
-            data.exerciseLogs.size + legacyFoods.size + data.mealPresets.size +
-            data.workoutSessions.size + data.workoutExercises.size
+        data.settings?.let { settingsRepository.save(it.toAppSettings()) }
+
+        countRecords(data, legacyFoodCount = legacyFoods.size)
+    }
+
+    private fun countRecords(data: BackupData, legacyFoodCount: Int? = null): Int {
+        val foods = legacyFoodCount ?: data.savedFoods.size
+        return data.measurements.size + data.foodLogs.size + data.mealFoods.size +
+            data.exerciseLogs.size + foods + data.mealPresets.size +
+            data.exercisePresets.size + data.workoutSessions.size +
+            data.workoutExercises.size + if (data.settings != null) 1 else 0
     }
 }

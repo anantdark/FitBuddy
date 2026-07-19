@@ -216,7 +216,7 @@ interface SavedFoodDao {
     suspend fun insert(food: SavedFood)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(foods: List<SavedFood>)
+    suspend fun insertAll(foods: List<SavedFood>): List<Long>
 
     @Delete
     suspend fun delete(food: SavedFood)
@@ -237,7 +237,7 @@ interface MealPresetDao {
     suspend fun insert(preset: MealPreset)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(presets: List<MealPreset>)
+    suspend fun insertAll(presets: List<MealPreset>): List<Long>
 
     @Delete
     suspend fun delete(preset: MealPreset)
@@ -261,7 +261,7 @@ interface ExercisePresetDao {
     suspend fun insertPreset(preset: ExercisePreset)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(presets: List<ExercisePreset>)
+    suspend fun insertAll(presets: List<ExercisePreset>): List<Long>
 
     @Delete
     suspend fun deletePreset(preset: ExercisePreset)

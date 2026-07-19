@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.backup
 
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseLog
+import com.anant.fitbuddy.data.database.ExercisePreset
 import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.MealFood
 import com.anant.fitbuddy.data.database.MealPreset
@@ -24,10 +25,13 @@ data class BackupData(
     val presets: List<SavedFood> = emptyList(),
     val savedFoods: List<SavedFood> = emptyList(),
     val mealPresets: List<MealPreset> = emptyList(),
+    val exercisePresets: List<ExercisePreset> = emptyList(),
     val workoutSessions: List<WorkoutSession> = emptyList(),
-    val workoutExercises: List<WorkoutExercise> = emptyList()
+    val workoutExercises: List<WorkoutExercise> = emptyList(),
+    /** Null on pre-v5 backups — import leaves current Settings untouched. */
+    val settings: BackupSettings? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 4
+        const val CURRENT_VERSION = 5
     }
 }
