@@ -44,8 +44,10 @@ datastorePreferences = "1.1.7"
 material = "1.4.+"
 mlkitBarcodeScanning = "17.3.0"
 sentryAndroid = "8.49.0"
+browser = "1.8.0"
 
 [libraries]
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

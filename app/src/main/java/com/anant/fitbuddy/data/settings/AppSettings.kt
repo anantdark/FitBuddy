@@ -27,6 +27,11 @@ data class AppSettings(
     val provider: AiProvider = AiProvider.OPENROUTER,
     val openRouterApiKeys: List<String> = emptyList(),
     val openRouterApiKey: String = "",
+    /**
+     * Key issued by OpenRouter OAuth PKCE ("Continue with OpenRouter").
+     * Tried after all [openRouterApiKeys] during failover.
+     */
+    val openRouterOAuthKey: String = "",
     val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
     val openRouterTextModel: String = "",
     val geminiApiKeys: List<String> = emptyList(),
@@ -47,10 +52,17 @@ data class AppSettings(
      */
     val aiAutoFailover: Boolean = true,
     /**
+     * When true, model dropdowns include paid OpenRouter / Gemini models (Pro, etc.).
+     * Off by default (free-only). Refresh-models reachability probes are skipped while this
+     * is on so paid endpoints are never pinged.
+     */
+    val showPaidModels: Boolean = false,
+    /**
      * Last photo / text models Auto successfully used (with [activeAiProvider]).
-     * Shown in Settings when Auto is on; synced into that provider's model fields so the
-     * dropdowns update. Also reset to the preferred provider's models whenever Save AI
-     * Settings runs. Empty until the first success for that modality (or a settings save).
+     * Shown in green in Settings when Auto is on; the preferred dropdown selection is left
+     * unchanged so after rate-limit cooldowns expire Auto tries that model first again.
+     * Also reset to the preferred provider's models whenever Save AI Settings runs.
+     * Empty until the first success for that modality (or a settings save).
      */
     val activeAiProvider: AiProvider? = null,
     val activePhotoModel: String = "",
@@ -135,9 +147,10 @@ data class AppSettings(
             }
         }
 
+    /** Manual (pasted) keys only — never includes [openRouterOAuthKey]. */
     fun keysFor(p: AiProvider): List<String> = when (p) {
         AiProvider.OPENROUTER -> openRouterApiKeys.ifEmpty {
-            listOfNotNull(openRouterApiKey.takeIf { it.isNotBlank() })
+            listOfNotNull(openRouterApiKey.takeIf { it.isNotBlank() && it != openRouterOAuthKey })
         }
         AiProvider.GEMINI -> geminiApiKeys.ifEmpty {
             listOfNotNull(geminiApiKey.takeIf { it.isNotBlank() })
@@ -147,8 +160,20 @@ data class AppSettings(
         }
     }
 
+    /** OpenRouter request order: pasted keys first, OAuth key last. */
+    fun openRouterAttemptKeys(): List<String> {
+        val manual = keysFor(AiProvider.OPENROUTER)
+        val oauth = openRouterOAuthKey.takeIf { it.isNotBlank() && it !in manual }
+        return manual + listOfNotNull(oauth)
+    }
+
+    val isOpenRouterOAuthConnected: Boolean
+        get() = openRouterOAuthKey.isNotBlank()
+
     fun activeKey(p: AiProvider): String = when (p) {
-        AiProvider.OPENROUTER -> openRouterApiKey.ifBlank { openRouterApiKeys.firstOrNull().orEmpty() }
+        AiProvider.OPENROUTER -> openRouterApiKey.ifBlank {
+            openRouterAttemptKeys().firstOrNull().orEmpty()
+        }
         AiProvider.GEMINI -> geminiApiKey.ifBlank { geminiApiKeys.firstOrNull().orEmpty() }
         AiProvider.OLLAMA -> ollamaApiKey.ifBlank { ollamaApiKeys.firstOrNull().orEmpty() }
     }
@@ -181,7 +206,8 @@ data class AppSettings(
 
     /** True when [p] has enough config to attempt a live call. */
     fun isProviderConfigured(p: AiProvider): Boolean = when (p) {
-        AiProvider.OPENROUTER -> keysFor(p).isNotEmpty() && openRouterModel.isNotBlank()
+        AiProvider.OPENROUTER ->
+            openRouterAttemptKeys().isNotEmpty() && openRouterModel.isNotBlank()
         AiProvider.GEMINI -> keysFor(p).isNotEmpty() && geminiModel.isNotBlank()
         AiProvider.OLLAMA -> if (ollamaUseCloud) {
             keysFor(p).isNotEmpty() && ollamaModel.isNotBlank()
@@ -208,8 +234,8 @@ data class AppSettings(
     }
 
     companion object {
-        const val DEFAULT_OPENROUTER_MODEL = "google/gemma-3-27b-it:free"
-        const val DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+        const val DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free"
+        const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"
         const val DEFAULT_OLLAMA_MODEL = "llava"
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"

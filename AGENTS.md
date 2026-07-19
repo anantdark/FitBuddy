@@ -23,12 +23,22 @@ progress charts, editable meal review, and reusable food presets.
     compileSdk ≥ 37 (not installed) and previously broke the build.
 - JDK: OpenJDK 21 (`JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`).
 - Config cache is ON.
+- **Device testing (smoke / local features / debugging):** always install and use the **debug** app
+  (`com.anant.fitbuddy.debug`, launcher label **FitBuddy Dev**). Do **not** uninstall, overwrite, or
+  test against the release app on the phone (`com.anant.fitbuddy`) — that install is the user's real
+  app (different signing key); agents must never `adb uninstall` it or sideload a local release over
+  it. See `.cursor/rules/debug-build-for-testing.mdc`.
 - Commands (run from repo root):
   - Compile check: `./gradlew :app:compileDebugKotlin`
-  - Optimized build: `./gradlew :app:assembleRelease` (R8 + resource shrink enabled)
-  - Install optimized build over adb (personal profile only — never work profile / user 10):
-    `./gradlew :app:assembleRelease && adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-*.apk`
-    (release is signed with the debug key for dev convenience — replace before publishing).
+  - Debug APK (required for on-device agent work):
+    `./gradlew :app:assembleDebug && adb install -r --user 0 app/build/outputs/apk/debug/app-debug.apk`
+    then launch `com.anant.fitbuddy.debug/com.anant.fitbuddy.MainActivity`
+  - Optimized release build: `./gradlew :app:assembleRelease` (R8 + resource shrink). Local
+    `keystore.properties` must use a **local/dev** keystore (`fitbuddy-local.jks`), not the CI
+    release key — see DISTRIBUTION.md. CI signs releases via GitHub `RELEASE_*` secrets only.
+  - Install release over adb **only when the user explicitly asks** (personal profile only —
+    never work profile / user 10):
+    `adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-*.apk`
   - `installDebug`/`installRelease` also pass `--user 0` via `android.installation.installOptions`.
     Wireless adb: prefer direct `adb install -r --user 0 <apk>` if Gradle's adb push hits
     EOF/broken pipe.
@@ -84,10 +94,14 @@ progress charts, editable meal review, and reusable food presets.
   next key → other models on the **same** preferred platform only. Never switches platforms;
   if all keys/models fail, the error is surfaced and the user must change platform in Settings.
   Auto off: selected model only (no model/platform change); still rotates API keys on failure,
+  Auto off: selected model only (no model/platform change); still rotates API keys on failure,
   then surfaces the error. Rate-limited models are skipped until the **next UTC midnight**
-  (persisted); then newer requests try the highest models again. Gemini uses free Flash
-  intelligence ranking; OpenRouter/Ollama prefer Gemma. Pills note model switches within the
-  platform.
+  (persisted); then newer requests try the **preferred dropdown model** first again. Green
+  “active” lines show the last successful model without changing the dropdown. **Show paid
+  models** (off by default) lists paid OpenRouter/Gemini models too and disables Refresh
+  reachability probes. Gemini uses free Flash intelligence ranking (3.5 Flash first; Pro above
+  Flash when paid is on); OpenRouter/Ollama prefer Gemma by generation then size (Gemma 4 31b →
+  26b → Gemma 3…). Pills note model switches within the platform.
 - If no provider is configured at all, text logs use the offline simulator (photos require a key).
 
 ## Key flows

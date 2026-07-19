@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.data.remote
 
+import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.remote.dto.ArchitectureDto
 import com.anant.fitbuddy.data.remote.dto.ChatErrorDto
 import com.anant.fitbuddy.data.remote.dto.ChatRequest
@@ -17,17 +18,23 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.Response
 
 /** Records every call and serves canned [ChatResponse]s in order; no network involved. */
 private class FakeAiApi(
     private val responses: MutableList<ChatResponse> = mutableListOf(),
     private val modelsResponse: ModelsResponse = ModelsResponse(),
-    private val geminiModelsResponse: GeminiModelsResponse = GeminiModelsResponse()
+    private val geminiModelsResponse: GeminiModelsResponse = GeminiModelsResponse(),
+    private val probeCodes: Map<String, Int> = emptyMap()
 ) : AiApi {
     var callCount = 0
+        private set
+    var probeCallCount = 0
         private set
 
     override suspend fun chatCompletion(url: String, authorization: String?, request: ChatRequest): ChatResponse {
@@ -40,6 +47,21 @@ private class FakeAiApi(
         callCount++
         check(responses.isNotEmpty()) { "no fake response queued for call #$callCount" }
         return responses.removeAt(0)
+    }
+
+    override suspend fun probeChatCompletion(
+        url: String,
+        authorization: String?,
+        request: ChatRequestPlain
+    ): Response<ResponseBody> {
+        probeCallCount++
+        val code = probeCodes[request.model] ?: 503
+        val empty = ByteArray(0).toResponseBody(null)
+        return if (code in 200..299) {
+            Response.success(empty)
+        } else {
+            Response.error(code, empty)
+        }
     }
 
     override suspend fun listModels(url: String, authorization: String?) = modelsResponse
@@ -269,5 +291,84 @@ class RemoteAiDataSourceTest {
             ),
             result.map { it.id }
         )
+    }
+
+    @Test
+    fun `fetchFreeVisionModels includePaid keeps paid vision models`() = runTest {
+        fun vision(id: String, free: Boolean) = ModelDto(
+            id = id,
+            name = id,
+            architecture = ArchitectureDto(inputModalities = listOf("text", "image")),
+            pricing = if (free) {
+                PricingDto(prompt = "0", completion = "0")
+            } else {
+                PricingDto(prompt = "0.0001", completion = "0.0002")
+            }
+        )
+        val free = vision("google/gemma-4-31b-it:free", free = true)
+        val paid = vision("google/gemma-3-27b-it", free = false)
+        val api = FakeAiApi(modelsResponse = ModelsResponse(listOf(free, paid)))
+        val source = RemoteAiDataSource(api, moshi)
+
+        assertEquals(
+            listOf("google/gemma-4-31b-it:free"),
+            source.fetchFreeVisionModels("key", includePaid = false).map { it.id }
+        )
+        assertEquals(
+            listOf("google/gemma-4-31b-it:free", "google/gemma-3-27b-it"),
+            source.fetchFreeVisionModels("key", includePaid = true).map { it.id }
+        )
+    }
+
+    @Test
+    fun `fetchGeminiVisionModels includePaid keeps pro models`() = runTest {
+        val flash = GeminiModelDto(
+            name = "models/gemini-2.5-flash",
+            displayName = "Gemini 2.5 Flash",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val pro = GeminiModelDto(
+            name = "models/gemini-2.5-pro",
+            displayName = "Gemini 2.5 Pro",
+            supportedGenerationMethods = listOf("generateContent")
+        )
+        val api = FakeAiApi(geminiModelsResponse = GeminiModelsResponse(listOf(flash, pro)))
+        val source = RemoteAiDataSource(api, moshi)
+
+        assertEquals(listOf("gemini-2.5-flash"), source.fetchGeminiVisionModels("key").map { it.id })
+        assertEquals(
+            listOf("gemini-2.5-pro", "gemini-2.5-flash"),
+            source.fetchGeminiVisionModels("key", includePaid = true).map { it.id }
+        )
+    }
+
+    @Test
+    fun `filterReachableModels keeps only http 200 and 429`() = runTest {
+        val api = FakeAiApi(
+            probeCodes = mapOf(
+                "ok-model" to 200,
+                "rate-limited" to 429,
+                "bad-request" to 400,
+                "not-found" to 404,
+                "server-error" to 503
+            )
+        )
+        val source = RemoteAiDataSource(api, moshi)
+        val catalog = listOf(
+            ModelOption("ok-model", "OK"),
+            ModelOption("rate-limited", "RL"),
+            ModelOption("bad-request", "Bad"),
+            ModelOption("not-found", "Missing"),
+            ModelOption("server-error", "Down")
+        )
+
+        val result = source.filterReachableModels(
+            catalog,
+            chatUrl = "https://example.test/v1/chat/completions",
+            authHeader = "Bearer k"
+        )
+
+        assertEquals(listOf("ok-model", "rate-limited"), result.map { it.id })
+        assertEquals(5, api.probeCallCount)
     }
 }

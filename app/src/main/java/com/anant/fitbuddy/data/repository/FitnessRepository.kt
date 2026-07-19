@@ -552,21 +552,33 @@ class FitnessRepository(
         return FoodDraft(dishName = food.dishName, timestamp = timestamp, ingredients = ingredients)
     }
 
-    /** Free, vision-capable OpenRouter models for the Settings dropdown. */
-    suspend fun fetchFreeVisionModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchFreeVisionModels(apiKey)
+    /** OpenRouter vision models for the Settings dropdown (free, or free+paid). */
+    suspend fun fetchFreeVisionModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchFreeVisionModels(apiKey, includePaid)
 
-    /** Free OpenRouter models (any modality) for the text-query model dropdown. */
-    suspend fun fetchFreeModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchFreeModels(apiKey)
+    /** OpenRouter chat models for the text-query model dropdown. */
+    suspend fun fetchFreeModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchFreeModels(apiKey, includePaid)
 
     /** Vision-capable Gemini models for the Settings dropdown. */
-    suspend fun fetchGeminiVisionModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchGeminiVisionModels(apiKey)
+    suspend fun fetchGeminiVisionModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchGeminiVisionModels(apiKey, includePaid)
 
     /** Gemini chat models for the text-query model dropdown. */
-    suspend fun fetchGeminiTextModels(apiKey: String): List<ModelOption> =
-        remoteAiDataSource.fetchGeminiTextModels(apiKey)
+    suspend fun fetchGeminiTextModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchGeminiTextModels(apiKey, includePaid)
 
     /** Vision-capable Ollama models (local or Cloud). */
     suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
@@ -575,6 +587,16 @@ class FitnessRepository(
     /** All Ollama models on the host for the text-query dropdown. */
     suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
         remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey)
+
+    /**
+     * Drops models that do not answer chat with HTTP 200 or 429 (Refresh-models reachability).
+     */
+    suspend fun filterReachableModels(
+        models: List<ModelOption>,
+        chatUrl: String,
+        authHeader: String?
+    ): List<ModelOption> =
+        remoteAiDataSource.filterReachableModels(models, chatUrl, authHeader)
 
     /**
      * Persists a user-confirmed (possibly edited) meal to Room using its live totals. Pass a
@@ -1279,7 +1301,8 @@ class FitnessRepository(
      * fails (timeout, rate limit, etc.), the last error is thrown so the user can change
      * platform in Settings.
      * Rate-limited models are skipped until the next UTC midnight (persisted across app
-     * restarts). After that, newer requests try the highest models again. No background retry.
+     * restarts). After that, newer requests try the preferred selected model first again.
+     * No background retry. Success updates the green “active” model only — not the dropdown.
      * When Auto is off: preferred provider + selected model only; rotates API keys on failure,
      * then surfaces the error (no model or platform change).
      */
@@ -1360,7 +1383,11 @@ class FitnessRepository(
     /** Keys to try for [platform]; local Ollama uses a single empty key (no auth). */
     private fun attemptKeys(settings: AppSettings, platform: AiProvider): List<String> {
         if (platform == AiProvider.OLLAMA && !settings.ollamaUseCloud) return listOf("")
-        val keys = settings.keysFor(platform)
+        val keys = if (platform == AiProvider.OPENROUTER) {
+            settings.openRouterAttemptKeys()
+        } else {
+            settings.keysFor(platform)
+        }
         return keys.ifEmpty { listOf("") }
     }
 
@@ -1377,17 +1404,18 @@ class FitnessRepository(
         val selectedRaw = settings.copy(provider = platform).modelFor(preferVisionModels)
         val selected = selectedRaw.takeIf { isPlausibleModelIdFor(platform, it) }.orEmpty()
         val listKey = settings.keysFor(platform).firstOrNull().orEmpty()
+        val includePaid = settings.showPaidModels
         val catalog = runCatching {
             when (platform) {
                 AiProvider.OPENROUTER -> if (preferVisionModels) {
-                    remoteAiDataSource.fetchFreeVisionModels(listKey)
+                    remoteAiDataSource.fetchFreeVisionModels(listKey, includePaid)
                 } else {
-                    remoteAiDataSource.fetchFreeModels(listKey)
+                    remoteAiDataSource.fetchFreeModels(listKey, includePaid)
                 }
                 AiProvider.GEMINI -> if (preferVisionModels) {
-                    remoteAiDataSource.fetchGeminiVisionModels(listKey)
+                    remoteAiDataSource.fetchGeminiVisionModels(listKey, includePaid)
                 } else {
-                    remoteAiDataSource.fetchGeminiTextModels(listKey)
+                    remoteAiDataSource.fetchGeminiTextModels(listKey, includePaid)
                 }
                 AiProvider.OLLAMA -> {
                     val base = settings.ollamaEffectiveBaseUrl

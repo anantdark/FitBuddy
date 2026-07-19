@@ -52,7 +52,9 @@ data class ResponseFormat(
 data class ChatRequestPlain(
     @Json(name = "model") val model: String,
     @Json(name = "messages") val messages: List<ChatMessagePlain>,
-    @Json(name = "temperature") val temperature: Double = 0.2
+    @Json(name = "temperature") val temperature: Double = 0.2,
+    /** Optional; used for cheap reachability probes (Refresh models). */
+    @Json(name = "max_tokens") val maxTokens: Int? = null
 )
 
 @JsonClass(generateAdapter = true)

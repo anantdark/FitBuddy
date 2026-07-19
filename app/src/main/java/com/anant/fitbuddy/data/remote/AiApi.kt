@@ -5,6 +5,8 @@ import com.anant.fitbuddy.data.remote.dto.ChatRequestPlain
 import com.anant.fitbuddy.data.remote.dto.ChatResponse
 import com.anant.fitbuddy.data.remote.dto.GeminiModelsResponse
 import com.anant.fitbuddy.data.remote.dto.ModelsResponse
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -34,6 +36,17 @@ interface AiApi {
         @Header("Authorization") authorization: String?,
         @Body request: ChatRequestPlain
     ): ChatResponse
+
+    /**
+     * Lightweight chat probe that returns the raw HTTP response (no throw on 4xx/5xx).
+     * Used by Refresh models to keep only endpoints that answer 200 or 429.
+     */
+    @POST
+    suspend fun probeChatCompletion(
+        @Url url: String,
+        @Header("Authorization") authorization: String?,
+        @Body request: ChatRequestPlain
+    ): Response<ResponseBody>
 
     @GET
     suspend fun listModels(

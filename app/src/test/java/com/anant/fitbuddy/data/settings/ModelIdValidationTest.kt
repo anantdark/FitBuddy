@@ -10,12 +10,14 @@ class ModelIdValidationTest {
     fun `rejects bare gemini studio ids on openrouter`() {
         assertFalse(isPlausibleModelIdFor(AiProvider.OPENROUTER, "gemini-3-flash-preview"))
         assertFalse(isPlausibleModelIdFor(AiProvider.OPENROUTER, "gemini-2.5-flash"))
+        assertTrue(isPlausibleModelIdFor(AiProvider.OPENROUTER, "google/gemma-4-31b-it:free"))
         assertTrue(isPlausibleModelIdFor(AiProvider.OPENROUTER, "google/gemma-3-27b-it:free"))
         assertTrue(isPlausibleModelIdFor(AiProvider.OPENROUTER, "google/gemini-2.0-flash-001:free"))
     }
 
     @Test
     fun `gemini accepts studio ids`() {
+        assertTrue(isPlausibleModelIdFor(AiProvider.GEMINI, "gemini-3.5-flash"))
         assertTrue(isPlausibleModelIdFor(AiProvider.GEMINI, "gemini-3-flash-preview"))
         assertFalse(isPlausibleModelIdFor(AiProvider.GEMINI, "google/gemma-3-27b-it:free"))
     }

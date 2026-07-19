@@ -31,6 +31,7 @@ class SettingsRepository(context: Context) {
                 .getOrDefault(AiProvider.OPENROUTER),
             openRouterApiKeys = orKeys,
             openRouterApiKey = orKeys.firstOrNull().orEmpty(),
+            openRouterOAuthKey = prefs[KEY_OR_OAUTH_KEY].orEmpty(),
             openRouterModel = sanitizeModelIdFor(
                 AiProvider.OPENROUTER,
                 prefs[KEY_OR_MODEL] ?: BuildConfig.AI_MODEL.ifBlank { AppSettings.DEFAULT_OPENROUTER_MODEL },
@@ -68,6 +69,7 @@ class SettingsRepository(context: Context) {
             ollamaApiKeys = ollamaKeys,
             ollamaApiKey = ollamaKeys.firstOrNull().orEmpty(),
             aiAutoFailover = prefs[KEY_AI_AUTO_FAILOVER] ?: true,
+            showPaidModels = prefs[KEY_SHOW_PAID_MODELS] ?: false,
             activeAiProvider = prefs[KEY_ACTIVE_AI_PROVIDER]?.let {
                 runCatching { AiProvider.valueOf(it) }.getOrNull()
             },
@@ -154,8 +156,9 @@ class SettingsRepository(context: Context) {
     }
 
     /**
-     * Records the model last used successfully for photo or text, and syncs that provider's
-     * Settings dropdown field so Auto mode shows the current selection.
+     * Records the model last used successfully for photo or text (green “active” lines in
+     * Settings). Does not change the preferred dropdown selection — after rate-limit
+     * cooldowns expire, Auto tries that preferred model first again.
      * Ignores ids that don't belong to [provider] (e.g. Gemini Studio ids on OpenRouter).
      */
     suspend fun setActiveAiModel(provider: AiProvider, modelId: String, forPhoto: Boolean) {
@@ -164,18 +167,8 @@ class SettingsRepository(context: Context) {
             prefs[KEY_ACTIVE_AI_PROVIDER] = provider.name
             if (forPhoto) {
                 prefs[KEY_ACTIVE_PHOTO_MODEL] = modelId
-                when (provider) {
-                    AiProvider.OPENROUTER -> prefs[KEY_OR_MODEL] = modelId
-                    AiProvider.GEMINI -> prefs[KEY_GEMINI_MODEL] = modelId
-                    AiProvider.OLLAMA -> prefs[KEY_OLLAMA_MODEL] = modelId
-                }
             } else {
                 prefs[KEY_ACTIVE_TEXT_MODEL] = modelId
-                when (provider) {
-                    AiProvider.OPENROUTER -> prefs[KEY_OR_TEXT_MODEL] = modelId
-                    AiProvider.GEMINI -> prefs[KEY_GEMINI_TEXT_MODEL] = modelId
-                    AiProvider.OLLAMA -> prefs[KEY_OLLAMA_TEXT_MODEL] = modelId
-                }
             }
         }
     }
@@ -184,6 +177,7 @@ class SettingsRepository(context: Context) {
         dataStore.edit { prefs ->
             prefs[KEY_PROVIDER] = settings.provider.name
             prefs[KEY_OR_KEY] = joinApiKeys(settings.keysFor(AiProvider.OPENROUTER))
+            prefs[KEY_OR_OAUTH_KEY] = settings.openRouterOAuthKey
             prefs[KEY_OR_MODEL] = settings.openRouterModel
             prefs[KEY_OR_TEXT_MODEL] = settings.openRouterTextModel
             prefs[KEY_GEMINI_KEY] = joinApiKeys(settings.keysFor(AiProvider.GEMINI))
@@ -195,6 +189,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_OLLAMA_USE_CLOUD] = settings.ollamaUseCloud
             prefs[KEY_OLLAMA_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.OLLAMA))
             prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover
+            prefs[KEY_SHOW_PAID_MODELS] = settings.showPaidModels
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
             prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
             prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
@@ -234,9 +229,36 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    /** Persists an OAuth-issued OpenRouter key without touching manual API keys. */
+    suspend fun setOpenRouterOAuthKey(key: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_OR_OAUTH_KEY] = key
+            prefs[KEY_PROVIDER] = AiProvider.OPENROUTER.name
+        }
+    }
+
+    suspend fun clearOpenRouterOAuthKey() {
+        dataStore.edit { prefs -> prefs[KEY_OR_OAUTH_KEY] = "" }
+    }
+
+    /** PKCE verifier for an in-flight OpenRouter OAuth — survives process death in the Custom Tab. */
+    suspend fun setPendingOpenRouterPkceVerifier(verifier: String) {
+        dataStore.edit { prefs -> prefs[KEY_OR_OAUTH_PKCE_VERIFIER] = verifier }
+    }
+
+    /** Returns and clears any pending PKCE verifier. */
+    suspend fun takePendingOpenRouterPkceVerifier(): String? {
+        val prefs = dataStore.data.first()
+        val verifier = prefs[KEY_OR_OAUTH_PKCE_VERIFIER]?.takeIf { it.isNotBlank() } ?: return null
+        dataStore.edit { it.remove(KEY_OR_OAUTH_PKCE_VERIFIER) }
+        return verifier
+    }
+
     private companion object {
         val KEY_PROVIDER = stringPreferencesKey("ai_provider")
         val KEY_OR_KEY = stringPreferencesKey("openrouter_api_key")
+        val KEY_OR_OAUTH_KEY = stringPreferencesKey("openrouter_oauth_key")
+        val KEY_OR_OAUTH_PKCE_VERIFIER = stringPreferencesKey("openrouter_oauth_pkce_verifier")
         val KEY_OR_MODEL = stringPreferencesKey("openrouter_model")
         val KEY_OR_TEXT_MODEL = stringPreferencesKey("openrouter_text_model")
         val KEY_GEMINI_KEY = stringPreferencesKey("gemini_api_key")
@@ -248,6 +270,7 @@ class SettingsRepository(context: Context) {
         val KEY_OLLAMA_USE_CLOUD = booleanPreferencesKey("ollama_use_cloud")
         val KEY_OLLAMA_API_KEY = stringPreferencesKey("ollama_api_key")
         val KEY_AI_AUTO_FAILOVER = booleanPreferencesKey("ai_auto_failover")
+        val KEY_SHOW_PAID_MODELS = booleanPreferencesKey("show_paid_models")
         val KEY_ACTIVE_AI_PROVIDER = stringPreferencesKey("active_ai_provider")
         val KEY_ACTIVE_AI_MODEL = stringPreferencesKey("active_ai_model") // legacy
         val KEY_ACTIVE_PHOTO_MODEL = stringPreferencesKey("active_photo_model")

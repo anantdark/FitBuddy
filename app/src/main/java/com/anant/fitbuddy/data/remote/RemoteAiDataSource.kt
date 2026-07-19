@@ -27,7 +27,11 @@ import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.JsonEncodingException
 import com.squareup.moshi.JsonReader
 import com.squareup.moshi.Moshi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okio.Buffer
 import retrofit2.HttpException
 import java.io.IOException
@@ -58,6 +62,8 @@ class RemoteAiDataSource(
         const val MAX_RETRIES = 2
         const val BASE_BACKOFF_MS = 1_500L
         const val MAX_BACKOFF_MS = 8_000L
+        /** Parallel chat probes when filtering the Refresh-models list. */
+        const val MODEL_PROBE_CONCURRENCY = 6
     }
 
     suspend fun analyze(
@@ -353,14 +359,18 @@ class RemoteAiDataSource(
     }.getOrNull()?.takeIf { it.isNotBlank() }
 
     /**
-     * Fetches the OpenRouter model catalog and returns only the free, vision-capable models,
-     * Gemma-first then by size. Auth is optional for this endpoint (used if a key is present).
+     * Fetches the OpenRouter model catalog and returns vision-capable models (free by default,
+     * or free+paid when [includePaid]), Gemma-first by generation then size. Auth is optional
+     * for this endpoint (used if a key is present).
      */
-    suspend fun fetchFreeVisionModels(apiKey: String): List<ModelOption> {
+    suspend fun fetchFreeVisionModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> {
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels(OPENROUTER_MODELS_URL, auth)
         return response.data
-            .filter { it.isFree && it.supportsVision && !isUnsuitableModel(it) }
+            .filter { (includePaid || it.isFree) && it.supportsVision && !isUnsuitableModel(it) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
             .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
     }
@@ -391,38 +401,51 @@ class RemoteAiDataSource(
     }
 
     /**
-     * Fetches the OpenRouter catalog and returns all free (chat) models, Gemma-first then by size.
-     * Used for the text-only query model dropdown.
+     * Fetches the OpenRouter catalog and returns chat models (free by default, or free+paid when
+     * [includePaid]), Gemma-first by generation then size. Used for the text-query dropdown.
      */
-    suspend fun fetchFreeModels(apiKey: String): List<ModelOption> {
+    suspend fun fetchFreeModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> {
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels(OPENROUTER_MODELS_URL, auth)
         return response.data
-            .filter { it.isFree && !isUnsuitableModel(it) }
+            .filter { (includePaid || it.isFree) && !isUnsuitableModel(it) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
             .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
     }
 
     /**
-     * Free-tier Gemini chat models for the text-query dropdown, ordered by estimated intelligence
-     * (smartest first). List API has no pricing field — see [GeminiModelDto.isFreeTier].
+     * Gemini chat models for the text-query dropdown, ordered by estimated intelligence
+     * (smartest first). Free Flash by default; Pro/Ultra included when [includePaid].
+     * List API has no pricing field — see [GeminiModelDto.isFreeTier].
      */
-    suspend fun fetchGeminiTextModels(apiKey: String): List<ModelOption> =
-        fetchGeminiFreeModels(apiKey)
+    suspend fun fetchGeminiTextModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        fetchGeminiModels(apiKey, includePaid)
 
     /**
-     * Free-tier vision Gemini models for the photo dropdown / in-request model failover,
+     * Vision Gemini models for the photo dropdown / in-request model failover,
      * ordered by estimated intelligence (smartest first).
      */
-    suspend fun fetchGeminiVisionModels(apiKey: String): List<ModelOption> =
-        fetchGeminiFreeModels(apiKey)
+    suspend fun fetchGeminiVisionModels(
+        apiKey: String,
+        includePaid: Boolean = false
+    ): List<ModelOption> =
+        fetchGeminiModels(apiKey, includePaid)
 
-    private suspend fun fetchGeminiFreeModels(apiKey: String): List<ModelOption> {
+    private suspend fun fetchGeminiModels(
+        apiKey: String,
+        includePaid: Boolean
+    ): List<ModelOption> {
         require(apiKey.isNotBlank()) { "A Gemini API key is required to list models" }
         val url = "$GEMINI_MODELS_URL?key=$apiKey&pageSize=200"
         val response = api.listGeminiModels(url)
         return response.models
-            .filter { it.supportsVision && it.isFreeTier }
+            .filter { it.supportsVision && (includePaid || it.isFreeTier) }
             .map { ModelOption(id = it.modelId, displayName = it.displayName ?: it.modelId) }
             .sortedByDescending { geminiIntelligenceRank(it.id) }
     }
@@ -448,6 +471,55 @@ class RemoteAiDataSource(
     /** Text/chat Ollama models (full catalog from the host). */
     suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
         fetchOllamaModels(baseUrl, apiKey)
+
+    /**
+     * Keeps models whose chat endpoint answers HTTP 200 or 429 (reachable / rate-limited).
+     * Other statuses and network failures are dropped. Used by the Settings Refresh button;
+     * preserves [models] order. Probes run with limited parallelism.
+     */
+    suspend fun filterReachableModels(
+        models: List<ModelOption>,
+        chatUrl: String,
+        authHeader: String?
+    ): List<ModelOption> {
+        if (models.isEmpty()) return models
+        val semaphore = Semaphore(MODEL_PROBE_CONCURRENCY)
+        return coroutineScope {
+            models.map { option ->
+                async {
+                    semaphore.withPermit {
+                        if (isModelReachable(chatUrl, authHeader, option.id)) option else null
+                    }
+                }
+            }.mapNotNull { it.await() }
+        }
+    }
+
+    /** True when a minimal chat completion returns HTTP 200 or 429. */
+    private suspend fun isModelReachable(
+        chatUrl: String,
+        authHeader: String?,
+        modelId: String
+    ): Boolean {
+        val request = ChatRequestPlain(
+            model = modelId,
+            messages = listOf(ChatMessagePlain(role = "user", content = "ping")),
+            temperature = 0.0,
+            maxTokens = 1
+        )
+        return try {
+            val response = api.probeChatCompletion(chatUrl, authHeader, request)
+            try {
+                val code = response.code()
+                code == 200 || code == 429
+            } finally {
+                response.body()?.close()
+                response.errorBody()?.close()
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     /**
      * Ollama's list endpoint does not expose input modalities. Match common multimodal model

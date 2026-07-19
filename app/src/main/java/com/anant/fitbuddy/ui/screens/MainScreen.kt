@@ -131,6 +131,7 @@ fun MainScreen(
     val hasSettingsSnapshot by viewModel.hasSettingsSnapshot.collectAsStateWithLifecycle()
     val modelsState by viewModel.models.collectAsStateWithLifecycle()
     val textModelsState by viewModel.textModels.collectAsStateWithLifecycle()
+    val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
     val mealPresets by viewModel.mealPresets.collectAsStateWithLifecycle()
     val savedFoods by viewModel.savedFoods.collectAsStateWithLifecycle()
     val measurements by viewModel.bodyMeasurements.collectAsStateWithLifecycle()
@@ -344,14 +345,17 @@ fun MainScreen(
                 settings = settings,
                 modelsState = modelsState,
                 textModelsState = textModelsState,
-                onLoadModels = { provider, apiKey, force, baseUrl ->
-                    viewModel.loadFreeVisionModels(provider, apiKey, force, baseUrl)
+                onLoadModels = { provider, apiKey, force, baseUrl, includePaid ->
+                    viewModel.loadFreeVisionModels(provider, apiKey, force, baseUrl, includePaid)
                 },
-                onLoadTextModels = { provider, apiKey, force, baseUrl ->
-                    viewModel.loadFreeTextModels(provider, apiKey, force, baseUrl)
+                onLoadTextModels = { provider, apiKey, force, baseUrl, includePaid ->
+                    viewModel.loadFreeTextModels(provider, apiKey, force, baseUrl, includePaid)
                 },
                 onSave = { viewModel.saveSettings(it, announce = true) },
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
+                onConnectOpenRouter = viewModel::startOpenRouterOAuth,
+                onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
+                openRouterOAuthBusy = openRouterOAuthBusy,
                 onDynamicColorChange = { enabled ->
                     viewModel.saveSettings(settings.copy(dynamicColor = enabled))
                 },

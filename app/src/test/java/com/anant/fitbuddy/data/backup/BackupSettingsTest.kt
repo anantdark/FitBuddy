@@ -16,6 +16,7 @@ class BackupSettingsTest {
             geminiKeys = listOf("gem-key"),
             base = AppSettings(
                 provider = AiProvider.GEMINI,
+                openRouterOAuthKey = "or-oauth",
                 geminiModel = "gemini-2.5-flash",
                 dailyLogReminderEnabled = false,
                 dailyLogReminderHour = 21,
@@ -26,6 +27,7 @@ class BackupSettingsTest {
         val restored = BackupSettings.from(original).toAppSettings()
         assertEquals(AiProvider.GEMINI, restored.provider)
         assertEquals(listOf("or-key-1", "or-key-2"), restored.openRouterApiKeys)
+        assertEquals("or-oauth", restored.openRouterOAuthKey)
         assertEquals(listOf("gem-key"), restored.geminiApiKeys)
         assertEquals("gem-key", restored.geminiApiKey)
         assertEquals(false, restored.dailyLogReminderEnabled)

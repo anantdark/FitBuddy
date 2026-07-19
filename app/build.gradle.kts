@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val openRouterApiKey: String = localProperties.getProperty("OPENROUTER_API_KEY", "")
-val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemini-2.0-flash-001")
+val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemma-4-31b-it:free")
 val sentryDsnRaw: String =
     System.getenv("SENTRY_DSN")
         ?: localProperties.getProperty("SENTRY_DSN", "")
@@ -29,7 +29,8 @@ val sentryDsnEscaped: String = sentryDsnRaw
 val ciVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull()
 val ciVersionName = project.findProperty("appVersionName") as String?
 
-// Release signing — copy keystore.properties.example → keystore.properties before publishing.
+// Release signing — local keystore.properties should point at a local/dev keystore
+// (e.g. fitbuddy-local.jks). The Play/CI release key lives only in GitHub RELEASE_* secrets.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
@@ -86,7 +87,7 @@ android {
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
-                // Local dev fallback — configure keystore.properties before Play Store upload.
+                // No keystore.properties — sign with the Android debug key (local smoke tests).
                 signingConfigs.getByName("debug")
             }
         }
@@ -118,6 +119,7 @@ androidComponents {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.accompanist.permissions)
+    implementation(libs.androidx.browser)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.core)

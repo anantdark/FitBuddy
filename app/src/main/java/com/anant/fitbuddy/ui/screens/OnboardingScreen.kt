@@ -33,8 +33,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +53,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
+import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
+import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 
 private val GOAL_OPTIONS = listOf(
@@ -91,6 +97,12 @@ private val OLLAMA_CLOUD_KEYS_URL = "https://ollama.com/settings/keys"
 fun OnboardingScreen(
     isSaving: Boolean,
     isValidating: Boolean,
+    openRouterOAuthBusy: Boolean = false,
+    openRouterOAuthKey: String = "",
+    userMessage: String? = null,
+    onUserMessageConsumed: () -> Unit = {},
+    onConnectOpenRouter: (android.content.Context) -> Unit = {},
+    onDisconnectOpenRouter: () -> Unit = {},
     onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
         age: Int,
@@ -111,6 +123,14 @@ fun OnboardingScreen(
     var goal by remember { mutableStateOf("RECOMP") }
     var activity by remember { mutableStateOf("MODERATE") }
     var aiProvider by remember { mutableStateOf(AiProvider.OPENROUTER) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(userMessage) {
+        userMessage?.let { message ->
+            snackbarHostState.showFitBuddyPill(message, displayMillis = 3_000L)
+            onUserMessageConsumed()
+        }
+    }
     var apiKeys by remember { mutableStateOf(emptyList<String>()) }
     var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
     var ollamaUseCloud by remember { mutableStateOf(false) }
@@ -118,11 +138,13 @@ fun OnboardingScreen(
     var aiValidated by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
 
+    val openRouterOAuthConnected = openRouterOAuthKey.isNotBlank()
     val stepOneValid = (age.toIntOrNull() ?: 0) in 10..120 &&
         (height.toDoubleOrNull() ?: 0.0) in 50.0..280.0 &&
         (weight.toDoubleOrNull() ?: 0.0) in 20.0..400.0
     val aiConfigValid = when (aiProvider) {
-        AiProvider.OPENROUTER, AiProvider.GEMINI -> apiKeys.isNotEmpty()
+        AiProvider.OPENROUTER -> apiKeys.isNotEmpty() || openRouterOAuthConnected
+        AiProvider.GEMINI -> apiKeys.isNotEmpty()
         AiProvider.OLLAMA -> if (ollamaUseCloud) {
             ollamaKeys.isNotEmpty()
         } else {
@@ -138,6 +160,7 @@ fun OnboardingScreen(
             provider = aiProvider,
             openRouterApiKeys = orKeys,
             openRouterApiKey = orKeys.firstOrNull().orEmpty(),
+            openRouterOAuthKey = if (aiProvider == AiProvider.OPENROUTER) openRouterOAuthKey else "",
             geminiApiKeys = gemKeys,
             geminiApiKey = gemKeys.firstOrNull().orEmpty(),
             ollamaBaseUrl = if (aiProvider == AiProvider.OLLAMA && !ollamaUseCloud) {
@@ -155,6 +178,14 @@ fun OnboardingScreen(
     fun invalidateAi() {
         aiValidated = false
         aiError = null
+    }
+
+    // OAuth key arrives via settings after Custom Tab callback — reset validation once.
+    LaunchedEffect(openRouterOAuthKey) {
+        if (openRouterOAuthKey.isNotBlank()) {
+            aiValidated = false
+            aiError = null
+        }
     }
 
     fun finishOnboarding() {
@@ -189,7 +220,10 @@ fun OnboardingScreen(
 
     val busy = isSaving || isValidating
 
-    Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        snackbarHost = { FitBuddySnackbarHost(snackbarHostState, bottomPadding = 24.dp) }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -244,7 +278,7 @@ fun OnboardingScreen(
                             )
                             Text(
                                 text = "FitBuddy needs an LLM to read food photos, freeform text logs, " +
-                                    "and set your initial calorie targets. Add a key to continue.",
+                                    "and set your initial calorie targets. Connect a provider to continue.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -272,21 +306,49 @@ fun OnboardingScreen(
                                 }
                             }
 
-                            AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
-                                OnboardingDocsLink(label = label, url = url)
-                            }
-
                             when (aiProvider) {
-                                AiProvider.OPENROUTER, AiProvider.GEMINI -> ApiKeyChipEditor(
-                                    label = "API keys",
-                                    keys = apiKeys,
-                                    onKeysChange = {
-                                        apiKeys = it
-                                        invalidateAi()
+                                AiProvider.OPENROUTER -> {
+                                    val context = LocalContext.current
+                                    OpenRouterConnectSection(
+                                        oauthConnected = openRouterOAuthConnected,
+                                        oauthBusy = openRouterOAuthBusy,
+                                        hasManualKeys = apiKeys.isNotEmpty(),
+                                        onConnect = onConnectOpenRouter,
+                                        onDisconnect = {
+                                            onDisconnectOpenRouter()
+                                            invalidateAi()
+                                        },
+                                        context = context
+                                    ) {
+                                        ApiKeyChipEditor(
+                                            label = "API keys",
+                                            keys = apiKeys,
+                                            onKeysChange = {
+                                                apiKeys = it
+                                                invalidateAi()
+                                            }
+                                        )
                                     }
-                                )
+                                }
+
+                                AiProvider.GEMINI -> {
+                                    AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
+                                        OnboardingDocsLink(label = label, url = url)
+                                    }
+                                    ApiKeyChipEditor(
+                                        label = "API keys",
+                                        keys = apiKeys,
+                                        onKeysChange = {
+                                            apiKeys = it
+                                            invalidateAi()
+                                        }
+                                    )
+                                }
 
                                 AiProvider.OLLAMA -> {
+                                    AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
+                                        OnboardingDocsLink(label = label, url = url)
+                                    }
                                     val modeOptions = listOf(false to "Local", true to "Cloud")
                                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                                         modeOptions.forEachIndexed { index, (useCloud, label) ->
@@ -340,8 +402,7 @@ fun OnboardingScreen(
                             }
 
                             Text(
-                                text = "Your key is stored on-device and never leaves your phone except " +
-                                    "to call the provider you chose.",
+                                text = "Your credentials stay on-device and only go to the provider you chose.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

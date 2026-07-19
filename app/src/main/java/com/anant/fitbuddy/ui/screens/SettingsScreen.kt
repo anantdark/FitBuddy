@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import com.anant.fitbuddy.ui.components.Button
+import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -131,11 +132,14 @@ fun SettingsScreen(
     settings: AppSettings,
     modelsState: ModelsUiState,
     textModelsState: ModelsUiState,
-    onLoadModels: (AiProvider, String, Boolean, String) -> Unit,
-    onLoadTextModels: (AiProvider, String, Boolean, String) -> Unit,
+    onLoadModels: (AiProvider, String, Boolean, String, Boolean) -> Unit,
+    onLoadTextModels: (AiProvider, String, Boolean, String, Boolean) -> Unit,
     onSave: (AppSettings) -> Unit,
     /** Persist without a snackbar (e.g. Auto failover toggle). Defaults to [onSave]. */
     onSaveQuiet: (AppSettings) -> Unit = onSave,
+    onConnectOpenRouter: (android.content.Context) -> Unit = {},
+    onDisconnectOpenRouter: () -> Unit = {},
+    openRouterOAuthBusy: Boolean = false,
     onDynamicColorChange: (Boolean) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -179,6 +183,7 @@ fun SettingsScreen(
         mutableStateOf(settings.keysFor(AiProvider.OLLAMA))
     }
     var aiAutoFailover by remember(settings) { mutableStateOf(settings.aiAutoFailover) }
+    var showPaidModels by remember(settings) { mutableStateOf(settings.showPaidModels) }
 
     var anantTapCount by remember { mutableIntStateOf(0) }
     var versionTapCount by remember { mutableIntStateOf(0) }
@@ -222,6 +227,7 @@ fun SettingsScreen(
     }
 
     val openRouterKey = openRouterKeys.firstOrNull().orEmpty()
+        .ifBlank { settings.openRouterOAuthKey }
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
     val ollamaApiKey = ollamaKeys.firstOrNull().orEmpty()
 
@@ -310,6 +316,21 @@ fun SettingsScreen(
                     "manually if everything fails. Saves as soon as you toggle."
             )
 
+            if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI) {
+                SettingToggleRow(
+                    title = "Show paid models",
+                    checked = showPaidModels,
+                    onCheckedChange = { enabled ->
+                        showPaidModels = enabled
+                        onSaveQuiet(settings.copy(showPaidModels = enabled))
+                    },
+                    hintTitle = "Paid models",
+                    hint = "Off (default): free models only. On: also list paid models. " +
+                        "While paid models are shown, Refresh skips reachability checks " +
+                        "so paid endpoints are never pinged."
+                )
+            }
+
             if (aiAutoFailover) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -331,9 +352,9 @@ fun SettingsScreen(
                     }
                     HintIconButton(
                         title = "Active models",
-                        message = "Active models update when you save AI settings, and after " +
-                            "each successful AI request. Rate-limited models are skipped " +
-                            "until the next UTC midnight."
+                        message = "Green lines show the models last used successfully. Your " +
+                            "dropdown selection stays as the preferred model — Auto tries it " +
+                            "first again after rate-limit cooldowns end (next UTC midnight)."
                     )
                 }
             }
@@ -353,33 +374,6 @@ fun SettingsScreen(
                 }
             }
 
-            // When Auto has an active model for this provider, keep local dropdown state in sync.
-            // Never copy Gemini Studio ids into OpenRouter/Ollama fields.
-            LaunchedEffect(
-                aiAutoFailover,
-                settings.activeAiProvider,
-                settings.activePhotoModel,
-                settings.activeTextModel,
-                provider
-            ) {
-                if (!aiAutoFailover) return@LaunchedEffect
-                if (settings.activeAiProvider != provider) return@LaunchedEffect
-                settings.activePhotoModel.takeIf { isPlausibleModelIdFor(provider, it) }?.let { active ->
-                    when (provider) {
-                        AiProvider.OPENROUTER -> openRouterModel = active
-                        AiProvider.GEMINI -> geminiModel = active
-                        AiProvider.OLLAMA -> ollamaModel = active
-                    }
-                }
-                settings.activeTextModel.takeIf { isPlausibleModelIdFor(provider, it) }?.let { active ->
-                    when (provider) {
-                        AiProvider.OPENROUTER -> openRouterTextModel = active
-                        AiProvider.GEMINI -> geminiTextModel = active
-                        AiProvider.OLLAMA -> ollamaTextModel = active
-                    }
-                }
-            }
-
             // One-shot cleanup if a bad Gemini Studio id was previously saved under OpenRouter.
             LaunchedEffect(settings.openRouterModel, settings.openRouterTextModel) {
                 if (!isPlausibleModelIdFor(AiProvider.OPENROUTER, openRouterModel) &&
@@ -396,30 +390,45 @@ fun SettingsScreen(
 
             when (provider) {
                 AiProvider.OPENROUTER -> {
-                    ApiKeyChipEditor(
-                        label = "API keys",
-                        keys = openRouterKeys,
-                        onKeysChange = { openRouterKeys = it }
-                    )
+                    OpenRouterConnectSection(
+                        oauthConnected = settings.isOpenRouterOAuthConnected,
+                        oauthBusy = openRouterOAuthBusy,
+                        hasManualKeys = openRouterKeys.isNotEmpty(),
+                        onConnect = onConnectOpenRouter,
+                        onDisconnect = onDisconnectOpenRouter,
+                        context = context
+                    ) {
+                        ApiKeyChipEditor(
+                            label = "API keys",
+                            keys = openRouterKeys,
+                            onKeysChange = { openRouterKeys = it }
+                        )
+                    }
                     ModelDropdown(
-                        label = "Photo model (free + vision)",
-                        noun = "free vision",
+                        label = if (showPaidModels) {
+                            "Photo model (vision)"
+                        } else {
+                            "Photo model (free + vision)"
+                        },
+                        noun = if (showPaidModels) "vision" else "free vision",
                         selectedModel = openRouterModel,
                         onModelChange = { openRouterModel = it },
                         modelsState = modelsState,
                         provider = AiProvider.OPENROUTER,
                         apiKey = openRouterKey,
-                        onLoad = onLoadModels
+                        onLoad = onLoadModels,
+                        showPaidModels = showPaidModels
                     )
                     ModelDropdown(
-                        label = "Text model (free)",
-                        noun = "free",
+                        label = if (showPaidModels) "Text model" else "Text model (free)",
+                        noun = if (showPaidModels) "chat" else "free",
                         selectedModel = openRouterTextModel,
                         onModelChange = { openRouterTextModel = it },
                         modelsState = textModelsState,
                         provider = AiProvider.OPENROUTER,
                         apiKey = openRouterKey,
                         onLoad = onLoadTextModels,
+                        showPaidModels = showPaidModels,
                         hintTitle = "Text model",
                         hint = "Used for typed logs and \"recalculate with AI\" (no photo). " +
                             "Leave blank to reuse the photo model. Gemma models are listed first."
@@ -433,28 +442,42 @@ fun SettingsScreen(
                         onKeysChange = { geminiKeys = it }
                     )
                     ModelDropdown(
-                        label = "Photo model (free, by intelligence)",
-                        noun = "free vision",
+                        label = if (showPaidModels) {
+                            "Photo model (by intelligence)"
+                        } else {
+                            "Photo model (free, by intelligence)"
+                        },
+                        noun = if (showPaidModels) "vision" else "free vision",
                         selectedModel = geminiModel,
                         onModelChange = { geminiModel = it },
                         modelsState = modelsState,
                         provider = AiProvider.GEMINI,
                         apiKey = geminiKey,
                         onLoad = onLoadModels,
+                        showPaidModels = showPaidModels,
                         hintTitle = "Gemini",
-                        hint = "Get a key from Google AI Studio (aistudio.google.com). Free " +
-                            "Flash models only (smartest-first). With Auto failover on, failed " +
-                            "keys then models rotate on Gemini only."
+                        hint = "Get a key from Google AI Studio (aistudio.google.com). " +
+                            (if (showPaidModels) {
+                                "Free Flash plus paid Pro (smartest-first). "
+                            } else {
+                                "Free Flash models only (smartest-first). "
+                            }) +
+                            "With Auto failover on, failed keys then models rotate on Gemini only."
                     )
                     ModelDropdown(
-                        label = "Text model (free, by intelligence)",
-                        noun = "free",
+                        label = if (showPaidModels) {
+                            "Text model (by intelligence)"
+                        } else {
+                            "Text model (free, by intelligence)"
+                        },
+                        noun = if (showPaidModels) "chat" else "free",
                         selectedModel = geminiTextModel,
                         onModelChange = { geminiTextModel = it },
                         modelsState = textModelsState,
                         provider = AiProvider.GEMINI,
                         apiKey = geminiKey,
-                        onLoad = onLoadTextModels
+                        onLoad = onLoadTextModels,
+                        showPaidModels = showPaidModels
                     )
                 }
 
@@ -545,7 +568,8 @@ fun SettingsScreen(
                             ollamaUseCloud = ollamaUseCloud,
                             ollamaApiKeys = ollamaKeys,
                             ollamaApiKey = ollamaApiKey,
-                            aiAutoFailover = aiAutoFailover
+                            aiAutoFailover = aiAutoFailover,
+                            showPaidModels = showPaidModels
                         )
                     )
                 }
@@ -1106,13 +1130,16 @@ private fun ModelDropdown(
     modelsState: ModelsUiState,
     provider: AiProvider,
     apiKey: String,
-    onLoad: (AiProvider, String, Boolean, String) -> Unit,
+    onLoad: (AiProvider, String, Boolean, String, Boolean) -> Unit,
     baseUrl: String = "",
+    showPaidModels: Boolean = false,
     hintTitle: String? = null,
     hint: String? = null
 ) {
-    // Re-fetch when the provider, key, or Ollama URL changes.
-    LaunchedEffect(provider, apiKey, baseUrl) { onLoad(provider, apiKey, false, baseUrl) }
+    // Re-fetch when the provider, key, Ollama URL, or paid-models toggle changes.
+    LaunchedEffect(provider, apiKey, baseUrl, showPaidModels) {
+        onLoad(provider, apiKey, false, baseUrl, showPaidModels)
+    }
 
     var expanded by remember { mutableStateOf(false) }
     val options = modelsState.options
@@ -1208,7 +1235,7 @@ private fun ModelDropdown(
             provider == AiProvider.GEMINI && apiKey.isBlank() -> "Enter your API key to load models"
             ollamaNeedsKey -> "Enter your Ollama Cloud API key to load models"
             ollamaNeedsUrl -> "Enter your Ollama server URL to load models"
-            modelsState.loaded -> "No $noun models found; type an id above"
+            modelsState.loaded -> "No reachable $noun models; type an id above"
             else -> "Pick an image-capable model"
         }
         Text(
@@ -1221,7 +1248,7 @@ private fun ModelDropdown(
             HintIconButton(title = hintTitle, message = hint)
         }
         IconButton(
-            onClick = { onLoad(provider, apiKey, true, baseUrl) },
+            onClick = { onLoad(provider, apiKey, true, baseUrl, showPaidModels) },
             enabled = !modelsState.isLoading
         ) {
             Icon(Icons.Filled.Refresh, contentDescription = "Reload models")

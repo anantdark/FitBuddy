@@ -14,6 +14,7 @@ import com.squareup.moshi.JsonClass
 data class BackupSettings(
     val provider: String = AiProvider.OPENROUTER.name,
     val openRouterApiKeys: List<String> = emptyList(),
+    val openRouterOAuthKey: String = "",
     val openRouterModel: String = AppSettings.DEFAULT_OPENROUTER_MODEL,
     val openRouterTextModel: String = "",
     val geminiApiKeys: List<String> = emptyList(),
@@ -25,6 +26,7 @@ data class BackupSettings(
     val ollamaUseCloud: Boolean = false,
     val ollamaApiKeys: List<String> = emptyList(),
     val aiAutoFailover: Boolean = true,
+    val showPaidModels: Boolean = false,
     val activeAiProvider: String? = null,
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
@@ -53,6 +55,7 @@ data class BackupSettings(
             ollamaKeys = ollamaApiKeys,
             base = AppSettings(
                 provider = provider,
+                openRouterOAuthKey = openRouterOAuthKey,
                 openRouterModel = openRouterModel,
                 openRouterTextModel = openRouterTextModel,
                 geminiModel = geminiModel,
@@ -62,6 +65,7 @@ data class BackupSettings(
                 ollamaTextModel = ollamaTextModel,
                 ollamaUseCloud = ollamaUseCloud,
                 aiAutoFailover = aiAutoFailover,
+                showPaidModels = showPaidModels,
                 activeAiProvider = activeProvider,
                 activePhotoModel = activePhotoModel,
                 activeTextModel = activeTextModel,
@@ -86,6 +90,7 @@ data class BackupSettings(
         fun from(settings: AppSettings): BackupSettings = BackupSettings(
             provider = settings.provider.name,
             openRouterApiKeys = settings.keysFor(AiProvider.OPENROUTER),
+            openRouterOAuthKey = settings.openRouterOAuthKey,
             openRouterModel = settings.openRouterModel,
             openRouterTextModel = settings.openRouterTextModel,
             geminiApiKeys = settings.keysFor(AiProvider.GEMINI),
@@ -97,6 +102,7 @@ data class BackupSettings(
             ollamaUseCloud = settings.ollamaUseCloud,
             ollamaApiKeys = settings.keysFor(AiProvider.OLLAMA),
             aiAutoFailover = settings.aiAutoFailover,
+            showPaidModels = settings.showPaidModels,
             activeAiProvider = settings.activeAiProvider?.name,
             activePhotoModel = settings.activePhotoModel,
             activeTextModel = settings.activeTextModel,
