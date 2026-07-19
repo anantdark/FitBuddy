@@ -67,7 +67,21 @@ data class AppSettings(
     /** When false, Sentry does not send crash events (SDK may still be initialized). */
     val crashReportingEnabled: Boolean = true,
     /** Set when the Settings "Created by" easter egg is discovered — hides startup credit toast. */
-    val easterEggDiscovered: Boolean = false
+    val easterEggDiscovered: Boolean = false,
+    /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */
+    val dailyLogReminderEnabled: Boolean = true,
+    val dailyLogReminderHour: Int = DEFAULT_REMINDER_HOUR,
+    val dailyLogReminderMinute: Int = DEFAULT_REMINDER_MINUTE,
+    /** Persisted after Package-name unlock gesture in About. */
+    val developerModeUnlocked: Boolean = false,
+    /** Developer: bypass live AI and use the offline simulator (text only). */
+    val forceOfflineAiSimulator: Boolean = false,
+    /** Developer: show last raw AI JSON after analysis. */
+    val showRawAiJson: Boolean = false,
+    /** Developer/experimental: prompt prefers CLARIFICATION_REQUIRED when portions are ambiguous. */
+    val strictClarification: Boolean = false,
+    /** Developer: OkHttp BODY logs even on release builds. */
+    val verboseHttpLogging: Boolean = false
 ) {
     /** Vision/multimodal model id sent for the active provider (used for photo analysis). */
     val model: String
@@ -197,6 +211,8 @@ data class AppSettings(
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"
         const val DEFAULT_OLLAMA_MODEL = "llava"
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
+        const val DEFAULT_REMINDER_HOUR = 20
+        const val DEFAULT_REMINDER_MINUTE = 0
 
         /** Build settings from key lists, syncing active key to the first entry. */
         fun withKeys(

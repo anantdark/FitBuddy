@@ -50,4 +50,38 @@ class FoodQuantityParserTest {
         )
         assertEquals(1, qty)
     }
+
+    @Test
+    fun `parseSegments understands hinglish counts`() {
+        val segments = FoodQuantityParser.parseSegments("do roti")
+        assertEquals(1, segments.size)
+        assertEquals(2, segments[0].quantity)
+        assertEquals("roti", segments[0].name)
+    }
+
+    @Test
+    fun `parseSegments understands teen paratha`() {
+        val segments = FoodQuantityParser.parseSegments("teen paratha with curd")
+        assertEquals(1, segments.size)
+        assertEquals(3, segments[0].quantity)
+        assertEquals("paratha", segments[0].name)
+    }
+
+    @Test
+    fun `parseSegments understands katori of dal`() {
+        val segments = FoodQuantityParser.parseSegments("ek katori of dal")
+        assertEquals(1, segments.size)
+        assertEquals(1, segments[0].quantity)
+        assertEquals("dal", segments[0].name)
+    }
+
+    @Test
+    fun `quantityForIngredient matches hinglish roti`() {
+        val qty = FoodQuantityParser.quantityForIngredient(
+            userText = "char roti aur dal",
+            ingredientName = "Wheat roti",
+            aiQuantity = 1
+        )
+        assertEquals(4, qty)
+    }
 }

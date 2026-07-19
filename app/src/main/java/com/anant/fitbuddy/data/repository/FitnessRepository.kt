@@ -38,6 +38,7 @@ import com.anant.fitbuddy.data.model.FoodAnalysis
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.MealDraft
+import com.anant.fitbuddy.data.model.NorthIndianStaples
 import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toMealDraft
@@ -409,11 +410,12 @@ class FitnessRepository(
         customTimestamp: Long? = null
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
+        val forceOffline = settings.developerModeUnlocked && settings.forceOfflineAiSimulator
 
         // Preferred provider configured: live AI with same-platform key/model failover.
         // Surface real failures instead of silently faking a result (silent offline fallback
         // made every photo come back as the simulator's "Mixed Plate").
-        if (settings.isConfigured) {
+        if (settings.isConfigured && !forceOffline) {
             return try {
                 val dataUrl = imageBytes?.let {
                     "data:image/jpeg;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
@@ -433,10 +435,14 @@ class FitnessRepository(
             }
         }
 
-        // Not configured: the offline simulator cannot read images, so don't invent a meal.
+        // Not configured / forced offline: the offline simulator cannot read images.
         if (imageBytes != null) {
             return AnalysisOutcome.Error(
-                "Connect an AI provider in Settings to analyse food photos."
+                if (forceOffline) {
+                    "Force offline simulator can't analyse photos. Turn it off or use text."
+                } else {
+                    "Connect an AI provider in Settings to analyse food photos."
+                }
             )
         }
 
@@ -450,6 +456,9 @@ class FitnessRepository(
             AnalysisOutcome.Error(e.message ?: "Analysis failed")
         }
     }
+
+    /** Last raw AI JSON from the remote layer (developer "Show raw AI JSON"). */
+    fun lastRawAiJson(): String? = remoteAiDataSource.lastRawJson
 
     /**
      * Reads the payload `status` and routes the data, returning a clean outcome.
@@ -511,6 +520,7 @@ class FitnessRepository(
      */
     private fun buildFoodDraft(food: FoodAnalysis, timestamp: Long, userText: String = ""): FoodDraft {
         val ingredients = food.ingredients
+            ?.filter { it.weightG > 0 || it.calories > 0 }
             ?.takeIf { it.isNotEmpty() }
             ?.map { ing ->
                 val quantity = FoodQuantityParser.quantityForIngredient(
@@ -520,7 +530,7 @@ class FitnessRepository(
                 )
                 IngredientDraft.fromAbsolute(
                     name = ing.name,
-                    weightG = ing.weightG,
+                    weightG = ing.weightG.coerceAtLeast(1),
                     calories = ing.calories,
                     protein = ing.proteinG,
                     carbs = ing.carbsG,
@@ -538,6 +548,7 @@ class FitnessRepository(
                     fats = food.macros.fatsG
                 )
             )
+        // Dish-level macros are ignored; FoodDraft totals are the sum of ingredients.
         return FoodDraft(dishName = food.dishName, timestamp = timestamp, ingredients = ingredients)
     }
 
@@ -918,30 +929,138 @@ class FitnessRepository(
         val query = input.lowercase().trim()
         return when (mode) {
             "SUCCESS" -> {
-                // Infer basic food types based on common North Indian options
+                // Align totals with [NorthIndianStaples] mid-range priors where possible.
+                val s = NorthIndianStaples
                 val (dish, c, p, cr, f) = when {
                     "chole" in query || "chana masala" in query || "chole bhature" in query ||
-                        "bhature" in query || "bhatura" in query ->
-                        Quintet("Chole Bhature", 650, 18, 78, 28)
-                    "rajma" in query -> Quintet("Rajma Chawal", 480, 18, 72, 10)
-                    "paratha" in query || "parantha" in query ->
-                        Quintet("Aloo Paratha with Curd", 420, 12, 48, 18)
+                        "bhature" in query || "bhatura" in query -> {
+                        val chole = s.CHOLE_KATORI
+                        val bhatura = s.BHATURA
+                        val ghee = s.GHEE_TSP
+                        Quintet(
+                            "Chole Bhature",
+                            chole.calories + bhatura.calories + ghee.calories,
+                            chole.proteinG + bhatura.proteinG,
+                            chole.carbsG + bhatura.carbsG,
+                            chole.fatsG + bhatura.fatsG + ghee.fatsG
+                        )
+                    }
+                    "rajma" in query -> {
+                        val dal = s.DAL_KATORI.copy(name = "Rajma")
+                        val rice = s.RICE_BOWL
+                        Quintet(
+                            "Rajma Chawal",
+                            dal.calories + rice.calories,
+                            dal.proteinG + rice.proteinG,
+                            dal.carbsG + rice.carbsG,
+                            dal.fatsG + rice.fatsG
+                        )
+                    }
+                    "paratha" in query || "parantha" in query -> {
+                        val paratha = s.PARATHA
+                        val curd = s.CURD_KATORI
+                        Quintet(
+                            "Aloo Paratha with Curd",
+                            paratha.calories + curd.calories,
+                            paratha.proteinG + curd.proteinG,
+                            paratha.carbsG + curd.carbsG,
+                            paratha.fatsG + curd.fatsG
+                        )
+                    }
                     "kadhi" in query -> Quintet("Kadhi Pakora with Rice", 450, 14, 58, 16)
-                    "dal makhani" in query -> Quintet("Dal Makhani with Roti", 520, 20, 48, 24)
+                    "dal makhani" in query -> {
+                        val dal = s.DAL_KATORI.copy(calories = 220, proteinG = 12, carbsG = 24, fatsG = 10)
+                        val roti = s.ROTI
+                        val ghee = s.GHEE_TSP
+                        Quintet(
+                            "Dal Makhani with Roti",
+                            dal.calories + roti.calories + ghee.calories,
+                            dal.proteinG + roti.proteinG,
+                            dal.carbsG + roti.carbsG,
+                            dal.fatsG + roti.fatsG + ghee.fatsG
+                        )
+                    }
                     "butter chicken" in query || "murgh makhani" in query ->
                         Quintet("Butter Chicken with Naan", 680, 36, 52, 32)
-                    "palak paneer" in query -> Quintet("Palak Paneer with Roti", 480, 22, 40, 24)
-                    "samosa" in query -> Quintet("Samosa (1 piece)", 260, 4, 32, 12)
+                    "palak paneer" in query -> {
+                        val roti = s.ROTI
+                        Quintet(
+                            "Palak Paneer with Roti",
+                            375 + roti.calories,
+                            19 + roti.proteinG,
+                            20 + roti.carbsG,
+                            22 + roti.fatsG
+                        )
+                    }
+                    "samosa" in query -> {
+                        val samosa = s.SAMOSA
+                        Quintet(
+                            "Samosa (1 piece)",
+                            samosa.calories,
+                            samosa.proteinG,
+                            samosa.carbsG,
+                            samosa.fatsG
+                        )
+                    }
                     "biryani" in query -> Quintet("Chicken Biryani", 540, 28, 62, 18)
-                    "paneer" in query -> Quintet("Paneer Butter Masala & Roti", 620, 24, 70, 26)
+                    "paneer" in query -> {
+                        val roti = s.ROTI
+                        Quintet(
+                            "Paneer Butter Masala & Roti",
+                            515 + roti.calories,
+                            21 + roti.proteinG,
+                            50 + roti.carbsG,
+                            24 + roti.fatsG
+                        )
+                    }
                     "lassi" in query -> Quintet("Sweet Lassi", 220, 8, 32, 6)
                     "chai" in query || "tea" in query -> Quintet("Indian Milk Chai", 110, 3, 16, 4)
-                    "sabzi" in query || "sabji" in query ->
-                        Quintet("Roti & Mixed Sabzi", 380, 12, 50, 12)
-                    "dal" in query && "chawal" in query -> Quintet("Dal Chawal", 420, 16, 68, 8)
-                    "dal" in query -> Quintet("Dal Tadka with Roti", 360, 16, 48, 8)
-                    "roti" in query || "chapati" in query || "phulka" in query ->
-                        Quintet("Wheat Roti & Dal", 320, 12, 48, 6)
+                    "sabzi" in query || "sabji" in query -> {
+                        val roti = s.ROTI
+                        val sabzi = s.SABZI_DRY
+                        val ghee = s.GHEE_TSP
+                        Quintet(
+                            "Roti & Mixed Sabzi",
+                            roti.calories * 2 + sabzi.calories + ghee.calories,
+                            roti.proteinG * 2 + sabzi.proteinG,
+                            roti.carbsG * 2 + sabzi.carbsG,
+                            roti.fatsG * 2 + sabzi.fatsG + ghee.fatsG
+                        )
+                    }
+                    "dal" in query && "chawal" in query -> {
+                        val dal = s.DAL_KATORI
+                        val rice = s.RICE_BOWL
+                        Quintet(
+                            "Dal Chawal",
+                            dal.calories + rice.calories,
+                            dal.proteinG + rice.proteinG,
+                            dal.carbsG + rice.carbsG,
+                            dal.fatsG + rice.fatsG
+                        )
+                    }
+                    "dal" in query -> {
+                        val dal = s.DAL_KATORI
+                        val roti = s.ROTI
+                        val ghee = s.GHEE_TSP
+                        Quintet(
+                            "Dal Tadka with Roti",
+                            dal.calories + roti.calories + ghee.calories,
+                            dal.proteinG + roti.proteinG,
+                            dal.carbsG + roti.carbsG,
+                            dal.fatsG + roti.fatsG + ghee.fatsG
+                        )
+                    }
+                    "roti" in query || "chapati" in query || "phulka" in query -> {
+                        val roti = s.ROTI
+                        val dal = s.DAL_KATORI
+                        Quintet(
+                            "Wheat Roti & Dal",
+                            roti.calories * 2 + dal.calories,
+                            roti.proteinG * 2 + dal.proteinG,
+                            roti.carbsG * 2 + dal.carbsG,
+                            roti.fatsG * 2 + dal.fatsG
+                        )
+                    }
                     "dosa" in query -> Quintet("Masala Dosa with Chutney", 390, 8, 54, 14)
                     "idli" in query -> Quintet("Idli with Sambhar (2 pcs)", 210, 6, 40, 2)
                     "almond" in query -> {
@@ -1032,19 +1151,25 @@ class FitnessRepository(
         // name to (weightG, fractionOfMacros)
         val parts: List<Pair<String, Pair<Int, Double>>> = when {
             "chole" in query || "bhature" in query || "bhatura" in query -> listOf(
-                "Chole" to (180 to 0.40), "Bhatura" to (90 to 0.60)
+                "Chole" to (NorthIndianStaples.CHOLE_KATORI.weightG to 0.38),
+                "Bhatura" to (NorthIndianStaples.BHATURA.weightG to 0.52),
+                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.10)
             )
             "rajma" in query -> listOf(
-                "Rajma" to (180 to 0.45), "Cooked rice" to (180 to 0.55)
+                "Rajma" to (NorthIndianStaples.DAL_KATORI.weightG to 0.45),
+                "Cooked rice" to (NorthIndianStaples.RICE_BOWL.weightG to 0.55)
             )
             "paratha" in query || "parantha" in query -> listOf(
-                "Aloo paratha" to (110 to 0.70), "Curd" to (100 to 0.30)
+                "Aloo paratha" to (NorthIndianStaples.PARATHA.weightG to 0.70),
+                "Curd" to (NorthIndianStaples.CURD_KATORI.weightG to 0.30)
             )
             "kadhi" in query -> listOf(
                 "Kadhi pakora" to (200 to 0.55), "Cooked rice" to (150 to 0.45)
             )
             "dal makhani" in query -> listOf(
-                "Dal makhani" to (200 to 0.70), "Wheat roti" to (70 to 0.30)
+                "Dal makhani" to (NorthIndianStaples.DAL_KATORI.weightG to 0.60),
+                "Wheat roti" to (NorthIndianStaples.ROTI.weightG to 0.28),
+                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.12)
             )
             "butter chicken" in query || "murgh makhani" in query -> listOf(
                 "Butter chicken" to (200 to 0.55), "Naan" to (100 to 0.45)
@@ -1053,7 +1178,7 @@ class FitnessRepository(
                 "Palak paneer" to (180 to 0.70), "Wheat roti" to (70 to 0.30)
             )
             "samosa" in query -> listOf(
-                "Potato & pea filling" to (60 to 0.45), "Fried pastry" to (40 to 0.55)
+                "Samosa" to (NorthIndianStaples.SAMOSA.weightG to 1.0)
             )
             "biryani" in query -> listOf(
                 "Basmati rice" to (180 to 0.45), "Chicken" to (90 to 0.40), "Oil & spices" to (20 to 0.15)
@@ -1068,19 +1193,25 @@ class FitnessRepository(
                 "Milk" to (100 to 0.60), "Sugar" to (10 to 0.30), "Tea decoction" to (90 to 0.10)
             )
             "sabzi" in query || "sabji" in query -> listOf(
-                "Wheat roti" to (80 to 0.40), "Mixed sabzi" to (150 to 0.60)
+                "Wheat roti" to (NorthIndianStaples.ROTI.weightG * 2 to 0.40),
+                "Mixed sabzi" to (NorthIndianStaples.SABZI_DRY.weightG to 0.50),
+                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.10)
             )
             "dal" in query && "chawal" in query -> listOf(
-                "Dal tadka" to (180 to 0.40), "Cooked rice" to (180 to 0.60)
+                "Dal tadka" to (NorthIndianStaples.DAL_KATORI.weightG to 0.40),
+                "Cooked rice" to (NorthIndianStaples.RICE_BOWL.weightG to 0.60)
             )
             "dal" in query -> listOf(
-                "Dal tadka" to (180 to 0.55), "Wheat roti" to (70 to 0.45)
+                "Dal tadka" to (NorthIndianStaples.DAL_KATORI.weightG to 0.50),
+                "Wheat roti" to (NorthIndianStaples.ROTI.weightG to 0.38),
+                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.12)
             )
             "dosa" in query -> listOf(
                 "Dosa crepe" to (90 to 0.45), "Potato masala" to (80 to 0.40), "Chutney" to (40 to 0.15)
             )
             "roti" in query || "chapati" in query || "phulka" in query -> listOf(
-                "Wheat roti" to (80 to 0.45), "Dal" to (150 to 0.55)
+                "Wheat roti" to (NorthIndianStaples.ROTI.weightG * 2 to 0.45),
+                "Dal" to (NorthIndianStaples.DAL_KATORI.weightG to 0.55)
             )
             "idli" in query -> listOf(
                 "Idli" to (120 to 0.50), "Sambhar" to (150 to 0.50)
@@ -1193,7 +1324,8 @@ class FitnessRepository(
                     val note = if (
                         modelId != preferredSelected && preferredSelected.isNotBlank()
                     ) {
-                        "Switched model to $modelId"
+                        val modality = if (preferVisionModels) "photo" else "text"
+                        "Auto failover · $modality model → $modelId"
                     } else {
                         null
                     }

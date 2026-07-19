@@ -68,6 +68,7 @@ fun FoodReviewDialog(
     onConfirm: (FoodDraft) -> Unit,
     onSaveAsPreset: (FoodDraft) -> Unit,
     onReanalyze: (String) -> Unit,
+    onAskForPortion: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -263,6 +264,18 @@ fun FoodReviewDialog(
                                 "Wrong item? Rename it (e.g. \"pineapple cake\") and tap ✨ to let " +
                                     "AI recompute calories, macros and ingredients."
                             },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(
+                            onClick = { onAskForPortion(dishName) },
+                            enabled = dishName.isNotBlank() && !isReanalyzing
+                        ) {
+                            Text("Ask for portion")
+                        }
+                        Text(
+                            text = "Know the dish but not grams? Estimates a standard home serving " +
+                                "(roti counts, katori volumes).",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

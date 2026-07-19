@@ -40,6 +40,15 @@ object NetworkModule {
         }
     }
 
+    /** Enables BODY-level OkHttp logs even on release builds (developer setting). */
+    fun setVerboseHttpLogging(enabled: Boolean) {
+        loggingInterceptor.level = if (enabled || BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BODY
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
+    }
+
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)

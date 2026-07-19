@@ -11,8 +11,15 @@ import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.SettingsRepository
+import com.anant.fitbuddy.reminders.ReminderReceiver
+import com.anant.fitbuddy.reminders.ReminderScheduler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -22,6 +29,8 @@ import java.time.ZoneOffset
  * process, which is exactly the lifetime we want for the DB and the repositories.
  */
 class FitBuddyApp : Application() {
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val database by lazy { AppDatabase.getDatabase(this) }
 
@@ -69,17 +78,39 @@ class FitBuddyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        val (supportId, crashEnabled) = runBlocking {
-            val id = settingsRepository.ensureSupportId()
-            val enabled = settingsRepository.settings.first().crashReportingEnabled
-            id to enabled
+        val settings = runBlocking {
+            settingsRepository.ensureSupportId()
+            settingsRepository.settings.first()
         }
         CrashReporter.init(
             app = this,
-            enabled = crashEnabled,
-            supportId = supportId
+            enabled = settings.crashReportingEnabled,
+            supportId = settings.supportId
         )
-        if (crashEnabled) {
+        NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
+        ReminderReceiver.ensureChannel(this)
+        ReminderScheduler.applyFromSettings(this, settings)
+        appScope.launch {
+            settingsRepository.settings
+                .map { s ->
+                    Triple(
+                        s.dailyLogReminderEnabled,
+                        s.dailyLogReminderHour to s.dailyLogReminderMinute,
+                        s.verboseHttpLogging
+                    )
+                }
+                .distinctUntilChanged()
+                .collect { (enabled, time, verboseHttp) ->
+                    val (hour, minute) = time
+                    NetworkModule.setVerboseHttpLogging(verboseHttp)
+                    if (enabled) {
+                        ReminderScheduler.scheduleNext(this@FitBuddyApp, hour, minute)
+                    } else {
+                        ReminderScheduler.cancel(this@FitBuddyApp)
+                    }
+                }
+        }
+        if (settings.crashReportingEnabled) {
             Thread({
                 runBlocking(Dispatchers.IO) { maybeSendDailyHeartbeat() }
             }, "fitbuddy-heartbeat").start()

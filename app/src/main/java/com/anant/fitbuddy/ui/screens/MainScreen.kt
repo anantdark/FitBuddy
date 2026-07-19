@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -48,7 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
@@ -100,7 +105,11 @@ private enum class FoodEditorTarget {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(
+    viewModel: MainViewModel,
+    openLogHubRequest: Boolean = false,
+    onOpenLogHubConsumed: () -> Unit = {}
+) {
     val context = LocalContext.current
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
@@ -162,6 +171,12 @@ fun MainScreen(viewModel: MainViewModel) {
     var showProgressChat by remember { mutableStateOf(false) }
     var showWeekHistory by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }
+    LaunchedEffect(openLogHubRequest) {
+        if (openLogHubRequest) {
+            showLogHub = true
+            onOpenLogHubConsumed()
+        }
+    }
     var showTextDialog by remember { mutableStateOf(false) }
     var showMealPresetSheet by remember { mutableStateOf(false) }
     var showSavedFoodSheet by remember { mutableStateOf(false) }
@@ -379,8 +394,17 @@ fun MainScreen(viewModel: MainViewModel) {
                 onDeveloperUnlockHintDismiss = { livePillMessage = null },
                 onDeveloperUnlocked = {
                     livePillMessage = null
+                    viewModel.unlockDeveloperMode()
                     scope.launch {
                         snackbarHostState.showFitBuddyPill("Developer settings unlocked")
+                    }
+                },
+                onClearModelCooldowns = viewModel::clearModelCooldowns,
+                onTestNotificationSent = { ok ->
+                    scope.launch {
+                        snackbarHostState.showFitBuddyPill(
+                            if (ok) "Test notification sent" else "Couldn't send notification"
+                        )
                     }
                 },
                 modifier = Modifier.padding(innerPadding)
@@ -850,9 +874,41 @@ fun MainScreen(viewModel: MainViewModel) {
             },
             onSaveAsPreset = viewModel::saveDraftAsSavedFood,
             onReanalyze = viewModel::reanalyzeFood,
+            onAskForPortion = viewModel::askForPortion,
             onDismiss = {
                 mealFoodEditIndex = null
                 viewModel.dismissFoodDraft()
+            }
+        )
+    }
+
+    analysisState.rawAiJson?.let { json ->
+        val clipboard = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = viewModel::consumeRawAiJson,
+            title = { Text("Raw AI JSON") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(json, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::consumeRawAiJson) { Text("Close") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(json))
+                        scope.launch {
+                            snackbarHostState.showFitBuddyPill("Copied")
+                        }
+                    }
+                ) { Text("Copy") }
             }
         )
     }

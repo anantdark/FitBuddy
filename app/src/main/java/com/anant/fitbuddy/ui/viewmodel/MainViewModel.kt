@@ -119,7 +119,9 @@ data class AnalysisUiState(
     // is hidden behind it.
     val reviewMessage: String? = null,
     // Non-null when the review dialog is editing an existing log row (so Save updates in place).
-    val editingFoodLogId: Int? = null
+    val editingFoodLogId: Int? = null,
+    /** Developer: last raw AI JSON when "Show raw AI JSON" is on. */
+    val rawAiJson: String? = null
 )
 
 /** State of the AI target-recommendation flow shown in Profile. */
@@ -368,6 +370,22 @@ class MainViewModel(
         viewModelScope.launch {
             settingsRepository.save(newSettings)
             _analysisState.update { it.copy(userMessage = "Settings saved") }
+        }
+    }
+
+    fun unlockDeveloperMode() {
+        viewModelScope.launch {
+            val current = settings.value
+            if (!current.developerModeUnlocked) {
+                settingsRepository.save(current.copy(developerModeUnlocked = true))
+            }
+        }
+    }
+
+    fun clearModelCooldowns() {
+        viewModelScope.launch {
+            settingsRepository.clearModelCooldowns()
+            _analysisState.update { it.copy(userMessage = "Model cooldowns cleared") }
         }
     }
 
@@ -1211,6 +1229,7 @@ class MainViewModel(
     }
 
     private fun handleOutcome(outcome: AnalysisOutcome) {
+        val rawJson = maybeRawAiJson()
         when (outcome) {
             is AnalysisOutcome.FoodReady -> {
                 clearPending()
@@ -1220,7 +1239,8 @@ class MainViewModel(
                         clarificationMessage = null,
                         foodDraft = outcome.draft,
                         mealDraft = null,
-                        userMessage = outcome.failoverNote
+                        userMessage = outcome.failoverNote,
+                        rawAiJson = rawJson
                     )
                 }
             }
@@ -1232,7 +1252,8 @@ class MainViewModel(
                         isLoading = false,
                         clarificationMessage = null,
                         userMessage = outcome.failoverNote
-                            ?: "Logged ${outcome.activityName} · -${outcome.caloriesBurned} kcal"
+                            ?: "Logged ${outcome.activityName} · -${outcome.caloriesBurned} kcal",
+                        rawAiJson = rawJson
                     )
                 }
             }
@@ -1241,7 +1262,8 @@ class MainViewModel(
                 it.copy(
                     isLoading = false,
                     clarificationMessage = outcome.message,
-                    userMessage = outcome.failoverNote
+                    userMessage = outcome.failoverNote,
+                    rawAiJson = rawJson
                 )
             }
 
@@ -1252,7 +1274,8 @@ class MainViewModel(
                         isLoading = false,
                         errorDialogTitle = "Item not identified",
                         errorDialogMessage = outcome.message,
-                        userMessage = outcome.failoverNote
+                        userMessage = outcome.failoverNote,
+                        rawAiJson = rawJson
                     )
                 }
             }
@@ -1263,11 +1286,18 @@ class MainViewModel(
                     it.copy(
                         isLoading = false,
                         errorDialogTitle = "Couldn't reach AI",
-                        errorDialogMessage = outcome.message
+                        errorDialogMessage = outcome.message,
+                        rawAiJson = rawJson
                     )
                 }
             }
         }
+    }
+
+    private fun maybeRawAiJson(): String? {
+        val s = settings.value
+        if (!s.developerModeUnlocked || !s.showRawAiJson) return null
+        return repository.lastRawAiJson()?.takeIf { it.isNotBlank() }
     }
 
     fun dismissErrorDialog() {
@@ -1459,32 +1489,72 @@ class MainViewModel(
             // forceEstimate: the user is renaming an item mid-review, so always recompute a
             // best-effort result instead of bouncing back a clarification question.
             val outcome = repository.analyze(text, null, buildUserStateContext(), forceEstimate = true)
-            _analysisState.update { state ->
-                when (outcome) {
-                    is AnalysisOutcome.FoodReady ->
-                        state.copy(
-                            isReanalyzing = false,
-                            foodDraft = outcome.draft,
-                            reviewMessage = outcome.failoverNote
-                        )
+            applyReanalyzeOutcome(outcome)
+        }
+    }
 
-                    // Non-success outcomes keep the current draft; report via the dialog's own
-                    // snackbar (the app-level one is hidden behind the full-screen review dialog).
-                    is AnalysisOutcome.NeedsClarification ->
-                        state.copy(isReanalyzing = false, reviewMessage = outcome.message)
+    /**
+     * Re-runs analysis with a fixed portion template so the AI estimates a standard home serving
+     * when the user knows the dish but not grams.
+     */
+    fun askForPortion(dishName: String) {
+        val name = dishName.trim()
+        if (name.isBlank()) return
+        val prompt = "$name. Estimate a standard single home serving using typical North Indian " +
+            "portion sizes (roti counts, katori volumes, rice bowls). Break into named " +
+            "ingredients with weights in grams and consistent macros. Include cooking fat " +
+            "(ghee/oil) as its own ingredient when the dish is tadka, fried, or buttery."
+        _analysisState.update { it.copy(isReanalyzing = true, reviewMessage = null) }
+        viewModelScope.launch {
+            val outcome = repository.analyze(
+                prompt,
+                null,
+                buildUserStateContext(),
+                forceEstimate = true
+            )
+            applyReanalyzeOutcome(outcome)
+        }
+    }
 
-                    is AnalysisOutcome.NotIdentified ->
-                        state.copy(isReanalyzing = false, reviewMessage = outcome.message)
+    private fun applyReanalyzeOutcome(outcome: AnalysisOutcome) {
+        val rawJson = maybeRawAiJson()
+        _analysisState.update { state ->
+            when (outcome) {
+                is AnalysisOutcome.FoodReady ->
+                    state.copy(
+                        isReanalyzing = false,
+                        foodDraft = outcome.draft,
+                        reviewMessage = outcome.failoverNote,
+                        rawAiJson = rawJson
+                    )
 
-                    is AnalysisOutcome.Error ->
-                        state.copy(isReanalyzing = false, reviewMessage = outcome.message)
+                is AnalysisOutcome.NeedsClarification ->
+                    state.copy(
+                        isReanalyzing = false,
+                        reviewMessage = outcome.message,
+                        rawAiJson = rawJson
+                    )
 
-                    is AnalysisOutcome.ExerciseSaved ->
-                        state.copy(
-                            isReanalyzing = false,
-                            reviewMessage = "That looks like an activity, not a food item."
-                        )
-                }
+                is AnalysisOutcome.NotIdentified ->
+                    state.copy(
+                        isReanalyzing = false,
+                        reviewMessage = outcome.message,
+                        rawAiJson = rawJson
+                    )
+
+                is AnalysisOutcome.Error ->
+                    state.copy(
+                        isReanalyzing = false,
+                        reviewMessage = outcome.message,
+                        rawAiJson = rawJson
+                    )
+
+                is AnalysisOutcome.ExerciseSaved ->
+                    state.copy(
+                        isReanalyzing = false,
+                        reviewMessage = "That looks like an activity, not a food item.",
+                        rawAiJson = rawJson
+                    )
             }
         }
     }
@@ -1494,6 +1564,8 @@ class MainViewModel(
 
     /** Call after the review dialog's snackbar has shown [AnalysisUiState.reviewMessage]. */
     fun consumeReviewMessage() = _analysisState.update { it.copy(reviewMessage = null) }
+
+    fun consumeRawAiJson() = _analysisState.update { it.copy(rawAiJson = null) }
 
     private fun clearPending() {
         pendingText = ""

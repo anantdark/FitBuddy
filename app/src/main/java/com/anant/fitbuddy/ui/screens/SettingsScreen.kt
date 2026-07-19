@@ -1,7 +1,12 @@
 package com.anant.fitbuddy.ui.screens
 
+import android.Manifest
+import android.content.Intent
 import android.graphics.ImageDecoder
 import android.graphics.drawable.Animatable
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.ImageView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -37,6 +42,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -61,9 +67,10 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +78,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
@@ -95,9 +103,16 @@ import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.settings.parseApiKeys
+import com.anant.fitbuddy.reminders.ReminderReceiver
+import com.anant.fitbuddy.reminders.ReminderScheduler
 import com.anant.fitbuddy.ui.viewmodel.ModelsUiState
 import com.anant.fitbuddy.ui.viewmodel.UpdateUiState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.shouldShowRationale
 import kotlinx.coroutines.delay
+import java.util.Locale
 
 private const val EASTER_EGG_TAP_TARGET = 31
 private const val EASTER_EGG_HINT_START = 25
@@ -105,7 +120,7 @@ private const val VERSION_RESET_TAPS = 8
 private const val DEVELOPER_UNLOCK_TAPS = 8
 private const val DEVELOPER_HINT_START = 3
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
@@ -130,8 +145,11 @@ fun SettingsScreen(
     onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
     onDeveloperUnlockHintDismiss: () -> Unit = {},
     onDeveloperUnlocked: () -> Unit = {},
+    onClearModelCooldowns: () -> Unit = {},
+    onTestNotificationSent: (ok: Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     // Local editable copies, re-seeded whenever persisted settings change.
     var provider by remember(settings) { mutableStateOf(settings.provider) }
     var openRouterKeys by remember(settings) {
@@ -156,7 +174,13 @@ fun SettingsScreen(
     var anantTapCount by remember { mutableIntStateOf(0) }
     var versionTapCount by remember { mutableIntStateOf(0) }
     var packageTapCount by remember { mutableIntStateOf(0) }
-    var developerUnlocked by rememberSaveable { mutableStateOf(false) }
+    val developerUnlocked = settings.developerModeUnlocked
+    var showReminderTimePicker by remember { mutableStateOf(false) }
+    var pendingEnableReminder by remember { mutableStateOf(false) }
+    var pendingTestNotification by remember { mutableStateOf(false) }
+
+    val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
 
     val openRouterKey = openRouterKeys.firstOrNull().orEmpty()
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
@@ -182,6 +206,21 @@ fun SettingsScreen(
             delay(2_000)
             packageTapCount = 0
             onDeveloperUnlockHintDismiss()
+        }
+    }
+
+    LaunchedEffect(notificationPermission.status.isGranted, pendingEnableReminder) {
+        if (pendingEnableReminder && notificationPermission.status.isGranted) {
+            pendingEnableReminder = false
+            onSave(settings.copy(dailyLogReminderEnabled = true))
+        }
+    }
+
+    LaunchedEffect(notificationPermission.status.isGranted, pendingTestNotification) {
+        if (pendingTestNotification && notificationPermission.status.isGranted) {
+            pendingTestNotification = false
+            val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
+            onTestNotificationSent(ok)
         }
     }
 
@@ -449,15 +488,177 @@ fun SettingsScreen(
             ) { Text("Save AI Settings") }
         }
 
-        // --- Updates (below AI provider) -------------------------------------------------
-        SettingsCard(title = "Updates", initiallyExpanded = false) {
+        // --- Preferences (reminders + appearance) ----------------------------------------
+        SettingsCard(title = "Preferences", initiallyExpanded = false) {
+            SettingToggleRow(
+                title = "Daily log reminder",
+                checked = settings.dailyLogReminderEnabled,
+                onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        pendingEnableReminder = false
+                        onSave(settings.copy(dailyLogReminderEnabled = false))
+                        return@SettingToggleRow
+                    }
+                    if (
+                        needsNotificationPermission &&
+                        !notificationPermission.status.isGranted
+                    ) {
+                        pendingEnableReminder = true
+                        notificationPermission.launchPermissionRequest()
+                    } else {
+                        onSave(settings.copy(dailyLogReminderEnabled = true))
+                    }
+                },
+                hintTitle = "Daily log reminder",
+                hint = "Local notification once a day (no Google Play Services). " +
+                    "Default time is 8:00 PM."
+            )
+            if (settings.dailyLogReminderEnabled) {
+                val hour12 = settings.dailyLogReminderHour % 12
+                val displayHour = if (hour12 == 0) 12 else hour12
+                val amPm = if (settings.dailyLogReminderHour < 12) "AM" else "PM"
+                val timeLabel = String.format(
+                    Locale.getDefault(),
+                    "%d:%02d %s",
+                    displayHour,
+                    settings.dailyLogReminderMinute,
+                    amPm
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showReminderTimePicker = true },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Reminder time", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            timeLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (!ReminderScheduler.canScheduleExactAlarms(context)) {
+                    Text(
+                        text = "Exact alarms are off for FitBuddy. Reminders may be delayed " +
+                            "until you allow Alarms & reminders in system settings.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    TextButton(
+                        onClick = {
+                            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                            } else {
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                            }
+                            runCatching { context.startActivity(intent) }
+                        }
+                    ) { Text("Allow exact alarms") }
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (
+                            needsNotificationPermission &&
+                            !notificationPermission.status.isGranted
+                        ) {
+                            pendingTestNotification = true
+                            notificationPermission.launchPermissionRequest()
+                            return@OutlinedButton
+                        }
+                        val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
+                        onTestNotificationSent(ok)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Send test notification")
+                }
+            }
+            if (
+                needsNotificationPermission &&
+                pendingEnableReminder &&
+                !notificationPermission.status.isGranted
+            ) {
+                Text(
+                    text = if (notificationPermission.status.shouldShowRationale) {
+                        "Notification permission is required to show reminders."
+                    } else {
+                        "Waiting for notification permission… If you dismissed the dialog, " +
+                            "enable notifications in system settings."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(
+                    onClick = {
+                        pendingEnableReminder = false
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+                        runCatching { context.startActivity(intent) }
+                    }
+                ) { Text("Open notification settings") }
+            }
+            SettingToggleRow(
+                title = "Material You",
+                checked = settings.dynamicColor,
+                onCheckedChange = onDynamicColorChange,
+                hintTitle = "Material You",
+                hint = "Use wallpaper-based dynamic colors (Android 12+)."
+            )
+        }
+
+        if (showReminderTimePicker) {
+            val pickerState = rememberTimePickerState(
+                initialHour = settings.dailyLogReminderHour,
+                initialMinute = settings.dailyLogReminderMinute,
+                is24Hour = false
+            )
+            AlertDialog(
+                onDismissRequest = { showReminderTimePicker = false },
+                title = { Text("Reminder time") },
+                text = { TimePicker(state = pickerState) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onSave(
+                                settings.copy(
+                                    dailyLogReminderEnabled = true,
+                                    dailyLogReminderHour = pickerState.hour,
+                                    dailyLogReminderMinute = pickerState.minute
+                                )
+                            )
+                            showReminderTimePicker = false
+                        }
+                    ) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReminderTimePicker = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        // --- Updates & support (updates + crash reports) ---------------------------------
+        SettingsCard(title = "Updates & support", initiallyExpanded = false) {
+            val clipboard = LocalClipboardManager.current
             Text(
                 text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             SettingToggleRow(
-                title = "Check automatically",
+                title = "Check for updates automatically",
                 checked = settings.autoCheckUpdates,
                 onCheckedChange = onAutoCheckUpdatesChange,
                 hintTitle = "Automatic updates",
@@ -489,11 +690,6 @@ fun SettingsScreen(
                     }
                 )
             }
-        }
-
-        // --- Crash reports ---------------------------------------------------------------
-        SettingsCard(title = "Crash reports", initiallyExpanded = false) {
-            val clipboard = LocalClipboardManager.current
             SettingToggleRow(
                 title = "Send crash reports",
                 checked = settings.crashReportingEnabled,
@@ -531,17 +727,6 @@ fun SettingsScreen(
                     Icon(Icons.Filled.ContentCopy, contentDescription = "Copy support ID")
                 }
             }
-        }
-
-        // --- Appearance ------------------------------------------------------------------
-        SettingsCard(title = "Appearance", initiallyExpanded = false) {
-            SettingToggleRow(
-                title = "Material You",
-                checked = settings.dynamicColor,
-                onCheckedChange = onDynamicColorChange,
-                hintTitle = "Material You",
-                hint = "Use wallpaper-based dynamic colors (Android 12+)."
-            )
         }
 
         // --- Backup & Data ---------------------------------------------------------------
@@ -604,7 +789,6 @@ fun SettingsScreen(
                         packageTapCount >= DEVELOPER_UNLOCK_TAPS -> {
                             packageTapCount = 0
                             onDeveloperUnlockHintDismiss()
-                            developerUnlocked = true
                             onDeveloperUnlocked()
                         }
                         packageTapCount >= DEVELOPER_HINT_START -> {
@@ -647,13 +831,56 @@ fun SettingsScreen(
         }
 
         if (developerUnlocked) {
-            SettingsCard(title = "Developer", initiallyExpanded = true) {
+            SettingsCard(title = "Developer", initiallyExpanded = false) {
                 Text(
-                    text = "Tools for debugging. Force crash sends a test event to Sentry " +
-                        "(if crash reports are enabled).",
+                    text = "Niche debug / experimental tools. Stay unlocked across restarts.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                SettingToggleRow(
+                    title = "Force offline AI simulator",
+                    checked = settings.forceOfflineAiSimulator,
+                    onCheckedChange = {
+                        onSave(settings.copy(forceOfflineAiSimulator = it))
+                    },
+                    hintTitle = "Force offline AI",
+                    hint = "Bypass live API and use the bundled text simulator " +
+                        "(photos still need a real provider)."
+                )
+                SettingToggleRow(
+                    title = "Show raw AI JSON",
+                    checked = settings.showRawAiJson,
+                    onCheckedChange = {
+                        onSave(settings.copy(showRawAiJson = it))
+                    },
+                    hintTitle = "Raw AI JSON",
+                    hint = "After each analysis, show the last raw JSON response."
+                )
+                SettingToggleRow(
+                    title = "Strict clarification",
+                    checked = settings.strictClarification,
+                    onCheckedChange = {
+                        onSave(settings.copy(strictClarification = it))
+                    },
+                    hintTitle = "Strict clarification",
+                    hint = "Experimental: prefer asking for portions when counts are ambiguous."
+                )
+                SettingToggleRow(
+                    title = "Verbose HTTP logging",
+                    checked = settings.verboseHttpLogging,
+                    onCheckedChange = {
+                        onSave(settings.copy(verboseHttpLogging = it))
+                    },
+                    hintTitle = "Verbose HTTP",
+                    hint = "Log full OkHttp request/response bodies (including on release builds). " +
+                        "May include API keys in logcat — keep off unless debugging."
+                )
+                OutlinedButton(
+                    onClick = onClearModelCooldowns,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear model cooldowns")
+                }
                 OutlinedButton(
                     onClick = {
                         throw RuntimeException("FitBuddy Sentry test crash")

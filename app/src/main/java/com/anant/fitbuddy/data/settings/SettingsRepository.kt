@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.anant.fitbuddy.BuildConfig
@@ -88,7 +89,17 @@ class SettingsRepository(context: Context) {
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: true,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: true,
-            easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false
+            easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
+            dailyLogReminderEnabled = prefs[KEY_DAILY_LOG_REMINDER] ?: true,
+            dailyLogReminderHour = (prefs[KEY_DAILY_LOG_REMINDER_HOUR]
+                ?: AppSettings.DEFAULT_REMINDER_HOUR).coerceIn(0, 23),
+            dailyLogReminderMinute = (prefs[KEY_DAILY_LOG_REMINDER_MINUTE]
+                ?: AppSettings.DEFAULT_REMINDER_MINUTE).coerceIn(0, 59),
+            developerModeUnlocked = prefs[KEY_DEVELOPER_UNLOCKED] ?: false,
+            forceOfflineAiSimulator = prefs[KEY_FORCE_OFFLINE_AI] ?: false,
+            showRawAiJson = prefs[KEY_SHOW_RAW_AI_JSON] ?: false,
+            strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
+            verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false
         )
     }
 
@@ -135,6 +146,11 @@ class SettingsRepository(context: Context) {
             current[key] = maxOf(existing, until)
             prefs[KEY_MODEL_COOLDOWNS] = encodeModelCooldowns(current)
         }
+    }
+
+    /** Clears all persisted model rate-limit cooldowns (developer tooling). */
+    suspend fun clearModelCooldowns() {
+        dataStore.edit { prefs -> prefs.remove(KEY_MODEL_COOLDOWNS) }
     }
 
     /**
@@ -186,6 +202,14 @@ class SettingsRepository(context: Context) {
                 prefs[KEY_SUPPORT_ID] = settings.supportId
             }
             prefs[KEY_EASTER_EGG] = settings.easterEggDiscovered
+            prefs[KEY_DAILY_LOG_REMINDER] = settings.dailyLogReminderEnabled
+            prefs[KEY_DAILY_LOG_REMINDER_HOUR] = settings.dailyLogReminderHour.coerceIn(0, 23)
+            prefs[KEY_DAILY_LOG_REMINDER_MINUTE] = settings.dailyLogReminderMinute.coerceIn(0, 59)
+            prefs[KEY_DEVELOPER_UNLOCKED] = settings.developerModeUnlocked
+            prefs[KEY_FORCE_OFFLINE_AI] = settings.forceOfflineAiSimulator
+            prefs[KEY_SHOW_RAW_AI_JSON] = settings.showRawAiJson
+            prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
+            prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
             // Cooldowns stay until UTC midnight; AI calls still update active after success.
             // Save always resets Auto selection to the preferred provider's current models
             // (covers platform change, Local↔Cloud, and dropdown edits).
@@ -235,5 +259,13 @@ class SettingsRepository(context: Context) {
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
         val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
         val KEY_MODEL_COOLDOWNS = stringPreferencesKey("ai_model_cooldowns")
+        val KEY_DAILY_LOG_REMINDER = booleanPreferencesKey("daily_log_reminder_enabled")
+        val KEY_DAILY_LOG_REMINDER_HOUR = intPreferencesKey("daily_log_reminder_hour")
+        val KEY_DAILY_LOG_REMINDER_MINUTE = intPreferencesKey("daily_log_reminder_minute")
+        val KEY_DEVELOPER_UNLOCKED = booleanPreferencesKey("developer_mode_unlocked")
+        val KEY_FORCE_OFFLINE_AI = booleanPreferencesKey("force_offline_ai_simulator")
+        val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
+        val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
+        val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
     }
 }

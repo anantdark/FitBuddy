@@ -3,6 +3,7 @@ package com.anant.fitbuddy.data.remote
 import com.anant.fitbuddy.data.model.FitnessTrackerResponse
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.CustomExerciseResponse
+import com.anant.fitbuddy.data.model.NorthIndianStaples
 import com.anant.fitbuddy.data.model.ParsedWorkoutResponse
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
@@ -46,6 +47,11 @@ class RemoteAiDataSource(
     private val customExerciseAdapter = moshi.adapter(CustomExerciseResponse::class.java)
     private val parsedWorkoutAdapter = moshi.adapter(ParsedWorkoutResponse::class.java)
 
+    /** Last assistant JSON string from [completeToJson] (developer tooling). */
+    @Volatile
+    var lastRawJson: String? = null
+        private set
+
     private companion object {
         const val OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
         const val GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -61,7 +67,13 @@ class RemoteAiDataSource(
         imageDataUrl: String?,
         forceEstimate: Boolean = false
     ): FitnessTrackerResponse {
-        val promptText = buildPrompt(userStateContextJson, userText, imageDataUrl != null, forceEstimate)
+        val promptText = buildPrompt(
+            userStateContextJson,
+            userText,
+            imageDataUrl != null,
+            forceEstimate,
+            strictClarification = settings.developerModeUnlocked && settings.strictClarification
+        )
         val cleanJson = completeToJson(settings, promptText, imageDataUrl)
         return parseJson(responseAdapter, cleanJson)
     }
@@ -172,7 +184,9 @@ class RemoteAiDataSource(
                         .getOrElse { throw IllegalStateException(e.message, e.cause) }
                 }
         }
-        return extractJson(response)
+        val json = extractJson(response)
+        lastRawJson = json
+        return json
     }
 
     private suspend fun sendChat(
@@ -463,7 +477,8 @@ class RemoteAiDataSource(
         userStateContextJson: String,
         userText: String,
         hasImage: Boolean,
-        forceEstimate: Boolean
+        forceEstimate: Boolean,
+        strictClarification: Boolean = false
     ): String = """
         You are FitBuddy, a nutrition and fitness analysis engine optimised for North Indian
         (Hindi belt / Punjabi / Delhi-NCR / UP / Haryana / Rajasthan) home and street food.
@@ -496,17 +511,23 @@ class RemoteAiDataSource(
           "chole bhature", "rajma chawal", "paneer bhurji", "aloo paratha with curd".
         - Street / snack: samosa, pakora, aloo tikki, golgappe/pani puri, chaat, pav bhaji,
           chole kulche, jalebi, lassi, chai.
-        - Cooking fats: assume ghee or mustard/refined oil typical of North Indian home cooking
-          when oil type is not specified; do not invent coconut oil unless the dish implies it.
+        - Cooking fats: when the dish is tadka, fried, buttery, or makhani and oil/ghee is not
+          stated, include "ghee" or "oil" as its OWN ingredient with a typical home amount
+          (often ~1 tsp / 5 g). Do not invent coconut oil unless the dish implies it.
         - Naming: use familiar North Indian dish names in "dish_name" (Hinglish ok). Break
-          thalis into named components (roti, dal, sabzi, rice, raita) rather than "mixed plate".
+          thalis and combos into named components (roti, dal, sabzi, rice, raita, bhatura)
+          rather than "mixed plate" — especially chole bhature, rajma chawal, dal chawal.
 
-        Typical North Indian portion cues (adjust to visible size / stated count):
-        - 1 roti/chapati/phulka ~30-40 g; 1 stuffed paratha ~80-120 g; 1 naan ~90-110 g;
-          1 bhatura ~70-90 g.
-        - 1 katori dal / kadhi / gravy sabzi ~140-180 g; dry sabzi katori ~100-140 g;
-          cooked rice bowl ~150-200 g; curd/raita katori ~100-150 g.
-        - Chole bhature / rajma chawal: estimate each component separately.
+        ${NorthIndianStaples.promptReferenceTable()}
+
+        Clarification for countable staples (text only, no clear photo portions):
+        - If the user mentions roti/paratha/naan/bhatura/samosa/eggs without a count
+          (e.g. "roti sabzi", "paratha with curd"), return CLARIFICATION_REQUIRED asking how many,
+          unless ${if (hasImage) "the attached photo makes portion size obvious" else "a count is stated"}.
+        ${if (strictClarification) """
+        STRICT CLARIFICATION MODE (on): when any portion is ambiguous, prefer
+        CLARIFICATION_REQUIRED over guessing. Ask one short, specific question.
+        """.trimIndent() else ""}
 
         Accuracy rules (important):
         - Only report food you actually see in the image / that is explicitly described. Never
@@ -521,12 +542,12 @@ class RemoteAiDataSource(
         the sum of the ingredient macros.
 
         Ingredient quantity rules (critical for loose text):
-        - When the user states a count of discrete items ("4 almonds", "2 rotis", "3 eggs"),
-          set "quantity" to that count and "weight_g" to the TOTAL grams for all units combined
-          (not grams per unit). Example: "4 almonds" -> quantity 4, weight_g ~5-6, macros for
-          all 4 almonds combined.
+        - When the user states a count of discrete items ("4 almonds", "2 rotis", "3 eggs",
+          "do roti", "teen paratha"), set "quantity" to that count and "weight_g" to the TOTAL
+          grams for all units combined (not grams per unit). Example: "4 almonds" -> quantity 4,
+          weight_g ~5-6, macros for all 4 almonds combined.
         - For bulk or continuous portions (rice, dal, sabzi, milk, curd), use quantity 1 and
-          weight_g as the portion weight in grams.
+          weight_g as the portion weight in grams. "ek katori" / "1 bowl" → one katori/bowl prior.
         - Never treat a leading count in the user's text as grams (e.g. "4 almonds" must NOT become
           1 almond at 4 g).
 
