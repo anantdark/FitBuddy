@@ -1,6 +1,16 @@
 package com.anant.fitbuddy.ui.screens
 
+import android.graphics.ImageDecoder
+import android.graphics.drawable.Animatable
+import android.widget.ImageView
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,7 +20,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -56,22 +68,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.R
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
@@ -596,23 +615,27 @@ fun SettingsScreen(
             )
             AboutRow(
                 label = "Created by",
-                value = "Anant",
-                onValueClick = {
-                    if (settings.easterEggDiscovered) {
-                        onAnantTapWhenUnlocked()
-                        return@AboutRow
-                    }
-                    anantTapCount++
-                    when {
-                        anantTapCount >= EASTER_EGG_TAP_TARGET -> {
-                            anantTapCount = 0
-                            onAnantTapHintDismiss()
-                            onEasterEggTriggered()
+                valueContent = {
+                    RainbowCreditBadge(
+                        name = "Anant",
+                        onClick = {
+                            if (settings.easterEggDiscovered) {
+                                onAnantTapWhenUnlocked()
+                                return@RainbowCreditBadge
+                            }
+                            anantTapCount++
+                            when {
+                                anantTapCount >= EASTER_EGG_TAP_TARGET -> {
+                                    anantTapCount = 0
+                                    onAnantTapHintDismiss()
+                                    onEasterEggTriggered()
+                                }
+                                anantTapCount >= EASTER_EGG_HINT_START -> {
+                                    onAnantTapHint(EASTER_EGG_TAP_TARGET - anantTapCount)
+                                }
+                            }
                         }
-                        anantTapCount >= EASTER_EGG_HINT_START -> {
-                            onAnantTapHint(EASTER_EGG_TAP_TARGET - anantTapCount)
-                        }
-                    }
+                    )
                 }
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
@@ -1247,29 +1270,131 @@ private fun HintIconButton(
     }
 }
 
+private val rainbowAnimationSpec = infiniteRepeatable<Float>(
+    animation = tween(durationMillis = 2800, easing = LinearEasing),
+    repeatMode = RepeatMode.Restart
+)
+
+@Composable
+private fun rememberCyclingHue(): Float {
+    val transition = rememberInfiniteTransition(label = "createdByRainbow")
+    val hue by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = rainbowAnimationSpec,
+        label = "hue"
+    )
+    return hue
+}
+
+private fun hsvRainbow(hue: Float): Color =
+    Color.hsv(hue = ((hue % 360f) + 360f) % 360f, saturation = 0.85f, value = 0.95f)
+
+/** Rainbow text where each letter is hue-offset so color travels across the word. */
+private fun cyclingRainbowText(text: String, hue: Float): AnnotatedString {
+    val stepDegrees = 360f / text.length.coerceAtLeast(1)
+    return buildAnnotatedString {
+        text.forEachIndexed { index, char ->
+            withStyle(SpanStyle(color = hsvRainbow(hue + index * stepDegrees))) {
+                append(char)
+            }
+        }
+    }
+}
+
+/** Sweeping rainbow border brush — hues travel around the box like the letter wave. */
+private fun rainbowBorderBrush(hue: Float): Brush {
+    val stops = 8
+    val colors = List(stops + 1) { i ->
+        hsvRainbow(hue + i * (360f / stops))
+    }
+    return Brush.sweepGradient(colors = colors)
+}
+
+/** Name + party parrot inside a hue-cycling rainbow border. */
+@Composable
+private fun RainbowCreditBadge(name: String, onClick: () -> Unit) {
+    val hue = rememberCyclingHue()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .border(
+                width = 1.5.dp,
+                brush = rainbowBorderBrush(hue),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = cyclingRainbowText(name, hue),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(Modifier.width(4.dp))
+        PartyParrot()
+    }
+}
+
+/** Classic animated party parrot (cultofthepartyparrot.com). */
+@Composable
+private fun PartyParrot(modifier: Modifier = Modifier) {
+    AndroidView(
+        factory = { context ->
+            ImageView(context).apply {
+                contentDescription = "Party parrot"
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                val drawable = ImageDecoder.decodeDrawable(
+                    ImageDecoder.createSource(context.resources, R.raw.party_parrot)
+                )
+                setImageDrawable(drawable)
+                if (drawable is Animatable) drawable.start()
+            }
+        },
+        modifier = modifier.size(20.dp)
+    )
+}
+
 @Composable
 private fun AboutRow(
     label: String,
     value: String,
     onValueClick: (() -> Unit)? = null
 ) {
-    Row(modifier = Modifier.fillMaxWidth()) {
+    AboutRow(
+        label = label,
+        valueContent = {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = if (onValueClick != null) {
+                    Modifier.clickable(onClick = onValueClick)
+                } else {
+                    Modifier
+                }
+            )
+        }
+    )
+}
+
+@Composable
+private fun AboutRow(
+    label: String,
+    valueContent: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            modifier = if (onValueClick != null) {
-                Modifier.clickable(onClick = onValueClick)
-            } else {
-                Modifier
-            }
-        )
+        valueContent()
     }
 }
 
