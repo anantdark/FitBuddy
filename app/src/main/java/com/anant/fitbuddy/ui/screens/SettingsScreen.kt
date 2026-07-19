@@ -159,6 +159,9 @@ fun SettingsScreen(
     onClearModelCooldowns: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     onPermissionDenied: (message: String) -> Unit = {},
+    mongoBackupBusy: Boolean = false,
+    onMongoUpload: (uri: String, dbName: String) -> Unit = { _, _ -> },
+    onMongoDownload: (uri: String, dbName: String, supportId: String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -193,6 +196,14 @@ fun SettingsScreen(
     var pendingEnableReminder by remember { mutableStateOf(false) }
     var pendingTestNotification by remember { mutableStateOf(false) }
     var awaitingExactAlarmSettings by remember { mutableStateOf(false) }
+    var mongoUriDraft by remember(settings.mongoDbUri) { mutableStateOf(settings.mongoDbUri) }
+    var mongoDbNameDraft by remember(settings.mongoDbName) {
+        mutableStateOf(settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME })
+    }
+    var showMongoRestoreConfirm by remember { mutableStateOf(false) }
+    var mongoRestoreSupportIdDraft by remember(settings.supportId) {
+        mutableStateOf(settings.supportId)
+    }
 
     val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS) { granted ->
@@ -967,10 +978,157 @@ fun SettingsScreen(
                 ) {
                     Text("Force test crash")
                 }
+
+                Text(
+                    text = "MongoDB Atlas backup",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    text = "Personal cluster only. Paste your Atlas connection string to enable " +
+                        "weekly auto-upload. Each install uploads under its Support ID " +
+                        "(document `_id`). Stays active after hiding Developer settings; " +
+                        "clear the URI to disable. Same BackupData v5 JSON as file export/import.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (settings.supportId.isNotBlank()) {
+                    Text(
+                        text = "This device’s Support ID: ${settings.supportId}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedTextField(
+                    value = mongoUriDraft,
+                    onValueChange = { mongoUriDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Atlas connection URI") },
+                    placeholder = { Text("mongodb+srv://…") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                )
+                OutlinedTextField(
+                    value = mongoDbNameDraft,
+                    onValueChange = { mongoDbNameDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Database name") },
+                    singleLine = true,
+                    placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
+                )
+                OutlinedButton(
+                    onClick = {
+                        onSaveQuiet(
+                            settings.copy(
+                                mongoDbUri = mongoUriDraft.trim(),
+                                mongoDbName = mongoDbNameDraft.trim()
+                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !mongoBackupBusy
+                ) {
+                    Text("Save MongoDB settings")
+                }
+                val statusText = when {
+                    settings.mongoDbUri.isBlank() -> "Not configured — weekly upload off"
+                    settings.mongoLastUploadAt <= 0L ->
+                        "Configured — weekly upload on (no upload yet)"
+                    settings.mongoLastUploadOk ->
+                        "Last upload OK · ${formatMongoUploadTime(settings.mongoLastUploadAt)}"
+                    else ->
+                        "Last upload failed · ${formatMongoUploadTime(settings.mongoLastUploadAt)}" +
+                            settings.mongoLastError.takeIf { it.isNotBlank() }?.let { "\n$it" }
+                                .orEmpty()
+                }
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (mongoBackupBusy) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                OutlinedButton(
+                    onClick = {
+                        onMongoUpload(
+                            mongoUriDraft.trim(),
+                            mongoDbNameDraft.trim()
+                                .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = mongoUriDraft.isNotBlank() && !mongoBackupBusy
+                ) {
+                    Text("Upload now")
+                }
+                OutlinedButton(
+                    onClick = {
+                        mongoRestoreSupportIdDraft = settings.supportId
+                        showMongoRestoreConfirm = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = mongoUriDraft.isNotBlank() && !mongoBackupBusy
+                ) {
+                    Text("Download & restore")
+                }
             }
         }
 
+        if (showMongoRestoreConfirm) {
+            AlertDialog(
+                onDismissRequest = { showMongoRestoreConfirm = false },
+                title = { Text("Restore from Atlas?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "Enter the Support ID of the backup to restore. " +
+                                "This replaces all local FitBuddy data (same as file import)."
+                        )
+                        OutlinedTextField(
+                            value = mongoRestoreSupportIdDraft,
+                            onValueChange = { mongoRestoreSupportIdDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Support ID") },
+                            singleLine = true,
+                            placeholder = { Text("xxxxxxxx-xxxx-…") }
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showMongoRestoreConfirm = false
+                            onMongoDownload(
+                                mongoUriDraft.trim(),
+                                mongoDbNameDraft.trim()
+                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                                mongoRestoreSupportIdDraft.trim()
+                            )
+                        },
+                        enabled = mongoRestoreSupportIdDraft.isNotBlank()
+                    ) {
+                        Text("Restore")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showMongoRestoreConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
     }
+}
+
+private fun formatMongoUploadTime(epochMs: Long): String {
+    if (epochMs <= 0L) return "never"
+    return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        .format(java.util.Date(epochMs))
 }
 
 /** Update / download dialogs — shown from [MainScreen] so startup checks work outside Settings. */

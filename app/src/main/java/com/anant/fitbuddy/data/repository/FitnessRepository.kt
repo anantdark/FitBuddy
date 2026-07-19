@@ -3,6 +3,7 @@ package com.anant.fitbuddy.data.repository
 import android.net.Uri
 import android.util.Base64
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.mongo.MongoBackupRepository
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -83,7 +84,8 @@ class FitnessRepository(
     private val remoteAiDataSource: RemoteAiDataSource,
     private val openFoodFactsDataSource: OpenFoodFactsDataSource,
     private val settingsRepository: SettingsRepository,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
     val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
@@ -160,6 +162,56 @@ class FitnessRepository(
     suspend fun exportData(uri: Uri): Int = backupManager.exportTo(uri)
 
     suspend fun importData(uri: Uri): Int = backupManager.importFrom(uri)
+
+    /**
+     * Uploads a BackupData v5 JSON snapshot to the configured personal Atlas cluster.
+     * Runtime gate is URI non-blank only — not developerModeUnlocked.
+     */
+    suspend fun uploadMongoBackup(): Int {
+        val settings = settingsRepository.settings.first()
+        if (settings.mongoDbUri.isBlank()) {
+            error("MongoDB URI not configured")
+        }
+        val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
+        return try {
+            val data = backupManager.buildBackupData()
+            val payloadJson = backupManager.encode(data)
+            mongoBackupRepository.upload(
+                connectionUri = settings.mongoDbUri,
+                databaseName = settings.mongoDbName,
+                supportId = supportId,
+                payloadJson = payloadJson,
+                exportedAt = data.exportedAt
+            )
+            val count = backupManager.countRecords(data)
+            settingsRepository.setMongoUploadStatus(ok = true)
+            count
+        } catch (e: Exception) {
+            settingsRepository.setMongoUploadStatus(
+                ok = false,
+                error = e.message ?: e.javaClass.simpleName
+            )
+            throw e
+        }
+    }
+
+    /** Restores the Atlas document whose `_id` is [supportId]. */
+    suspend fun downloadMongoBackup(supportId: String): Int {
+        val settings = settingsRepository.settings.first()
+        if (settings.mongoDbUri.isBlank()) {
+            error("MongoDB URI not configured")
+        }
+        val id = supportId.trim()
+        if (id.isBlank()) {
+            error("Support ID is required to restore")
+        }
+        val payloadJson = mongoBackupRepository.downloadPayloadJson(
+            connectionUri = settings.mongoDbUri,
+            databaseName = settings.mongoDbName,
+            supportId = id
+        )
+        return backupManager.importFromJson(payloadJson)
+    }
 
     fun getFoodLogsForDate(dateString: String): Flow<List<FoodLog>> = foodLogDao.getFoodLogsByDate(dateString)
     fun getExerciseLogsForDate(dateString: String): Flow<List<ExerciseLog>> = exerciseLogDao.getExerciseLogsByDate(dateString)

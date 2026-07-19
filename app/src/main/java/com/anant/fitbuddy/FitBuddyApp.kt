@@ -4,6 +4,7 @@ import android.app.Application
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
@@ -90,6 +91,7 @@ class FitBuddyApp : Application() {
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         ReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)
+        MongoBackupScheduler.applyFromSettings(this, settings)
         appScope.launch {
             settingsRepository.settings
                 .map { s ->
@@ -107,6 +109,18 @@ class FitBuddyApp : Application() {
                         ReminderScheduler.scheduleNext(this@FitBuddyApp, hour, minute)
                     } else {
                         ReminderScheduler.cancel(this@FitBuddyApp)
+                    }
+                }
+        }
+        appScope.launch {
+            settingsRepository.settings
+                .map { Triple(it.mongoDbUri, it.mongoDbName, it.mongoLastUploadAt) }
+                .distinctUntilChanged()
+                .collect { (uri, _, lastUploadAt) ->
+                    if (uri.isNotBlank()) {
+                        MongoBackupScheduler.scheduleNext(this@FitBuddyApp, lastUploadAt)
+                    } else {
+                        MongoBackupScheduler.cancel(this@FitBuddyApp)
                     }
                 }
         }

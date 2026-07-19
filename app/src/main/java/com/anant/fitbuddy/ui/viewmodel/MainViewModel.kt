@@ -1248,6 +1248,61 @@ class MainViewModel(
         }
     }
 
+    private val _mongoBackupBusy = MutableStateFlow(false)
+    val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
+
+    fun uploadMongoBackup(uri: String, dbName: String) {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            runCatching {
+                settingsRepository.save(
+                    settings.value.copy(
+                        mongoDbUri = uri.trim(),
+                        mongoDbName = dbName.trim().ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                    )
+                )
+                repository.uploadMongoBackup()
+            }
+                .onSuccess { count ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Uploaded $count records to MongoDB Atlas")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "MongoDB upload failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    fun downloadMongoBackup(uri: String, dbName: String, supportId: String) {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            runCatching {
+                settingsRepository.save(
+                    settings.value.copy(
+                        mongoDbUri = uri.trim(),
+                        mongoDbName = dbName.trim().ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                    )
+                )
+                repository.downloadMongoBackup(supportId)
+            }
+                .onSuccess { count ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Restored $count records from MongoDB Atlas")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "MongoDB restore failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
     // --- AI analysis ------------------------------------------------------------------------
 
     private val _analysisState = MutableStateFlow(AnalysisUiState())

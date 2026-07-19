@@ -104,6 +104,13 @@ android {
     installation {
         installOptions += listOf("--user", "0")
     }
+    // MongoDB driver JARs both ship META-INF/native-image props; Android merge fails otherwise.
+    packaging {
+        resources {
+            excludes += "META-INF/native-image/**"
+            excludes += "META-INF/versions/9/previous-compilation-data.bin"
+        }
+    }
 }
 
 // Release APK: FitBuddy-<versionName>.apk (not app-release.apk).
@@ -146,6 +153,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.logging.interceptor)
     implementation(libs.material)
+    implementation(libs.mongodb.driver.sync)
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
     implementation(libs.play.services.location)

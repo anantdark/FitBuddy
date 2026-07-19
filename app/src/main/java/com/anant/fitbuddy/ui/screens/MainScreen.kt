@@ -132,6 +132,7 @@ fun MainScreen(
     val modelsState by viewModel.models.collectAsStateWithLifecycle()
     val textModelsState by viewModel.textModels.collectAsStateWithLifecycle()
     val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
+    val mongoBackupBusy by viewModel.mongoBackupBusy.collectAsStateWithLifecycle()
     val mealPresets by viewModel.mealPresets.collectAsStateWithLifecycle()
     val savedFoods by viewModel.savedFoods.collectAsStateWithLifecycle()
     val measurements by viewModel.bodyMeasurements.collectAsStateWithLifecycle()
@@ -426,6 +427,9 @@ fun MainScreen(
                         snackbarHostState.showFitBuddyPill(message)
                     }
                 },
+                mongoBackupBusy = mongoBackupBusy,
+                onMongoUpload = viewModel::uploadMongoBackup,
+                onMongoDownload = viewModel::downloadMongoBackup,
                 modifier = Modifier.padding(innerPadding)
             )
         }

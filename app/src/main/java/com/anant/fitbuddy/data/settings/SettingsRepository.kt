@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.anant.fitbuddy.BuildConfig
@@ -101,7 +102,13 @@ class SettingsRepository(context: Context) {
             forceOfflineAiSimulator = prefs[KEY_FORCE_OFFLINE_AI] ?: false,
             showRawAiJson = prefs[KEY_SHOW_RAW_AI_JSON] ?: false,
             strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
-            verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false
+            verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
+            mongoDbUri = prefs[KEY_MONGO_URI].orEmpty(),
+            mongoDbName = prefs[KEY_MONGO_DB_NAME]?.ifBlank { null }
+                ?: AppSettings.DEFAULT_MONGO_DB_NAME,
+            mongoLastUploadAt = prefs[KEY_MONGO_LAST_UPLOAD_AT] ?: 0L,
+            mongoLastUploadOk = prefs[KEY_MONGO_LAST_UPLOAD_OK] ?: false,
+            mongoLastError = prefs[KEY_MONGO_LAST_ERROR].orEmpty()
         )
     }
 
@@ -205,6 +212,10 @@ class SettingsRepository(context: Context) {
             prefs[KEY_SHOW_RAW_AI_JSON] = settings.showRawAiJson
             prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
+            prefs[KEY_MONGO_URI] = settings.mongoDbUri
+            prefs[KEY_MONGO_DB_NAME] = settings.mongoDbName.ifBlank {
+                AppSettings.DEFAULT_MONGO_DB_NAME
+            }
             // Cooldowns stay until UTC midnight; AI calls still update active after success.
             // Save always resets Auto selection to the preferred provider's current models
             // (covers platform change, Local↔Cloud, and dropdown edits).
@@ -226,6 +237,15 @@ class SettingsRepository(context: Context) {
             } else {
                 prefs.remove(KEY_ACTIVE_TEXT_MODEL)
             }
+        }
+    }
+
+    /** Records the outcome of a MongoDB cloud upload without touching AI active-model keys. */
+    suspend fun setMongoUploadStatus(ok: Boolean, error: String = "", at: Long = System.currentTimeMillis()) {
+        dataStore.edit { prefs ->
+            prefs[KEY_MONGO_LAST_UPLOAD_AT] = at
+            prefs[KEY_MONGO_LAST_UPLOAD_OK] = ok
+            prefs[KEY_MONGO_LAST_ERROR] = error.take(500)
         }
     }
 
@@ -290,5 +310,10 @@ class SettingsRepository(context: Context) {
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
         val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
+        val KEY_MONGO_URI = stringPreferencesKey("mongo_db_uri")
+        val KEY_MONGO_DB_NAME = stringPreferencesKey("mongo_db_name")
+        val KEY_MONGO_LAST_UPLOAD_AT = longPreferencesKey("mongo_last_upload_at")
+        val KEY_MONGO_LAST_UPLOAD_OK = booleanPreferencesKey("mongo_last_upload_ok")
+        val KEY_MONGO_LAST_ERROR = stringPreferencesKey("mongo_last_error")
     }
 }

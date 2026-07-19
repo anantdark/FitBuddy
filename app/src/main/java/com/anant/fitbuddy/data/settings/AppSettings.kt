@@ -95,8 +95,23 @@ data class AppSettings(
     /** Developer/experimental: prompt prefers CLARIFICATION_REQUIRED when portions are ambiguous. */
     val strictClarification: Boolean = false,
     /** Developer: OkHttp BODY logs even on release builds. */
-    val verboseHttpLogging: Boolean = false
+    val verboseHttpLogging: Boolean = false,
+    /**
+     * Personal MongoDB Atlas connection URI (Developer tools). When non-blank, weekly
+     * auto-upload and manual cloud backup stay enabled even if Developer mode is hidden.
+     */
+    val mongoDbUri: String = "",
+    /** Atlas database name for FitBuddy backups (default [DEFAULT_MONGO_DB_NAME]). */
+    val mongoDbName: String = DEFAULT_MONGO_DB_NAME,
+    /** Epoch ms of the last cloud upload attempt (0 = never). */
+    val mongoLastUploadAt: Long = 0L,
+    val mongoLastUploadOk: Boolean = false,
+    val mongoLastError: String = ""
 ) {
+    /** True when a MongoDB Atlas URI is configured (cloud backup enabled). */
+    val isMongoBackupConfigured: Boolean
+        get() = mongoDbUri.isNotBlank()
+
     /** Vision/multimodal model id sent for the active provider (used for photo analysis). */
     val model: String
         get() = when (provider) {
@@ -241,6 +256,7 @@ data class AppSettings(
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
+        const val DEFAULT_MONGO_DB_NAME = "fitbuddy"
 
         /** Build settings from key lists, syncing active key to the first entry. */
         fun withKeys(

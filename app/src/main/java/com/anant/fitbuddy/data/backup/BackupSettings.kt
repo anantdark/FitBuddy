@@ -7,8 +7,18 @@ import com.squareup.moshi.JsonClass
 
 /**
  * Serializable slice of [AppSettings] for backup JSON. Includes AI keys so a restore can
- * pick up on another device without re-entering Settings. Model cooldowns are omitted
- * (ephemeral rate-limit state).
+ * pick up on another device without re-entering Settings.
+ *
+ * Intentionally omitted (ephemeral / device-local):
+ * - model rate-limit cooldowns
+ * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
+ * - Sentry heartbeat day, in-flight OAuth PKCE verifier
+ *
+ * Active API key strings ([AppSettings.openRouterApiKey] etc.) are derived from the key lists
+ * on restore via [AppSettings.withKeys].
+ *
+ * When adding a user-facing [AppSettings] field, add it here + [from] + [toAppSettings],
+ * and extend [com.anant.fitbuddy.data.backup.BackupSettingsTest].
  */
 @JsonClass(generateAdapter = true)
 data class BackupSettings(
@@ -42,7 +52,9 @@ data class BackupSettings(
     val forceOfflineAiSimulator: Boolean = false,
     val showRawAiJson: Boolean = false,
     val strictClarification: Boolean = false,
-    val verboseHttpLogging: Boolean = false
+    val verboseHttpLogging: Boolean = false,
+    val mongoDbUri: String = "",
+    val mongoDbName: String = AppSettings.DEFAULT_MONGO_DB_NAME
 ) {
     fun toAppSettings(): AppSettings {
         val provider = runCatching { AiProvider.valueOf(provider) }.getOrDefault(AiProvider.OPENROUTER)
@@ -81,7 +93,9 @@ data class BackupSettings(
                 forceOfflineAiSimulator = forceOfflineAiSimulator,
                 showRawAiJson = showRawAiJson,
                 strictClarification = strictClarification,
-                verboseHttpLogging = verboseHttpLogging
+                verboseHttpLogging = verboseHttpLogging,
+                mongoDbUri = mongoDbUri,
+                mongoDbName = mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
             )
         )
     }
@@ -118,7 +132,9 @@ data class BackupSettings(
             forceOfflineAiSimulator = settings.forceOfflineAiSimulator,
             showRawAiJson = settings.showRawAiJson,
             strictClarification = settings.strictClarification,
-            verboseHttpLogging = settings.verboseHttpLogging
+            verboseHttpLogging = settings.verboseHttpLogging,
+            mongoDbUri = settings.mongoDbUri,
+            mongoDbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
         )
     }
 }
