@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.data.backup
 
+import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.JsonClass
@@ -28,9 +29,9 @@ data class BackupSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
-    val autoCheckUpdates: Boolean = true,
+    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     val supportId: String = "",
-    val crashReportingEnabled: Boolean = true,
+    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
     val easterEggDiscovered: Boolean = false,
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = AppSettings.DEFAULT_REMINDER_HOUR,

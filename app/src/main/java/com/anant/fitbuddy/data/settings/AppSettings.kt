@@ -1,5 +1,7 @@
 package com.anant.fitbuddy.data.settings
 
+import com.anant.fitbuddy.BuildConfig
+
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
     OPENROUTER,
@@ -58,14 +60,14 @@ data class AppSettings(
      * When true, FitBuddy checks GitHub Releases for a newer APK shortly after startup
      * (and still allows a manual check in Settings).
      */
-    val autoCheckUpdates: Boolean = true,
+    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     /**
      * Anonymous install id for crash support (Sentry user.id). Generated once, never PII.
      * Share this with the developer when reporting a bug.
      */
     val supportId: String = "",
     /** When false, Sentry does not send crash events (SDK may still be initialized). */
-    val crashReportingEnabled: Boolean = true,
+    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
     /** Set when the Settings "Created by" easter egg is discovered — hides startup credit toast. */
     val easterEggDiscovered: Boolean = false,
     /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */

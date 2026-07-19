@@ -29,7 +29,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -37,7 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -75,6 +75,7 @@ import com.anant.fitbuddy.ui.components.FitBuddyLivePill
 import com.anant.fitbuddy.ui.components.FitBuddyPillConfig
 import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
+import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.util.ApkInstaller
 import com.anant.fitbuddy.util.ImageUtils
@@ -111,6 +112,7 @@ fun MainScreen(
     onOpenLogHubConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val dismissKeyboard = rememberDismissKeyboard()
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
@@ -344,7 +346,8 @@ fun MainScreen(
                 onLoadTextModels = { provider, apiKey, force, baseUrl ->
                     viewModel.loadFreeTextModels(provider, apiKey, force, baseUrl)
                 },
-                onSave = viewModel::saveSettings,
+                onSave = { viewModel.saveSettings(it, announce = true) },
+                onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
                 onDynamicColorChange = { enabled ->
                     viewModel.saveSettings(settings.copy(dynamicColor = enabled))
                 },
@@ -392,11 +395,14 @@ fun MainScreen(
                     livePillMessage = "$remaining taps to go"
                 },
                 onDeveloperUnlockHintDismiss = { livePillMessage = null },
-                onDeveloperUnlocked = {
+                onDeveloperModeToggled = { unlocked ->
                     livePillMessage = null
-                    viewModel.unlockDeveloperMode()
+                    viewModel.setDeveloperModeUnlocked(unlocked)
                     scope.launch {
-                        snackbarHostState.showFitBuddyPill("Developer settings unlocked")
+                        snackbarHostState.showFitBuddyPill(
+                            if (unlocked) "Developer settings unlocked"
+                            else "Developer settings hidden"
+                        )
                     }
                 },
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
@@ -449,7 +455,10 @@ fun MainScreen(
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
+                            onClick = {
+                                dismissKeyboard()
+                                selectedTab = tab
+                            },
                             icon = { Icon(tab.icon, contentDescription = tab.label) },
                             label = { Text(tab.label) }
                         )
@@ -459,7 +468,10 @@ fun MainScreen(
             floatingActionButton = {
                 if (selectedTab == Tab.DASHBOARD && !showWeekHistory) {
                     ExtendedFloatingActionButton(
-                        onClick = { showLogHub = true },
+                        onClick = {
+                            dismissKeyboard()
+                            showLogHub = true
+                        },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                         text = { Text("Log") }
                     )
@@ -571,7 +583,10 @@ fun MainScreen(
                     },
                     floatingActionButton = {
                         ExtendedFloatingActionButton(
-                            onClick = { showLogHub = true },
+                            onClick = {
+                                dismissKeyboard()
+                                showLogHub = true
+                            },
                             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                             text = { Text("Log") }
                         )

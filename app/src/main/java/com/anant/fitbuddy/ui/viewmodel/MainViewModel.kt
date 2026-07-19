@@ -366,18 +366,20 @@ class MainViewModel(
         .map { it.isConfigured }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    fun saveSettings(newSettings: AppSettings) {
+    fun saveSettings(newSettings: AppSettings, announce: Boolean = false) {
         viewModelScope.launch {
             settingsRepository.save(newSettings)
-            _analysisState.update { it.copy(userMessage = "Settings saved") }
+            if (announce) {
+                _analysisState.update { it.copy(userMessage = "Settings saved") }
+            }
         }
     }
 
-    fun unlockDeveloperMode() {
+    fun setDeveloperModeUnlocked(unlocked: Boolean) {
         viewModelScope.launch {
             val current = settings.value
-            if (!current.developerModeUnlocked) {
-                settingsRepository.save(current.copy(developerModeUnlocked = true))
+            if (current.developerModeUnlocked != unlocked) {
+                settingsRepository.save(current.copy(developerModeUnlocked = unlocked))
             }
         }
     }

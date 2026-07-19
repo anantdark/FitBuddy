@@ -45,18 +45,18 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -66,7 +66,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -105,6 +105,8 @@ import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.settings.parseApiKeys
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
+import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
+import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.ModelsUiState
 import com.anant.fitbuddy.ui.viewmodel.UpdateUiState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -129,6 +131,8 @@ fun SettingsScreen(
     onLoadModels: (AiProvider, String, Boolean, String) -> Unit,
     onLoadTextModels: (AiProvider, String, Boolean, String) -> Unit,
     onSave: (AppSettings) -> Unit,
+    /** Persist without a snackbar (e.g. Auto failover toggle). Defaults to [onSave]. */
+    onSaveQuiet: (AppSettings) -> Unit = onSave,
     onDynamicColorChange: (Boolean) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -144,7 +148,7 @@ fun SettingsScreen(
     onSupportIdCopied: () -> Unit = {},
     onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
     onDeveloperUnlockHintDismiss: () -> Unit = {},
-    onDeveloperUnlocked: () -> Unit = {},
+    onDeveloperModeToggled: (unlocked: Boolean) -> Unit = {},
     onClearModelCooldowns: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     modifier: Modifier = Modifier
@@ -227,6 +231,7 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .dismissKeyboardOnTap()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -238,12 +243,16 @@ fun SettingsScreen(
             SettingToggleRow(
                 title = "Auto failover",
                 checked = aiAutoFailover,
-                onCheckedChange = { aiAutoFailover = it },
+                onCheckedChange = { enabled ->
+                    aiAutoFailover = enabled
+                    // Persist immediately; leave other draft AI fields for Save AI Settings.
+                    onSaveQuiet(settings.copy(aiAutoFailover = enabled))
+                },
                 hintTitle = "Auto failover",
                 hint = "When on, FitBuddy tries other API keys, then other models on the " +
                     "same platform. When off, only your selected model is used, but " +
                     "other API keys are still tried on failure. Change platform " +
-                    "manually if everything fails."
+                    "manually if everything fails. Saves as soon as you toggle."
             )
 
             if (aiAutoFailover) {
@@ -567,23 +576,6 @@ fun SettingsScreen(
                         }
                     ) { Text("Allow exact alarms") }
                 }
-                OutlinedButton(
-                    onClick = {
-                        if (
-                            needsNotificationPermission &&
-                            !notificationPermission.status.isGranted
-                        ) {
-                            pendingTestNotification = true
-                            notificationPermission.launchPermissionRequest()
-                            return@OutlinedButton
-                        }
-                        val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
-                        onTestNotificationSent(ok)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Send test notification")
-                }
             }
             if (
                 needsNotificationPermission &&
@@ -783,13 +775,12 @@ fun SettingsScreen(
                 label = "Package",
                 value = BuildConfig.APPLICATION_ID,
                 onValueClick = {
-                    if (developerUnlocked) return@AboutRow
                     packageTapCount++
                     when {
                         packageTapCount >= DEVELOPER_UNLOCK_TAPS -> {
                             packageTapCount = 0
                             onDeveloperUnlockHintDismiss()
-                            onDeveloperUnlocked()
+                            onDeveloperModeToggled(!developerUnlocked)
                         }
                         packageTapCount >= DEVELOPER_HINT_START -> {
                             onDeveloperUnlockHint(DEVELOPER_UNLOCK_TAPS - packageTapCount)
@@ -800,13 +791,10 @@ fun SettingsScreen(
             AboutRow(
                 label = "Created by",
                 valueContent = {
-                    RainbowCreditBadge(
-                        name = "Anant",
-                        onClick = {
-                            if (settings.easterEggDiscovered) {
-                                onAnantTapWhenUnlocked()
-                                return@RainbowCreditBadge
-                            }
+                    val onAnantClick = {
+                        if (settings.easterEggDiscovered) {
+                            onAnantTapWhenUnlocked()
+                        } else {
                             anantTapCount++
                             when {
                                 anantTapCount >= EASTER_EGG_TAP_TARGET -> {
@@ -819,7 +807,20 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    )
+                    }
+                    if (settings.easterEggDiscovered) {
+                        Text(
+                            text = "Anant",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable(onClick = onAnantClick)
+                        )
+                    } else {
+                        RainbowCreditBadge(
+                            name = "Anant",
+                            onClick = onAnantClick
+                        )
+                    }
                 }
             )
             AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
@@ -833,7 +834,7 @@ fun SettingsScreen(
         if (developerUnlocked) {
             SettingsCard(title = "Developer", initiallyExpanded = false) {
                 Text(
-                    text = "Niche debug / experimental tools. Stay unlocked across restarts.",
+                    text = "Niche debug / experimental tools. Tap Package 8 times again to hide.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -880,6 +881,23 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Clear model cooldowns")
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (
+                            needsNotificationPermission &&
+                            !notificationPermission.status.isGranted
+                        ) {
+                            pendingTestNotification = true
+                            notificationPermission.launchPermissionRequest()
+                            return@OutlinedButton
+                        }
+                        val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
+                        onTestNotificationSent(ok)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Send test notification")
                 }
                 OutlinedButton(
                     onClick = {
@@ -1287,6 +1305,7 @@ private fun SettingToggleRow(
     hintTitle: String? = null,
     hint: String? = null
 ) {
+    val dismiss = rememberDismissKeyboard()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -1299,7 +1318,10 @@ private fun SettingToggleRow(
         if (hint != null && hintTitle != null) {
             HintIconButton(title = hintTitle, message = hint)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = { dismiss(); onCheckedChange(it) }
+        )
     }
 }
 

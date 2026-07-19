@@ -20,6 +20,7 @@ import com.anant.fitbuddy.ui.RequestStartupPermissions
 import com.anant.fitbuddy.ui.screens.MainScreen
 import com.anant.fitbuddy.ui.screens.OnboardingScreen
 import com.anant.fitbuddy.ui.theme.FitBuddyTheme
+import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.ui.viewmodel.MainViewModelFactory
 
@@ -36,40 +37,42 @@ class MainActivity : ComponentActivity() {
             // Read dynamic-color preference before theming so Material You toggles live.
             val settings by app.settingsRepository.settings.collectAsStateWithLifecycle(AppSettings())
             FitBuddyTheme(dynamicColor = settings.dynamicColor) {
-                val viewModel: MainViewModel = viewModel(
-                    factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
-                )
-                val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
-                val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
-                val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
+                Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
+                    val viewModel: MainViewModel = viewModel(
+                        factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
+                    )
+                    val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
+                    val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
+                    val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
 
-                when (needsOnboarding) {
-                    null -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
+                    when (needsOnboarding) {
+                        null -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
-                    }
 
-                    true -> {
-                        RequestStartupPermissions()
-                        OnboardingScreen(
-                            isSaving = onboardingSaving,
-                            isValidating = onboardingValidating,
-                            onValidateAi = viewModel::validateOnboardingAi,
-                            onComplete = viewModel::completeOnboarding
-                        )
-                    }
+                        true -> {
+                            RequestStartupPermissions()
+                            OnboardingScreen(
+                                isSaving = onboardingSaving,
+                                isValidating = onboardingValidating,
+                                onValidateAi = viewModel::validateOnboardingAi,
+                                onComplete = viewModel::completeOnboarding
+                            )
+                        }
 
-                    false -> {
-                        RequestStartupPermissions()
-                        MainScreen(
-                            viewModel = viewModel,
-                            openLogHubRequest = openLogHubRequest,
-                            onOpenLogHubConsumed = { openLogHubRequest = false }
-                        )
+                        false -> {
+                            RequestStartupPermissions()
+                            MainScreen(
+                                viewModel = viewModel,
+                                openLogHubRequest = openLogHubRequest,
+                                onOpenLogHubConsumed = { openLogHubRequest = false }
+                            )
+                        }
                     }
                 }
             }
