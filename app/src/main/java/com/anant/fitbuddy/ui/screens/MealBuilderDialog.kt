@@ -99,7 +99,7 @@ fun MealBuilderDialog(
                             )
                         )
                     }
-                ) { Text(if (isEditing) "Review changes" else "Review & save meal") }
+                ) { Text(if (isEditing) "Review changes" else "Review & save as preset") }
             }
         ) { innerPadding ->
             LazyColumn(

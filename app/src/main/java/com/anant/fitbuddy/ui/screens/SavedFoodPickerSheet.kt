@@ -29,9 +29,9 @@ import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.ui.components.pressable
 
-enum class SavedFoodSheetMode { PICK_FOR_MEAL, MANAGE_LIBRARY }
+enum class SavedFoodSheetMode { PICK_FOR_MEAL, LOG_TO_DAY, MANAGE_LIBRARY }
 
-/** Bottom sheet for picking a saved food while building a meal, or managing the food library. */
+/** Bottom sheet for picking a saved food (meal builder or one-tap log), or managing the library. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedFoodPickerSheet(
@@ -41,7 +41,7 @@ fun SavedFoodPickerSheet(
     onDelete: (SavedFood) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val pickEnabled = mode == SavedFoodSheetMode.PICK_FOR_MEAL
+    val pickEnabled = mode != SavedFoodSheetMode.MANAGE_LIBRARY
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Text(
@@ -50,10 +50,13 @@ fun SavedFoodPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = if (pickEnabled) {
-                    "Add a food to this meal. Save foods via barcode scan or the food review bookmark."
-                } else {
-                    "Foods you scan or bookmark for reuse when building meals."
+                text = when (mode) {
+                    SavedFoodSheetMode.PICK_FOR_MEAL ->
+                        "Add a food to this meal. Save foods via barcode scan or Save as preset on food review."
+                    SavedFoodSheetMode.LOG_TO_DAY ->
+                        "Tap a food to log it to the day you're viewing."
+                    SavedFoodSheetMode.MANAGE_LIBRARY ->
+                        "Foods you scan or save as preset for reuse when logging or building meals."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -62,7 +65,7 @@ fun SavedFoodPickerSheet(
 
             if (foods.isEmpty()) {
                 Text(
-                    text = "No saved foods yet. Scan a barcode on the Body tab, or bookmark a food after AI review.",
+                    text = "No saved foods yet. Scan a barcode on the Body tab, or save a food as preset after AI review.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)

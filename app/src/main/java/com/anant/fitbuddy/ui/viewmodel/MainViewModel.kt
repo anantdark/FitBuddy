@@ -629,6 +629,15 @@ class MainViewModel(
         }
     }
 
+    fun logSavedFood(food: SavedFood) {
+        viewModelScope.launch {
+            repository.logSavedFood(food, activeDayTimestamp())
+            _analysisState.update {
+                it.copy(userMessage = "Logged ${food.name} · ${food.calories} kcal")
+            }
+        }
+    }
+
     fun deleteMealPreset(preset: MealPreset) {
         viewModelScope.launch {
             repository.deleteMealPreset(preset)

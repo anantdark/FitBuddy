@@ -43,12 +43,18 @@ import androidx.compose.ui.window.DialogProperties
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.MealDraft
 
-/** Final review before persisting a meal (one or more foods), like confirming a workout session. */
+/**
+ * Final review before persisting a meal (one or more foods).
+ *
+ * When [saveAsPresetOnly] is true (new meal from the builder), the primary action saves a reusable
+ * preset instead of logging to today. Logging still happens via clone-to-today or the preset picker.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MealReviewDialog(
     draft: MealDraft,
     isEditing: Boolean,
+    saveAsPresetOnly: Boolean = false,
     onConfirm: (MealDraft) -> Unit,
     onSaveAsPreset: (MealDraft) -> Unit,
     onEditFood: (Int, FoodEntryDraft) -> Unit,
@@ -56,6 +62,17 @@ fun MealReviewDialog(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    fun savePreset() {
+        onSaveAsPreset(draft)
+        if (!saveAsPresetOnly) {
+            scope.launch {
+                snackbarHostState.showFitBuddyPill(
+                    "Saved \"${draft.name}\" as meal preset"
+                )
+            }
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -71,43 +88,51 @@ fun MealReviewDialog(
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Filled.Close, contentDescription = "Cancel")
                         }
-                    },
-                    actions = {
-                        IconButton(
-                            enabled = draft.foods.isNotEmpty(),
-                            onClick = {
-                                onSaveAsPreset(draft)
-                                scope.launch {
-                                    snackbarHostState.showFitBuddyPill(
-                                        "Saved \"${draft.name}\" as meal preset"
-                                    )
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Filled.BookmarkAdd,
-                                contentDescription = "Save as meal preset"
-                            )
-                        }
                     }
                 )
             },
             bottomBar = {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onDismiss
-                    ) { Text("Cancel") }
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        enabled = draft.foods.isNotEmpty(),
-                        onClick = { onConfirm(draft) }
-                    ) { Text(if (isEditing) "Update meal" else "Save meal") }
+                    if (!saveAsPresetOnly && !isEditing) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = draft.foods.isNotEmpty(),
+                            onClick = { savePreset() }
+                        ) {
+                            Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Save as preset")
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onDismiss
+                        ) { Text("Cancel") }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = draft.foods.isNotEmpty(),
+                            onClick = {
+                                if (saveAsPresetOnly) savePreset() else onConfirm(draft)
+                            }
+                        ) {
+                            Text(
+                                when {
+                                    isEditing -> "Update meal"
+                                    saveAsPresetOnly -> "Save as preset"
+                                    else -> "Save meal"
+                                }
+                            )
+                        }
+                    }
                 }
             }
         ) { innerPadding ->

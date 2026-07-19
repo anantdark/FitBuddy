@@ -118,54 +118,58 @@ fun FoodReviewDialog(
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Filled.Close, contentDescription = "Cancel")
                         }
-                    },
-                    actions = {
-                        IconButton(
-                            enabled = ingredients.isNotEmpty() && dishName.isNotBlank() && !isReanalyzing,
-                            onClick = {
-                                val name = dishName.trim()
-                                onSaveAsPreset(
-                                    draft.copy(
-                                        dishName = name,
-                                        ingredients = ingredients.toList()
-                                    )
-                                )
-                                scope.launch {
-                                    snackbarHostState.showFitBuddyPill("Saved \"$name\" to food library")
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Filled.BookmarkAdd,
-                                contentDescription = "Save to food library"
-                            )
-                        }
                     }
                 )
             },
             bottomBar = {
-                Row(
+                val canSave = ingredients.isNotEmpty() && dishName.isNotBlank() && !isReanalyzing
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onDismiss
-                    ) { Text("Cancel") }
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        enabled = ingredients.isNotEmpty() && dishName.isNotBlank() && !isReanalyzing,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = canSave,
                         onClick = {
-                            onConfirm(
+                            val name = dishName.trim()
+                            onSaveAsPreset(
                                 draft.copy(
-                                    dishName = dishName.trim(),
+                                    dishName = name,
                                     ingredients = ingredients.toList()
                                 )
                             )
+                            scope.launch {
+                                snackbarHostState.showFitBuddyPill("Saved \"$name\" to food library")
+                            }
                         }
-                    ) { Text("Log food") }
+                    ) {
+                        Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Save as preset")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onDismiss
+                        ) { Text("Cancel") }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = canSave,
+                            onClick = {
+                                onConfirm(
+                                    draft.copy(
+                                        dishName = dishName.trim(),
+                                        ingredients = ingredients.toList()
+                                    )
+                                )
+                            }
+                        ) { Text("Log food") }
+                    }
                 }
             }
         ) { innerPadding ->

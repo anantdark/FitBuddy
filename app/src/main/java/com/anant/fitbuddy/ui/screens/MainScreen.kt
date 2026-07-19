@@ -182,6 +182,7 @@ fun MainScreen(
     var showTextDialog by remember { mutableStateOf(false) }
     var showMealPresetSheet by remember { mutableStateOf(false) }
     var showSavedFoodSheet by remember { mutableStateOf(false) }
+    var savedFoodSheetMode by remember { mutableStateOf(SavedFoodSheetMode.PICK_FOR_MEAL) }
     var showSavedFoodManageSheet by remember { mutableStateOf(false) }
     var showWorkoutDialog by remember { mutableStateOf(false) }
     var showMealBuilder by remember { mutableStateOf(false) }
@@ -193,6 +194,8 @@ fun MainScreen(
     var foodEditorTarget by remember { mutableStateOf(FoodEditorTarget.LOG_MEAL) }
     var mealFoodEditIndex by remember { mutableStateOf<Int?>(null) }
     var mealReviewDraft by remember { mutableStateOf<MealDraft?>(null) }
+    /** True when meal review came from Build a meal (save preset, do not log today). */
+    var mealReviewSavesAsPreset by remember { mutableStateOf(false) }
     var lastOpenedEditMealId by remember { mutableStateOf<Int?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var startupCreditShown by rememberSaveable { mutableStateOf(false) }
@@ -202,6 +205,7 @@ fun MainScreen(
 
     LaunchedEffect(cloneMealRequest) {
         val draft = cloneMealRequest ?: return@LaunchedEffect
+        mealReviewSavesAsPreset = false
         mealReviewDraft = draft.snapshot()
         viewModel.consumeCloneMealRequest()
     }
@@ -667,6 +671,11 @@ fun MainScreen(
                 showLogHub = false
                 showMealPresetSheet = true
             },
+            onLogSavedFood = {
+                showLogHub = false
+                savedFoodSheetMode = SavedFoodSheetMode.LOG_TO_DAY
+                showSavedFoodSheet = true
+            },
             onLogWorkout = {
                 showLogHub = false
                 showWorkoutDialog = true
@@ -689,9 +698,13 @@ fun MainScreen(
     if (showSavedFoodSheet) {
         SavedFoodPickerSheet(
             foods = savedFoods,
-            mode = SavedFoodSheetMode.PICK_FOR_MEAL,
+            mode = savedFoodSheetMode,
             onPick = { food ->
-                mealItems.add(food.toFoodEntry())
+                when (savedFoodSheetMode) {
+                    SavedFoodSheetMode.PICK_FOR_MEAL -> mealItems.add(food.toFoodEntry())
+                    SavedFoodSheetMode.LOG_TO_DAY -> viewModel.logSavedFood(food)
+                    SavedFoodSheetMode.MANAGE_LIBRARY -> Unit
+                }
                 showSavedFoodSheet = false
             },
             onDelete = viewModel::deleteSavedFood,
@@ -715,6 +728,8 @@ fun MainScreen(
             onReview = { draft ->
                 val ts = mealBuilderInitial?.timestamp ?: viewModel.activeDayTimestamp()
                 val snapshot = draft.copy(timestamp = ts).snapshot()
+                // New builds save as preset; editing an existing log still updates that log.
+                mealReviewSavesAsPreset = mealBuilderInitial == null
                 mealReviewDraft = snapshot
                 showMealBuilder = false
                 mealBuilderInitial = null
@@ -743,7 +758,10 @@ fun MainScreen(
                 scanFlow = ScanFlow.ADD_TO_MEAL
                 showBarcodeScan = true
             },
-            onPickPreset = { showSavedFoodSheet = true },
+            onPickPreset = {
+                savedFoodSheetMode = SavedFoodSheetMode.PICK_FOR_MEAL
+                showSavedFoodSheet = true
+            },
             onDismiss = {
                 showMealBuilder = false
                 mealBuilderInitial = null
@@ -845,15 +863,25 @@ fun MainScreen(
     }
 
     mealReviewDraft?.let { draft ->
+        val editingMeal = analysisState.editingFoodLogId != null
+        val saveAsPresetOnly = mealReviewSavesAsPreset && !editingMeal
         MealReviewDialog(
             draft = draft,
-            isEditing = analysisState.editingFoodLogId != null,
+            isEditing = editingMeal,
+            saveAsPresetOnly = saveAsPresetOnly,
             onConfirm = { confirmed ->
                 viewModel.confirmMeal(confirmed)
                 mealReviewDraft = null
+                mealReviewSavesAsPreset = false
             },
             onSaveAsPreset = { mealDraft ->
                 viewModel.saveMealDraftAsPreset(mealDraft)
+                if (saveAsPresetOnly) {
+                    livePillMessage = "Saved \"${mealDraft.name}\" as meal preset"
+                    mealReviewDraft = null
+                    mealReviewSavesAsPreset = false
+                    viewModel.dismissMealDraft()
+                }
             },
             onEditFood = { index, food ->
                 foodEditorTarget = FoodEditorTarget.MEAL_REVIEW
@@ -862,6 +890,7 @@ fun MainScreen(
             },
             onDismiss = {
                 mealReviewDraft = null
+                mealReviewSavesAsPreset = false
                 viewModel.dismissMealDraft()
             }
         )

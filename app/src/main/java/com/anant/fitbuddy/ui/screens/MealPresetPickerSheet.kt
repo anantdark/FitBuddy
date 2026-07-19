@@ -47,7 +47,7 @@ fun MealPresetPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = "Tap a meal to log it to the day you're viewing. Save meals from the review screen bookmark.",
+                text = "Tap a meal to log it to the day you're viewing. Build a meal and choose Save as preset to add one here.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -55,7 +55,7 @@ fun MealPresetPickerSheet(
 
             if (presets.isEmpty()) {
                 Text(
-                    text = "No saved meals yet. Build a meal, review it, then tap the bookmark to save it here.",
+                    text = "No saved meals yet. Build a meal, then tap Save as preset on the review screen.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
