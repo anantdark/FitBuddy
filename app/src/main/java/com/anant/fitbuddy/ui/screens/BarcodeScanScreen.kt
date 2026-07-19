@@ -61,9 +61,15 @@ private const val TAG = "BarcodeScan"
 @Composable
 fun BarcodeScanDialog(
     onBarcode: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCameraPermissionDenied: () -> Unit = {}
 ) {
-    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
+    var requestedCameraOnce by remember { mutableStateOf(false) }
+    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
+        if (!granted && requestedCameraOnce) {
+            onCameraPermissionDenied()
+        }
+    }
     var manualEntry by remember { mutableStateOf(false) }
     var manualCode by remember { mutableStateOf("") }
 
@@ -136,7 +142,10 @@ fun BarcodeScanDialog(
                             ) {
                                 Text("Camera access is needed to scan barcodes.")
                                 Button(
-                                    onClick = { cameraPermission.launchPermissionRequest() },
+                                    onClick = {
+                                        requestedCameraOnce = true
+                                        cameraPermission.launchPermissionRequest()
+                                    },
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text("Allow camera") }
                                 OutlinedButton(
@@ -153,6 +162,7 @@ fun BarcodeScanDialog(
 
     DisposableEffect(Unit) {
         if (!cameraPermission.status.isGranted) {
+            requestedCameraOnce = true
             cameraPermission.launchPermissionRequest()
         }
         onDispose { }

@@ -1,5 +1,6 @@
 package com.anant.fitbuddy
 
+import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -45,6 +46,32 @@ class MainActivity : ComponentActivity() {
                     val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
                     val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
 
+                    val onStartupPermissionsDenied: (List<String>) -> Unit = { denied ->
+                        val cameraDenied = Manifest.permission.CAMERA in denied
+                        val notificationsDenied =
+                            Manifest.permission.POST_NOTIFICATIONS in denied
+                        if (notificationsDenied) {
+                            viewModel.disableDailyLogReminder()
+                        }
+                        when {
+                            cameraDenied && notificationsDenied -> {
+                                viewModel.showTransientMessage(
+                                    "Camera and notifications not allowed."
+                                )
+                            }
+                            notificationsDenied -> {
+                                viewModel.showTransientMessage(
+                                    "Notifications not allowed."
+                                )
+                            }
+                            cameraDenied -> {
+                                viewModel.showTransientMessage(
+                                    "Camera permission not allowed."
+                                )
+                            }
+                        }
+                    }
+
                     when (needsOnboarding) {
                         null -> {
                             Box(
@@ -56,7 +83,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         true -> {
-                            RequestStartupPermissions()
+                            RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
                             OnboardingScreen(
                                 isSaving = onboardingSaving,
                                 isValidating = onboardingValidating,
@@ -66,7 +93,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         false -> {
-                            RequestStartupPermissions()
+                            RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
                             MainScreen(
                                 viewModel = viewModel,
                                 openLogHubRequest = openLogHubRequest,

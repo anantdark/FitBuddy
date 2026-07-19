@@ -1561,6 +1561,21 @@ class MainViewModel(
         }
     }
 
+    /** Surfaces a short pill message on [MainScreen] (permissions, one-shot status, etc.). */
+    fun showTransientMessage(message: String) {
+        _analysisState.update { it.copy(userMessage = message) }
+    }
+
+    /** Turns off the daily reminder when notification permission is unavailable. */
+    fun disableDailyLogReminder() {
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.dailyLogReminderEnabled) {
+                settingsRepository.save(current.copy(dailyLogReminderEnabled = false))
+            }
+        }
+    }
+
     /** Call after a snackbar/toast has shown [AnalysisUiState.userMessage]. */
     fun consumeUserMessage() = _analysisState.update { it.copy(userMessage = null) }
 

@@ -17,15 +17,22 @@ import androidx.core.content.ContextCompat
 /**
  * Requests runtime permissions needed for core FitBuddy features (camera + notifications)
  * once when the UI first becomes ready after cold start.
+ *
+ * [onDenied] receives permission names that the user rejected (or previously denied).
  */
 @Composable
-fun RequestStartupPermissions() {
+fun RequestStartupPermissions(
+    onDenied: (deniedPermissions: List<String>) -> Unit = {}
+) {
     val context = LocalContext.current
     var launched by rememberSaveable { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* System dialog handles grant/deny; features re-check as needed. */ }
+    ) { result ->
+        val denied = result.filterValues { granted -> !granted }.keys.toList()
+        if (denied.isNotEmpty()) onDenied(denied)
+    }
 
     LaunchedEffect(Unit) {
         if (launched) return@LaunchedEffect

@@ -253,7 +253,7 @@ fun MainScreen(
         } else {
             scope.launch {
                 snackbarHostState.showFitBuddyPill(
-                    "Camera permission is needed to photograph meals."
+                    "Camera permission not allowed."
                 )
             }
         }
@@ -411,6 +411,11 @@ fun MainScreen(
                         snackbarHostState.showFitBuddyPill(
                             if (ok) "Test notification sent" else "Couldn't send notification"
                         )
+                    }
+                },
+                onPermissionDenied = { message ->
+                    scope.launch {
+                        snackbarHostState.showFitBuddyPill(message)
                     }
                 },
                 modifier = Modifier.padding(innerPadding)
@@ -758,6 +763,11 @@ fun MainScreen(
             onDismiss = {
                 showBarcodeScan = false
                 scanFlow = null
+            },
+            onCameraPermissionDenied = {
+                scope.launch {
+                    snackbarHostState.showFitBuddyPill("Camera permission not allowed.")
+                }
             }
         )
     }
