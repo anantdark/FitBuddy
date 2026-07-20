@@ -160,17 +160,6 @@ fun BodyScreen(
             onManage = onManageSavedFoods
         )
 
-        SectionCard(title = "Body basics") {
-            NumberField("Current weight (kg)", weight.value, decimal = true) { weight.value = it }
-            LabeledDropdown("Activity level", activity.value, ACTIVITY_OPTIONS) { activity.value = it }
-            LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
-        }
-
-        LatestReadingCard(
-            latest = latestMeasurement,
-            onAddReading = { showAddReading = true }
-        )
-
         AiTargetsCard(
             targetCalories = targetCalories.value,
             targetProtein = targetProtein.value,
@@ -194,6 +183,17 @@ fun BodyScreen(
                 )
             }
         )
+
+        LatestReadingCard(
+            latest = latestMeasurement,
+            onAddReading = { showAddReading = true }
+        )
+
+        SectionCard(title = "Body basics") {
+            NumberField("Current weight (kg)", weight.value, decimal = true) { weight.value = it }
+            LabeledDropdown("Activity level", activity.value, ACTIVITY_OPTIONS) { activity.value = it }
+            LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
+        }
 
         Button(
             modifier = Modifier.fillMaxWidth(),

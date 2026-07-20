@@ -128,6 +128,15 @@ fun AnalyticsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
+            InsightCard(
+                state = progressInsightState,
+                isAiConfigured = isAiConfigured,
+                onRequestInsight = onRequestInsight,
+                onOpenChat = onOpenChat
+            )
+        }
+
+        item {
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 options.forEachIndexed { index, label ->
                     SegmentedButton(
@@ -193,15 +202,6 @@ fun AnalyticsScreen(
         }
 
         item { ExerciseCard(exerciseSummaries = exerciseSummaries) }
-
-        item {
-            InsightCard(
-                state = progressInsightState,
-                isAiConfigured = isAiConfigured,
-                onRequestInsight = onRequestInsight,
-                onOpenChat = onOpenChat
-            )
-        }
     }
 }
 
