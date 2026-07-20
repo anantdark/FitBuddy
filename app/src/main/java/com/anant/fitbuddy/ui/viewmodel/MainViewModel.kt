@@ -150,7 +150,7 @@ data class ProgressChatMessage(
 
 enum class ProgressChatRole { USER, ASSISTANT }
 
-/** State of the AI progress-insight card shown at the bottom of Progress. */
+/** State of the AI progress-insight card shown at the top of Progress. */
 @Immutable
 data class ProgressInsightUiState(
     val isLoading: Boolean = false,
