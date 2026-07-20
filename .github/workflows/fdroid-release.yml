@@ -40,7 +40,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Create local.properties
-        run: echo "sdk.dir=${ANDROID_HOME}" >> local.properties
+        # Match F-Droid CI: sdk path only — no Sentry/Mongo secrets (those change BuildConfig/DEX).
+        run: echo "sdk.dir=${ANDROID_HOME}" > local.properties
 
       - name: Configure release signing
         env:
@@ -72,9 +73,7 @@ jobs:
           echo "Building ${VERSION_NAME} (${VERSION_CODE}) from ${{ inputs.tag }}"
 
       - name: Build release APK
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          MONGO_DB_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
+        # Intentionally no SENTRY_DSN / MONGO_* — must match unsigned F-Droid CI output.
         run: ./gradlew :app:assembleRelease --no-daemon
 
       - name: Create GitHub Release
