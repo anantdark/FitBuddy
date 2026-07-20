@@ -92,3 +92,10 @@ Outputs:
 
 Edit `versionCode` and `versionName` in `app/build.gradle.kts` before each store upload.
 Local/dev builds keep the fallback versions; CI sets them via `-PappVersionCode` / `-PappVersionName`.
+
+## 7. GitHub “Latest” vs F-Droid
+
+CI releases on `main` (`v*-buildN`, with `FitBuddy-latest.apk`) own GitHub **Latest** —
+the website and in-app updater use those. F-Droid publishes clean `vX.Y.Z` tags as
+**prerelease** with `make_latest: false` (see `fdroid` branch workflow); F-Droid installs
+via the tag `Binaries` URL only, never `/releases/latest`.

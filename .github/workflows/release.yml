@@ -108,6 +108,8 @@ jobs:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
 
+      # make_latest: true — this channel owns /releases/latest (site + in-app updates).
+      # F-Droid tags use a separate workflow with make_latest: false.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -116,6 +118,7 @@ jobs:
           body: ${{ steps.notes.outputs.notes }}
           draft: false
           prerelease: false
+          make_latest: true
           generate_release_notes: false
           files: |
             app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
