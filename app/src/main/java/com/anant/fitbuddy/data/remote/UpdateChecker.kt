@@ -1,5 +1,7 @@
 package com.anant.fitbuddy.data.remote
 
+import com.anant.fitbuddy.data.remote.dto.GithubReleaseDto
+
 /** Result of comparing the latest GitHub release against the running build. */
 sealed interface UpdateCheckResult {
     data class Available(
@@ -16,7 +18,8 @@ sealed interface UpdateCheckResult {
 
 /**
  * Sideload-friendly update check: the app isn't Play Store distributed, so we query the repo's
- * latest GitHub release directly instead of relying on a store update prompt.
+ * GitHub Releases for the newest **CI** build (`v*-buildN`) instead of relying on a store
+ * update prompt. F-Droid tags (`vX.Y.Z`) are ignored — those binaries are for the store only.
  */
 class UpdateChecker(private val api: GithubApi) {
 
@@ -26,7 +29,9 @@ class UpdateChecker(private val api: GithubApi) {
 
     suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult {
         return try {
-            val release = api.getLatestRelease()
+            val release = api.listReleases().firstOrNull(::isCiSideloadRelease)
+                ?: return UpdateCheckResult.Error("No GitHub CI release with an APK found")
+
             val remoteVersionCode = buildNumberRegex.find(release.tagName)
                 ?.groupValues
                 ?.get(1)
@@ -37,7 +42,8 @@ class UpdateChecker(private val api: GithubApi) {
                 return UpdateCheckResult.UpToDate
             }
 
-            val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk") }
+            val apkAsset = release.assets.firstOrNull { it.name == "FitBuddy-latest.apk" }
+                ?: release.assets.firstOrNull { it.name.endsWith(".apk") }
                 ?: return UpdateCheckResult.Error("Latest release has no APK attached")
 
             UpdateCheckResult.Available(
@@ -53,5 +59,12 @@ class UpdateChecker(private val api: GithubApi) {
         } catch (e: Exception) {
             UpdateCheckResult.Error(e.message ?: "Update check failed")
         }
+    }
+
+    /** CI sideload releases only — not drafts, not F-Droid clean tags. */
+    private fun isCiSideloadRelease(release: GithubReleaseDto): Boolean {
+        if (release.draft) return false
+        if (!buildNumberRegex.containsMatchIn(release.tagName)) return false
+        return release.assets.any { it.name.endsWith(".apk", ignoreCase = true) }
     }
 }

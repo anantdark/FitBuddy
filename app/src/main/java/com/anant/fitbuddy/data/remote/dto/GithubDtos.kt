@@ -9,6 +9,8 @@ data class GithubReleaseDto(
     val name: String,
     val body: String?,
     @Json(name = "html_url") val htmlUrl: String,
+    val draft: Boolean = false,
+    val prerelease: Boolean = false,
     val assets: List<GithubAssetDto> = emptyList()
 )
 
