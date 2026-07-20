@@ -1,8 +1,8 @@
 AntiFeatures:
   NonFreeNet:
     en-US: Optional AI providers (OpenRouter, Gemini, Ollama Cloud) contact proprietary
-      network services when the user enables them. Core logging works offline via the
-      built-in simulator.
+      network services when the user enables them. Core logging works offline via
+      the built-in simulator.
 Categories:
   - Sports & Health
 License: GPL-3.0-only
