@@ -20,7 +20,7 @@ Binaries: https://github.com/anantdark/FitBuddy/releases/download/v%v/FitBuddy-%
 Builds:
   - versionName: 3.1.1
     versionCode: 57
-    commit: PLACEHOLDER_WILL_REPLACE
+    commit: fa2891898a1fa31885c31022a7fcb845b610d79d
     subdir: app
     gradle:
       - yes
