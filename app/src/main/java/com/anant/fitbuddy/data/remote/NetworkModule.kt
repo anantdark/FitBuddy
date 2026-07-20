@@ -53,7 +53,9 @@ object NetworkModule {
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            // Reasoning / free-tier models often stream a long "thinking" body after HTTP 200.
+            .readTimeout(180, TimeUnit.SECONDS)
+            .callTimeout(210, TimeUnit.SECONDS)
             .build()
     }
 

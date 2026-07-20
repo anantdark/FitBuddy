@@ -549,7 +549,8 @@ fun MainScreen(
                                 isAiConfigured = isAiOnline,
                                 onShiftMonth = viewModel::shiftAnalyticsMonth,
                                 onRequestInsight = viewModel::requestProgressInsight,
-                                onOpenChat = { showProgressChat = true }
+                                onOpenChat = { showProgressChat = true },
+                                onDismissInsight = viewModel::dismissProgressInsight
                             )
 
                             Tab.BODY -> BodyScreen(

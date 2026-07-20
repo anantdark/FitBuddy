@@ -9,6 +9,7 @@ import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
+import com.anant.fitbuddy.data.model.normalized
 import com.anant.fitbuddy.data.remote.dto.ChatErrorDto
 import com.anant.fitbuddy.data.remote.dto.ChatMessage
 import com.anant.fitbuddy.data.remote.dto.ChatMessagePlain
@@ -102,7 +103,7 @@ class RemoteAiDataSource(
         compressedMetrics: String
     ): ProgressInsightResponse {
         val json = completeToJson(settings, buildProgressPrompt(compressedMetrics), null)
-        return parseJson(progressInsightAdapter, json)
+        return parseJson(progressInsightAdapter, json).normalized()
     }
 
     /**
@@ -771,12 +772,13 @@ class RemoteAiDataSource(
         if BODY30 / body_measurements has fewer than 2 readings or lacks enough fields to judge.
 
         Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-        EXACTLY this schema:
+        EXACTLY this schema (double quotes only; never embed recommendations inside summary):
         {
           "summary": "String (2-4 sentences)",
           "recommendations": ["String", "String"],
           "body_score": Int or null
         }
+        "summary" must be plain prose only. Put each tip as its own string in "recommendations".
 
         User progress data (compressed):
         $compressedMetrics

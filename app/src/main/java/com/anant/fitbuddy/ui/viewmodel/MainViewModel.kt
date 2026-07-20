@@ -1398,7 +1398,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _progressInsight.update {
-                        it.copy(isLoading = false, error = e.message ?: "Couldn't generate insight")
+                        it.copy(isLoading = false, error = friendlyThrowableMessage(e, "Couldn't generate insight"))
                     }
                 }
         }
@@ -1439,7 +1439,7 @@ class MainViewModel(
                     _progressInsight.update {
                         it.copy(
                             isChatLoading = false,
-                            error = e.message ?: "Couldn't get a reply"
+                            error = friendlyThrowableMessage(e, "Couldn't get a reply")
                         )
                     }
                 }
@@ -1458,6 +1458,11 @@ class MainViewModel(
         }
     }
 
+    /** Dismisses the insight popup and clears coach state (does not persist on the Progress card). */
+    fun dismissProgressInsight() {
+        _progressInsight.value = ProgressInsightUiState()
+    }
+
     private fun formatProgressInsightForChat(response: ProgressInsightResponse): String = buildString {
         append(response.summary)
         response.bodyScore?.let { append("\n\nBody score: $it/100") }
@@ -1465,6 +1470,15 @@ class MainViewModel(
             append("\n\nRecommendations:")
             response.recommendations.forEach { append("\n• $it") }
         }
+    }
+
+    /** Prefer [Throwable.message]; fall back to class name so blank Errors aren't a dead-end UI string. */
+    private fun friendlyThrowableMessage(e: Throwable, fallback: String): String {
+        val primary = e.message?.takeIf { it.isNotBlank() }
+            ?: e.cause?.message?.takeIf { it.isNotBlank() }
+        if (primary != null) return primary
+        val name = e::class.simpleName?.takeIf { it.isNotBlank() }
+        return if (name != null) "$fallback ($name)" else fallback
     }
 
     // --- Backup (export / import) -----------------------------------------------------------
