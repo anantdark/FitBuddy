@@ -14,9 +14,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.viewinterop.AndroidView
 import com.anant.fitbuddy.R
 import android.content.Intent
@@ -94,9 +91,15 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -242,9 +245,7 @@ fun SettingsScreen(
     }
     var showCloudBackupEnableConfirm by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
-    val cloudVaultAvailable = remember {
-        com.anant.fitbuddy.data.backup.mongo.MongoUriVault.isAvailable()
-    }
+    val cloudVaultAvailable = false
 
     val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS) { granted ->
@@ -814,64 +815,20 @@ fun SettingsScreen(
             )
         }
 
-        // --- Updates & support (updates + crash reports) ---------------------------------
+        // --- Updates & support -----------------------------------------------------------
         SettingsCard(title = "Updates & support", initiallyExpanded = false) {
             Text(
                 text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (BuildConfig.FDROID) {
-                Text(
-                    text = "Updates are delivered by F-Droid. In-app GitHub APK downloads are disabled.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                SettingToggleRow(
-                    title = "Check for updates automatically",
-                    checked = settings.autoCheckUpdates,
-                    onCheckedChange = onAutoCheckUpdatesChange,
-                    hintTitle = "Automatic updates",
-                    hint = "Looks for a newer GitHub release shortly after startup."
-                )
-                OutlinedButton(
-                    onClick = onCheckForUpdates,
-                    enabled = !updateState.isChecking && !updateState.isDownloading,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (updateState.isChecking) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Checking...")
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Check for Updates")
-                    }
-                }
-                updateState.statusMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (updateState.statusIsError) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
-            }
-            SettingToggleRow(
-                title = "Send crash reports",
-                checked = settings.crashReportingEnabled,
-                onCheckedChange = onCrashReportingChange,
-                hintTitle = "Crash reports",
-                hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
-                    "When on, the app may send one anonymous daily heartbeat " +
-                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
-                    "Your Support ID (under Backup) identifies reports without personal data. " +
-                    "Off by default; opt in only if you want to help."
+            Text(
+                text = "Updates are delivered by F-Droid.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            FossFeatureUnavailableNote(
+                featureSummary = "In-app updates, crash reports, and cloud backup"
             )
         }
 
@@ -880,9 +837,8 @@ fun SettingsScreen(
             title = "Backup",
             initiallyExpanded = false,
             hintTitle = "Backup",
-            hint = "Export a JSON file anytime. Cloud uploads use your Support ID as the " +
-                "document key — keep that ID safe to restore after reinstalling. Restore from " +
-                "cloud or local file is offered during onboarding (import also in Developer tools)."
+            hint = "Export a JSON file anytime. Share your Support ID when reporting a bug. " +
+                "Restore from a local backup file during onboarding or Developer tools."
         ) {
             Text(
                 text = "Support ID",
@@ -890,7 +846,7 @@ fun SettingsScreen(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Share this if you report a bug, and keep it safe for cloud restore.",
+                text = "Share this if you report a bug.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -945,11 +901,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(top = 4.dp)
             )
             if (!cloudVaultAvailable) {
-                Text(
-                    text = "Cloud backup is not available in this build.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                FossFeatureUnavailableNote(featureSummary = "Cloud backup")
             } else {
                 SettingToggleRow(
                     title = "Enable cloud backup",
@@ -1113,8 +1065,7 @@ fun SettingsScreen(
                     Text("Generate new Support ID")
                 }
                 Text(
-                    text = "Creates a new ID for crash reports and future cloud uploads. " +
-                        "Existing cloud docs stay under the old ID.",
+                    text = "Creates a new Support ID for bug reports.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1125,69 +1076,7 @@ fun SettingsScreen(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                Text(
-                    text = "Atlas db/collection overrides and restore by Support ID. " +
-                        "Defaults: db ${AppSettings.DEFAULT_MONGO_DB_NAME}, " +
-                        "collection ${AppSettings.DEFAULT_MONGO_COLLECTION}.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                var mongoDbNameDraft by remember(settings.mongoDbName) {
-                    mutableStateOf(
-                        settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
-                    )
-                }
-                var mongoCollectionDraft by remember(settings.mongoCollectionName) {
-                    mutableStateOf(
-                        settings.mongoCollectionName.ifBlank {
-                            AppSettings.DEFAULT_MONGO_COLLECTION
-                        }
-                    )
-                }
-                OutlinedTextField(
-                    value = mongoDbNameDraft,
-                    onValueChange = { mongoDbNameDraft = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Database name") },
-                    singleLine = true,
-                    placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
-                )
-                OutlinedTextField(
-                    value = mongoCollectionDraft,
-                    onValueChange = { mongoCollectionDraft = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Collection name") },
-                    singleLine = true,
-                    placeholder = { Text(AppSettings.DEFAULT_MONGO_COLLECTION) }
-                )
-                OutlinedButton(
-                    onClick = {
-                        onSaveQuiet(
-                            settings.copy(
-                                mongoDbName = mongoDbNameDraft.trim()
-                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                                mongoCollectionName = mongoCollectionDraft.trim()
-                                    .ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
-                            )
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save Atlas db / collection")
-                }
-                if (mongoBackupBusy) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                OutlinedButton(
-                    onClick = {
-                        mongoRestoreSupportIdDraft = settings.supportId
-                        showMongoRestoreConfirm = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = cloudVaultAvailable && !mongoBackupBusy
-                ) {
-                    Text("Download & restore from cloud")
-                }
+                FossFeatureUnavailableNote(featureSummary = "Cloud backup")
 
                 SettingToggleRow(
                     title = "Force offline AI simulator",
@@ -1234,18 +1123,6 @@ fun SettingsScreen(
                     Text("Clear model cooldowns")
                 }
                 OutlinedButton(
-                    onClick = onShowTestUpdatePrompt,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Show test update prompt")
-                }
-                Text(
-                    text = "Opens the update dialog with fake release info so you can " +
-                        "test backup-before-update. Download will fail on purpose.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
                     onClick = {
                         if (
                             needsNotificationPermission &&
@@ -1261,14 +1138,6 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Send test notification")
-                }
-                OutlinedButton(
-                    onClick = {
-                        throw RuntimeException("FitBuddy Sentry test crash")
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Force test crash")
                 }
 
             }
@@ -1385,204 +1254,6 @@ private fun formatMongoUploadTime(epochMs: Long): String {
         .format(java.util.Date(epochMs))
 }
 
-/** Update / download dialogs — shown from [MainScreen] so startup checks work outside Settings. */
-@Composable
-fun UpdatePromptDialogs(
-    updateState: UpdateUiState,
-    cloudBackupEnabled: Boolean,
-    onDismissUpdatePrompt: () -> Unit,
-    onExportBackupAndUpdate: (downloadUrl: String) -> Unit,
-    onSkipBackupAndUpdate: (downloadUrl: String) -> Unit
-) {
-    val uriHandler = LocalUriHandler.current
-
-    updateState.updateInfo?.let { info ->
-        val highlights = remember(info.releaseNotes) { releaseNoteHighlights(info.releaseNotes) }
-        val busy = updateState.isDownloading ||
-            updateState.isExportingBackup ||
-            updateState.isAwaitingBackupFilePick
-        var skipCountdownSec by remember(info.versionCode, info.downloadUrl) { mutableIntStateOf(5) }
-        LaunchedEffect(info.versionCode, info.downloadUrl) {
-            skipCountdownSec = 5
-            while (skipCountdownSec > 0) {
-                delay(1_000)
-                skipCountdownSec--
-            }
-        }
-        val skipEnabled = !busy && skipCountdownSec == 0
-        AlertDialog(
-            onDismissRequest = { if (!busy) onDismissUpdatePrompt() },
-            icon = {
-                Icon(
-                    Icons.Filled.SystemUpdate,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = { Text("Update available") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = info.versionName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Build ${info.versionCode}  ·  you have ${BuildConfig.VERSION_NAME}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (highlights.isNotEmpty()) {
-                        Text(
-                            text = "What's new",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 180.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            highlights.forEach { line ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("•", color = MaterialTheme.colorScheme.primary)
-                                    Text(
-                                        text = line,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    if (info.htmlUrl.isNotBlank()) {
-                        TextButton(
-                            onClick = { uriHandler.openUri(info.htmlUrl) },
-                            modifier = Modifier.padding(start = 0.dp)
-                        ) {
-                            Text("View on GitHub")
-                        }
-                    }
-                    Text(
-                        text = if (cloudBackupEnabled) {
-                            "Back up your data to the cloud before updating."
-                        } else {
-                            "Export a local backup before updating."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    updateState.backupStatusMessage?.let { message ->
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (updateState.backupStatusIsError) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            }
-                        )
-                    }
-                    if (updateState.isExportingBackup) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { onExportBackupAndUpdate(info.downloadUrl) },
-                            enabled = !busy && !updateState.backupCompleted,
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Export backup & update") }
-                        OutlinedButton(
-                            onClick = { onSkipBackupAndUpdate(info.downloadUrl) },
-                            enabled = skipEnabled,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                if (skipCountdownSec > 0) {
-                                    "Skip backup & update ($skipCountdownSec)"
-                                } else {
-                                    "Skip backup & update"
-                                }
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {}
-        )
-    }
-
-    if (updateState.isDownloading) {
-        AlertDialog(
-            onDismissRequest = {},
-            icon = {
-                CircularProgressIndicator(modifier = Modifier.size(36.dp), strokeWidth = 3.dp)
-            },
-            title = { Text("Downloading update") },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val progress = updateState.downloadProgress
-                    if (progress != null) {
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = "${(progress * 100).toInt()}% complete",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    } else {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        Text(
-                            text = "Downloading APK…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text(
-                        text = "Keep FitBuddy open until the installer opens.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {}
-        )
-    }
-}
-
-/** Pull commit bullets from CI release notes; drop headers / metadata noise. */
-private fun releaseNoteHighlights(raw: String, limit: Int = 6): List<String> =
-    raw.lineSequence()
-        .map { it.trim() }
-        .filter { it.startsWith("- ") }
-        .map { line ->
-            line.removePrefix("- ")
-                .replace(Regex("""\s*\([0-9a-f]{7,40}\)\s*$"""), "")
-                .trim()
-        }
-        .filter { it.isNotBlank() }
-        .distinct()
-        .take(limit)
-        .toList()
-
-/**
- * Read-only exposed-dropdown listing vision-capable models for the active [provider] (free-only
- * for OpenRouter, all vision models for Gemini). Tapping the field opens the list; a Model id
- * field follows for custom entry, then the available-count / reload row. Auto-loads when the
- * provider/key changes.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelDropdown(
@@ -2214,6 +1885,40 @@ private fun AboutRow(
         )
         valueContent()
     }
+}
+
+private const val FITBUDDY_WEBSITE_URL = "https://anantdark.github.io/FitBuddy/"
+private const val FITBUDDY_GITHUB_RELEASES_URL =
+    "https://github.com/anantdark/FitBuddy/releases"
+
+/**
+ * Explains that a feature is omitted from the F-Droid build, with tappable links to
+ * GitHub Releases and the project website.
+ */
+@Composable
+private fun FossFeatureUnavailableNote(
+    featureSummary: String,
+    modifier: Modifier = Modifier
+) {
+    val linkColor = MaterialTheme.colorScheme.primary
+    val linkStyle = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+    Text(
+        text = buildAnnotatedString {
+            append("$featureSummary is not available in this build. Download from ")
+            withLink(LinkAnnotation.Url(FITBUDDY_GITHUB_RELEASES_URL)) {
+                withStyle(linkStyle) { append("GitHub Releases") }
+            }
+            append(" for full functionality. See the ")
+            withLink(LinkAnnotation.Url(FITBUDDY_WEBSITE_URL)) {
+                withStyle(linkStyle) { append("website") }
+            }
+            append(".")
+        },
+        modifier = modifier.fillMaxWidth(),
+        style = MaterialTheme.typography.bodySmall.copy(
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    )
 }
 
 /** Like [AboutRow], but the value is a tappable link that opens [url] in the browser. */

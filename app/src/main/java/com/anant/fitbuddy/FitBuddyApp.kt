@@ -1,15 +1,11 @@
 package com.anant.fitbuddy
 
 import android.app.Application
-import com.anant.fitbuddy.crash.CrashReporter
-import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.data.backup.BackupManager
-import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
-import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.ReminderReceiver
@@ -22,12 +18,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import java.time.LocalDate
-import java.time.ZoneOffset
 
 /**
  * Application-scoped service locator. Everything is created lazily and lives for the whole
  * process, which is exactly the lifetime we want for the DB and the repositories.
+ *
+ * F-Droid builds omit Sentry, MongoDB Atlas cloud backup, and the GitHub APK updater.
  */
 class FitBuddyApp : Application() {
 
@@ -36,8 +32,6 @@ class FitBuddyApp : Application() {
     private val database by lazy { AppDatabase.getDatabase(this) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
-
-    val updateChecker: UpdateChecker by lazy { UpdateChecker(NetworkModule.provideGithubApi()) }
 
     val repository: FitnessRepository by lazy {
         FitnessRepository(
@@ -83,16 +77,9 @@ class FitBuddyApp : Application() {
             settingsRepository.ensureSupportId()
             settingsRepository.settings.first()
         }
-        CrashReporter.init(
-            app = this,
-            enabled = settings.crashReportingEnabled,
-            supportId = settings.supportId
-        )
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         ReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)
-        // Cancel legacy weekly Atlas alarms (replaced by startup + 12h debounce).
-        MongoBackupScheduler.cancel(this)
         appScope.launch {
             settingsRepository.settings
                 .map { s ->
@@ -112,34 +99,6 @@ class FitBuddyApp : Application() {
                         ReminderScheduler.cancel(this@FitBuddyApp)
                     }
                 }
-        }
-        appScope.launch {
-            maybeAutoUploadCloudBackup()
-        }
-        if (settings.crashReportingEnabled) {
-            Thread({
-                runBlocking(Dispatchers.IO) { maybeSendDailyHeartbeat() }
-            }, "fitbuddy-heartbeat").start()
-        }
-    }
-
-    /** Startup auto-upload when opted in and outside the 12h debounce window. */
-    private suspend fun maybeAutoUploadCloudBackup() {
-        val settings = settingsRepository.settings.first()
-        if (!repository.shouldAutoUploadNow(settings)) return
-        runCatching { repository.uploadMongoBackup() }
-    }
-
-    private suspend fun maybeSendDailyHeartbeat() {
-        val today = LocalDate.now(ZoneOffset.UTC).toString()
-        if (settingsRepository.lastHeartbeatUtcDay() == today) return
-        val settings = settingsRepository.settings.first()
-        val info = HeartbeatInfo(
-            aiProvider = settings.provider.name,
-            username = settings.usernameForHeartbeat
-        )
-        if (CrashReporter.sendDailyHeartbeat(info)) {
-            settingsRepository.markHeartbeatSent(today)
         }
     }
 }

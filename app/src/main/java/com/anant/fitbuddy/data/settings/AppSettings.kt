@@ -1,7 +1,6 @@
 package com.anant.fitbuddy.data.settings
 
 import com.anant.fitbuddy.BuildConfig
-import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
@@ -81,11 +80,11 @@ data class AppSettings(
     val firstName: String = "",
     val lastName: String = "",
     /**
-     * Anonymous install id for crash support (Sentry user.id). Generated once, never PII.
+     * Anonymous install id for bug reports. Generated once, never PII.
      * Share this with the developer when reporting a bug.
      */
     val supportId: String = "",
-    /** When false, Sentry does not send crash events (SDK may still be initialized). Opt-in on F-Droid. */
+    /** Legacy preference; unused on F-Droid (no crash SDK). Kept for DataStore / backup compat. */
     val crashReportingEnabled: Boolean = false,
     /** Set when the Settings "Created by" easter egg is unlocked. */
     val easterEggDiscovered: Boolean = false,
@@ -104,26 +103,23 @@ data class AppSettings(
     /** Developer: OkHttp BODY logs even on release builds. */
     val verboseHttpLogging: Boolean = false,
     /**
-     * When true, uploads/downloads use the build-baked Atlas URI ([MongoUriVault]) and
-     * this install's [supportId]. Off by default for guest installs until the user opts in.
+     * Legacy cloud-backup flags. Unused on F-Droid (no Atlas). Kept for DataStore / backup compat.
      */
     val cloudBackupEnabled: Boolean = false,
     /**
-     * When true (and [cloudBackupEnabled]), upload on app startup if the last successful
-     * upload was ≥ 12 hours ago. Manual upload always bypasses the debounce.
+     * Legacy auto-upload flag. Unused on F-Droid.
      */
     val cloudAutoUploadEnabled: Boolean = true,
-    /** Atlas database name (default [DEFAULT_MONGO_DB_NAME]). Overridable in Developer tools. */
+    /** Legacy Atlas database name override. Unused on F-Droid. */
     val mongoDbName: String = DEFAULT_MONGO_DB_NAME,
-    /** Atlas collection name (default [DEFAULT_MONGO_COLLECTION]). Overridable in Developer tools. */
+    /** Legacy Atlas collection name override. Unused on F-Droid. */
     val mongoCollectionName: String = DEFAULT_MONGO_COLLECTION,
-    /** Epoch ms of the last cloud upload attempt (0 = never). */
+    /** Epoch ms of the last cloud upload attempt (0 = never). Legacy / unused on F-Droid. */
     val mongoLastUploadAt: Long = 0L,
     val mongoLastUploadOk: Boolean = false,
     val mongoLastError: String = "",
     /**
-     * Epoch ms of the last successful backup (local export or cloud upload).
-     * Used to gate auto-install after "Export backup & update" (must be fresh).
+     * Epoch ms of the last successful local backup export.
      */
     val lastSuccessfulBackupAt: Long = 0L
 ) {
@@ -135,7 +131,7 @@ data class AppSettings(
     val hasUserName: Boolean
         get() = displayFirstName.isNotEmpty()
 
-    /** "First Last" for Sentry heartbeats; blank when no name. */
+    /** "First Last" display helper; blank when no name. */
     val usernameForHeartbeat: String
         get() {
             val first = firstName.trim()
@@ -147,15 +143,12 @@ data class AppSettings(
             }
         }
 
-    /** True when cloud backup is opted in and this build has a vault URI + Support ID. */
+    /** Always false on F-Droid (no Atlas cloud backup). */
     val isMongoBackupConfigured: Boolean
-        get() = cloudBackupEnabled &&
-            supportId.isNotBlank() &&
-            MongoUriVault.isAvailable()
+        get() = false
 
     /**
-     * True when a successful backup was recorded within [BACKUP_FRESHNESS_FOR_UPDATE_MS]
-     * (used before auto-install after Export backup & update).
+     * True when a successful backup was recorded within [BACKUP_FRESHNESS_FOR_UPDATE_MS].
      */
     fun hasFreshSuccessfulBackup(nowMs: Long = System.currentTimeMillis()): Boolean {
         if (lastSuccessfulBackupAt <= 0L) return false

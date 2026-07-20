@@ -3,8 +3,6 @@ package com.anant.fitbuddy.data.repository
 import android.net.Uri
 import android.util.Base64
 import com.anant.fitbuddy.data.backup.BackupManager
-import com.anant.fitbuddy.data.backup.mongo.MongoBackupRepository
-import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -61,7 +59,6 @@ import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
-import com.anant.fitbuddy.util.DeviceIdentity
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
@@ -86,8 +83,7 @@ class FitnessRepository(
     private val remoteAiDataSource: RemoteAiDataSource,
     private val openFoodFactsDataSource: OpenFoodFactsDataSource,
     private val settingsRepository: SettingsRepository,
-    private val backupManager: BackupManager,
-    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
+    private val backupManager: BackupManager
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
     val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
@@ -168,83 +164,6 @@ class FitnessRepository(
     }
 
     suspend fun importData(uri: Uri): Int = backupManager.importFrom(uri)
-
-    /**
-     * Uploads a BackupData v5 JSON snapshot to the build-baked Atlas cluster.
-     * Requires [AppSettings.cloudBackupEnabled] and a non-blank Support ID.
-     */
-    suspend fun uploadMongoBackup(): Int {
-        val settings = settingsRepository.settings.first()
-        if (!settings.cloudBackupEnabled) {
-            error("Cloud backup is disabled")
-        }
-        if (!MongoUriVault.isAvailable()) {
-            error("Cloud backup is not available in this build")
-        }
-        val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
-        return try {
-            val data = backupManager.buildBackupData()
-            val payloadJson = backupManager.encode(data)
-            mongoBackupRepository.upload(
-                connectionUri = MongoUriVault.resolve(),
-                databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                collectionName = settings.mongoCollectionName.ifBlank {
-                    AppSettings.DEFAULT_MONGO_COLLECTION
-                },
-                supportId = supportId,
-                payloadJson = payloadJson,
-                exportedAt = data.exportedAt,
-                deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                macId = DeviceIdentity.macId(backupManager.appContext)
-            )
-            val count = backupManager.countRecords(data)
-            settingsRepository.setMongoUploadStatus(ok = true)
-            count
-        } catch (e: Exception) {
-            settingsRepository.setMongoUploadStatus(
-                ok = false,
-                error = e.message ?: e.javaClass.simpleName
-            )
-            throw e
-        }
-    }
-
-    /**
-     * Restores the Atlas document whose `_id` is [supportId].
-     * Used from onboarding and Developer tools (does not require cloudBackupEnabled).
-     */
-    suspend fun downloadMongoBackup(supportId: String): Int {
-        if (!MongoUriVault.isAvailable()) {
-            error("Cloud backup is not available in this build")
-        }
-        val id = supportId.trim()
-        if (id.isBlank()) {
-            error("Support ID is required to restore")
-        }
-        val settings = settingsRepository.settings.first()
-        val payloadJson = mongoBackupRepository.downloadPayloadJson(
-            connectionUri = MongoUriVault.resolve(),
-            databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-            collectionName = settings.mongoCollectionName.ifBlank {
-                AppSettings.DEFAULT_MONGO_COLLECTION
-            },
-            supportId = id
-        )
-        return backupManager.importFromJson(payloadJson)
-    }
-
-    /**
-     * True when startup auto-upload should run: cloud + auto toggles on, vault present,
-     * and last upload older than [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
-     */
-    fun shouldAutoUploadNow(settings: AppSettings, nowMs: Long = System.currentTimeMillis()): Boolean {
-        if (!settings.cloudBackupEnabled || !settings.cloudAutoUploadEnabled) return false
-        if (!MongoUriVault.isAvailable()) return false
-        if (settings.supportId.isBlank()) return false
-        val last = settings.mongoLastUploadAt
-        if (last <= 0L) return true
-        return nowMs - last >= AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS
-    }
 
     fun getFoodLogsForDate(dateString: String): Flow<List<FoodLog>> = foodLogDao.getFoodLogsByDate(dateString)
     fun getExerciseLogsForDate(dateString: String): Flow<List<ExerciseLog>> = exerciseLogDao.getExerciseLogsByDate(dateString)

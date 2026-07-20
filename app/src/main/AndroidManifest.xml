@@ -32,10 +32,6 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.FitBuddy">
-        <!-- Manual init in FitBuddyApp after reading opt-out + supportId from DataStore. -->
-        <meta-data
-            android:name="io.sentry.auto-init"
-            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -63,10 +59,6 @@
 
         <receiver
             android:name=".reminders.ReminderReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".data.backup.mongo.MongoBackupReceiver"
             android:exported="false" />
 
         <receiver

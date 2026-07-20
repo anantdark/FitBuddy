@@ -1,11 +1,8 @@
 AntiFeatures:
   NonFreeNet:
-    en-US: Optional AI providers (OpenRouter, Gemini), optional Sentry crash reports,
-      and optional MongoDB Atlas cloud backup contact proprietary network services
-      when the user enables them. Core logging works offline via the built-in simulator.
-  TetheredNet:
-    en-US: Cloud backup (when enabled) is tied to the build-configured Atlas cluster.
-      AI providers require the user-chosen service endpoint.
+    en-US: Optional AI providers (OpenRouter, Gemini, Ollama Cloud) contact proprietary
+      network services when the user enables them. Core logging works offline via the
+      built-in simulator.
 Categories:
   - Sports & Health
 License: GPL-3.0-only
@@ -21,9 +18,9 @@ Repo: https://github.com/anantdark/FitBuddy.git
 Binaries: https://github.com/anantdark/FitBuddy/releases/download/v%v/FitBuddy-%v.apk
 
 Builds:
-  - versionName: 3.1.0
-    versionCode: 56
-    commit: a2ca0935e3a0d7d4c83cf936f3c036084e2cfeef
+  - versionName: 3.1.1
+    versionCode: 57
+    commit: PLACEHOLDER_WILL_REPLACE
     subdir: app
     gradle:
       - yes
@@ -37,8 +34,10 @@ MaintainerNotes: |
   FOSS binaries for reproducible builds are published from clean tags via the
   F-Droid Release workflow (prerelease + make_latest: false) so they never
   become the website / in-app update target. Install via Binaries URL only.
+  F-Droid builds omit Sentry, MongoDB Atlas cloud backup, and the in-app
+  GitHub APK updater (full builds are on GitHub Releases).
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
-CurrentVersion: 3.1.0
-CurrentVersionCode: 56
+CurrentVersion: 3.1.1
+CurrentVersionCode: 57

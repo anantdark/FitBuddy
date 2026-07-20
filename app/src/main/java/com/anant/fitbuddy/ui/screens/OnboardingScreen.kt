@@ -104,7 +104,6 @@ fun OnboardingScreen(
     isValidating: Boolean,
     isRestoring: Boolean = false,
     aiOnly: Boolean = false,
-    cloudRestoreAvailable: Boolean = false,
     openRouterOAuthBusy: Boolean = false,
     openRouterOAuthKey: String = "",
     userMessage: String? = null,
@@ -112,7 +111,6 @@ fun OnboardingScreen(
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
     onStartGuest: () -> Unit = {},
-    onRestoreCloud: (supportId: String, onResult: (Boolean, String?) -> Unit) -> Unit = { _, _ -> },
     onRequestLocalRestore: () -> Unit = {},
     onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
@@ -131,8 +129,6 @@ fun OnboardingScreen(
 ) {
     // -1 = path picker; 0..2 = AI / profile / lifestyle (or AI-only when [aiOnly]).
     var step by remember(aiOnly) { mutableIntStateOf(if (aiOnly) 0 else -1) }
-    var cloudSupportId by remember { mutableStateOf("") }
-    var cloudError by remember { mutableStateOf<String?>(null) }
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
@@ -351,38 +347,6 @@ fun OnboardingScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     when {
-                        onPathPicker && step == -2 -> {
-                            // Cloud Support ID form (nested under path picker).
-                            Text(
-                                text = "Restore from cloud",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Enter the Support ID from the device that created the backup.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            OutlinedTextField(
-                                value = cloudSupportId,
-                                onValueChange = {
-                                    cloudSupportId = it
-                                    cloudError = null
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Support ID") },
-                                singleLine = true,
-                                enabled = !busy
-                            )
-                            cloudError?.let { message ->
-                                Text(
-                                    text = message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-
                         onPathPicker -> {
                             Text(
                                 text = "How do you want to start?",
@@ -398,19 +362,6 @@ fun OnboardingScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("Start Fresh")
-                            }
-                            if (cloudRestoreAvailable) {
-                                OutlinedButton(
-                                    onClick = {
-                                        cloudSupportId = ""
-                                        cloudError = null
-                                        step = -2
-                                    },
-                                    enabled = !busy,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Restore from cloud backup")
-                                }
                             }
                             OutlinedButton(
                                 onClick = onRequestLocalRestore,
@@ -602,34 +553,6 @@ fun OnboardingScreen(
             Spacer(Modifier.height(24.dp))
 
             when {
-                step == -2 -> {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { step = -1 },
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Back")
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            enabled = cloudSupportId.isNotBlank() && !busy,
-                            onClick = {
-                                cloudError = null
-                                onRestoreCloud(cloudSupportId.trim()) { ok, error ->
-                                    if (!ok) {
-                                        cloudError = error ?: "Restore failed"
-                                    }
-                                    // On success, needsOnboarding / aiOnly gates update via VM.
-                                }
-                            }
-                        ) {
-                            Text(if (isRestoring) "Restoring…" else "Restore")
-                        }
-                    }
-                }
-
                 !onPathPicker -> {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         if (!aiOnly) {

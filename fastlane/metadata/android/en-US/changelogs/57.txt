@@ -1,0 +1,1 @@
+F-Droid 3.1.1: remove Sentry, MongoDB Atlas cloud backup, and the in-app GitHub updater (fixes a launch crash from R8 stripping the updater). Local JSON backup remains. Updates via F-Droid only.
