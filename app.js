@@ -220,8 +220,11 @@
   // Same-origin launcher resolves the real asset URL and forces a file download.
   // Never point primary CTAs at /releases/latest (that is the HTML releases page).
   const DOWNLOAD_PAGE = "get-apk.html";
+  // Fallback uses GitHub "Latest" — CI releases own that badge; F-Droid tags do not.
   const STABLE_APK =
     `https://github.com/${REPO}/releases/latest/download/FitBuddy-latest.apk`;
+  // CI tags look like v3.0.57-build57; F-Droid uses clean vX.Y.Z — skip those.
+  const CI_TAG = /build\d+$/;
 
   const buttons = [
     document.getElementById("download-btn"),
@@ -254,28 +257,45 @@
     });
   }
 
+  function pickCiApk(release) {
+    const assets = release.assets || [];
+    const stable = assets.find((a) => a.name === "FitBuddy-latest.apk");
+    const versioned = assets.find(
+      (a) =>
+        /^FitBuddy-.*\.apk$/i.test(a.name || "") &&
+        a.name !== "FitBuddy-latest.apk"
+    );
+    return stable || versioned || null;
+  }
+
+  function isCiSideloadRelease(release) {
+    if (release.draft) return false;
+    if (!CI_TAG.test(release.tag_name || "")) return false;
+    return !!pickCiApk(release);
+  }
+
   if (!buttons.length && !versionLine) return;
 
   // Safe default: same-origin bounce page (works even if the API call fails).
   setDownload(DOWNLOAD_PAGE);
 
-  fetch(`https://api.github.com/repos/${REPO}/releases/latest?_=${Date.now()}`, {
-    cache: "no-store",
-    headers: { Accept: "application/vnd.github+json" },
-  })
+  // List releases (not /latest) so an accidental F-Droid "Latest" badge cannot
+  // hand the site a clean vX.Y.Z APK without FitBuddy-latest.apk.
+  fetch(
+    `https://api.github.com/repos/${REPO}/releases?per_page=30&_=${Date.now()}`,
+    {
+      cache: "no-store",
+      headers: { Accept: "application/vnd.github+json" },
+    }
+  )
     .then((res) => {
       if (!res.ok) throw new Error("release fetch failed");
       return res.json();
     })
-    .then((release) => {
-      const assets = release.assets || [];
-      const stable = assets.find((a) => a.name === "FitBuddy-latest.apk");
-      const versioned = assets.find(
-        (a) =>
-          /^FitBuddy-.*\.apk$/i.test(a.name || "") &&
-          a.name !== "FitBuddy-latest.apk"
-      );
-      const apk = stable || versioned;
+    .then((releases) => {
+      const release = (releases || []).find(isCiSideloadRelease);
+      if (!release) throw new Error("no CI release");
+      const apk = pickCiApk(release);
       const apkUrl = (apk && apk.browser_download_url) || STABLE_APK;
       wireDirectDownload(apkUrl);
 
