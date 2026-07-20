@@ -309,9 +309,10 @@ fun MainScreen(
         }
     }
 
-    // One delayed silent update check per process when the toggle is on.
+    // One delayed silent update check per process when the toggle is on (not on F-Droid).
     var startupUpdateChecked by remember { mutableStateOf(false) }
     LaunchedEffect(hasSettingsSnapshot, settings.autoCheckUpdates) {
+        if (BuildConfig.FDROID) return@LaunchedEffect
         if (!hasSettingsSnapshot || !settings.autoCheckUpdates || startupUpdateChecked) return@LaunchedEffect
         startupUpdateChecked = true
         delay(1_500)
@@ -1023,6 +1024,7 @@ fun MainScreen(
     }
 
     fun startUpdateDownload(downloadUrl: String) {
+        if (BuildConfig.FDROID) return
         viewModel.beginUpdateDownload()
         scope.launch {
             try {
@@ -1044,23 +1046,26 @@ fun MainScreen(
         updateState.pendingDownloadUrlAfterBackup,
         settings.lastSuccessfulBackupAt
     ) {
+        if (BuildConfig.FDROID) return@LaunchedEffect
         val url = updateState.pendingDownloadUrlAfterBackup ?: return@LaunchedEffect
         if (!updateState.backupCompleted) return@LaunchedEffect
         if (!settings.hasFreshSuccessfulBackup()) return@LaunchedEffect
         startUpdateDownload(url)
     }
 
-    UpdatePromptDialogs(
-        updateState = updateState,
-        cloudBackupEnabled = settings.cloudBackupEnabled,
-        onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
-        onExportBackupAndUpdate = { downloadUrl ->
-            if (viewModel.beginExportBackupAndUpdate(downloadUrl)) {
-                updateBackupExportLauncher.launch("fitness-backup.json")
-            }
-        },
-        onSkipBackupAndUpdate = ::startUpdateDownload
-    )
+    if (!BuildConfig.FDROID) {
+        UpdatePromptDialogs(
+            updateState = updateState,
+            cloudBackupEnabled = settings.cloudBackupEnabled,
+            onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
+            onExportBackupAndUpdate = { downloadUrl ->
+                if (viewModel.beginExportBackupAndUpdate(downloadUrl)) {
+                    updateBackupExportLauncher.launch("fitness-backup.json")
+                }
+            },
+            onSkipBackupAndUpdate = ::startUpdateDownload
+        )
+    }
 }
 
 @Composable

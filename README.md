@@ -14,12 +14,12 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 - **Dashboard** — daily calorie ring, food/exercise logs, macro breakdown
 - **Analytics** — custom Canvas charts for trends over time
 - **Offline fallback** — works without AI config via built-in simulator
-- **Crash reports** — optional anonymous Sentry reports (opt out in Settings; Support ID for 1:1 help)
+- **Crash reports** — optional anonymous Sentry reports (opt in under Settings; Support ID for 1:1 help)
 - **Material You** — dynamic color theming on Android 12+
 
 ## Download
 
-Pre-built APKs and AABs are attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`.
+This **`fdroid`** branch is built for [F-Droid](https://f-droid.org/) (see [FDROID.md](FDROID.md)). GitHub Releases from `main` remain available at [Releases](https://github.com/anantdark/FitBuddy/releases). F-Droid and GitHub APKs use different signing keys and are not interchangeable updates.
 
 ## AI providers
 
@@ -35,7 +35,7 @@ First-run defaults can be seeded from `local.properties` (see below). Without a 
 
 ## Crash reporting
 
-Anonymous crashes go to [Sentry](https://sentry.io) when `SENTRY_DSN` is set in `local.properties` (or CI env). No meals, photos, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events.
+Anonymous crashes go to [Sentry](https://sentry.io) when `SENTRY_DSN` is set in `local.properties` (or CI env). No meals, photos, or API keys are sent. On this F-Droid branch, reporting is **off by default**; users can opt in under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events.
 
 With reporting on, the app may send one anonymous **daily heartbeat** the first time it opens each UTC day:
 
@@ -146,5 +146,6 @@ GPL-3.0 — see [LICENSE](LICENSE).
 
 ## Related docs
 
+- [FDROID.md](FDROID.md) — F-Droid branch maintenance, tagging, and submission notes
 - [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store publishing & keystore setup
 - [AGENTS.md](AGENTS.md) — contributor context for architecture and conventions

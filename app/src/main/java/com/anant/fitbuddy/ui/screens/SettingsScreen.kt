@@ -821,38 +821,46 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            SettingToggleRow(
-                title = "Check for updates automatically",
-                checked = settings.autoCheckUpdates,
-                onCheckedChange = onAutoCheckUpdatesChange,
-                hintTitle = "Automatic updates",
-                hint = "Looks for a newer GitHub release shortly after startup."
-            )
-            OutlinedButton(
-                onClick = onCheckForUpdates,
-                enabled = !updateState.isChecking && !updateState.isDownloading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (updateState.isChecking) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Checking...")
-                } else {
-                    Icon(Icons.Filled.Refresh, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Check for Updates")
-                }
-            }
-            updateState.statusMessage?.let { message ->
+            if (BuildConfig.FDROID) {
                 Text(
-                    text = message,
+                    text = "Updates are delivered by F-Droid. In-app GitHub APK downloads are disabled.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (updateState.statusIsError) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else {
+                SettingToggleRow(
+                    title = "Check for updates automatically",
+                    checked = settings.autoCheckUpdates,
+                    onCheckedChange = onAutoCheckUpdatesChange,
+                    hintTitle = "Automatic updates",
+                    hint = "Looks for a newer GitHub release shortly after startup."
+                )
+                OutlinedButton(
+                    onClick = onCheckForUpdates,
+                    enabled = !updateState.isChecking && !updateState.isDownloading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (updateState.isChecking) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Checking...")
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Check for Updates")
+                    }
+                }
+                updateState.statusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (updateState.statusIsError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
             SettingToggleRow(
                 title = "Send crash reports",
@@ -862,7 +870,8 @@ fun SettingsScreen(
                 hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
                     "When on, the app may send one anonymous daily heartbeat " +
                     "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
-                    "Your Support ID (under Backup) identifies reports without personal data."
+                    "Your Support ID (under Backup) identifies reports without personal data. " +
+                    "Off by default; opt in only if you want to help."
             )
         }
 

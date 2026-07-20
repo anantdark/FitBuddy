@@ -72,15 +72,8 @@ val mongoDbNameEscaped = mongoDbNameRaw
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
-// CI overrides versionCode/versionName per build via -PappVersionCode=<GITHUB_RUN_NUMBER> and
-// -PappVersionName=3.0.<GITHUB_RUN_NUMBER> so every commit to main produces an installable
-// update (same applicationId + signature + strictly higher versionCode = update, not reinstall);
-// local/dev builds keep the fallback.
-val ciVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull()
-val ciVersionName = project.findProperty("appVersionName") as String?
-
 // Release signing — local keystore.properties should point at a local/dev keystore
-// (e.g. fitbuddy-local.jks). The Play/CI release key lives only in GitHub RELEASE_* secrets.
+// (e.g. fitbuddy-local.jks). F-Droid signs the published APK with their own key.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
@@ -100,11 +93,13 @@ android {
         applicationId = "com.anant.fitbuddy"
         minSdk = 29
         targetSdk = 36
-        versionCode = ciVersionCode ?: 1
-        versionName = ciVersionName ?: "3.0.0-dev"
+        // Static for F-Droid; do not rely on CI -P overrides for release tags on this branch.
+        versionCode = 56
+        versionName = "3.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        buildConfigField("boolean", "FDROID", "true")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "AI_MODEL", "\"$aiModel\"")
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsnEscaped\"")
@@ -168,7 +163,7 @@ android {
 }
 
 // Release APK: FitBuddy-<versionName>.apk (not app-release.apk).
-val releaseApkVersionName = ciVersionName ?: "3.0.0-dev"
+val releaseApkVersionName = "3.1.0"
 androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->
         variant.outputs.forEach { output ->
@@ -186,7 +181,7 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
-    implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.zxing.core)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.material3)
@@ -210,7 +205,6 @@ dependencies {
     implementation(libs.mongodb.driver.sync)
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
-    implementation(libs.play.services.location)
     implementation(libs.retrofit)
     implementation(libs.sentry.android)
     testImplementation(libs.androidx.core)

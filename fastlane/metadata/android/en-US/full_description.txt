@@ -1,0 +1,29 @@
+FitBuddy is a free and open source health tracker for Android, tuned for Indian diets and daily routines.
+
+Log meals and workouts with a photo or loose text. An optional LLM estimates calories and macros. Review and edit ingredients before saving, bookmark meals as presets, and track progress with dashboards and charts.
+
+Features:
+• Smart logging — photo or text; AI parses food and exercise
+• Meal review — edit dish name and ingredient weights with live macro recalc
+• Presets — bookmark meals for one-tap logging
+• Dashboard — daily calorie ring, food/exercise logs, macro breakdown
+• Analytics — custom charts for trends over time
+• Product barcode scan — look up packaged foods (Open Food Facts)
+• Offline fallback — works without an AI key via a built-in simulator
+• Material You — dynamic color on Android 12+
+
+AI providers (optional, configured in Settings):
+• OpenRouter, Google Gemini, or Ollama (local or cloud)
+Without a key, the app uses the offline simulator. Photos need a configured provider.
+
+Optional network services:
+• Crash reports (Sentry) — off by default; opt in under Settings
+• Cloud backup (MongoDB Atlas) — off by default; opt in under Backup
+These features contact third-party servers when enabled.
+
+Updates on this F-Droid build are delivered by F-Droid. In-app downloads of GitHub APKs are disabled.
+
+Note: The F-Droid APK is signed with F-Droid’s key. It cannot replace a GitHub or Play Store install in place (different signature).
+
+Source: https://github.com/anantdark/FitBuddy
+License: GPL-3.0

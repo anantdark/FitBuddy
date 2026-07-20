@@ -71,9 +71,9 @@ data class AppSettings(
     val dynamicColor: Boolean = true,
     /**
      * When true, FitBuddy checks GitHub Releases for a newer APK shortly after startup
-     * (and still allows a manual check in Settings).
+     * (and still allows a manual check in Settings). Disabled on F-Droid builds.
      */
-    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
+    val autoCheckUpdates: Boolean = false,
     /**
      * Device-local display name (not in BackupData v5 / BackupSettings — survives app updates
      * via DataStore only; not restored from backup).
@@ -85,8 +85,8 @@ data class AppSettings(
      * Share this with the developer when reporting a bug.
      */
     val supportId: String = "",
-    /** When false, Sentry does not send crash events (SDK may still be initialized). */
-    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
+    /** When false, Sentry does not send crash events (SDK may still be initialized). Opt-in on F-Droid. */
+    val crashReportingEnabled: Boolean = false,
     /** Set when the Settings "Created by" easter egg is unlocked. */
     val easterEggDiscovered: Boolean = false,
     /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */

@@ -1,0 +1,6 @@
+First F-Droid build (3.1.0).
+
+• FOSS barcode scanning via ZXing (no ML Kit / Play Services)
+• In-app GitHub APK updates disabled (use F-Droid)
+• Crash reporting opt-in by default
+• Static version metadata for F-Droid auto-updates
