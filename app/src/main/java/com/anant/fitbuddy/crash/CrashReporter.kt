@@ -24,9 +24,10 @@ import io.sentry.protocol.SentryId
 import io.sentry.protocol.User
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Coarse, non-PII snapshot attached to daily heartbeats. */
+/** Coarse snapshot attached to daily heartbeats (username is device-local display name). */
 data class HeartbeatInfo(
     val aiProvider: String,
+    val username: String = "",
     val androidSdk: Int = Build.VERSION.SDK_INT,
     val manufacturer: String = Build.MANUFACTURER.orEmpty().take(64),
     val model: String = Build.MODEL.orEmpty().take(64)
@@ -64,8 +65,10 @@ object CrashReporter {
             options.setBeforeSend(BeforeSendCallback { event, _ ->
                 if (!reportingEnabled) return@BeforeSendCallback null
                 // Heartbeats use Logs/Metrics only — never promote them to Issues.
+                val msg = event.message?.formatted
                 if (event.fingerprints?.contains(HEARTBEAT_MONITOR_SLUG) == true ||
-                    event.message?.formatted == "FitBuddy daily heartbeat"
+                    msg == MESSAGE_DAILY_HEARTBEAT ||
+                    msg == MESSAGE_CONFETTI_HEARTBEAT
                 ) {
                     return@BeforeSendCallback null
                 }
@@ -103,9 +106,11 @@ object CrashReporter {
      * Anonymous daily heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app/AI
      * attributes for fleet breakdown (Explore → Metrics / Logs — not Issues).
      * Call at most once per UTC day when reporting is on. Returns true if the check-in was sent.
+     * Pass [force] to send even when crash reporting is off (easter-egg love tap).
      */
-    fun sendDailyHeartbeat(info: HeartbeatInfo): Boolean {
-        if (!ready.get() || !reportingEnabled) return false
+    fun sendDailyHeartbeat(info: HeartbeatInfo, force: Boolean = false): Boolean {
+        if (!ready.get()) return false
+        if (!reportingEnabled && !force) return false
         return runCatching {
             val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
                 release =
@@ -122,7 +127,10 @@ object CrashReporter {
                 }
             }
             val checkInId = Sentry.captureCheckIn(checkIn)
-            emitFleetPulse(info)
+            emitFleetPulse(
+                info,
+                message = if (force) MESSAGE_CONFETTI_HEARTBEAT else MESSAGE_DAILY_HEARTBEAT
+            )
             // Flush so cold-start pulse isn't lost if the process is killed early.
             Sentry.flush(5_000L)
             checkInId != SentryId.EMPTY_ID
@@ -135,17 +143,22 @@ object CrashReporter {
      * One count per active install/day, tagged for grouping in Explore → Metrics
      * (e.g. group by `model` / `app_version`). Also a structured log for sample rows.
      */
-    private fun emitFleetPulse(info: HeartbeatInfo) {
-        val attrs = SentryAttributes.of(
-            SentryAttribute.stringAttribute("heartbeat", "true"),
-            SentryAttribute.stringAttribute("ai_provider", info.aiProvider),
-            SentryAttribute.stringAttribute("manufacturer", info.manufacturer),
-            SentryAttribute.stringAttribute("model", info.model),
-            SentryAttribute.integerAttribute("android_sdk", info.androidSdk),
-            SentryAttribute.stringAttribute("app_version", BuildConfig.VERSION_NAME),
-            SentryAttribute.stringAttribute("app_build", BuildConfig.VERSION_CODE.toString()),
-            SentryAttribute.stringAttribute("app_id", BuildConfig.APPLICATION_ID)
-        )
+    private fun emitFleetPulse(info: HeartbeatInfo, message: String) {
+        val attrList = buildList {
+            add(SentryAttribute.stringAttribute("heartbeat", "true"))
+            add(SentryAttribute.stringAttribute("ai_provider", info.aiProvider))
+            add(SentryAttribute.stringAttribute("manufacturer", info.manufacturer))
+            add(SentryAttribute.stringAttribute("model", info.model))
+            add(SentryAttribute.integerAttribute("android_sdk", info.androidSdk))
+            add(SentryAttribute.stringAttribute("app_version", BuildConfig.VERSION_NAME))
+            add(SentryAttribute.stringAttribute("app_build", BuildConfig.VERSION_CODE.toString()))
+            add(SentryAttribute.stringAttribute("app_id", BuildConfig.APPLICATION_ID))
+            val username = info.username.trim()
+            if (username.isNotEmpty()) {
+                add(SentryAttribute.stringAttribute("username", username.take(128)))
+            }
+        }
+        val attrs = SentryAttributes.of(*attrList.toTypedArray())
         Sentry.metrics().count(
             "fitbuddy.daily_active",
             1.0,
@@ -155,11 +168,13 @@ object CrashReporter {
         Sentry.logger().log(
             SentryLogLevel.INFO,
             SentryLogParameters.create(attrs),
-            "FitBuddy daily heartbeat"
+            message
         )
     }
 
     private const val TAG = "FitBuddyCrash"
+    private const val MESSAGE_DAILY_HEARTBEAT = "FitBuddy daily heartbeat"
+    private const val MESSAGE_CONFETTI_HEARTBEAT = "FitBuddy confetti heartbeat"
 
     private fun scrub(event: SentryEvent): SentryEvent {
         event.request = null

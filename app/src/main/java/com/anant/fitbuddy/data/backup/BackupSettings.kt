@@ -12,6 +12,7 @@ import com.squareup.moshi.JsonClass
  * Intentionally omitted (ephemeral / device-local / build-baked):
  * - model rate-limit cooldowns
  * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
+ * - [AppSettings.lastSuccessfulBackupAt]
  * - Atlas connection URI (build-baked via MongoUriVault — never in backup JSON)
  * - Sentry heartbeat day, in-flight OAuth PKCE verifier
  *

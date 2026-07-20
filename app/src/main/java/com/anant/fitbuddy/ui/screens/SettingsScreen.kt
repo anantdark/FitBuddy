@@ -102,6 +102,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
@@ -132,10 +133,17 @@ private const val VERSION_RESET_TAPS = 8
 private const val DEVELOPER_UNLOCK_TAPS = 8
 private const val DEVELOPER_HINT_START = 3
 
+private val PROFILE_SEX_OPTIONS = listOf(
+    "" to "Not set",
+    "MALE" to "Male",
+    "FEMALE" to "Female"
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
+    profile: UserProfile? = null,
     modelsState: ModelsUiState,
     textModelsState: ModelsUiState,
     onLoadModels: (AiProvider, String, Boolean, String, Boolean) -> Unit,
@@ -143,6 +151,13 @@ fun SettingsScreen(
     onSave: (AppSettings) -> Unit,
     /** Persist without a snackbar (e.g. Auto failover toggle). Defaults to [onSave]. */
     onSaveQuiet: (AppSettings) -> Unit = onSave,
+    onSavePermanentProfile: (
+        firstName: String,
+        lastName: String,
+        age: Int,
+        heightCm: Double,
+        sex: String?
+    ) -> Unit = { _, _, _, _, _ -> },
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
     openRouterOAuthBusy: Boolean = false,
@@ -163,6 +178,7 @@ fun SettingsScreen(
     onDeveloperUnlockHintDismiss: () -> Unit = {},
     onDeveloperModeToggled: (unlocked: Boolean) -> Unit = {},
     onClearModelCooldowns: () -> Unit = {},
+    onShowTestUpdatePrompt: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     onPermissionDenied: (message: String) -> Unit = {},
     mongoBackupBusy: Boolean = false,
@@ -172,6 +188,8 @@ fun SettingsScreen(
     onMongoUpload: () -> Unit = {},
     onMongoDownload: (supportId: String) -> Unit = {},
     onRegenerateSupportId: () -> Unit = {},
+    /** Settings-only: ♥ double-tap also sends a Sentry heartbeat (when reporting is on). */
+    onHeartDoubleTapHeartbeat: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -197,6 +215,16 @@ fun SettingsScreen(
     }
     var aiAutoFailover by remember(settings) { mutableStateOf(settings.aiAutoFailover) }
     var showPaidModels by remember(settings) { mutableStateOf(settings.showPaidModels) }
+
+    var profileFirstName by remember(settings.firstName) { mutableStateOf(settings.firstName) }
+    var profileLastName by remember(settings.lastName) { mutableStateOf(settings.lastName) }
+    var profileAge by remember(profile?.age) {
+        mutableStateOf(profile?.age?.takeIf { it > 0 }?.toString().orEmpty())
+    }
+    var profileHeight by remember(profile?.heightCm) {
+        mutableStateOf(profile?.heightCm?.takeIf { it > 0 }?.toString().orEmpty())
+    }
+    var profileSex by remember(profile?.sex) { mutableStateOf(profile?.sex.orEmpty()) }
 
     var anantTapCount by remember { mutableIntStateOf(0) }
     var versionTapCount by remember { mutableIntStateOf(0) }
@@ -332,7 +360,7 @@ fun SettingsScreen(
         AiStatusBanner(isConfigured = settings.isConfigured, provider = settings.provider)
 
         // --- AI provider -----------------------------------------------------------------
-        SettingsCard(title = "AI Provider") {
+        SettingsCard(title = "AI Provider", initiallyExpanded = false) {
             SettingToggleRow(
                 title = "Auto failover",
                 checked = aiAutoFailover,
@@ -606,6 +634,59 @@ fun SettingsScreen(
                     )
                 }
             ) { Text("Save AI Settings") }
+        }
+
+        // --- Profile (name + permanent body attrs) ---------------------------------------
+        SettingsCard(title = "Profile", initiallyExpanded = false) {
+            SettingField(
+                label = "First name",
+                value = profileFirstName,
+                onValueChange = { profileFirstName = it }
+            )
+            SettingField(
+                label = "Last name",
+                value = profileLastName,
+                onValueChange = { profileLastName = it }
+            )
+            SettingField(
+                label = "Age",
+                value = profileAge,
+                onValueChange = { input ->
+                    profileAge = input.filter { it.isDigit() }
+                },
+                keyboardType = KeyboardType.Number
+            )
+            SettingField(
+                label = "Height (cm)",
+                value = profileHeight,
+                onValueChange = { input ->
+                    profileHeight = input.filter { it.isDigit() || it == '.' }
+                },
+                keyboardType = KeyboardType.Decimal
+            )
+            ProfileSexDropdown(
+                selectedValue = profileSex,
+                onSelected = { profileSex = it }
+            )
+            val profileValid = profileFirstName.trim().isNotEmpty() &&
+                profileLastName.trim().isNotEmpty() &&
+                (profileAge.toIntOrNull() ?: 0) in 10..120 &&
+                (profileHeight.toDoubleOrNull() ?: 0.0) in 50.0..280.0
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = profileValid,
+                onClick = {
+                    onSavePermanentProfile(
+                        profileFirstName.trim(),
+                        profileLastName.trim(),
+                        profileAge.toIntOrNull() ?: 0,
+                        profileHeight.toDoubleOrNull() ?: 0.0,
+                        profileSex.ifBlank { null }
+                    )
+                }
+            ) {
+                Text("Save profile")
+            }
         }
 
         // --- Preferences (reminders + appearance) ----------------------------------------
@@ -1144,6 +1225,18 @@ fun SettingsScreen(
                     Text("Clear model cooldowns")
                 }
                 OutlinedButton(
+                    onClick = onShowTestUpdatePrompt,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Show test update prompt")
+                }
+                Text(
+                    text = "Opens the update dialog with fake release info so you can " +
+                        "test backup-before-update. Download will fail on purpose.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
                     onClick = {
                         if (
                             needsNotificationPermission &&
@@ -1173,7 +1266,10 @@ fun SettingsScreen(
         }
 
         CraftedWithLoveCredit(
-            onHeartDoubleTap = { confettiKey += 1 },
+            onHeartDoubleTap = {
+                confettiKey += 1
+                onHeartDoubleTapHeartbeat()
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 24.dp)
@@ -1284,15 +1380,29 @@ private fun formatMongoUploadTime(epochMs: Long): String {
 @Composable
 fun UpdatePromptDialogs(
     updateState: UpdateUiState,
+    cloudBackupEnabled: Boolean,
     onDismissUpdatePrompt: () -> Unit,
-    onConfirmUpdate: (downloadUrl: String) -> Unit
+    onExportBackupAndUpdate: (downloadUrl: String) -> Unit,
+    onSkipBackupAndUpdate: (downloadUrl: String) -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
 
     updateState.updateInfo?.let { info ->
         val highlights = remember(info.releaseNotes) { releaseNoteHighlights(info.releaseNotes) }
+        val busy = updateState.isDownloading ||
+            updateState.isExportingBackup ||
+            updateState.isAwaitingBackupFilePick
+        var skipCountdownSec by remember(info.versionCode, info.downloadUrl) { mutableIntStateOf(5) }
+        LaunchedEffect(info.versionCode, info.downloadUrl) {
+            skipCountdownSec = 5
+            while (skipCountdownSec > 0) {
+                delay(1_000)
+                skipCountdownSec--
+            }
+        }
+        val skipEnabled = !busy && skipCountdownSec == 0
         AlertDialog(
-            onDismissRequest = onDismissUpdatePrompt,
+            onDismissRequest = { if (!busy) onDismissUpdatePrompt() },
             icon = {
                 Icon(
                     Icons.Filled.SystemUpdate,
@@ -1347,20 +1457,57 @@ fun UpdatePromptDialogs(
                             Text("View on GitHub")
                         }
                     }
+                    Text(
+                        text = if (cloudBackupEnabled) {
+                            "Back up your data to the cloud before updating."
+                        } else {
+                            "Export a local backup before updating."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    updateState.backupStatusMessage?.let { message ->
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (updateState.backupStatusIsError) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
+                        )
+                    }
+                    if (updateState.isExportingBackup) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { onExportBackupAndUpdate(info.downloadUrl) },
+                            enabled = !busy && !updateState.backupCompleted,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Export backup & update") }
+                        OutlinedButton(
+                            onClick = { onSkipBackupAndUpdate(info.downloadUrl) },
+                            enabled = skipEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                if (skipCountdownSec > 0) {
+                                    "Skip backup & update ($skipCountdownSec)"
+                                } else {
+                                    "Skip backup & update"
+                                }
+                            )
+                        }
+                    }
                 }
             },
-            confirmButton = {
-                Button(
-                    onClick = { onConfirmUpdate(info.downloadUrl) },
-                    enabled = !updateState.isDownloading
-                ) { Text("Download & install") }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = onDismissUpdatePrompt,
-                    enabled = !updateState.isDownloading
-                ) { Text("Later") }
-            }
+            confirmButton = {},
+            dismissButton = {}
         )
     }
 
@@ -1730,6 +1877,42 @@ private fun SettingField(
         },
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProfileSexDropdown(
+    selectedValue: String,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val display = PROFILE_SEX_OPTIONS.firstOrNull { it.first == selectedValue }?.second
+        ?: PROFILE_SEX_OPTIONS.first().second
+
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(
+            value = display,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Sex") },
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            PROFILE_SEX_OPTIONS.forEach { (value, text) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        onSelected(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 /** Multi-key editor: chips with remove; Add field accepts comma/newline paste. */

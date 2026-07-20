@@ -116,6 +116,8 @@ fun OnboardingScreen(
     onRequestLocalRestore: () -> Unit = {},
     onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
+        firstName: String,
+        lastName: String,
         age: Int,
         weightKg: Double,
         heightCm: Double,
@@ -131,6 +133,8 @@ fun OnboardingScreen(
     var step by remember(aiOnly) { mutableIntStateOf(if (aiOnly) 0 else -1) }
     var cloudSupportId by remember { mutableStateOf("") }
     var cloudError by remember { mutableStateOf<String?>(null) }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("") }
@@ -157,7 +161,9 @@ fun OnboardingScreen(
     var aiError by remember { mutableStateOf<String?>(null) }
 
     val openRouterOAuthConnected = openRouterOAuthKey.isNotBlank()
-    val stepOneValid = (age.toIntOrNull() ?: 0) in 10..120 &&
+    val stepOneValid = firstName.trim().isNotEmpty() &&
+        lastName.trim().isNotEmpty() &&
+        (age.toIntOrNull() ?: 0) in 10..120 &&
         (height.toDoubleOrNull() ?: 0.0) in 50.0..280.0 &&
         (weight.toDoubleOrNull() ?: 0.0) in 20.0..400.0
     val aiConfigValid = when (aiProvider) {
@@ -207,6 +213,8 @@ fun OnboardingScreen(
 
     fun finishOnboarding() {
         onComplete(
+            firstName.trim(),
+            lastName.trim(),
             age.toIntOrNull() ?: 0,
             weight.toDoubleOrNull() ?: 0.0,
             height.toDoubleOrNull() ?: 0.0,
@@ -559,6 +567,8 @@ fun OnboardingScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
+                            OnboardingTextField("First name", firstName) { firstName = it }
+                            OnboardingTextField("Last name", lastName) { lastName = it }
                             OnboardingNumberField("Age", age) { age = it }
                             OnboardingNumberField("Height (cm)", height, decimal = true) { height = it }
                             OnboardingNumberField("Current weight (kg)", weight, decimal = true) {

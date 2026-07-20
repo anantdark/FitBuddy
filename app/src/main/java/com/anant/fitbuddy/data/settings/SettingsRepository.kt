@@ -111,7 +111,10 @@ class SettingsRepository(context: Context) {
                 ?: AppSettings.DEFAULT_MONGO_COLLECTION,
             mongoLastUploadAt = prefs[KEY_MONGO_LAST_UPLOAD_AT] ?: 0L,
             mongoLastUploadOk = prefs[KEY_MONGO_LAST_UPLOAD_OK] ?: false,
-            mongoLastError = prefs[KEY_MONGO_LAST_ERROR].orEmpty()
+            mongoLastError = prefs[KEY_MONGO_LAST_ERROR].orEmpty(),
+            lastSuccessfulBackupAt = prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] ?: 0L,
+            firstName = prefs[KEY_FIRST_NAME].orEmpty(),
+            lastName = prefs[KEY_LAST_NAME].orEmpty()
         )
     }
 
@@ -237,6 +240,8 @@ class SettingsRepository(context: Context) {
             prefs[KEY_MONGO_COLLECTION] = settings.mongoCollectionName.ifBlank {
                 AppSettings.DEFAULT_MONGO_COLLECTION
             }
+            prefs[KEY_FIRST_NAME] = settings.firstName.trim()
+            prefs[KEY_LAST_NAME] = settings.lastName.trim()
             // Cooldowns stay until UTC midnight; AI calls still update active after success.
             // Save always resets Auto selection to the preferred provider's current models
             // (covers platform change, Local↔Cloud, and dropdown edits).
@@ -267,7 +272,19 @@ class SettingsRepository(context: Context) {
             prefs[KEY_MONGO_LAST_UPLOAD_AT] = at
             prefs[KEY_MONGO_LAST_UPLOAD_OK] = ok
             prefs[KEY_MONGO_LAST_ERROR] = error.take(500)
+            if (ok) {
+                prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] = at
+            }
         }
+    }
+
+    /**
+     * Marks a successful local (or other) backup. Returns the recorded epoch ms.
+     * Cloud uploads go through [setMongoUploadStatus] with ok=true instead.
+     */
+    suspend fun recordSuccessfulBackup(at: Long = System.currentTimeMillis()): Long {
+        dataStore.edit { prefs -> prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] = at }
+        return at
     }
 
     /** Persists an OAuth-issued OpenRouter key without touching manual API keys. */
@@ -338,5 +355,9 @@ class SettingsRepository(context: Context) {
         val KEY_MONGO_LAST_UPLOAD_AT = longPreferencesKey("mongo_last_upload_at")
         val KEY_MONGO_LAST_UPLOAD_OK = booleanPreferencesKey("mongo_last_upload_ok")
         val KEY_MONGO_LAST_ERROR = stringPreferencesKey("mongo_last_error")
+        val KEY_LAST_SUCCESSFUL_BACKUP_AT = longPreferencesKey("last_successful_backup_at")
+        // Device-local only — not in BackupSettings / BackupData v5.
+        val KEY_FIRST_NAME = stringPreferencesKey("user_first_name")
+        val KEY_LAST_NAME = stringPreferencesKey("user_last_name")
     }
 }

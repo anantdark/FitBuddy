@@ -67,11 +67,6 @@ private val GOAL_OPTIONS = listOf(
     "GAIN_MUSCLE" to "Gain muscle",
     "RECOMP" to "Body recomposition"
 )
-private val SEX_OPTIONS = listOf(
-    "" to "Not set",
-    "MALE" to "Male",
-    "FEMALE" to "Female"
-)
 private val ACTIVITY_OPTIONS = listOf(
     "SEDENTARY" to "Sedentary",
     "LIGHT" to "Lightly active",
@@ -89,14 +84,11 @@ fun BodyScreen(
     targetPlanState: TargetPlanUiState,
     isAiConfigured: Boolean,
     onSave: (
-        age: Int,
         weightKg: Double,
-        heightCm: Double,
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
         targetFatsG: Int,
-        sex: String?,
         goal: String,
         activityLevel: String
     ) -> Unit,
@@ -123,10 +115,7 @@ fun BodyScreen(
     onManageSavedFoods: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val age = remember(profile) { mutableStateOf(profile?.age?.toString() ?: "") }
     val weight = remember(profile) { mutableStateOf(profile?.weightKg?.toString() ?: "") }
-    val height = remember(profile) { mutableStateOf(profile?.heightCm?.toString() ?: "") }
-    val sex = remember(profile) { mutableStateOf(profile?.sex ?: "") }
     val goal = remember(profile) { mutableStateOf(profile?.goal ?: "RECOMP") }
     val activity = remember(profile) { mutableStateOf(profile?.activityLevel ?: "MODERATE") }
 
@@ -172,10 +161,7 @@ fun BodyScreen(
         )
 
         SectionCard(title = "Body basics") {
-            NumberField("Age", age.value) { age.value = it }
-            NumberField("Height (cm)", height.value, decimal = true) { height.value = it }
             NumberField("Current weight (kg)", weight.value, decimal = true) { weight.value = it }
-            LabeledDropdown("Sex", sex.value, SEX_OPTIONS) { sex.value = it }
             LabeledDropdown("Activity level", activity.value, ACTIVITY_OPTIONS) { activity.value = it }
             LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
         }
@@ -199,10 +185,10 @@ fun BodyScreen(
             isAiConfigured = isAiConfigured,
             onRequestPlan = {
                 onRequestTargetPlan(
-                    age.value.toIntOrNull() ?: 0,
-                    height.value.toDoubleOrNull() ?: 0.0,
+                    profile?.age ?: 0,
+                    profile?.heightCm ?: 0.0,
                     weight.value.toDoubleOrNull() ?: 0.0,
-                    sex.value.ifBlank { null },
+                    profile?.sex,
                     activity.value,
                     goal.value
                 )
@@ -213,14 +199,11 @@ fun BodyScreen(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 onSave(
-                    age.value.toIntOrNull() ?: 0,
                     weight.value.toDoubleOrNull() ?: 0.0,
-                    height.value.toDoubleOrNull() ?: 0.0,
                     targetCalories.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_CALORIES,
                     targetProtein.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_PROTEIN,
                     targetCarbs.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_CARBS,
                     targetFats.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_FATS,
-                    sex.value.ifBlank { null },
                     goal.value,
                     activity.value
                 )
@@ -252,10 +235,10 @@ fun BodyScreen(
             onApply = {
                 onApplyTargetPlan(
                     plan,
-                    age.value.toIntOrNull() ?: 0,
-                    height.value.toDoubleOrNull() ?: 0.0,
+                    profile?.age ?: 0,
+                    profile?.heightCm ?: 0.0,
                     weight.value.toDoubleOrNull() ?: 0.0,
-                    sex.value.ifBlank { null },
+                    profile?.sex,
                     activity.value
                 )
             },

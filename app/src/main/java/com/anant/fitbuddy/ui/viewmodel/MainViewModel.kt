@@ -7,6 +7,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -45,6 +46,7 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -60,6 +62,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
@@ -200,7 +203,17 @@ data class UpdateUiState(
     val downloadProgress: Float? = null,
     val updateInfo: UpdateCheckResult.Available? = null,
     val statusMessage: String? = null,
-    val statusIsError: Boolean = false
+    val statusIsError: Boolean = false,
+    /** True after a successful pre-update export (cloud or local). */
+    val backupCompleted: Boolean = false,
+    val isExportingBackup: Boolean = false,
+    /** Waiting for the SAF create-document picker (local export path). */
+    val isAwaitingBackupFilePick: Boolean = false,
+    /** Download URL to start after [backupCompleted]; set by Export backup & update. */
+    val pendingDownloadUrlAfterBackup: String? = null,
+    /** Inline status under the update dialog backup actions. */
+    val backupStatusMessage: String? = null,
+    val backupStatusIsError: Boolean = false
 )
 
 class MainViewModel(
@@ -295,14 +308,31 @@ class MainViewModel(
             }
             when (val result = updateChecker.checkForUpdate(currentVersionCode)) {
                 is UpdateCheckResult.Available -> _updateState.update {
-                    it.copy(isChecking = false, updateInfo = result, statusMessage = null, statusIsError = false)
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = result,
+                        statusMessage = null,
+                        statusIsError = false,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        isAwaitingBackupFilePick = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false
+                    )
                 }
                 UpdateCheckResult.UpToDate -> _updateState.update {
                     it.copy(
                         isChecking = false,
                         updateInfo = null,
                         statusMessage = if (silent) null else "You're on the latest version",
-                        statusIsError = false
+                        statusIsError = false,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        isAwaitingBackupFilePick = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false
                     )
                 }
                 is UpdateCheckResult.Error -> _updateState.update {
@@ -310,7 +340,13 @@ class MainViewModel(
                         isChecking = false,
                         updateInfo = null,
                         statusMessage = if (silent) null else result.message,
-                        statusIsError = !silent
+                        statusIsError = !silent,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        isAwaitingBackupFilePick = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false
                     )
                 }
             }
@@ -318,7 +354,22 @@ class MainViewModel(
     }
 
     fun dismissUpdatePrompt() {
-        _updateState.update { it.copy(updateInfo = null, statusMessage = null, statusIsError = false) }
+        // Don't dismiss while SAF picker is open or backup/download is running.
+        val s = _updateState.value
+        if (s.isAwaitingBackupFilePick || s.isExportingBackup || s.isDownloading) return
+        _updateState.update {
+            it.copy(
+                updateInfo = null,
+                statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
     }
 
     fun beginUpdateDownload() {
@@ -328,8 +379,133 @@ class MainViewModel(
                 downloadProgress = null,
                 updateInfo = null,
                 statusMessage = null,
-                statusIsError = false
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
             )
+        }
+    }
+
+    /** Local SAF export is required when cloud backup is off. */
+    fun needsLocalUriForUpdateBackup(): Boolean = !settings.value.cloudBackupEnabled
+
+    /**
+     * Start Export backup & update: remember [downloadUrl], then either await a local file
+     * pick or begin cloud/local export immediately.
+     * @return true if the UI should launch the SAF create-document picker.
+     */
+    fun beginExportBackupAndUpdate(downloadUrl: String): Boolean {
+        if (_updateState.value.isExportingBackup || _updateState.value.isDownloading) return false
+        if (_updateState.value.backupCompleted) return false
+        _updateState.update {
+            it.copy(
+                pendingDownloadUrlAfterBackup = downloadUrl,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+        return if (needsLocalUriForUpdateBackup()) {
+            _updateState.update { it.copy(isAwaitingBackupFilePick = true) }
+            true
+        } else {
+            exportBackupForUpdate()
+            false
+        }
+    }
+
+    fun cancelBackupFilePick() {
+        _updateState.update {
+            it.copy(
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
+
+    /**
+     * Pre-update backup: cloud upload when enabled, otherwise local file via [uri].
+     * On success sets [UpdateUiState.backupCompleted] so the update download can start.
+     */
+    fun exportBackupForUpdate(uri: Uri? = null) {
+        if (_updateState.value.isExportingBackup || _updateState.value.isDownloading) return
+        if (_updateState.value.backupCompleted) return
+        val useCloud = settings.value.cloudBackupEnabled
+        if (!useCloud && uri == null) {
+            _updateState.update {
+                it.copy(
+                    isAwaitingBackupFilePick = false,
+                    pendingDownloadUrlAfterBackup = null,
+                    backupStatusMessage = "Choose a file to save the backup",
+                    backupStatusIsError = true
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            _updateState.update {
+                it.copy(
+                    isExportingBackup = true,
+                    isAwaitingBackupFilePick = false,
+                    backupStatusMessage = null,
+                    backupStatusIsError = false
+                )
+            }
+            val result = if (useCloud) {
+                runCatching { repository.uploadMongoBackup() }
+            } else {
+                runCatching { repository.exportData(uri!!) }
+            }
+            result
+                .onSuccess { count ->
+                    val fresh = settingsRepository.settings.first().hasFreshSuccessfulBackup()
+                    if (!fresh) {
+                        _updateState.update {
+                            it.copy(
+                                isExportingBackup = false,
+                                backupCompleted = false,
+                                pendingDownloadUrlAfterBackup = null,
+                                backupStatusMessage = "Backup timestamp missing or too old; update cancelled",
+                                backupStatusIsError = true
+                            )
+                        }
+                        return@onSuccess
+                    }
+                    val message = if (useCloud) {
+                        "Uploaded $count records to cloud backup"
+                    } else {
+                        "Exported $count records"
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isExportingBackup = false,
+                            backupCompleted = true,
+                            backupStatusMessage = message,
+                            backupStatusIsError = false
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    val message = if (useCloud) {
+                        "Cloud upload failed: ${e.message}"
+                    } else {
+                        "Export failed: ${e.message}"
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isExportingBackup = false,
+                            backupCompleted = false,
+                            pendingDownloadUrlAfterBackup = null,
+                            backupStatusMessage = message,
+                            backupStatusIsError = true
+                        )
+                    }
+                }
         }
     }
 
@@ -354,6 +530,33 @@ class MainViewModel(
                 downloadProgress = null,
                 statusMessage = message,
                 statusIsError = true
+            )
+        }
+    }
+
+    /** Developer: open the update prompt with fake release info (no network). */
+    fun showTestUpdatePrompt() {
+        _updateState.update {
+            it.copy(
+                isChecking = false,
+                isDownloading = false,
+                downloadProgress = null,
+                updateInfo = UpdateCheckResult.Available(
+                    versionName = "99.0.0-test",
+                    versionCode = BuildConfig.VERSION_CODE + 999,
+                    downloadUrl = "https://example.invalid/fitbuddy-test-update.apk",
+                    releaseNotes = "- Test update prompt for backup-before-update UI\n" +
+                        "- Download will intentionally fail",
+                    htmlUrl = ""
+                ),
+                statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
             )
         }
     }
@@ -405,10 +608,7 @@ class MainViewModel(
             if (enabled) {
                 val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
                 if (settingsRepository.lastHeartbeatUtcDay() != today) {
-                    val info = HeartbeatInfo(aiProvider = settings.value.provider.name)
-                    if (CrashReporter.sendDailyHeartbeat(info)) {
-                        settingsRepository.markHeartbeatSent(today)
-                    }
+                    sendHeartbeatInternal()
                 }
             }
             _analysisState.update {
@@ -416,6 +616,31 @@ class MainViewModel(
                     userMessage = if (enabled) "Crash reports enabled" else "Crash reports disabled"
                 )
             }
+        }
+    }
+
+    /**
+     * Easter egg: Settings “crafted with ♥” double-tap. Always tries a Sentry heartbeat
+     * (even if crash reporting is off); ignores the once-per-day gate so the tap pulses.
+     */
+    fun sendHeartbeatFromLoveTap() {
+        viewModelScope.launch {
+            sendHeartbeatInternal(force = true)
+        }
+    }
+
+    private suspend fun sendHeartbeatInternal(force: Boolean = false) {
+        val s = settings.value
+        val info = HeartbeatInfo(
+            aiProvider = s.provider.name,
+            username = s.usernameForHeartbeat
+        )
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+        val sent = withContext(Dispatchers.IO) {
+            CrashReporter.sendDailyHeartbeat(info, force = force)
+        }
+        if (sent) {
+            settingsRepository.markHeartbeatSent(today)
         }
     }
 
@@ -2007,6 +2232,8 @@ class MainViewModel(
      * seeds an initial body reading, then flags a one-shot target design for dashboard launch.
      */
     fun completeOnboarding(
+        firstName: String,
+        lastName: String,
         age: Int,
         weightKg: Double,
         heightCm: Double,
@@ -2022,6 +2249,8 @@ class MainViewModel(
                 val current = settings.value
                 settingsRepository.save(
                     current.copy(
+                        firstName = firstName.trim(),
+                        lastName = lastName.trim(),
                         provider = aiSettings.provider,
                         openRouterApiKeys = aiSettings.openRouterApiKeys,
                         openRouterApiKey = aiSettings.openRouterApiKey,
@@ -2076,6 +2305,64 @@ class MainViewModel(
                 }
             }
             _onboardingSaving.value = false
+        }
+    }
+
+    /** Persist display name only (DataStore). Used by the existing-user name prompt. */
+    fun saveUserName(firstName: String, lastName: String) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    firstName = firstName.trim(),
+                    lastName = lastName.trim()
+                )
+            )
+        }
+    }
+
+    /**
+     * Settings Profile card: name (DataStore) + permanent body attrs on [UserProfile]
+     * (age/height/sex), preserving weight, goals, and targets.
+     */
+    fun savePermanentProfile(
+        firstName: String,
+        lastName: String,
+        age: Int,
+        heightCm: Double,
+        sex: String?
+    ) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    firstName = firstName.trim(),
+                    lastName = lastName.trim()
+                )
+            )
+            val existing = dashboardState.value.profile
+            repository.saveProfile(
+                UserProfile(
+                    id = 1,
+                    age = age,
+                    weightKg = existing?.weightKg ?: 0.0,
+                    heightCm = heightCm,
+                    dailyTargetCalories = existing?.dailyTargetCalories
+                        ?: DashboardUiState.DEFAULT_TARGET_CALORIES,
+                    targetProteinG = existing?.targetProteinG
+                        ?: DashboardUiState.DEFAULT_TARGET_PROTEIN,
+                    targetCarbsG = existing?.targetCarbsG
+                        ?: DashboardUiState.DEFAULT_TARGET_CARBS,
+                    targetFatsG = existing?.targetFatsG
+                        ?: DashboardUiState.DEFAULT_TARGET_FATS,
+                    lastUpdatedTimestamp = System.currentTimeMillis(),
+                    sex = sex,
+                    goal = existing?.goal ?: "RECOMP",
+                    activityLevel = existing?.activityLevel ?: "MODERATE",
+                    goalRationale = existing?.goalRationale
+                )
+            )
+            _analysisState.update { it.copy(userMessage = "Profile saved") }
         }
     }
 
@@ -2156,34 +2443,32 @@ class MainViewModel(
     }
 
     fun saveProfile(
-        age: Int,
         weightKg: Double,
-        heightCm: Double,
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
         targetFatsG: Int,
-        sex: String? = null,
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
         viewModelScope.launch {
+            val existing = dashboardState.value.profile
             repository.saveProfile(
                 UserProfile(
                     id = 1,
-                    age = age,
+                    age = existing?.age ?: 0,
                     weightKg = weightKg,
-                    heightCm = heightCm,
+                    heightCm = existing?.heightCm ?: 0.0,
                     dailyTargetCalories = dailyTargetCalories,
                     targetProteinG = targetProteinG,
                     targetCarbsG = targetCarbsG,
                     targetFatsG = targetFatsG,
                     lastUpdatedTimestamp = System.currentTimeMillis(),
-                    sex = sex,
+                    sex = existing?.sex,
                     goal = goal,
                     activityLevel = activityLevel,
                     // Preserve the latest AI rationale across manual edits.
-                    goalRationale = dashboardState.value.profile?.goalRationale
+                    goalRationale = existing?.goalRationale
                 )
             )
             _analysisState.update { it.copy(userMessage = "Body saved · dashboard recalibrated") }

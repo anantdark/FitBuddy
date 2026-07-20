@@ -161,7 +161,11 @@ class FitnessRepository(
 
     // --- Backup -----------------------------------------------------------------------------
 
-    suspend fun exportData(uri: Uri): Int = backupManager.exportTo(uri)
+    suspend fun exportData(uri: Uri): Int {
+        val count = backupManager.exportTo(uri)
+        settingsRepository.recordSuccessfulBackup()
+        return count
+    }
 
     suspend fun importData(uri: Uri): Int = backupManager.importFrom(uri)
 

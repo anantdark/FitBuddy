@@ -134,7 +134,10 @@ class FitBuddyApp : Application() {
         val today = LocalDate.now(ZoneOffset.UTC).toString()
         if (settingsRepository.lastHeartbeatUtcDay() == today) return
         val settings = settingsRepository.settings.first()
-        val info = HeartbeatInfo(aiProvider = settings.provider.name)
+        val info = HeartbeatInfo(
+            aiProvider = settings.provider.name,
+            username = settings.usernameForHeartbeat
+        )
         if (CrashReporter.sendDailyHeartbeat(info)) {
             settingsRepository.markHeartbeatSent(today)
         }

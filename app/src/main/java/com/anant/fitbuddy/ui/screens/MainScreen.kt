@@ -279,6 +279,16 @@ fun MainScreen(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> uri?.let(viewModel::exportData) }
 
+    val updateBackupExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportBackupForUpdate(uri)
+        } else {
+            viewModel.cancelBackupFilePick()
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { pendingImportUri = it } }
@@ -327,6 +337,7 @@ fun MainScreen(
         ) { innerPadding ->
             SettingsScreen(
                 settings = settings,
+                profile = dashboardState.profile,
                 modelsState = modelsState,
                 textModelsState = textModelsState,
                 onLoadModels = { provider, apiKey, force, baseUrl, includePaid ->
@@ -337,6 +348,7 @@ fun MainScreen(
                 },
                 onSave = { viewModel.saveSettings(it, announce = true) },
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
+                onSavePermanentProfile = viewModel::savePermanentProfile,
                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                 openRouterOAuthBusy = openRouterOAuthBusy,
@@ -374,6 +386,7 @@ fun MainScreen(
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
                 },
+                onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap,
                 onSupportIdCopied = {
                     scope.launch {
                         snackbarHostState.showFitBuddyPill("Support ID copied")
@@ -394,6 +407,7 @@ fun MainScreen(
                     }
                 },
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
+                onShowTestUpdatePrompt = viewModel::showTestUpdatePrompt,
                 onTestNotificationSent = { ok ->
                     scope.launch {
                         snackbarHostState.showFitBuddyPill(
@@ -440,14 +454,27 @@ fun MainScreen(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(selectedTab.label) },
-                    actions = {
-                        IconButton(onClick = { showSettings = true }) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                if (selectedTab == Tab.DASHBOARD && settings.hasUserName) {
+                    TopAppBar(
+                        title = {
+                            Text(dashboardGreeting(settings.displayFirstName))
+                        },
+                        actions = {
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                            }
                         }
-                    }
-                )
+                    )
+                } else {
+                    CenterAlignedTopAppBar(
+                        title = { Text(selectedTab.label) },
+                        actions = {
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                            }
+                        }
+                    )
+                }
             },
             snackbarHost = { },
             bottomBar = {
@@ -625,6 +652,10 @@ fun MainScreen(
                     .zIndex(3f)
             )
         }
+    }
+
+    if (hasSettingsSnapshot && !settings.hasUserName) {
+        NamePromptDialog(onSave = viewModel::saveUserName)
     }
 
     if (showAnantEasterEgg) {
@@ -990,24 +1021,44 @@ fun MainScreen(
         )
     }
 
-    UpdatePromptDialogs(
-        updateState = updateState,
-        onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
-        onConfirmUpdate = { downloadUrl ->
-            viewModel.beginUpdateDownload()
-            scope.launch {
-                try {
-                    ApkInstaller.downloadAndInstall(context, downloadUrl) { progress ->
-                        viewModel.updateDownloadProgress(progress)
-                    }
-                    viewModel.finishUpdateDownload()
-                } catch (e: Exception) {
-                    viewModel.failUpdateDownload(
-                        e.message?.takeIf { it.isNotBlank() } ?: "Update download failed"
-                    )
+    fun startUpdateDownload(downloadUrl: String) {
+        viewModel.beginUpdateDownload()
+        scope.launch {
+            try {
+                ApkInstaller.downloadAndInstall(context, downloadUrl) { progress ->
+                    viewModel.updateDownloadProgress(progress)
                 }
+                viewModel.finishUpdateDownload()
+            } catch (e: Exception) {
+                viewModel.failUpdateDownload(
+                    e.message?.takeIf { it.isNotBlank() } ?: "Update download failed"
+                )
             }
         }
+    }
+
+    // After Export backup & update succeeds with a fresh backup timestamp, auto-install.
+    LaunchedEffect(
+        updateState.backupCompleted,
+        updateState.pendingDownloadUrlAfterBackup,
+        settings.lastSuccessfulBackupAt
+    ) {
+        val url = updateState.pendingDownloadUrlAfterBackup ?: return@LaunchedEffect
+        if (!updateState.backupCompleted) return@LaunchedEffect
+        if (!settings.hasFreshSuccessfulBackup()) return@LaunchedEffect
+        startUpdateDownload(url)
+    }
+
+    UpdatePromptDialogs(
+        updateState = updateState,
+        cloudBackupEnabled = settings.cloudBackupEnabled,
+        onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
+        onExportBackupAndUpdate = { downloadUrl ->
+            if (viewModel.beginExportBackupAndUpdate(downloadUrl)) {
+                updateBackupExportLauncher.launch("fitness-backup.json")
+            }
+        },
+        onSkipBackupAndUpdate = ::startUpdateDownload
     )
 }
 
@@ -1094,6 +1145,59 @@ private fun ClarificationDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+private fun dashboardGreeting(firstName: String): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val period = when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..20 -> "Good evening"
+        else -> "Good night"
+    }
+    return "$period, $firstName"
+}
+
+@Composable
+private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Unit) {
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    val canSave = firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty()
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("What’s your name?") },
+        text = {
+            Column {
+                Text(
+                    text = "We’ll use your first name in the dashboard greeting.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.size(12.dp))
+                OutlinedTextField(
+                    value = firstName,
+                    onValueChange = { firstName = it },
+                    label = { Text("First name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.size(8.dp))
+                OutlinedTextField(
+                    value = lastName,
+                    onValueChange = { lastName = it },
+                    label = { Text("Last name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(firstName.trim(), lastName.trim()) },
+                enabled = canSave
+            ) { Text("Save") }
         }
     )
 }

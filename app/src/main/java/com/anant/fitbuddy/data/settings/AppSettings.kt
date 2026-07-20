@@ -75,6 +75,12 @@ data class AppSettings(
      */
     val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     /**
+     * Device-local display name (not in BackupData v5 / BackupSettings — survives app updates
+     * via DataStore only; not restored from backup).
+     */
+    val firstName: String = "",
+    val lastName: String = "",
+    /**
      * Anonymous install id for crash support (Sentry user.id). Generated once, never PII.
      * Share this with the developer when reporting a bug.
      */
@@ -114,13 +120,48 @@ data class AppSettings(
     /** Epoch ms of the last cloud upload attempt (0 = never). */
     val mongoLastUploadAt: Long = 0L,
     val mongoLastUploadOk: Boolean = false,
-    val mongoLastError: String = ""
+    val mongoLastError: String = "",
+    /**
+     * Epoch ms of the last successful backup (local export or cloud upload).
+     * Used to gate auto-install after "Export backup & update" (must be fresh).
+     */
+    val lastSuccessfulBackupAt: Long = 0L
 ) {
+    /** Trimmed first name for greetings; empty when not set. */
+    val displayFirstName: String
+        get() = firstName.trim()
+
+    /** True when a first name has been saved (greeting / name prompt gate). */
+    val hasUserName: Boolean
+        get() = displayFirstName.isNotEmpty()
+
+    /** "First Last" for Sentry heartbeats; blank when no name. */
+    val usernameForHeartbeat: String
+        get() {
+            val first = firstName.trim()
+            val last = lastName.trim()
+            return when {
+                first.isEmpty() -> ""
+                last.isEmpty() -> first
+                else -> "$first $last"
+            }
+        }
+
     /** True when cloud backup is opted in and this build has a vault URI + Support ID. */
     val isMongoBackupConfigured: Boolean
         get() = cloudBackupEnabled &&
             supportId.isNotBlank() &&
             MongoUriVault.isAvailable()
+
+    /**
+     * True when a successful backup was recorded within [BACKUP_FRESHNESS_FOR_UPDATE_MS]
+     * (used before auto-install after Export backup & update).
+     */
+    fun hasFreshSuccessfulBackup(nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (lastSuccessfulBackupAt <= 0L) return false
+        val age = nowMs - lastSuccessfulBackupAt
+        return age in 0L..BACKUP_FRESHNESS_FOR_UPDATE_MS
+    }
 
     /** Vision/multimodal model id sent for the active provider (used for photo analysis). */
     val model: String
@@ -268,6 +309,8 @@ data class AppSettings(
         const val DEFAULT_REMINDER_MINUTE = 0
         /** Debounce window for startup auto-upload (manual upload bypasses this). */
         const val CLOUD_AUTO_UPLOAD_DEBOUNCE_MS: Long = 12L * 60L * 60L * 1000L
+        /** Max age of [lastSuccessfulBackupAt] before auto-install after backup-and-update. */
+        const val BACKUP_FRESHNESS_FOR_UPDATE_MS: Long = 5L * 60L * 1000L
         const val DEFAULT_MONGO_DB_NAME = "fitbuddy"
         const val DEFAULT_MONGO_COLLECTION = "fitbuddy_backup"
 

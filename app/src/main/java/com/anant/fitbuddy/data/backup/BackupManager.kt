@@ -156,7 +156,16 @@ class BackupManager(
         }
         workoutExerciseDao.insertAll(remappedExercises)
 
-        data.settings?.let { settingsRepository.save(it.toAppSettings()) }
+        data.settings?.let { backupSettings ->
+            // firstName/lastName are device-local (not in BackupData v5) — keep current values.
+            val current = settingsRepository.settings.first()
+            settingsRepository.save(
+                backupSettings.toAppSettings().copy(
+                    firstName = current.firstName,
+                    lastName = current.lastName
+                )
+            )
+        }
 
         return countRecords(data, legacyFoodCount = legacyFoods.size)
     }
