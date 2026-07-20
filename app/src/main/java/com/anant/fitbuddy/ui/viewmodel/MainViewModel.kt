@@ -34,6 +34,7 @@ import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
+import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
@@ -636,8 +637,9 @@ class MainViewModel(
             username = s.usernameForHeartbeat
         )
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+        val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
         val sent = withContext(Dispatchers.IO) {
-            CrashReporter.sendDailyHeartbeat(info, force = force)
+            CrashReporter.sendHeartbeat(info, kind)
         }
         if (sent) {
             settingsRepository.markHeartbeatSent(today)

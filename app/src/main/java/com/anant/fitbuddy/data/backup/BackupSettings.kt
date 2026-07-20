@@ -14,7 +14,7 @@ import com.squareup.moshi.JsonClass
  * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
  * - [AppSettings.lastSuccessfulBackupAt]
  * - Atlas connection URI (build-baked via MongoUriVault — never in backup JSON)
- * - Sentry heartbeat day, in-flight OAuth PKCE verifier
+ * - Sentry heartbeat day, last-known version code, in-flight OAuth PKCE verifier
  *
  * Active API key strings ([AppSettings.openRouterApiKey] etc.) are derived from the key lists
  * on restore via [AppSettings.withKeys].

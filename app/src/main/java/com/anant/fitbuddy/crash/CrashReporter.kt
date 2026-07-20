@@ -33,6 +33,24 @@ data class HeartbeatInfo(
     val model: String = Build.MODEL.orEmpty().take(64)
 )
 
+/** Why a fleet pulse was sent — maps to the Sentry log message string. */
+enum class HeartbeatKind {
+    DAILY,
+    CONFETTI,
+    UPDATE;
+
+    val logMessage: String
+        get() = when (this) {
+            DAILY -> "FitBuddy daily heartbeat"
+            CONFETTI -> "FitBuddy confetti heartbeat"
+            UPDATE -> "FitBuddy update heartbeat"
+        }
+
+    /** Love-tap may send even when crash reporting is off. */
+    val bypassReportingToggle: Boolean
+        get() = this == CONFETTI
+}
+
 /**
  * Thin Sentry wrapper: crashes/ANRs, optional daily heartbeat check-ins, no PII.
  * Empty [BuildConfig.SENTRY_DSN] keeps the SDK uninitialized (local builds without a key).
@@ -67,8 +85,7 @@ object CrashReporter {
                 // Heartbeats use Logs/Metrics only — never promote them to Issues.
                 val msg = event.message?.formatted
                 if (event.fingerprints?.contains(HEARTBEAT_MONITOR_SLUG) == true ||
-                    msg == MESSAGE_DAILY_HEARTBEAT ||
-                    msg == MESSAGE_CONFETTI_HEARTBEAT
+                    HeartbeatKind.entries.any { it.logMessage == msg }
                 ) {
                     return@BeforeSendCallback null
                 }
@@ -103,14 +120,14 @@ object CrashReporter {
     }
 
     /**
-     * Anonymous daily heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app/AI
+     * Anonymous heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app/AI
      * attributes for fleet breakdown (Explore → Metrics / Logs — not Issues).
-     * Call at most once per UTC day when reporting is on. Returns true if the check-in was sent.
-     * Pass [force] to send even when crash reporting is off (easter-egg love tap).
+     * Callers gate once-per-day / once-per-update. Returns true if the check-in was sent.
+     * [HeartbeatKind.CONFETTI] may send even when crash reporting is off (love tap).
      */
-    fun sendDailyHeartbeat(info: HeartbeatInfo, force: Boolean = false): Boolean {
+    fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
         if (!ready.get()) return false
-        if (!reportingEnabled && !force) return false
+        if (!reportingEnabled && !kind.bypassReportingToggle) return false
         return runCatching {
             val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
                 release =
@@ -127,10 +144,7 @@ object CrashReporter {
                 }
             }
             val checkInId = Sentry.captureCheckIn(checkIn)
-            emitFleetPulse(
-                info,
-                message = if (force) MESSAGE_CONFETTI_HEARTBEAT else MESSAGE_DAILY_HEARTBEAT
-            )
+            emitFleetPulse(info, message = kind.logMessage)
             // Flush so cold-start pulse isn't lost if the process is killed early.
             Sentry.flush(5_000L)
             checkInId != SentryId.EMPTY_ID
@@ -138,6 +152,10 @@ object CrashReporter {
             Log.e(TAG, "heartbeat failed", e)
         }.getOrDefault(false)
     }
+
+    /** @see sendHeartbeat */
+    fun sendDailyHeartbeat(info: HeartbeatInfo, force: Boolean = false): Boolean =
+        sendHeartbeat(info, if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY)
 
     /**
      * One count per active install/day, tagged for grouping in Explore → Metrics
@@ -173,8 +191,6 @@ object CrashReporter {
     }
 
     private const val TAG = "FitBuddyCrash"
-    private const val MESSAGE_DAILY_HEARTBEAT = "FitBuddy daily heartbeat"
-    private const val MESSAGE_CONFETTI_HEARTBEAT = "FitBuddy confetti heartbeat"
 
     private fun scrub(event: SentryEvent): SentryEvent {
         event.request = null
