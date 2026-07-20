@@ -43,7 +43,13 @@ Optional network features (AI providers, Sentry, MongoDB Atlas backup) remain av
    git push origin fdroid
    git push origin v3.1.1
    ```
-6. After inclusion, F-Droid `checkupdates` picks clean `vX.Y.Z` tags (CI tags like `v*-build*` are ignored via metadata).
+6. Run **Actions → F-Droid Release** with that tag. The workflow attaches
+   `FitBuddy-<version>.apk` and marks the GitHub release as **prerelease** with
+   `make_latest: false` so it never becomes `/releases/latest` (website + in-app
+   updates stay on CI `v*-buildN` releases).
+7. After inclusion, F-Droid `checkupdates` picks clean `vX.Y.Z` tags (CI tags like
+   `v*-build*` are ignored via metadata). F-Droid uses the tag `Binaries` URL, not
+   GitHub “Latest”.
 
 ## Screenshots
 

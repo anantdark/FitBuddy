@@ -76,6 +76,8 @@ jobs:
         # Intentionally no SENTRY_DSN / MONGO_* — must match unsigned F-Droid CI output.
         run: ./gradlew :app:assembleRelease --no-daemon
 
+      # Do NOT own GitHub "Latest" — site + in-app updater use CI tags (v*-buildN).
+      # F-Droid installs via Binaries URL on this tag, not /releases/latest.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -88,8 +90,11 @@ jobs:
             - **versionCode:** ${{ steps.version.outputs.version_code }}
             - **tag:** `${{ inputs.tag }}`
             - Signed with the FitBuddy release key (`AllowedAPKSigningKeys`).
+
+            Not for sideload / website downloads — use a `v*-buildN` GitHub Release for those.
           draft: false
-          prerelease: false
+          prerelease: true
+          make_latest: false
           files: |
             app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
         env:
