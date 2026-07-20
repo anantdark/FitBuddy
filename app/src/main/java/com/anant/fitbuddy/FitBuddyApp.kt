@@ -132,7 +132,8 @@ class FitBuddyApp : Application() {
     }
 
     /**
-     * On upgrade: one "FitBuddy update heartbeat". Otherwise the usual once-per-UTC-day pulse.
+     * On upgrade: one "FitBuddy update heartbeat" (independent of the daily pulse).
+     * Otherwise / additionally the usual once-per-UTC-day pulse.
      * Fresh installs only seed the stored version code (no update pulse).
      */
     private suspend fun maybeSendHeartbeats() {
@@ -149,12 +150,10 @@ class FitBuddyApp : Application() {
             settingsRepository.setLastKnownVersionCode(current)
         } else if (current > previous) {
             if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
-                settingsRepository.markHeartbeatSent(today)
                 settingsRepository.setLastKnownVersionCode(current)
-                return
             }
             // Leave previous unset on failure so the next cold start retries the update pulse.
-            return
+            // Update pulse is independent of the daily once-per-UTC-day gate.
         } else if (current != previous) {
             // Downgrade / same-channel swap — sync without an update pulse.
             settingsRepository.setLastKnownVersionCode(current)
