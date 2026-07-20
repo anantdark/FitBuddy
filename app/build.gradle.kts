@@ -153,6 +153,11 @@ android {
     installation {
         installOptions += listOf("--user", "0")
     }
+    // Omit AGP dependency-metadata signing block (rejected by F-Droid APK scanner).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     // MongoDB driver JARs both ship META-INF/native-image props; Android merge fails otherwise.
     packaging {
         resources {
