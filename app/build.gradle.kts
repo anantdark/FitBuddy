@@ -163,12 +163,15 @@ android {
     }
 }
 
-// Release APK: FitBuddy-<versionName>.apk (not app-release.apk).
-val releaseApkVersionName = ciVersionName ?: "3.0.0-dev"
+// Release APK: FitBuddy-<versionName>.apk (not app-release.apk). Read per-variant so the
+// fdroid flavor's fixed versionName is used instead of the github flavor's CI-injected one.
+val fallbackApkVersionName = ciVersionName ?: "3.0.0-dev"
 androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("FitBuddy-$releaseApkVersionName.apk")
+            output.outputFileName.set(
+                output.versionName.map { versionName -> "FitBuddy-${versionName ?: fallbackApkVersionName}.apk" }
+            )
         }
     }
 }
