@@ -66,15 +66,17 @@ jobs:
       - name: Read version from Gradle
         id: version
         run: |
-          VERSION_NAME=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
-          VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts | head -1)
+          # versionCode/versionName for this flavor live in the fdroid productFlavor block,
+          # not defaultConfig (which holds the CI-driven github values).
+          VERSION_NAME=$(awk '/create\("fdroid"\)/,/^        }/' app/build.gradle.kts | sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' | head -1)
+          VERSION_CODE=$(awk '/create\("fdroid"\)/,/^        }/' app/build.gradle.kts | sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' | head -1)
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
           echo "Building ${VERSION_NAME} (${VERSION_CODE}) from ${{ inputs.tag }}"
 
       - name: Build release APK
         # Intentionally no SENTRY_DSN / MONGO_* — must match unsigned F-Droid CI output.
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleFdroidRelease --no-daemon
 
       # Do NOT own GitHub "Latest" — site + in-app updater use CI tags (v*-buildN).
       # F-Droid installs via Binaries URL on this tag, not /releases/latest.
@@ -96,6 +98,6 @@ jobs:
           prerelease: true
           make_latest: false
           files: |
-            app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
+            app/build/outputs/apk/fdroid/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
