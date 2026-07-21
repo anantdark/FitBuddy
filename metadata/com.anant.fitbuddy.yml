@@ -24,16 +24,16 @@ Repo: https://github.com/anantdark/FitBuddy.git
 Binaries: https://github.com/anantdark/FitBuddy/releases/download/v%v/FitBuddy-%v.apk
 
 Builds:
-  - versionName: 3.1.1
-    versionCode: 57
-    commit: b127e58933261221a4fd8a6056ec740b41138e2c
+  - versionName: 3.1.2
+    versionCode: 58
+    commit: c1a84fbf8f066929d4e9c69449047c95f66dd23d
     subdir: app
     gradle:
-      - yes
+      - fdroid
 
 AllowedAPKSigningKeys: a6c12f2f7ae0143cf225fd11da6bd6d42d10ed38aebc651a9181626ae69accea
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
-CurrentVersion: 3.1.1
-CurrentVersionCode: 57
+CurrentVersion: 3.1.2
+CurrentVersionCode: 58
