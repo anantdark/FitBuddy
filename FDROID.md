@@ -46,7 +46,14 @@ That's an accepted tradeoff for keeping one codebase.
    (`versionName`, `versionCode`, `commit` = the tagged commit, `subdir: app`,
    `gradle: - fdroid`), plus `CurrentVersion` / `CurrentVersionCode`, and submit to
    [fdroiddata](https://gitlab.com/fdroid/fdroiddata).
-7. After inclusion, F-Droid `checkupdates` picks clean `vX.Y.Z` tags.
+7. Force-move the `fdroid-latest` tag to this release's commit, so there's always a
+   quick pointer to the most recent F-Droid prerelease build (the per-version `Builds:`
+   entries above remain the source of truth for reproducibility):
+   ```bash
+   git tag -f fdroid-latest <commit>
+   git push origin fdroid-latest --force
+   ```
+8. After inclusion, F-Droid `checkupdates` picks clean `vX.Y.Z` tags.
 
 ## Signing
 
