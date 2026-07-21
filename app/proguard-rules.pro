@@ -29,6 +29,16 @@
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keepclasseswithmembers interface com.anant.fitbuddy.data.remote.AiApi { *; }
 -keepclasseswithmembers interface com.anant.fitbuddy.data.remote.OpenFoodFactsApi { *; }
+# GithubApi's only real caller (UpdateChecker.checkForUpdate) is dead code in the fdroid
+# flavor (MainViewModel.checkForUpdates returns early when BuildConfig.IS_FDROID), so R8
+# sees the interface as unreachable there and strips/mangles it — but
+# FitBuddyApp.updateChecker is still eagerly constructed on both flavors (MainActivity
+# always wires it into MainViewModelFactory), so NetworkModule.provideGithubApi() still
+# runs retrofit2.Retrofit.create() on it, which then throws ClassCastException building
+# the dynamic proxy against the mangled interface. Same failure class as the removed
+# ML Kit keep rules: an unreachable-but-still-reflectively-used interface needs an
+# explicit, unconditional keep.
+-keepclasseswithmembers interface com.anant.fitbuddy.data.remote.GithubApi { *; }
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn retrofit2.**

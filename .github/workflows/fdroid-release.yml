@@ -5,9 +5,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing git tag to build and publish (e.g. v3.1.0)
+        description: Existing git tag (or any ref) to build (e.g. v3.1.0)
         required: true
         type: string
+      publish:
+        description: Publish a GitHub Release for this build (uncheck to just build + upload artifacts for local testing)
+        required: false
+        type: boolean
+        default: true
 
 concurrency:
   group: fdroid-release-${{ inputs.tag }}
@@ -85,9 +90,18 @@ jobs:
           path: app/build/outputs/mapping/fdroidRelease/mapping.txt
           retention-days: 90
 
+      - name: Upload built APK (unpublished test build)
+        if: ${{ inputs.publish == false }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-fdroid-${{ steps.version.outputs.version_code }}
+          path: app/build/outputs/apk/fdroid/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
+          retention-days: 14
+
       # Do NOT own GitHub "Latest" — site + in-app updater use CI tags (v*-buildN).
       # F-Droid installs via Binaries URL on this tag, not /releases/latest.
       - name: Create GitHub Release
+        if: ${{ inputs.publish != false }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag }}
