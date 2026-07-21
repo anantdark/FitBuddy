@@ -72,11 +72,8 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
-        env:
-          # Baked into BuildConfig; empty = crash SDK stays uninitialized.
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          # Password only — Gradle assembles mongodb+srv://… (empty = cloud backup off).
-          MONGO_DB_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
+        # Sentry DSN and the cloud-backup API key are committed obfuscated in
+        # build.gradle.kts — no secrets needed here.
         run: >
           ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
           -PappVersionCode=${{ steps.version.outputs.version_code }}
@@ -108,6 +105,8 @@ jobs:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
 
+      # make_latest: true — this channel owns /releases/latest (site + in-app updates).
+      # F-Droid tags use a separate workflow with make_latest: false.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -116,6 +115,7 @@ jobs:
           body: ${{ steps.notes.outputs.notes }}
           draft: false
           prerelease: false
+          make_latest: true
           generate_release_notes: false
           files: |
             app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk

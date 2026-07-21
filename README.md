@@ -35,7 +35,7 @@ First-run defaults can be seeded from `local.properties` (see below). Without a 
 
 ## Crash reporting
 
-Anonymous crashes go to [Sentry](https://sentry.io) when `SENTRY_DSN` is set in `local.properties` (or CI env). No meals, photos, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events.
+Anonymous crashes go to [Sentry](https://sentry.io) using a DSN committed obfuscated in `app/build.gradle.kts`. No meals, photos, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events.
 
 With reporting on, the app may send one anonymous **daily heartbeat** the first time it opens each UTC day:
 

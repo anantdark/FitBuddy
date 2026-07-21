@@ -89,9 +89,9 @@ class SettingsRepository(context: Context) {
                 if (prov != null && raw.isNotBlank() && !isPlausibleModelIdFor(prov, raw)) "" else raw
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
-            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
+            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
-            crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: !BuildConfig.DEBUG,
+            crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
             dailyLogReminderEnabled = prefs[KEY_DAILY_LOG_REMINDER] ?: true,
             dailyLogReminderHour = (prefs[KEY_DAILY_LOG_REMINDER_HOUR]
@@ -147,6 +147,17 @@ class SettingsRepository(context: Context) {
 
     suspend fun markHeartbeatSent(utcDay: String) {
         dataStore.edit { prefs -> prefs[KEY_LAST_HEARTBEAT_DAY] = utcDay }
+    }
+
+    /**
+     * Last [BuildConfig.VERSION_CODE] seen on this install (device-local).
+     * Null until the first launch that records it — used to detect upgrades.
+     */
+    suspend fun lastKnownVersionCode(): Int? =
+        dataStore.data.first()[KEY_LAST_KNOWN_VERSION_CODE]
+
+    suspend fun setLastKnownVersionCode(versionCode: Int) {
+        dataStore.edit { prefs -> prefs[KEY_LAST_KNOWN_VERSION_CODE] = versionCode }
     }
 
     /** Active model cooldowns (expired entries already pruned). Survives process death. */
@@ -338,6 +349,7 @@ class SettingsRepository(context: Context) {
         val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
+        val KEY_LAST_KNOWN_VERSION_CODE = intPreferencesKey("last_known_version_code")
         val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
         val KEY_MODEL_COOLDOWNS = stringPreferencesKey("ai_model_cooldowns")
         val KEY_DAILY_LOG_REMINDER = booleanPreferencesKey("daily_log_reminder_enabled")

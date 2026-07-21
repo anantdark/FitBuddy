@@ -97,6 +97,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -821,38 +822,57 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            SettingToggleRow(
-                title = "Check for updates automatically",
-                checked = settings.autoCheckUpdates,
-                onCheckedChange = onAutoCheckUpdatesChange,
-                hintTitle = "Automatic updates",
-                hint = "Looks for a newer GitHub release shortly after startup."
-            )
-            OutlinedButton(
-                onClick = onCheckForUpdates,
-                enabled = !updateState.isChecking && !updateState.isDownloading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (updateState.isChecking) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Checking...")
-                } else {
-                    Icon(Icons.Filled.Refresh, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Check for Updates")
-                }
-            }
-            updateState.statusMessage?.let { message ->
+            if (BuildConfig.IS_FDROID) {
+                val uriHandler = LocalUriHandler.current
                 Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (updateState.statusIsError) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Updates are handled by F-Droid.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "To get in-app updates, install from GitHub releases",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.Underline,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        uriHandler.openUri("https://github.com/anantdark/FitBuddy/releases")
                     }
                 )
+            } else {
+                SettingToggleRow(
+                    title = "Check for updates automatically",
+                    checked = settings.autoCheckUpdates,
+                    onCheckedChange = onAutoCheckUpdatesChange,
+                    hintTitle = "Automatic updates",
+                    hint = "Looks for a newer GitHub release shortly after startup."
+                )
+                OutlinedButton(
+                    onClick = onCheckForUpdates,
+                    enabled = !updateState.isChecking && !updateState.isDownloading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (updateState.isChecking) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Checking...")
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Check for Updates")
+                    }
+                }
+                updateState.statusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (updateState.statusIsError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
             SettingToggleRow(
                 title = "Send crash reports",

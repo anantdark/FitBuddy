@@ -1,5 +1,3 @@
-import java.net.URLEncoder
-import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -17,57 +15,28 @@ val localProperties = Properties().apply {
 }
 val openRouterApiKey: String = localProperties.getProperty("OPENROUTER_API_KEY", "")
 val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemma-4-31b-it:free")
-val sentryDsnRaw: String =
-    System.getenv("SENTRY_DSN")
-        ?: localProperties.getProperty("SENTRY_DSN", "")
-val sentryDsnEscaped: String = sentryDsnRaw
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
 
-// Personal Atlas backup (optional). Password from env/local.properties only — never commit it.
-// Gradle builds: mongodb+srv://USER:PASSWORD@HOST/?appName=APP
-// Empty password = cloud backup unavailable in that build.
-val mongoDbUser: String =
-    System.getenv("MONGO_DB_USER")
-        ?: localProperties.getProperty("MONGO_DB_USER", "anantpatel31")
-val mongoDbPassword: String =
-    System.getenv("MONGO_DB_PASSWORD")
-        ?: localProperties.getProperty("MONGO_DB_PASSWORD", "")
-val mongoDbHost: String =
-    System.getenv("MONGO_DB_HOST")
-        ?: localProperties.getProperty("MONGO_DB_HOST", "cluster0.mzgdsvp.mongodb.net")
-val mongoDbAppName: String =
-    System.getenv("MONGO_DB_APP_NAME")
-        ?: localProperties.getProperty("MONGO_DB_APP_NAME", "Cluster0")
+// Sentry DSN and the cloud-backup proxy API key are committed here obfuscated (XOR + Base64)
+// rather than injected via CI secrets — DSNs are meant to be embeddable, and the proxy key
+// only grants read/upsert-by-id on the backup endpoint (no delete route exists server-side),
+// so a leaked/committed copy is inert the moment the key is rotated in Vercel.
+val sentryDsnMaskSeed = "fitbuddy.sentry.v1"
+val sentryDsnBlobEscaped = "Dh0AEgZeS1YeF1RWQ0YbH0JXUVlMARYCAEAeQANZFUsYHUMGUlgSWjULUEwfQlJbQkZKG0EAXlhAVlsNCh5LABFAEBdXXRNfEhsNTBwLS00bQlRZQURNGkMBVF1HUUM="
+
+// Personal cloud backup (optional), routed through the fitbuddy-cloud-backup HTTPS proxy
+// on Vercel — the app never holds Atlas credentials, only a shared API key.
+val cloudBackupBaseUrlRaw: String =
+    System.getenv("CLOUD_BACKUP_BASE_URL")
+        ?: localProperties.getProperty("CLOUD_BACKUP_BASE_URL", "https://fitbuddy-cloud-backup.vercel.app")
+val backupApiKeyMaskSeed = "fitbuddy.backup.v1"
+val backupApiKeyBlobEscaped = "VFlMVkBTUkBIVVACWxQSSxUFBwxMV0MAVxobVAcCCBQVT0QEUQ1MB0IFBh0eU1hTChZHGRMEB11HWhECBk4fWg=="
 val mongoDbNameRaw: String =
     System.getenv("MONGO_DB_NAME")
         ?: localProperties.getProperty("MONGO_DB_NAME", "fitbuddy")
 
-val mongoDbUriRaw: String = if (mongoDbPassword.isBlank()) {
-    // Full URI override still supported (legacy / local smoke).
-    System.getenv("MONGO_DB_URI")
-        ?: localProperties.getProperty("MONGO_DB_URI", "")
-} else {
-    val userEnc = URLEncoder.encode(mongoDbUser, Charsets.UTF_8)
-    val passEnc = URLEncoder.encode(mongoDbPassword, Charsets.UTF_8)
-    "mongodb+srv://$userEnc:$passEnc@$mongoDbHost/?appName=$mongoDbAppName"
-}
-
-/** XOR + Base64 so the plaintext URI is not a trivial string literal in the APK. */
-fun obfuscateForBuildConfig(plain: String, maskSeed: String): String {
-    if (plain.isEmpty()) return ""
-    val mask = maskSeed.toByteArray(Charsets.UTF_8)
-    val plainBytes = plain.toByteArray(Charsets.UTF_8)
-    val out = ByteArray(plainBytes.size) { i ->
-        (plainBytes[i].toInt() xor mask[i % mask.size].toInt()).toByte()
-    }
-    return Base64.getEncoder().encodeToString(out)
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-}
-
-val mongoUriMaskSeed = "fitbuddy.mongo.v1"
-val mongoUriBlobEscaped = obfuscateForBuildConfig(mongoDbUriRaw, mongoUriMaskSeed)
+val cloudBackupBaseUrlEscaped = cloudBackupBaseUrlRaw
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 val mongoDbNameEscaped = mongoDbNameRaw
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
@@ -105,13 +74,35 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        buildConfigField("boolean", "IS_FDROID", "false")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "AI_MODEL", "\"$aiModel\"")
-        buildConfigField("String", "SENTRY_DSN", "\"$sentryDsnEscaped\"")
-        // Obfuscated Atlas URI blob (empty when MONGO_DB_URI unset). Decoded by MongoUriVault.
-        buildConfigField("String", "MONGO_URI_BLOB", "\"$mongoUriBlobEscaped\"")
-        buildConfigField("String", "MONGO_URI_MASK", "\"$mongoUriMaskSeed\"")
+        buildConfigField("String", "SENTRY_DSN_BLOB", "\"$sentryDsnBlobEscaped\"")
+        buildConfigField("String", "SENTRY_DSN_MASK", "\"$sentryDsnMaskSeed\"")
+        // Obfuscated backup API key blob (empty when BACKUP_API_KEY unset). Decoded by MongoUriVault.
+        buildConfigField("String", "BACKUP_API_KEY_BLOB", "\"$backupApiKeyBlobEscaped\"")
+        buildConfigField("String", "BACKUP_API_KEY_MASK", "\"$backupApiKeyMaskSeed\"")
+        buildConfigField("String", "CLOUD_BACKUP_BASE_URL", "\"$cloudBackupBaseUrlEscaped\"")
         buildConfigField("String", "MONGO_DB_NAME", "\"$mongoDbNameEscaped\"")
+    }
+
+    // github flavor: in-app update checker/downloader active. fdroid flavor: F-Droid owns
+    // updates, so the checker is disabled and Settings points users at GitHub releases instead.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_FDROID", "false")
+        }
+        create("fdroid") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_FDROID", "true")
+            // F-Droid builds from source with no -P overrides, so defaultConfig's CI-driven
+            // versionCode/versionName would resolve to 1/"3.0.0-dev" — below the already
+            // published F-Droid release (57 / 3.1.1). Fixed here, bumped by hand per release.
+            versionCode = 58
+            versionName = "3.1.2"
+        }
     }
 
     signingConfigs {
@@ -158,6 +149,11 @@ android {
     installation {
         installOptions += listOf("--user", "0")
     }
+    // Omit AGP dependency-metadata signing block (rejected by F-Droid's APK scanner).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     // MongoDB driver JARs both ship META-INF/native-image props; Android merge fails otherwise.
     packaging {
         resources {
@@ -186,7 +182,6 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
-    implementation(libs.mlkit.barcode.scanning)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.material3)
@@ -207,12 +202,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.logging.interceptor)
     implementation(libs.material)
-    implementation(libs.mongodb.driver.sync)
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
     implementation(libs.play.services.location)
     implementation(libs.retrofit)
     implementation(libs.sentry.android)
+    implementation(libs.zxing.core)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)
@@ -228,4 +223,11 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     "ksp"(libs.androidx.room.compiler)
     "ksp"(libs.moshi.kotlin.codegen)
+}
+
+// Baseline profiles are not bit-reproducible across machines (F-Droid RB).
+tasks.whenTaskAdded {
+    if (name.contains("ArtProfile")) {
+        enabled = false
+    }
 }

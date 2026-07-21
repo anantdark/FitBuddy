@@ -3,6 +3,7 @@ package com.anant.fitbuddy
 import android.app.Application
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
+import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.data.backup.BackupManager
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
@@ -116,11 +117,11 @@ class FitBuddyApp : Application() {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
-        if (settings.crashReportingEnabled) {
-            Thread({
-                runBlocking(Dispatchers.IO) { maybeSendDailyHeartbeat() }
-            }, "fitbuddy-heartbeat").start()
-        }
+        // Heartbeats are fleet install/version telemetry, not crash reports — they run
+        // regardless of settings.crashReportingEnabled.
+        Thread({
+            runBlocking(Dispatchers.IO) { maybeSendHeartbeats() }
+        }, "fitbuddy-heartbeat").start()
     }
 
     /** Startup auto-upload when opted in and outside the 12h debounce window. */
@@ -130,15 +131,36 @@ class FitBuddyApp : Application() {
         runCatching { repository.uploadMongoBackup() }
     }
 
-    private suspend fun maybeSendDailyHeartbeat() {
-        val today = LocalDate.now(ZoneOffset.UTC).toString()
-        if (settingsRepository.lastHeartbeatUtcDay() == today) return
+    /**
+     * On upgrade: one "FitBuddy update heartbeat" (independent of the daily pulse).
+     * Otherwise / additionally the usual once-per-UTC-day pulse.
+     * Fresh installs only seed the stored version code (no update pulse).
+     */
+    private suspend fun maybeSendHeartbeats() {
         val settings = settingsRepository.settings.first()
         val info = HeartbeatInfo(
             aiProvider = settings.provider.name,
             username = settings.usernameForHeartbeat
         )
-        if (CrashReporter.sendDailyHeartbeat(info)) {
+        val today = LocalDate.now(ZoneOffset.UTC).toString()
+        val current = BuildConfig.VERSION_CODE
+        val previous = settingsRepository.lastKnownVersionCode()
+
+        if (previous == null) {
+            settingsRepository.setLastKnownVersionCode(current)
+        } else if (current > previous) {
+            if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
+                settingsRepository.setLastKnownVersionCode(current)
+            }
+            // Leave previous unset on failure so the next cold start retries the update pulse.
+            // Update pulse is independent of the daily once-per-UTC-day gate.
+        } else if (current != previous) {
+            // Downgrade / same-channel swap — sync without an update pulse.
+            settingsRepository.setLastKnownVersionCode(current)
+        }
+
+        if (settingsRepository.lastHeartbeatUtcDay() == today) return
+        if (CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)) {
             settingsRepository.markHeartbeatSent(today)
         }
     }
