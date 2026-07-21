@@ -13,8 +13,8 @@ import com.squareup.moshi.JsonClass
  * - model rate-limit cooldowns
  * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
  * - [AppSettings.lastSuccessfulBackupAt]
- * - Legacy cloud-backup URI fields (never in backup JSON on F-Droid)
- * - Heartbeat day / in-flight OAuth PKCE verifier
+ * - Atlas connection URI (build-baked via MongoUriVault — never in backup JSON)
+ * - Sentry heartbeat day, in-flight OAuth PKCE verifier
  *
  * Active API key strings ([AppSettings.openRouterApiKey] etc.) are derived from the key lists
  * on restore via [AppSettings.withKeys].
@@ -43,9 +43,9 @@ data class BackupSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
-    val autoCheckUpdates: Boolean = false,
+    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     val supportId: String = "",
-    val crashReportingEnabled: Boolean = false,
+    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
     val easterEggDiscovered: Boolean = false,
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = AppSettings.DEFAULT_REMINDER_HOUR,

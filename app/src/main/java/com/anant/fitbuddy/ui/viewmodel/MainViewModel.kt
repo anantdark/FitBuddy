@@ -32,6 +32,10 @@ import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
+import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.crash.HeartbeatInfo
+import com.anant.fitbuddy.data.remote.UpdateChecker
+import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuthCallbackServer
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterPkce
@@ -190,25 +194,32 @@ data class DayLogSnapshot(
     val consumedFats: Int = 0
 )
 
-/** Unused on F-Droid; kept so Settings/MainScreen compile stubs can be removed cleanly. */
+/** State of the manual "Check for Updates" flow in Settings. */
 @Immutable
 data class UpdateUiState(
     val isChecking: Boolean = false,
     val isDownloading: Boolean = false,
+    /** 0f–1f when known; null while checking size / indeterminate download. */
     val downloadProgress: Float? = null,
+    val updateInfo: UpdateCheckResult.Available? = null,
     val statusMessage: String? = null,
     val statusIsError: Boolean = false,
+    /** True after a successful pre-update export (cloud or local). */
     val backupCompleted: Boolean = false,
     val isExportingBackup: Boolean = false,
+    /** Waiting for the SAF create-document picker (local export path). */
     val isAwaitingBackupFilePick: Boolean = false,
+    /** Download URL to start after [backupCompleted]; set by Export backup & update. */
     val pendingDownloadUrlAfterBackup: String? = null,
+    /** Inline status under the update dialog backup actions. */
     val backupStatusMessage: String? = null,
     val backupStatusIsError: Boolean = false
 )
 
 class MainViewModel(
     private val repository: FitnessRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val updateChecker: UpdateChecker
 ) : ViewModel() {
 
     // --- Selected calendar day (rolling week dashboard) ------------------------------------
@@ -279,22 +290,276 @@ class MainViewModel(
     /** Wall-clock time relocated onto the active (selected) calendar day. */
     fun activeDayTimestamp(): Long = DateUtils.timestampOnDate(_selectedDate.value)
 
-    // --- Updates (disabled on F-Droid) ----------------------------------------------------
+    // --- Update check -------------------------------------------------------------------------
 
     private val _updateState = MutableStateFlow(UpdateUiState())
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
-    fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) = Unit
-    fun dismissUpdatePrompt() = Unit
-    fun beginUpdateDownload() = Unit
-    fun needsLocalUriForUpdateBackup(): Boolean = false
-    fun beginExportBackupAndUpdate(downloadUrl: String): Boolean = false
-    fun cancelBackupFilePick() = Unit
-    fun exportBackupForUpdate(uri: Uri? = null) = Unit
-    fun updateDownloadProgress(progress: Float) = Unit
-    fun finishUpdateDownload() = Unit
-    fun failUpdateDownload(message: String) = Unit
-    fun showTestUpdatePrompt() = Unit
+    /** Manual or automatic check; [silent] skips status text for up-to-date / network errors. */
+    fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
+        if (_updateState.value.isChecking || _updateState.value.isDownloading) return
+        viewModelScope.launch {
+            _updateState.update {
+                it.copy(
+                    isChecking = true,
+                    statusMessage = if (silent) it.statusMessage else null,
+                    statusIsError = if (silent) it.statusIsError else false
+                )
+            }
+            when (val result = updateChecker.checkForUpdate(currentVersionCode)) {
+                is UpdateCheckResult.Available -> _updateState.update {
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = result,
+                        statusMessage = null,
+                        statusIsError = false,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        isAwaitingBackupFilePick = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false
+                    )
+                }
+                UpdateCheckResult.UpToDate -> _updateState.update {
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = null,
+                        statusMessage = if (silent) null else "You're on the latest version",
+                        statusIsError = false,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        isAwaitingBackupFilePick = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false
+                    )
+                }
+                is UpdateCheckResult.Error -> _updateState.update {
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = null,
+                        statusMessage = if (silent) null else result.message,
+                        statusIsError = !silent,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        isAwaitingBackupFilePick = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissUpdatePrompt() {
+        // Don't dismiss while SAF picker is open or backup/download is running.
+        val s = _updateState.value
+        if (s.isAwaitingBackupFilePick || s.isExportingBackup || s.isDownloading) return
+        _updateState.update {
+            it.copy(
+                updateInfo = null,
+                statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
+
+    fun beginUpdateDownload() {
+        _updateState.update {
+            it.copy(
+                isDownloading = true,
+                downloadProgress = null,
+                updateInfo = null,
+                statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
+
+    /** Local SAF export is required when cloud backup is off. */
+    fun needsLocalUriForUpdateBackup(): Boolean = !settings.value.cloudBackupEnabled
+
+    /**
+     * Start Export backup & update: remember [downloadUrl], then either await a local file
+     * pick or begin cloud/local export immediately.
+     * @return true if the UI should launch the SAF create-document picker.
+     */
+    fun beginExportBackupAndUpdate(downloadUrl: String): Boolean {
+        if (_updateState.value.isExportingBackup || _updateState.value.isDownloading) return false
+        if (_updateState.value.backupCompleted) return false
+        _updateState.update {
+            it.copy(
+                pendingDownloadUrlAfterBackup = downloadUrl,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+        return if (needsLocalUriForUpdateBackup()) {
+            _updateState.update { it.copy(isAwaitingBackupFilePick = true) }
+            true
+        } else {
+            exportBackupForUpdate()
+            false
+        }
+    }
+
+    fun cancelBackupFilePick() {
+        _updateState.update {
+            it.copy(
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
+
+    /**
+     * Pre-update backup: cloud upload when enabled, otherwise local file via [uri].
+     * On success sets [UpdateUiState.backupCompleted] so the update download can start.
+     */
+    fun exportBackupForUpdate(uri: Uri? = null) {
+        if (_updateState.value.isExportingBackup || _updateState.value.isDownloading) return
+        if (_updateState.value.backupCompleted) return
+        val useCloud = settings.value.cloudBackupEnabled
+        if (!useCloud && uri == null) {
+            _updateState.update {
+                it.copy(
+                    isAwaitingBackupFilePick = false,
+                    pendingDownloadUrlAfterBackup = null,
+                    backupStatusMessage = "Choose a file to save the backup",
+                    backupStatusIsError = true
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            _updateState.update {
+                it.copy(
+                    isExportingBackup = true,
+                    isAwaitingBackupFilePick = false,
+                    backupStatusMessage = null,
+                    backupStatusIsError = false
+                )
+            }
+            val result = if (useCloud) {
+                runCatching { repository.uploadMongoBackup() }
+            } else {
+                runCatching { repository.exportData(uri!!) }
+            }
+            result
+                .onSuccess { count ->
+                    val fresh = settingsRepository.settings.first().hasFreshSuccessfulBackup()
+                    if (!fresh) {
+                        _updateState.update {
+                            it.copy(
+                                isExportingBackup = false,
+                                backupCompleted = false,
+                                pendingDownloadUrlAfterBackup = null,
+                                backupStatusMessage = "Backup timestamp missing or too old; update cancelled",
+                                backupStatusIsError = true
+                            )
+                        }
+                        return@onSuccess
+                    }
+                    val message = if (useCloud) {
+                        "Uploaded $count records to cloud backup"
+                    } else {
+                        "Exported $count records"
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isExportingBackup = false,
+                            backupCompleted = true,
+                            backupStatusMessage = message,
+                            backupStatusIsError = false
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    val message = if (useCloud) {
+                        "Cloud upload failed: ${e.message}"
+                    } else {
+                        "Export failed: ${e.message}"
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isExportingBackup = false,
+                            backupCompleted = false,
+                            pendingDownloadUrlAfterBackup = null,
+                            backupStatusMessage = message,
+                            backupStatusIsError = true
+                        )
+                    }
+                }
+        }
+    }
+
+    fun updateDownloadProgress(progress: Float) {
+        _updateState.update {
+            it.copy(
+                downloadProgress = progress.takeIf { p -> p >= 0f }
+            )
+        }
+    }
+
+    fun finishUpdateDownload() {
+        _updateState.update {
+            it.copy(isDownloading = false, downloadProgress = null)
+        }
+    }
+
+    fun failUpdateDownload(message: String) {
+        _updateState.update {
+            it.copy(
+                isDownloading = false,
+                downloadProgress = null,
+                statusMessage = message,
+                statusIsError = true
+            )
+        }
+    }
+
+    /** Developer: open the update prompt with fake release info (no network). */
+    fun showTestUpdatePrompt() {
+        _updateState.update {
+            it.copy(
+                isChecking = false,
+                isDownloading = false,
+                downloadProgress = null,
+                updateInfo = UpdateCheckResult.Available(
+                    versionName = "99.0.0-test",
+                    versionCode = BuildConfig.VERSION_CODE + 999,
+                    downloadUrl = "https://example.invalid/fitbuddy-test-update.apk",
+                    releaseNotes = "- Test update prompt for backup-before-update UI\n" +
+                        "- Download will intentionally fail",
+                    htmlUrl = ""
+                ),
+                statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
 
     // --- Settings ---------------------------------------------------------------------------
 
@@ -337,18 +602,47 @@ class MainViewModel(
 
     fun setCrashReportingEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsRepository.save(settings.value.copy(crashReportingEnabled = enabled))
+            val current = settings.value
+            settingsRepository.save(current.copy(crashReportingEnabled = enabled))
+            CrashReporter.setReportingEnabled(enabled)
+            if (enabled) {
+                val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+                if (settingsRepository.lastHeartbeatUtcDay() != today) {
+                    sendHeartbeatInternal()
+                }
+            }
             _analysisState.update {
                 it.copy(
-                    userMessage = "Crash reports are not available in this build. " +
-                        "Download from GitHub Releases for full functionality: " +
-                        "https://anantdark.github.io/FitBuddy/"
+                    userMessage = if (enabled) "Crash reports enabled" else "Crash reports disabled"
                 )
             }
         }
     }
 
-    fun sendHeartbeatFromLoveTap() = Unit
+    /**
+     * Easter egg: Settings “crafted with ♥” double-tap. Always tries a Sentry heartbeat
+     * (even if crash reporting is off); ignores the once-per-day gate so the tap pulses.
+     */
+    fun sendHeartbeatFromLoveTap() {
+        viewModelScope.launch {
+            sendHeartbeatInternal(force = true)
+        }
+    }
+
+    private suspend fun sendHeartbeatInternal(force: Boolean = false) {
+        val s = settings.value
+        val info = HeartbeatInfo(
+            aiProvider = s.provider.name,
+            username = s.usernameForHeartbeat
+        )
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+        val sent = withContext(Dispatchers.IO) {
+            CrashReporter.sendDailyHeartbeat(info, force = force)
+        }
+        if (sent) {
+            settingsRepository.markHeartbeatSent(today)
+        }
+    }
 
     fun markEasterEggDiscovered() {
         viewModelScope.launch {
@@ -659,6 +953,7 @@ class MainViewModel(
     fun lookupBarcode(barcode: String, onSuccess: (ScannedProduct) -> Unit) {
         if (_barcodeLookupLoading.value) return
         _barcodeLookupLoading.value = true
+        CrashReporter.breadcrumb("barcode", "lookup")
         viewModelScope.launch {
             runCatching { repository.lookupProductByBarcode(barcode) }
                 .onSuccess(onSuccess)
@@ -1212,6 +1507,90 @@ class MainViewModel(
         }
     }
 
+    private val _mongoBackupBusy = MutableStateFlow(false)
+    val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
+
+    fun uploadMongoBackup() {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            runCatching { repository.uploadMongoBackup() }
+                .onSuccess { count ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Uploaded $count records to cloud backup")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Cloud upload failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    fun downloadMongoBackup(supportId: String) {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            val enteredId = supportId.trim()
+            runCatching {
+                val count = repository.downloadMongoBackup(enteredId)
+                val restored = settingsRepository.settings.first()
+                val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                settingsRepository.save(
+                    restored.copy(
+                        supportId = reusedId,
+                        cloudBackupEnabled = true
+                    )
+                )
+                CrashReporter.setSupportId(reusedId)
+                count
+            }
+                .onSuccess { count ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Restored $count records from cloud backup")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Cloud restore failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    fun prepareCloudBackupEnable() {
+        viewModelScope.launch {
+            settingsRepository.ensureSupportId()
+        }
+    }
+
+    fun setCloudBackupEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            if (enabled) {
+                settingsRepository.ensureSupportId()
+            }
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    cloudBackupEnabled = enabled,
+                    cloudAutoUploadEnabled = if (enabled) {
+                        // Default auto-upload on when first enabling.
+                        true
+                    } else {
+                        false
+                    }
+                )
+            )
+        }
+    }
+
+    fun setCloudAutoUploadEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.save(settings.value.copy(cloudAutoUploadEnabled = enabled))
+        }
+    }
+
     /** Guest path: ensure a Support ID exists before the AI/profile steps. */
     fun startGuestOnboarding() {
         viewModelScope.launch {
@@ -1219,14 +1598,45 @@ class MainViewModel(
         }
     }
 
-    // Cloud backup removed on F-Droid — stubs keep older UI call sites compiling until cleaned.
-    private val _mongoBackupBusy = MutableStateFlow(false)
-    val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
-    fun uploadMongoBackup() = Unit
-    fun downloadMongoBackup(supportId: String) = Unit
-    fun prepareCloudBackupEnable() = Unit
-    fun setCloudBackupEnabled(enabled: Boolean) = Unit
-    fun setCloudAutoUploadEnabled(enabled: Boolean) = Unit
+    /**
+     * Onboarding cloud restore. Reuses the Support ID from the backup payload (or the ID
+     * entered to fetch it), enables cloud backup, then probes AI credentials.
+     */
+    fun restoreOnboardingFromCloud(supportId: String, onResult: (Boolean, String?) -> Unit) {
+        if (_onboardingRestoring.value) return
+        _onboardingRestoring.value = true
+        viewModelScope.launch {
+            val enteredId = supportId.trim()
+            val result = runCatching {
+                repository.downloadMongoBackup(enteredId)
+                val restored = settingsRepository.settings.first()
+                // Prefer Support ID from restored settings; fall back to the ID used to fetch.
+                val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                settingsRepository.save(
+                    restored.copy(
+                        supportId = reusedId,
+                        cloudBackupEnabled = true,
+                        cloudAutoUploadEnabled = true
+                    )
+                )
+                CrashReporter.setSupportId(reusedId)
+                val after = settingsRepository.settings.first()
+                if (!after.isConfigured) {
+                    _forceAiSetup.value = true
+                    return@runCatching
+                }
+                runCatching { probeAiCredentials(after) }
+                    .onFailure { _forceAiSetup.value = true }
+                    .onSuccess { _forceAiSetup.value = false }
+            }
+            _onboardingRestoring.value = false
+            result
+                .onSuccess { onResult(true, null) }
+                .onFailure { e ->
+                    onResult(false, e.message ?: "Couldn't restore from cloud")
+                }
+        }
+    }
 
     /** Onboarding local file restore. Keeps Support ID from backup when present. */
     fun restoreOnboardingFromLocal(uri: Uri, onResult: (Boolean, String?) -> Unit) {
@@ -1236,6 +1646,9 @@ class MainViewModel(
             val result = runCatching {
                 repository.importData(uri)
                 val after = settingsRepository.settings.first()
+                if (after.supportId.isNotBlank()) {
+                    CrashReporter.setSupportId(after.supportId)
+                }
                 if (!after.isConfigured) {
                     _forceAiSetup.value = true
                     return@runCatching
@@ -1253,10 +1666,11 @@ class MainViewModel(
         }
     }
 
-    /** Developer: mint a new Support ID for bug reports. */
+    /** Developer: mint a new Support ID for crash reporting and future cloud uploads. */
     fun regenerateSupportId() {
         viewModelScope.launch {
-            settingsRepository.regenerateSupportId()
+            val id = settingsRepository.regenerateSupportId()
+            CrashReporter.setSupportId(id)
             _analysisState.update {
                 it.copy(userMessage = "New Support ID generated — copy it from Backup settings")
             }
@@ -1328,6 +1742,10 @@ class MainViewModel(
             pendingText = text
             pendingImage = image
         }
+        CrashReporter.breadcrumb(
+            "ai",
+            if (image != null) "analyze_photo" else "analyze_text"
+        )
         _analysisState.update { it.copy(isLoading = true, clarificationMessage = null) }
         viewModelScope.launch {
             val outcome = repository.analyze(
@@ -2347,13 +2765,14 @@ class MainViewModel(
 /** Manual ViewModel factory (no DI framework); wires the shared repositories in. */
 class MainViewModelFactory(
     private val repository: FitnessRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val updateChecker: UpdateChecker
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(MainViewModel::class.java)) {
             "Unknown ViewModel class: ${modelClass.name}"
         }
-        return MainViewModel(repository, settingsRepository) as T
+        return MainViewModel(repository, settingsRepository, updateChecker) as T
     }
 }

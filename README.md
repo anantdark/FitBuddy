@@ -14,12 +14,12 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 - **Dashboard** — daily calorie ring, food/exercise logs, macro breakdown
 - **Analytics** — custom Canvas charts for trends over time
 - **Offline fallback** — works without AI config via built-in simulator
-- **Local backup** — export / import JSON (cloud backup & crash SDK are GitHub-Release builds only)
+- **Crash reports** — optional anonymous Sentry reports (opt out in Settings; Support ID for 1:1 help)
 - **Material You** — dynamic color theming on Android 12+
 
 ## Download
 
-This **`fdroid`** branch is built for [F-Droid](https://f-droid.org/) (see [FDROID.md](FDROID.md)). It omits Sentry, MongoDB Atlas cloud backup, and the in-app GitHub updater. Full builds are on [GitHub Releases](https://github.com/anantdark/FitBuddy/releases) and the [website](https://anantdark.github.io/FitBuddy/). F-Droid and GitHub APKs use different signing keys and are not interchangeable updates.
+Pre-built APKs and AABs are attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`.
 
 ## AI providers
 
@@ -33,9 +33,17 @@ Configure at runtime in **Settings** (stored locally via DataStore):
 
 First-run defaults can be seeded from `local.properties` (see below). Without a key, the app uses the offline simulator.
 
-## Crash reporting / cloud backup
+## Crash reporting
 
-Not included in this F-Droid branch. Install a GitHub Release build for optional Sentry crash reports and Atlas personal cloud backup. F-Droid users can still copy a **Support ID** under Settings when reporting bugs.
+Anonymous crashes go to [Sentry](https://sentry.io) when `SENTRY_DSN` is set in `local.properties` (or CI env). No meals, photos, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events.
+
+With reporting on, the app may send one anonymous **daily heartbeat** the first time it opens each UTC day:
+
+- **Crons** — check-in on monitor `fitbuddy-daily-heartbeat`
+- **Explore → Metrics** — counter `fitbuddy.daily_active` (sum; group by `model` / `app_version` / `manufacturer`)
+- **Explore → Logs** — message “FitBuddy daily heartbeat” with the same device/app/AI attributes (filter `heartbeat:true`)
+
+Does **not** create Issues. No meals, photos, or API keys.
 
 ## Build from source
 
@@ -138,6 +146,5 @@ GPL-3.0 — see [LICENSE](LICENSE).
 
 ## Related docs
 
-- [FDROID.md](FDROID.md) — F-Droid branch maintenance, tagging, and submission notes
 - [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store publishing & keystore setup
 - [AGENTS.md](AGENTS.md) — contributor context for architecture and conventions

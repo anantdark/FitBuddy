@@ -89,9 +89,9 @@ class SettingsRepository(context: Context) {
                 if (prov != null && raw.isNotBlank() && !isPlausibleModelIdFor(prov, raw)) "" else raw
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
-            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: false,
+            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
-            crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: false,
+            crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: !BuildConfig.DEBUG,
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
             dailyLogReminderEnabled = prefs[KEY_DAILY_LOG_REMINDER] ?: true,
             dailyLogReminderHour = (prefs[KEY_DAILY_LOG_REMINDER_HOUR]

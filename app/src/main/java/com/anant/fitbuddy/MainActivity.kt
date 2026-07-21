@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
             FitBuddyTheme(dynamicColor = settings.dynamicColor) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
                     val viewModel: MainViewModel = viewModel(
-                        factory = MainViewModelFactory(app.repository, app.settingsRepository)
+                        factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
                     )
                     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
                     val onboardingAiOnly by viewModel.onboardingAiOnly.collectAsStateWithLifecycle()
@@ -115,6 +116,7 @@ class MainActivity : ComponentActivity() {
                                 isValidating = onboardingValidating,
                                 isRestoring = onboardingRestoring,
                                 aiOnly = onboardingAiOnly,
+                                cloudRestoreAvailable = MongoUriVault.isAvailable(),
                                 openRouterOAuthBusy = openRouterOAuthBusy,
                                 openRouterOAuthKey = settings.openRouterOAuthKey,
                                 userMessage = analysisState.userMessage,
@@ -122,6 +124,7 @@ class MainActivity : ComponentActivity() {
                                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                                 onStartGuest = viewModel::startGuestOnboarding,
+                                onRestoreCloud = viewModel::restoreOnboardingFromCloud,
                                 onRequestLocalRestore = {
                                     onboardingImportLauncher.launch(arrayOf("application/json", "*/*"))
                                 },

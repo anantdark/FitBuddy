@@ -77,6 +77,7 @@ import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
+import com.anant.fitbuddy.util.ApkInstaller
 import com.anant.fitbuddy.util.ImageUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -306,6 +307,15 @@ fun MainScreen(
         if (livePillMessage == message) {
             livePillMessage = null
         }
+    }
+
+    // One delayed silent update check per process when the toggle is on.
+    var startupUpdateChecked by remember { mutableStateOf(false) }
+    LaunchedEffect(hasSettingsSnapshot, settings.autoCheckUpdates) {
+        if (!hasSettingsSnapshot || !settings.autoCheckUpdates || startupUpdateChecked) return@LaunchedEffect
+        startupUpdateChecked = true
+        delay(1_500)
+        viewModel.checkForUpdates(BuildConfig.VERSION_CODE, silent = true)
     }
 
     if (showSettings) {
@@ -1011,6 +1021,46 @@ fun MainScreen(
             }
         )
     }
+
+    fun startUpdateDownload(downloadUrl: String) {
+        viewModel.beginUpdateDownload()
+        scope.launch {
+            try {
+                ApkInstaller.downloadAndInstall(context, downloadUrl) { progress ->
+                    viewModel.updateDownloadProgress(progress)
+                }
+                viewModel.finishUpdateDownload()
+            } catch (e: Exception) {
+                viewModel.failUpdateDownload(
+                    e.message?.takeIf { it.isNotBlank() } ?: "Update download failed"
+                )
+            }
+        }
+    }
+
+    // After Export backup & update succeeds with a fresh backup timestamp, auto-install.
+    LaunchedEffect(
+        updateState.backupCompleted,
+        updateState.pendingDownloadUrlAfterBackup,
+        settings.lastSuccessfulBackupAt
+    ) {
+        val url = updateState.pendingDownloadUrlAfterBackup ?: return@LaunchedEffect
+        if (!updateState.backupCompleted) return@LaunchedEffect
+        if (!settings.hasFreshSuccessfulBackup()) return@LaunchedEffect
+        startUpdateDownload(url)
+    }
+
+    UpdatePromptDialogs(
+        updateState = updateState,
+        cloudBackupEnabled = settings.cloudBackupEnabled,
+        onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
+        onExportBackupAndUpdate = { downloadUrl ->
+            if (viewModel.beginExportBackupAndUpdate(downloadUrl)) {
+                updateBackupExportLauncher.launch("fitness-backup.json")
+            }
+        },
+        onSkipBackupAndUpdate = ::startUpdateDownload
+    )
 }
 
 @Composable
