@@ -26,7 +26,7 @@ Binaries: https://github.com/anantdark/FitBuddy/releases/download/v%v/FitBuddy-%
 Builds:
   - versionName: 3.1.2
     versionCode: 58
-    commit: c1a84fbf8f066929d4e9c69449047c95f66dd23d
+    commit: 7aa3410346e8ac8545470a4ce233e032dd45ad2f
     subdir: app
     gradle:
       - fdroid
