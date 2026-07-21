@@ -46,10 +46,6 @@ enum class HeartbeatKind {
             CONFETTI -> "FitBuddy confetti heartbeat"
             UPDATE -> "FitBuddy update heartbeat"
         }
-
-    /** Love-tap may send even when crash reporting is off. */
-    val bypassReportingToggle: Boolean
-        get() = this == CONFETTI
 }
 
 /**
@@ -125,11 +121,11 @@ object CrashReporter {
      * Anonymous heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app/AI
      * attributes for fleet breakdown (Explore → Metrics / Logs — not Issues).
      * Callers gate once-per-day / once-per-update. Returns true if the check-in was sent.
-     * [HeartbeatKind.CONFETTI] may send even when crash reporting is off (love tap).
+     * Sent regardless of [reportingEnabled] — heartbeats are fleet install/version
+     * telemetry, not crash reports, so the crash-reporting opt-out doesn't gate them.
      */
     fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
         if (!ready.get()) return false
-        if (!reportingEnabled && !kind.bypassReportingToggle) return false
         return runCatching {
             val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
                 release =
