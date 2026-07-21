@@ -1,0 +1,4 @@
+- Cloud backup now routes through a secure HTTPS proxy instead of a direct database connection.
+- Replaced barcode scanner with a smaller, fully open-source library.
+- Crash reporting and auto-update checks are off by default on F-Droid builds.
+- Fixed heartbeat delivery so it no longer depends on the crash-reporting toggle.
