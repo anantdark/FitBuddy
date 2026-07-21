@@ -298,6 +298,8 @@ class MainViewModel(
 
     /** Manual or automatic check; [silent] skips status text for up-to-date / network errors. */
     fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
+        // F-Droid owns updates for that build; never point it at the github flavor's releases.
+        if (BuildConfig.IS_FDROID) return
         if (_updateState.value.isChecking || _updateState.value.isDownloading) return
         viewModelScope.launch {
             _updateState.update {

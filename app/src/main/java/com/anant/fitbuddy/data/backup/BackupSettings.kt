@@ -43,9 +43,9 @@ data class BackupSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
-    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
+    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     val supportId: String = "",
-    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
+    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     val easterEggDiscovered: Boolean = false,
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = AppSettings.DEFAULT_REMINDER_HOUR,
@@ -88,7 +88,10 @@ data class BackupSettings(
                 activePhotoModel = activePhotoModel,
                 activeTextModel = activeTextModel,
                 dynamicColor = dynamicColor,
-                autoCheckUpdates = autoCheckUpdates,
+                // Never trust a restored value here: a backup made on a github build (or from
+                // before the distribution flavor split) would otherwise silently re-enable the
+                // GitHub auto-updater on an F-Droid install, which owns updates for that build.
+                autoCheckUpdates = autoCheckUpdates && !BuildConfig.IS_FDROID,
                 supportId = supportId,
                 crashReportingEnabled = crashReportingEnabled,
                 easterEggDiscovered = easterEggDiscovered,

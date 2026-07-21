@@ -73,7 +73,7 @@ data class AppSettings(
      * When true, FitBuddy checks GitHub Releases for a newer APK shortly after startup
      * (and still allows a manual check in Settings).
      */
-    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
+    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /**
      * Device-local display name (not in BackupData v5 / BackupSettings — survives app updates
      * via DataStore only; not restored from backup).
