@@ -1,0 +1,1 @@
+AI-assisted calorie and workout tracker for Indian diets, with offline fallback
