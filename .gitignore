@@ -76,5 +76,9 @@ output.json
 !.env.example
 .signing-secrets/
 
+# Vercel cloud-backup local link / env (also ignored under cloud-backup/)
+cloud-backup/.vercel/
+cloud-backup/node_modules/
+
 # Local device screenshot captures for marketing site
 .screenshots/

@@ -3,30 +3,29 @@ package com.anant.fitbuddy.data.backup.mongo
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.backup.BackupData
 import com.anant.fitbuddy.data.settings.AppSettings
-import com.mongodb.ConnectionString
-import com.mongodb.MongoClientSettings
-import com.mongodb.client.MongoClients
-import com.mongodb.client.model.Filters
-import com.mongodb.client.model.ReplaceOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.bson.Document
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * Personal Atlas backup: one document per install, keyed by [supportId] as `_id`.
- * Top-level fields include [appPackage], [deviceName], and [macId] (alongside schema /
- * support metadata). [payloadJson] is the same Moshi BackupData v5 JSON as local
- * file export/import — device fields are not embedded in that JSON.
- *
- * Uses [AndroidDnsClient] so `mongodb+srv://` works on Android (no JNDI).
+ * Personal Atlas backup, uploaded/downloaded via the fitbuddy-cloud-backup HTTPS proxy
+ * (Vercel) rather than a direct MongoDB connection — the app never holds Atlas
+ * credentials, only a shared API key ([MongoUriVault]). One document per install,
+ * keyed by [supportId] as `_id` server-side.
  */
 class MongoBackupRepository(
-    private val dnsClient: AndroidDnsClient = AndroidDnsClient()
+    private val http: OkHttpClient = defaultClient()
 ) {
 
     suspend fun upload(
-        connectionUri: String,
+        baseUrl: String,
+        apiKey: String,
         databaseName: String,
         collectionName: String,
         supportId: String,
@@ -35,27 +34,31 @@ class MongoBackupRepository(
         deviceName: String,
         macId: String
     ) = withContext(Dispatchers.IO) {
-        val uri = connectionUri.trim()
-        require(uri.isNotBlank()) { "MongoDB URI is blank" }
         val id = supportId.trim()
         require(id.isNotBlank()) { "Support ID is blank — cannot upload backup" }
         val dbName = databaseName.trim().ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
         val collName = collectionName.trim().ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
-        createClient(uri).use { client ->
-            val collection = client.getDatabase(dbName).getCollection(collName)
-            val doc = Document("_id", id)
-                .append("schemaVersion", BackupData.CURRENT_VERSION)
-                .append("exportedAt", exportedAt)
-                .append("supportId", id)
-                .append("appPackage", BuildConfig.APPLICATION_ID)
-                .append("deviceName", deviceName.trim().take(128))
-                .append("macId", macId.trim().take(64))
-                .append("payloadJson", payloadJson)
-            collection.replaceOne(
-                Filters.eq("_id", id),
-                doc,
-                ReplaceOptions().upsert(true)
-            )
+
+        val body = JSONObject()
+            .put("payloadJson", payloadJson)
+            .put("schemaVersion", BackupData.CURRENT_VERSION)
+            .put("exportedAt", exportedAt)
+            .put("appPackage", BuildConfig.APPLICATION_ID)
+            .put("deviceName", deviceName.trim().take(128))
+            .put("macId", macId.trim().take(64))
+            .toString()
+            .toRequestBody(JSON_MEDIA_TYPE)
+
+        val request = Request.Builder()
+            .url(backupUrl(baseUrl, id, dbName, collName))
+            .header("Authorization", "Bearer $apiKey")
+            .put(body)
+            .build()
+
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                error(errorMessage(response.body.string(), response.code))
+            }
         }
     }
 
@@ -64,56 +67,65 @@ class MongoBackupRepository(
      * @throws IllegalStateException when missing or schema too new for this app.
      */
     suspend fun downloadPayloadJson(
-        connectionUri: String,
+        baseUrl: String,
+        apiKey: String,
         databaseName: String,
         collectionName: String,
         supportId: String
     ): String = withContext(Dispatchers.IO) {
-        val uri = connectionUri.trim()
-        require(uri.isNotBlank()) { "MongoDB URI is blank" }
         val id = supportId.trim()
         require(id.isNotBlank()) { "Support ID is required to restore" }
         val dbName = databaseName.trim().ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
         val collName = collectionName.trim().ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
-        createClient(uri).use { client ->
-            val collection = client.getDatabase(dbName).getCollection(collName)
-            val doc = collection.find(Filters.eq("_id", id)).first()
-                ?: collection.find(
-                    Filters.and(
-                        Filters.eq("_id", LEGACY_DOC_ID),
-                        Filters.eq("supportId", id)
-                    )
-                ).first()
-                ?: error("No cloud backup found for Support ID $id")
-            val schemaVersion = doc.getInteger("schemaVersion", 0)
-            if (schemaVersion > BackupData.CURRENT_VERSION) {
-                error(
-                    "Cloud backup schema v$schemaVersion is newer than this app " +
-                        "(supports up to v${BackupData.CURRENT_VERSION})"
-                )
+
+        val url = backupUrl(baseUrl, id, dbName, collName)
+            .newBuilder()
+            .addQueryParameter("maxSchemaVersion", BackupData.CURRENT_VERSION.toString())
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $apiKey")
+            .get()
+            .build()
+
+        http.newCall(request).execute().use { response ->
+            val bodyString = response.body.string()
+            if (!response.isSuccessful) {
+                error(errorMessage(bodyString, response.code))
             }
-            doc.getString("payloadJson")
-                ?.takeIf { it.isNotBlank() }
+            val json = JSONObject(bodyString)
+            json.optString("payloadJson").takeIf { it.isNotBlank() }
                 ?: error("Cloud backup is missing payloadJson")
         }
     }
 
-    private fun createClient(uri: String) = MongoClients.create(
-        MongoClientSettings.builder()
-            .applyConnectionString(ConnectionString(uri, dnsClient))
-            .dnsClient(dnsClient)
-            .applyToSocketSettings { builder ->
-                builder.connectTimeout(20, TimeUnit.SECONDS)
-                    .readTimeout(60, TimeUnit.SECONDS)
-            }
-            .applyToClusterSettings { builder ->
-                builder.serverSelectionTimeout(30, TimeUnit.SECONDS)
-            }
-            .build()
-    )
+    private fun backupUrl(
+        baseUrl: String,
+        supportId: String,
+        databaseName: String,
+        collectionName: String
+    ) = "${baseUrl.trimEnd('/')}/api/backup/$supportId".toHttpUrlOrNull()
+        ?.newBuilder()
+        ?.addQueryParameter("db", databaseName)
+        ?.addQueryParameter("collection", collectionName)
+        ?.build()
+        ?: error("Invalid cloud backup URL: $baseUrl")
+
+    private fun errorMessage(rawBody: String?, code: Int): String {
+        val fallback = "Cloud backup request failed (HTTP $code)"
+        val body = rawBody?.takeIf { it.isNotBlank() } ?: return fallback
+        return runCatching { JSONObject(body).optString("error") }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: fallback
+    }
 
     companion object {
-        /** Pre–support-id-keyed uploads used a fixed `_id`. Still readable if supportId matches. */
-        const val LEGACY_DOC_ID = "latest"
+        private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+
+        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
     }
 }

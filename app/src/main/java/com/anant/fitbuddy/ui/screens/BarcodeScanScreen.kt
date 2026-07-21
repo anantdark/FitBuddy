@@ -5,6 +5,7 @@ import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -48,10 +49,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.ChecksumException
+import com.google.zxing.DecodeHintType
+import com.google.zxing.FormatException
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.NotFoundException
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -230,15 +236,19 @@ private fun BarcodeCameraPreview(
     DisposableEffect(lifecycleOwner) {
         val executor = Executors.newSingleThreadExecutor()
         val delivered = AtomicBoolean(false)
-        val options = BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(
-                Barcode.FORMAT_EAN_13,
-                Barcode.FORMAT_EAN_8,
-                Barcode.FORMAT_UPC_A,
-                Barcode.FORMAT_UPC_E
+        val reader = MultiFormatReader().apply {
+            setHints(
+                mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to listOf(
+                        BarcodeFormat.EAN_13,
+                        BarcodeFormat.EAN_8,
+                        BarcodeFormat.UPC_A,
+                        BarcodeFormat.UPC_E
+                    ),
+                    DecodeHintType.TRY_HARDER to true
+                )
             )
-            .build()
-        val scanner = BarcodeScanning.getClient(options)
+        }
         val mainExecutor = ContextCompat.getMainExecutor(context)
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -253,23 +263,15 @@ private fun BarcodeCameraPreview(
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 analysis.setAnalyzer(executor) { imageProxy ->
-                    val mediaImage = imageProxy.image
-                    if (mediaImage == null || delivered.get()) {
-                        imageProxy.close()
-                        return@setAnalyzer
-                    }
-                    val image = InputImage.fromMediaImage(
-                        mediaImage,
-                        imageProxy.imageInfo.rotationDegrees
-                    )
-                    scanner.process(image)
-                        .addOnSuccessListener(mainExecutor) { barcodes ->
-                            val code = barcodes.firstOrNull()?.rawValue ?: return@addOnSuccessListener
-                            if (delivered.compareAndSet(false, true)) {
-                                onBarcodeState(code)
-                            }
+                    try {
+                        if (delivered.get()) return@setAnalyzer
+                        val code = decodeProductBarcode(reader, imageProxy) ?: return@setAnalyzer
+                        if (delivered.compareAndSet(false, true)) {
+                            onBarcodeState(code)
                         }
-                        .addOnCompleteListener { imageProxy.close() }
+                    } finally {
+                        imageProxy.close()
+                    }
                 }
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
@@ -291,7 +293,7 @@ private fun BarcodeCameraPreview(
                     cameraProviderFuture.get().unbindAll()
                 }
             }
-            scanner.close()
+            reader.reset()
             executor.shutdown()
         }
     }
@@ -307,5 +309,38 @@ private fun BarcodeCameraPreview(
             factory = { previewView },
             modifier = modifier
         )
+    }
+}
+
+/** Decode EAN/UPC from a CameraX YUV frame via ZXing. Returns null when no code is found. */
+@androidx.camera.core.ExperimentalGetImage
+private fun decodeProductBarcode(reader: MultiFormatReader, imageProxy: ImageProxy): String? {
+    val mediaImage = imageProxy.image ?: return null
+    val yBuffer = mediaImage.planes[0].buffer
+    val yBytes = ByteArray(yBuffer.remaining())
+    yBuffer.get(yBytes)
+    val width = imageProxy.width
+    val height = imageProxy.height
+    val source = PlanarYUVLuminanceSource(
+        yBytes,
+        width,
+        height,
+        0,
+        0,
+        width,
+        height,
+        false
+    )
+    val bitmap = BinaryBitmap(HybridBinarizer(source))
+    return try {
+        reader.decodeWithState(bitmap).text
+    } catch (_: NotFoundException) {
+        null
+    } catch (_: ChecksumException) {
+        null
+    } catch (_: FormatException) {
+        null
+    } finally {
+        reader.reset()
     }
 }

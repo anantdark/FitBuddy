@@ -117,11 +117,11 @@ class FitBuddyApp : Application() {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
-        if (settings.crashReportingEnabled) {
-            Thread({
-                runBlocking(Dispatchers.IO) { maybeSendHeartbeats() }
-            }, "fitbuddy-heartbeat").start()
-        }
+        // Heartbeats are fleet install/version telemetry, not crash reports — they run
+        // regardless of settings.crashReportingEnabled.
+        Thread({
+            runBlocking(Dispatchers.IO) { maybeSendHeartbeats() }
+        }, "fitbuddy-heartbeat").start()
     }
 
     /** Startup auto-upload when opted in and outside the 12h debounce window. */

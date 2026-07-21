@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.Build
 import android.util.Log
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import io.sentry.Breadcrumb
 import io.sentry.CheckIn
 import io.sentry.CheckInStatus
@@ -45,15 +46,11 @@ enum class HeartbeatKind {
             CONFETTI -> "FitBuddy confetti heartbeat"
             UPDATE -> "FitBuddy update heartbeat"
         }
-
-    /** Love-tap may send even when crash reporting is off. */
-    val bypassReportingToggle: Boolean
-        get() = this == CONFETTI
 }
 
 /**
  * Thin Sentry wrapper: crashes/ANRs, optional daily heartbeat check-ins, no PII.
- * Empty [BuildConfig.SENTRY_DSN] keeps the SDK uninitialized (local builds without a key).
+ * Empty [BuildConfig.SENTRY_DSN_BLOB] keeps the SDK uninitialized (local builds without a key).
  */
 object CrashReporter {
 
@@ -65,7 +62,8 @@ object CrashReporter {
     private var reportingEnabled: Boolean = true
 
     fun init(app: Application, enabled: Boolean, supportId: String) {
-        val dsn = BuildConfig.SENTRY_DSN.trim()
+        if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) return
+        val dsn = MongoUriVault.decode(BuildConfig.SENTRY_DSN_BLOB, BuildConfig.SENTRY_DSN_MASK).trim()
         if (dsn.isEmpty()) return
         reportingEnabled = enabled
         SentryAndroid.init(app) { options ->
@@ -123,11 +121,11 @@ object CrashReporter {
      * Anonymous heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app/AI
      * attributes for fleet breakdown (Explore → Metrics / Logs — not Issues).
      * Callers gate once-per-day / once-per-update. Returns true if the check-in was sent.
-     * [HeartbeatKind.CONFETTI] may send even when crash reporting is off (love tap).
+     * Sent regardless of [reportingEnabled] — heartbeats are fleet install/version
+     * telemetry, not crash reports, so the crash-reporting opt-out doesn't gate them.
      */
     fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
         if (!ready.get()) return false
-        if (!reportingEnabled && !kind.bypassReportingToggle) return false
         return runCatching {
             val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
                 release =
