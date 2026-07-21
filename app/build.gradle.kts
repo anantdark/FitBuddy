@@ -149,6 +149,11 @@ android {
     installation {
         installOptions += listOf("--user", "0")
     }
+    // Omit AGP dependency-metadata signing block (rejected by F-Droid's APK scanner).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     // MongoDB driver JARs both ship META-INF/native-image props; Android merge fails otherwise.
     packaging {
         resources {
@@ -218,4 +223,11 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     "ksp"(libs.androidx.room.compiler)
     "ksp"(libs.moshi.kotlin.codegen)
+}
+
+// Baseline profiles are not bit-reproducible across machines (F-Droid RB).
+tasks.whenTaskAdded {
+    if (name.contains("ArtProfile")) {
+        enabled = false
+    }
 }
