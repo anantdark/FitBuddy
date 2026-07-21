@@ -38,12 +38,7 @@ jobs:
         run: ./gradlew :app:compileDebugKotlin --no-daemon
 
       - name: Compile release
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          BACKUP_API_KEY: ${{ secrets.BACKUP_API_KEY }}
         run: ./gradlew :app:compileReleaseKotlin --no-daemon
 
       - name: Unit tests
-        env:
-          BACKUP_API_KEY: ${{ secrets.BACKUP_API_KEY }}
         run: ./gradlew :app:testDebugUnitTest --no-daemon

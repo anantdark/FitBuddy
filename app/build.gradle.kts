@@ -1,4 +1,3 @@
-import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -16,41 +15,25 @@ val localProperties = Properties().apply {
 }
 val openRouterApiKey: String = localProperties.getProperty("OPENROUTER_API_KEY", "")
 val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemma-4-31b-it:free")
-val sentryDsnRaw: String =
-    System.getenv("SENTRY_DSN")
-        ?: localProperties.getProperty("SENTRY_DSN", "")
-val sentryDsnEscaped: String = sentryDsnRaw
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
+
+// Sentry DSN and the cloud-backup proxy API key are committed here obfuscated (XOR + Base64)
+// rather than injected via CI secrets — DSNs are meant to be embeddable, and the proxy key
+// only grants read/upsert-by-id on the backup endpoint (no delete route exists server-side),
+// so a leaked/committed copy is inert the moment the key is rotated in Vercel.
+val sentryDsnMaskSeed = "fitbuddy.sentry.v1"
+val sentryDsnBlobEscaped = "Dh0AEgZeS1YeF1RWQ0YbH0JXUVlMARYCAEAeQANZFUsYHUMGUlgSWjULUEwfQlJbQkZKG0EAXlhAVlsNCh5LABFAEBdXXRNfEhsNTBwLS00bQlRZQURNGkMBVF1HUUM="
 
 // Personal cloud backup (optional), routed through the fitbuddy-cloud-backup HTTPS proxy
 // on Vercel — the app never holds Atlas credentials, only a shared API key.
-// Empty key = cloud backup unavailable in that build.
 val cloudBackupBaseUrlRaw: String =
     System.getenv("CLOUD_BACKUP_BASE_URL")
         ?: localProperties.getProperty("CLOUD_BACKUP_BASE_URL", "https://fitbuddy-cloud-backup.vercel.app")
-val backupApiKeyRaw: String =
-    System.getenv("BACKUP_API_KEY")
-        ?: localProperties.getProperty("BACKUP_API_KEY", "")
+val backupApiKeyMaskSeed = "fitbuddy.backup.v1"
+val backupApiKeyBlobEscaped = "VFlMVkBTUkBIVVACWxQSSxUFBwxMV0MAVxobVAcCCBQVT0QEUQ1MB0IFBh0eU1hTChZHGRMEB11HWhECBk4fWg=="
 val mongoDbNameRaw: String =
     System.getenv("MONGO_DB_NAME")
         ?: localProperties.getProperty("MONGO_DB_NAME", "fitbuddy")
 
-/** XOR + Base64 so the plaintext key is not a trivial string literal in the APK. */
-fun obfuscateForBuildConfig(plain: String, maskSeed: String): String {
-    if (plain.isEmpty()) return ""
-    val mask = maskSeed.toByteArray(Charsets.UTF_8)
-    val plainBytes = plain.toByteArray(Charsets.UTF_8)
-    val out = ByteArray(plainBytes.size) { i ->
-        (plainBytes[i].toInt() xor mask[i % mask.size].toInt()).toByte()
-    }
-    return Base64.getEncoder().encodeToString(out)
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-}
-
-val backupApiKeyMaskSeed = "fitbuddy.backup.v1"
-val backupApiKeyBlobEscaped = obfuscateForBuildConfig(backupApiKeyRaw, backupApiKeyMaskSeed)
 val cloudBackupBaseUrlEscaped = cloudBackupBaseUrlRaw
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
@@ -93,7 +76,8 @@ android {
 
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "AI_MODEL", "\"$aiModel\"")
-        buildConfigField("String", "SENTRY_DSN", "\"$sentryDsnEscaped\"")
+        buildConfigField("String", "SENTRY_DSN_BLOB", "\"$sentryDsnBlobEscaped\"")
+        buildConfigField("String", "SENTRY_DSN_MASK", "\"$sentryDsnMaskSeed\"")
         // Obfuscated backup API key blob (empty when BACKUP_API_KEY unset). Decoded by MongoUriVault.
         buildConfigField("String", "BACKUP_API_KEY_BLOB", "\"$backupApiKeyBlobEscaped\"")
         buildConfigField("String", "BACKUP_API_KEY_MASK", "\"$backupApiKeyMaskSeed\"")

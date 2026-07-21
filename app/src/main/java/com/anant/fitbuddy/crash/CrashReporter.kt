@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.Build
 import android.util.Log
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import io.sentry.Breadcrumb
 import io.sentry.CheckIn
 import io.sentry.CheckInStatus
@@ -53,7 +54,7 @@ enum class HeartbeatKind {
 
 /**
  * Thin Sentry wrapper: crashes/ANRs, optional daily heartbeat check-ins, no PII.
- * Empty [BuildConfig.SENTRY_DSN] keeps the SDK uninitialized (local builds without a key).
+ * Empty [BuildConfig.SENTRY_DSN_BLOB] keeps the SDK uninitialized (local builds without a key).
  */
 object CrashReporter {
 
@@ -65,7 +66,8 @@ object CrashReporter {
     private var reportingEnabled: Boolean = true
 
     fun init(app: Application, enabled: Boolean, supportId: String) {
-        val dsn = BuildConfig.SENTRY_DSN.trim()
+        if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) return
+        val dsn = MongoUriVault.decode(BuildConfig.SENTRY_DSN_BLOB, BuildConfig.SENTRY_DSN_MASK).trim()
         if (dsn.isEmpty()) return
         reportingEnabled = enabled
         SentryAndroid.init(app) { options ->

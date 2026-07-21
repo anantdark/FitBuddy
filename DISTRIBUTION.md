@@ -47,8 +47,13 @@ uses a different debug keystore and in-app updates fail between releases):
 | `RELEASE_STORE_PASSWORD` | Release store password |
 | `RELEASE_KEY_ALIAS` | Release alias (default `fitbuddy`) |
 | `RELEASE_KEY_PASSWORD` | Release key password |
-| `SENTRY_DSN` | Same DSN as in `local.properties` (optional; empty = crash SDK off in CI builds) |
-| `BACKUP_API_KEY` | Shared secret for the fitbuddy-cloud-backup proxy (empty = cloud backup off) |
+
+Sentry DSN and the cloud-backup API key are not CI secrets — both are committed obfuscated
+(XOR + Base64) directly in `app/build.gradle.kts`, so no env vars are needed to build. To
+rotate one, XOR the new plaintext against its mask seed (`sentryDsnMaskSeed` /
+`backupApiKeyMaskSeed` in that file), Base64-encode, and paste the result in as the new
+`...BlobEscaped` literal. Rotating the API key in Vercel also instantly invalidates any
+previously leaked copy, since the proxy checks against its live env var.
 
 The app never holds Atlas credentials — those live only in the fitbuddy-cloud-backup Vercel
 project's env vars. `CLOUD_BACKUP_BASE_URL` and `MONGO_DB_NAME` are non-secret defaults in
