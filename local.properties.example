@@ -10,10 +10,9 @@ AI_MODEL=google/gemma-4-31b-it:free
 # Optional — Sentry DSN for anonymous crash reports. Empty = crash SDK not initialized.
 SENTRY_DSN=
 
-# Optional — MongoDB Atlas cloud backup (password never commit). Obfuscated into the APK.
-# Prefer GitHub secret MONGO_DB_PASSWORD for CI. Empty password = cloud backup off in this build.
-MONGO_DB_USER=anantpatel31
-MONGO_DB_PASSWORD=
-MONGO_DB_HOST=cluster0.mzgdsvp.mongodb.net
-MONGO_DB_APP_NAME=Cluster0
+# Optional — cloud backup via the fitbuddy-cloud-backup HTTPS proxy (never commit the key).
+# Obfuscated into the APK. Prefer GitHub secret BACKUP_API_KEY for CI.
+# Empty key = cloud backup off in this build. Atlas credentials live only in the proxy.
+CLOUD_BACKUP_BASE_URL=https://fitbuddy-cloud-backup.vercel.app
+BACKUP_API_KEY=
 MONGO_DB_NAME=fitbuddy

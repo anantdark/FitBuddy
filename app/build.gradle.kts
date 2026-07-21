@@ -1,4 +1,3 @@
-import java.net.URLEncoder
 import java.util.Base64
 import java.util.Properties
 
@@ -24,36 +23,20 @@ val sentryDsnEscaped: String = sentryDsnRaw
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
-// Personal Atlas backup (optional). Password from env/local.properties only — never commit it.
-// Gradle builds: mongodb+srv://USER:PASSWORD@HOST/?appName=APP
-// Empty password = cloud backup unavailable in that build.
-val mongoDbUser: String =
-    System.getenv("MONGO_DB_USER")
-        ?: localProperties.getProperty("MONGO_DB_USER", "anantpatel31")
-val mongoDbPassword: String =
-    System.getenv("MONGO_DB_PASSWORD")
-        ?: localProperties.getProperty("MONGO_DB_PASSWORD", "")
-val mongoDbHost: String =
-    System.getenv("MONGO_DB_HOST")
-        ?: localProperties.getProperty("MONGO_DB_HOST", "cluster0.mzgdsvp.mongodb.net")
-val mongoDbAppName: String =
-    System.getenv("MONGO_DB_APP_NAME")
-        ?: localProperties.getProperty("MONGO_DB_APP_NAME", "Cluster0")
+// Personal cloud backup (optional), routed through the fitbuddy-cloud-backup HTTPS proxy
+// on Vercel — the app never holds Atlas credentials, only a shared API key.
+// Empty key = cloud backup unavailable in that build.
+val cloudBackupBaseUrlRaw: String =
+    System.getenv("CLOUD_BACKUP_BASE_URL")
+        ?: localProperties.getProperty("CLOUD_BACKUP_BASE_URL", "https://fitbuddy-cloud-backup.vercel.app")
+val backupApiKeyRaw: String =
+    System.getenv("BACKUP_API_KEY")
+        ?: localProperties.getProperty("BACKUP_API_KEY", "")
 val mongoDbNameRaw: String =
     System.getenv("MONGO_DB_NAME")
         ?: localProperties.getProperty("MONGO_DB_NAME", "fitbuddy")
 
-val mongoDbUriRaw: String = if (mongoDbPassword.isBlank()) {
-    // Full URI override still supported (legacy / local smoke).
-    System.getenv("MONGO_DB_URI")
-        ?: localProperties.getProperty("MONGO_DB_URI", "")
-} else {
-    val userEnc = URLEncoder.encode(mongoDbUser, Charsets.UTF_8)
-    val passEnc = URLEncoder.encode(mongoDbPassword, Charsets.UTF_8)
-    "mongodb+srv://$userEnc:$passEnc@$mongoDbHost/?appName=$mongoDbAppName"
-}
-
-/** XOR + Base64 so the plaintext URI is not a trivial string literal in the APK. */
+/** XOR + Base64 so the plaintext key is not a trivial string literal in the APK. */
 fun obfuscateForBuildConfig(plain: String, maskSeed: String): String {
     if (plain.isEmpty()) return ""
     val mask = maskSeed.toByteArray(Charsets.UTF_8)
@@ -66,8 +49,11 @@ fun obfuscateForBuildConfig(plain: String, maskSeed: String): String {
         .replace("\"", "\\\"")
 }
 
-val mongoUriMaskSeed = "fitbuddy.mongo.v1"
-val mongoUriBlobEscaped = obfuscateForBuildConfig(mongoDbUriRaw, mongoUriMaskSeed)
+val backupApiKeyMaskSeed = "fitbuddy.backup.v1"
+val backupApiKeyBlobEscaped = obfuscateForBuildConfig(backupApiKeyRaw, backupApiKeyMaskSeed)
+val cloudBackupBaseUrlEscaped = cloudBackupBaseUrlRaw
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 val mongoDbNameEscaped = mongoDbNameRaw
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
@@ -108,9 +94,10 @@ android {
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "AI_MODEL", "\"$aiModel\"")
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsnEscaped\"")
-        // Obfuscated Atlas URI blob (empty when MONGO_DB_URI unset). Decoded by MongoUriVault.
-        buildConfigField("String", "MONGO_URI_BLOB", "\"$mongoUriBlobEscaped\"")
-        buildConfigField("String", "MONGO_URI_MASK", "\"$mongoUriMaskSeed\"")
+        // Obfuscated backup API key blob (empty when BACKUP_API_KEY unset). Decoded by MongoUriVault.
+        buildConfigField("String", "BACKUP_API_KEY_BLOB", "\"$backupApiKeyBlobEscaped\"")
+        buildConfigField("String", "BACKUP_API_KEY_MASK", "\"$backupApiKeyMaskSeed\"")
+        buildConfigField("String", "CLOUD_BACKUP_BASE_URL", "\"$cloudBackupBaseUrlEscaped\"")
         buildConfigField("String", "MONGO_DB_NAME", "\"$mongoDbNameEscaped\"")
     }
 
@@ -207,7 +194,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.logging.interceptor)
     implementation(libs.material)
-    implementation(libs.mongodb.driver.sync)
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
     implementation(libs.play.services.location)

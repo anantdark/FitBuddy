@@ -186,7 +186,8 @@ class FitnessRepository(
             val data = backupManager.buildBackupData()
             val payloadJson = backupManager.encode(data)
             mongoBackupRepository.upload(
-                connectionUri = MongoUriVault.resolve(),
+                baseUrl = MongoUriVault.baseUrl(),
+                apiKey = MongoUriVault.resolve(),
                 databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
                 collectionName = settings.mongoCollectionName.ifBlank {
                     AppSettings.DEFAULT_MONGO_COLLECTION
@@ -223,7 +224,8 @@ class FitnessRepository(
         }
         val settings = settingsRepository.settings.first()
         val payloadJson = mongoBackupRepository.downloadPayloadJson(
-            connectionUri = MongoUriVault.resolve(),
+            baseUrl = MongoUriVault.baseUrl(),
+            apiKey = MongoUriVault.resolve(),
             databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
             collectionName = settings.mongoCollectionName.ifBlank {
                 AppSettings.DEFAULT_MONGO_COLLECTION

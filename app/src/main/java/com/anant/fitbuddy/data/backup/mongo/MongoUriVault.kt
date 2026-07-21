@@ -4,33 +4,40 @@ import com.anant.fitbuddy.BuildConfig
 import java.util.Base64
 
 /**
- * Best-effort client-side vault for the build-baked Atlas connection URI.
+ * Best-effort client-side vault for the build-baked cloud-backup proxy API key.
  * Raises the bar vs a plaintext BuildConfig string; reverse-engineering the APK
- * can still recover the URI. Never log or show the resolved value in UI.
+ * can still recover the key. Never log or show the resolved value in UI.
+ *
+ * The proxy (not this app) holds the actual Atlas connection string — this key
+ * only authorizes calls to that HTTPS proxy.
  */
 object MongoUriVault {
 
     @Volatile
-    private var cachedUri: String? = null
+    private var cachedApiKey: String? = null
 
-    /** True when this build includes a non-empty obfuscated Atlas URI. */
-    fun isAvailable(): Boolean = BuildConfig.MONGO_URI_BLOB.isNotBlank()
+    /** True when this build includes a non-empty obfuscated backup API key. */
+    fun isAvailable(): Boolean = BuildConfig.BACKUP_API_KEY_BLOB.isNotBlank()
 
     /** Database name from BuildConfig (default `fitbuddy`). */
     fun databaseName(): String =
         BuildConfig.MONGO_DB_NAME.trim().ifBlank { "fitbuddy" }
 
+    /** Base URL of the fitbuddy-cloud-backup HTTPS proxy. */
+    fun baseUrl(): String =
+        BuildConfig.CLOUD_BACKUP_BASE_URL.trim().trimEnd('/')
+
     /**
-     * Decodes the obfuscated URI once and caches it in memory.
+     * Decodes the obfuscated API key once and caches it in memory.
      * @throws IllegalStateException when the blob is missing or corrupt.
      */
     fun resolve(): String {
-        cachedUri?.let { return it }
-        val blob = BuildConfig.MONGO_URI_BLOB
+        cachedApiKey?.let { return it }
+        val blob = BuildConfig.BACKUP_API_KEY_BLOB
         require(blob.isNotBlank()) { "Cloud backup is not available in this build" }
-        val decoded = decode(blob, BuildConfig.MONGO_URI_MASK)
-        require(decoded.isNotBlank()) { "Cloud backup URI could not be decoded" }
-        cachedUri = decoded
+        val decoded = decode(blob, BuildConfig.BACKUP_API_KEY_MASK)
+        require(decoded.isNotBlank()) { "Cloud backup API key could not be decoded" }
+        cachedApiKey = decoded
         return decoded
     }
 
