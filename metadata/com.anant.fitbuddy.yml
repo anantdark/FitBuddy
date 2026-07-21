@@ -9,7 +9,8 @@ AntiFeatures:
       can enable it under Settings → Crash reports for anonymous, PII-scrubbed crash
       reports only (no analytics/ads tracking).
 Categories:
-  - Sports & Health
+  - Diet
+  - Workout
 License: GPL-3.0-only
 AuthorName: Anant Patel
 SourceCode: https://github.com/anantdark/FitBuddy
@@ -25,29 +26,12 @@ Binaries: https://github.com/anantdark/FitBuddy/releases/download/v%v/FitBuddy-%
 Builds:
   - versionName: 3.1.1
     versionCode: 57
-    commit: v3.1.1
+    commit: b127e58933261221a4fd8a6056ec740b41138e2c
     subdir: app
     gradle:
       - yes
 
 AllowedAPKSigningKeys: a6c12f2f7ae0143cf225fd11da6bd6d42d10ed38aebc651a9181626ae69accea
-
-MaintainerNotes: |
-  Default branch is fdroid. Tags for F-Droid must be clean vX.Y.Z
-  (no -buildN CI tags). UpdateCheckMode Tags regex skips CI release tags.
-  GitHub Releases on main use CI build tags (v*-build*) and own /releases/latest.
-  FOSS binaries for reproducible builds are published from clean tags via the
-  F-Droid Release workflow (prerelease + make_latest: false) so they never
-  become the website / in-app update target. Install via Binaries URL only.
-
-  As of the versionCode 58 (3.1.2) release, this branch shares the same app
-  source as develop/main (a `distribution` Gradle product flavor dimension
-  replaces the old stripped-down fork). Builds entries from that version
-  onward must set `gradle: - fdroid` (not `yes`) so fdroidserver builds the
-  `fdroid` flavor (assembleFdroidRelease), which fixes the versionCode/
-  versionName since F-Droid's from-source build has no CI -P overrides.
-  Sentry and MongoDB Atlas cloud backup are now compiled in (off by default,
-  user-toggleable) rather than removed — see AntiFeatures.
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
