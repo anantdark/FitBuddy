@@ -73,9 +73,10 @@ jobs:
 
       - name: Build release APK
         # Sentry DSN and the cloud-backup API key are committed obfuscated in
-        # build.gradle.kts — no secrets needed here.
+        # build.gradle.kts — no secrets needed here. GitHub Releases ship the
+        # github flavor; F-Droid builds its own fdroid flavor from the fdroid branch.
         run: >
-          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
+          ./gradlew :app:assembleGithubRelease :app:bundleGithubRelease --no-daemon
           -PappVersionCode=${{ steps.version.outputs.version_code }}
           -PappVersionName=${{ steps.version.outputs.version_name }}
 
@@ -83,8 +84,8 @@ jobs:
       # https://github.com/.../releases/latest/download/FitBuddy-latest.apk
       - name: Publish stable latest APK alias
         run: |
-          VERSIONED="app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk"
-          cp "$VERSIONED" app/build/outputs/apk/release/FitBuddy-latest.apk
+          VERSIONED="app/build/outputs/apk/github/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk"
+          cp "$VERSIONED" app/build/outputs/apk/github/release/FitBuddy-latest.apk
 
       - name: Prepare release notes
         id: notes
@@ -118,8 +119,8 @@ jobs:
           make_latest: true
           generate_release_notes: false
           files: |
-            app/build/outputs/apk/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
-            app/build/outputs/apk/release/FitBuddy-latest.apk
-            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/apk/github/release/FitBuddy-${{ steps.version.outputs.version_name }}.apk
+            app/build/outputs/apk/github/release/FitBuddy-latest.apk
+            app/build/outputs/bundle/githubRelease/app-github-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

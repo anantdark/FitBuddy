@@ -34,11 +34,14 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=${ANDROID_HOME}" >> local.properties
 
-      - name: Compile debug
-        run: ./gradlew :app:compileDebugKotlin --no-daemon
+      - name: Compile debug (github)
+        run: ./gradlew :app:compileGithubDebugKotlin --no-daemon
 
-      - name: Compile release
-        run: ./gradlew :app:compileReleaseKotlin --no-daemon
+      - name: Compile release (github)
+        run: ./gradlew :app:compileGithubReleaseKotlin --no-daemon
 
-      - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon
+      - name: Compile debug (fdroid)
+        run: ./gradlew :app:compileFdroidDebugKotlin --no-daemon
+
+      - name: Unit tests (github)
+        run: ./gradlew :app:testGithubDebugUnitTest --no-daemon
