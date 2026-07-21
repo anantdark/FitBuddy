@@ -207,7 +207,6 @@ dependencies {
     implementation(libs.material)
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
-    implementation(libs.play.services.location)
     implementation(libs.retrofit)
     implementation(libs.sentry.android)
     implementation(libs.zxing.core)
