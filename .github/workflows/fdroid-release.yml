@@ -78,6 +78,13 @@ jobs:
         # Intentionally no SENTRY_DSN / MONGO_* — must match unsigned F-Droid CI output.
         run: ./gradlew :app:assembleFdroidRelease --no-daemon
 
+      - name: Upload R8 mapping (crash deobfuscation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapping-fdroid-${{ steps.version.outputs.version_code }}
+          path: app/build/outputs/mapping/fdroidRelease/mapping.txt
+          retention-days: 90
+
       # Do NOT own GitHub "Latest" — site + in-app updater use CI tags (v*-buildN).
       # F-Droid installs via Binaries URL on this tag, not /releases/latest.
       - name: Create GitHub Release
