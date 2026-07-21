@@ -74,6 +74,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        buildConfigField("boolean", "IS_FDROID", "false")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "AI_MODEL", "\"$aiModel\"")
         buildConfigField("String", "SENTRY_DSN_BLOB", "\"$sentryDsnBlobEscaped\"")
@@ -83,6 +84,25 @@ android {
         buildConfigField("String", "BACKUP_API_KEY_MASK", "\"$backupApiKeyMaskSeed\"")
         buildConfigField("String", "CLOUD_BACKUP_BASE_URL", "\"$cloudBackupBaseUrlEscaped\"")
         buildConfigField("String", "MONGO_DB_NAME", "\"$mongoDbNameEscaped\"")
+    }
+
+    // github flavor: in-app update checker/downloader active. fdroid flavor: F-Droid owns
+    // updates, so the checker is disabled and Settings points users at GitHub releases instead.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_FDROID", "false")
+        }
+        create("fdroid") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_FDROID", "true")
+            // F-Droid builds from source with no -P overrides, so defaultConfig's CI-driven
+            // versionCode/versionName would resolve to 1/"3.0.0-dev" — below the already
+            // published F-Droid release (57 / 3.1.1). Fixed here, bumped by hand per release.
+            versionCode = 58
+            versionName = "3.1.2"
+        }
     }
 
     signingConfigs {
@@ -157,7 +177,6 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
-    implementation(libs.mlkit.barcode.scanning)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.material3)
@@ -183,6 +202,7 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.retrofit)
     implementation(libs.sentry.android)
+    implementation(libs.zxing.core)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)

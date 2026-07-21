@@ -85,8 +85,8 @@ data class AppSettings(
      * Share this with the developer when reporting a bug.
      */
     val supportId: String = "",
-    /** When false, Sentry does not send crash events (SDK may still be initialized). */
-    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG,
+    /** When false, Sentry does not send crash events (SDK may still be initialized). Off by default on F-Droid. */
+    val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /** Set when the Settings "Created by" easter egg is unlocked. */
     val easterEggDiscovered: Boolean = false,
     /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */
