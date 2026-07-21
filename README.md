@@ -21,6 +21,8 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 
 Pre-built APKs and AABs are attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`.
 
+This `fdroid` branch is what [F-Droid](https://f-droid.org/) builds from (see [FDROID.md](FDROID.md)) — same codebase as GitHub Releases, built with the `fdroid` product flavor instead of `github`. F-Droid owns updates for that build; it's signed with a different key from the GitHub Releases APK, so the two aren't interchangeable updates for the same install.
+
 ## AI providers
 
 Configure at runtime in **Settings** (stored locally via DataStore):
@@ -146,5 +148,6 @@ GPL-3.0 — see [LICENSE](LICENSE).
 
 ## Related docs
 
+- [FDROID.md](FDROID.md) — F-Droid branch maintenance, tagging, and submission notes
 - [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store publishing & keystore setup
 - [AGENTS.md](AGENTS.md) — contributor context for architecture and conventions

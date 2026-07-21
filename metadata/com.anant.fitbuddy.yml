@@ -2,7 +2,12 @@ AntiFeatures:
   NonFreeNet:
     en-US: Optional AI providers (OpenRouter, Gemini, Ollama Cloud) contact proprietary
       network services when the user enables them. Core logging works offline via
-      the built-in simulator.
+      the built-in simulator. Cloud backup (opt-in) also relays through a proprietary
+      MongoDB Atlas-backed proxy.
+  Tracking:
+    en-US: Bundles the Sentry crash-reporting SDK. Off by default on this build; users
+      can enable it under Settings → Crash reports for anonymous, PII-scrubbed crash
+      reports only (no analytics/ads tracking).
 Categories:
   - Sports & Health
 License: GPL-3.0-only
@@ -34,8 +39,15 @@ MaintainerNotes: |
   FOSS binaries for reproducible builds are published from clean tags via the
   F-Droid Release workflow (prerelease + make_latest: false) so they never
   become the website / in-app update target. Install via Binaries URL only.
-  F-Droid builds omit Sentry, MongoDB Atlas cloud backup, and the in-app
-  GitHub APK updater (full builds are on GitHub Releases).
+
+  As of the versionCode 58 (3.1.2) release, this branch shares the same app
+  source as develop/main (a `distribution` Gradle product flavor dimension
+  replaces the old stripped-down fork). Builds entries from that version
+  onward must set `gradle: - fdroid` (not `yes`) so fdroidserver builds the
+  `fdroid` flavor (assembleFdroidRelease), which fixes the versionCode/
+  versionName since F-Droid's from-source build has no CI -P overrides.
+  Sentry and MongoDB Atlas cloud backup are now compiled in (off by default,
+  user-toggleable) rather than removed — see AntiFeatures.
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$

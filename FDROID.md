@@ -1,45 +1,45 @@
 # F-Droid branch
 
-This branch (`fdroid`) is the FOSS build FitBuddy submits to [F-Droid](https://f-droid.org/).
+This branch (`fdroid`) is the build FitBuddy submits to [F-Droid](https://f-droid.org/).
 GitHub Releases and Play stay on `main` / `develop`.
 
 ## What differs from `develop`
 
+As of the `distribution` flavor split, this branch shares the same app source as
+`develop`/`main` — it is not a stripped-down fork anymore. The only things unique to this
+branch are:
+
 | Area | F-Droid branch |
 |------|----------------|
-| Barcode scan | ZXing (`com.google.zxing:core`) — no ML Kit |
-| Play Services | Removed |
-| In-app APK updates | **Removed** (no `UpdateChecker` / `ApkInstaller`) |
-| Crash reporting | **Removed** (no Sentry) |
-| Cloud backup | **Removed** (no MongoDB Atlas) |
-| Local JSON backup | Kept (export / import) |
-| Version | Literal `versionCode` / `versionName` in `app/build.gradle.kts` |
-| Store metadata | `fastlane/metadata/android/en-US/` |
+| Build flavor | Built with `assembleFdroidRelease` (the `fdroid` product flavor), not `github` |
+| Version | Fixed `versionCode` / `versionName` for the `fdroid` flavor in `app/build.gradle.kts` (F-Droid builds from source with no CI `-P` overrides) |
+| Store metadata | `fastlane/metadata/android/en-US/` and `metadata/com.anant.fitbuddy.yml` |
+| Sync | Regularly merges `develop` in directly — no manual re-stripping needed |
 
-Optional AI providers (OpenRouter, Gemini, Ollama) remain available at runtime and are
-documented as a NonFreeNet AntiFeature when the user enables them.
+`BuildConfig.IS_FDROID` (set per flavor) drives the only runtime differences:
 
-## Do not reintroduce on this branch
+- Settings' Updates card shows "install from GitHub releases" instead of the auto-updater,
+  since F-Droid owns updates for this build.
+- Crash reporting and auto-update-check default to **off** (still user-toggleable).
 
-- `com.google.android.gms:*` / `com.google.mlkit:*`
-- Sentry / `io.sentry:*`
-- MongoDB driver / Atlas cloud backup
-- GitHub APK sideload updater (`ApkInstaller` / update prompts)
-- CI-only `-PappVersionCode` / `-PappVersionName` as the sole version source
+Sentry, MongoDB Atlas cloud backup, and Google Play Services (via CameraX/location) are
+compiled into this build same as the GitHub build — they're optional/opt-in and mostly
+default-off, but F-Droid's scanner will flag them regardless (see AntiFeatures below).
+That's an accepted tradeoff for keeping one codebase instead of two divergent branches.
 
 ## Release a new F-Droid version
 
-1. On `develop`, finish the feature work and merge as usual.
+1. On `develop`, finish the feature work, merge as usual, push.
 2. Update this branch:
    ```bash
    git checkout fdroid
-   git merge develop   # or: git rebase develop
+   git merge develop
    ```
-   Resolve conflicts carefully for barcode deps, removed network SDKs, and version literals.
-3. Bump in `app/build.gradle.kts`:
-   - `versionCode` (must increase)
-   - `versionName` (e.g. `3.1.2`)
-   - matching `releaseApkVersionName` if present
+   Should be a clean merge — there's no more code divergence to resolve, just the
+   F-Droid-only packaging paths (`fastlane/`, `metadata/`, this file, the fdroid-release
+   workflow), which `develop` never touches.
+3. Bump the `fdroid` flavor's `versionCode` / `versionName` in `app/build.gradle.kts`
+   (`versionCode` must strictly increase).
 4. Add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (max 500 characters).
 5. Commit, then tag a **clean** version (no `-buildN`):
    ```bash
@@ -48,14 +48,18 @@ documented as a NonFreeNet AntiFeature when the user enables them.
    git push origin v3.1.2
    ```
 6. Run **Actions → F-Droid Release** with that tag. The workflow attaches
-   `FitBuddy-<version>.apk` and marks the GitHub release as **prerelease** with
-   `make_latest: false` so it never becomes `/releases/latest`.
+   `FitBuddy-<version>.apk` (built via `assembleFdroidRelease`) and marks the GitHub
+   release as **prerelease** with `make_latest: false` so it never becomes
+   `/releases/latest`.
 7. After inclusion, F-Droid `checkupdates` picks clean `vX.Y.Z` tags.
 
 ## Signing
 
-F-Droid signs the published APK with **their** key. Users who installed from GitHub or Play cannot update in place to the F-Droid build (different signature).
+F-Droid signs the published APK with **their** key. Users who installed from GitHub or Play
+cannot update in place to the F-Droid build (different signature).
 
 ## Draft fdroiddata metadata
 
-See [`metadata/com.anant.fitbuddy.yml`](metadata/com.anant.fitbuddy.yml).
+See [`metadata/com.anant.fitbuddy.yml`](metadata/com.anant.fitbuddy.yml). Its `Builds` entry
+must set `gradle: - fdroid` so `fdroidserver` builds the `fdroid` flavor
+(`assembleFdroidRelease`), not the unflavored default.
