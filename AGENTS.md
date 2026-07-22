@@ -189,5 +189,6 @@ fastlane/metadata/android/en-US/
 
 ## GitHub release process
 - Every push to `main` auto-triggers the **Release** workflow (`.github/workflows/release.yml`).
-- Version: `3.2.<run_number % 100>`, `versionCode` = raw `run_number`.
+- Version: `3.<2 + run_number/100>.<run_number % 100>`, `versionCode` = raw `run_number`.
+  Minor auto-increments every 100 builds (run 99→3.2.99, run 100→3.3.0, run 200→3.4.0).
 - Merged PRs create a push to `main`, so merging = releasing.
