@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.remote
 
 import com.anant.fitbuddy.data.model.FitnessTrackerResponse
 import com.anant.fitbuddy.data.model.ModelOption
+import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.model.CustomExerciseResponse
 import com.anant.fitbuddy.data.model.NorthIndianStaples
 import com.anant.fitbuddy.data.model.ParsedWorkoutResponse
@@ -474,6 +475,30 @@ class RemoteAiDataSource(
         fetchOllamaModels(baseUrl, apiKey)
 
     /**
+     * Vision-capable models from the official OpenAI API. The account's live `/v1/models`
+     * list is filtered to vision-capable chat models and merged with a curated default set
+     * so the dropdown always offers at least GPT-4o even if the listing is empty/unreachable.
+     */
+    suspend fun fetchOpenAiVisionModels(apiKey: String): List<ModelOption> {
+        val live = runCatching { fetchOllamaModels(OpenAiCatalog.HOST_URL, apiKey) }
+            .getOrDefault(emptyList())
+            .filter { isLikelyOpenAiVisionModel(it.id) }
+        return mergeModels(OpenAiCatalog.VISION_MODELS, live)
+    }
+
+    /**
+     * Text/chat models from the official OpenAI API. The noisy live catalog (embeddings,
+     * audio, image, tts, moderation) is filtered to chat models and merged with a curated
+     * default set.
+     */
+    suspend fun fetchOpenAiTextModels(apiKey: String): List<ModelOption> {
+        val live = runCatching { fetchOllamaModels(OpenAiCatalog.HOST_URL, apiKey) }
+            .getOrDefault(emptyList())
+            .filter { isLikelyOpenAiChatModel(it.id) }
+        return mergeModels(OpenAiCatalog.TEXT_MODELS, live)
+    }
+
+    /**
      * Keeps models whose chat endpoint answers HTTP 200 or 429 (reachable / rate-limited).
      * Other statuses and network failures are dropped. Used by the Settings Refresh button;
      * preserves [models] order. Probes run with limited parallelism.
@@ -535,6 +560,39 @@ class RemoteAiDataSource(
         )
         return tokens.any { id.contains(it) }
     }
+
+    /** Non-chat OpenAI model families to hide from the dropdowns. */
+    private fun isNonChatOpenAiModel(id: String): Boolean {
+        val m = id.lowercase()
+        return listOf(
+            "audio", "realtime", "transcribe", "tts", "embedding",
+            "whisper", "moderation", "image", "dall-e", "search", "codex"
+        ).any { m.contains(it) }
+    }
+
+    /** Vision-capable OpenAI chat models (GPT-4o / 4.1 / 4-turbo / 4-vision / o-series). */
+    private fun isLikelyOpenAiVisionModel(id: String): Boolean {
+        if (isNonChatOpenAiModel(id)) return false
+        val m = id.lowercase()
+        return m.startsWith("gpt-4o") || m.startsWith("chatgpt-4o") ||
+            m.startsWith("gpt-4.1") || m.startsWith("gpt-4-turbo") ||
+            m.startsWith("gpt-4-vision") || m.startsWith("gpt-5") ||
+            m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")
+    }
+
+    /** Any OpenAI text/chat model (superset of vision) for the text-model dropdown. */
+    private fun isLikelyOpenAiChatModel(id: String): Boolean {
+        if (isNonChatOpenAiModel(id)) return false
+        val m = id.lowercase()
+        return m.startsWith("gpt-") || m.startsWith("chatgpt") ||
+            m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")
+    }
+
+    /** [preferred] first (curated display names win), then any [extra] not already present. */
+    private fun mergeModels(
+        preferred: List<ModelOption>,
+        extra: List<ModelOption>
+    ): List<ModelOption> = (preferred + extra).distinctBy { it.id }
 
     /** Some models wrap JSON in ```json ... ``` fences; strip them before parsing. */
     private fun stripCodeFences(raw: String): String {

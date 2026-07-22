@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -105,6 +106,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
+import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
@@ -131,8 +133,9 @@ import java.util.Locale
 private const val EASTER_EGG_TAP_TARGET = 31
 private const val EASTER_EGG_HINT_START = 25
 private const val VERSION_RESET_TAPS = 8
-private const val DEVELOPER_UNLOCK_TAPS = 8
-private const val DEVELOPER_HINT_START = 3
+private const val DEVELOPER_UNLOCK_TAPS = 31
+// Start showing the "N taps left" hint only when 5 or fewer taps remain.
+private const val DEVELOPER_HINT_START = DEVELOPER_UNLOCK_TAPS - 5
 
 private val PROFILE_SEX_OPTIONS = listOf(
     "" to "Not set",
@@ -185,9 +188,11 @@ fun SettingsScreen(
     mongoBackupBusy: Boolean = false,
     onCloudBackupEnabledChange: (Boolean) -> Unit = {},
     onPrepareCloudBackupEnable: () -> Unit = {},
+    onEnableCloudBackup: (CharArray?) -> Unit = {},
     onCloudAutoUploadChange: (Boolean) -> Unit = {},
     onMongoUpload: () -> Unit = {},
     onMongoDownload: (supportId: String) -> Unit = {},
+    onChangeCloudPassword: (CharArray?) -> Unit = {},
     onRegenerateSupportId: () -> Unit = {},
     /** Settings-only: ♥ double-tap also sends a Sentry heartbeat (when reporting is on). */
     onHeartDoubleTapHeartbeat: () -> Unit = {},
@@ -214,6 +219,11 @@ fun SettingsScreen(
     var ollamaKeys by remember(settings) {
         mutableStateOf(settings.keysFor(AiProvider.OLLAMA))
     }
+    var openAiKeys by remember(settings) {
+        mutableStateOf(settings.keysFor(AiProvider.OPENAI))
+    }
+    var openAiModel by remember(settings) { mutableStateOf(settings.openAiModel) }
+    var openAiTextModel by remember(settings) { mutableStateOf(settings.openAiTextModel) }
     var aiAutoFailover by remember(settings) { mutableStateOf(settings.aiAutoFailover) }
     var showPaidModels by remember(settings) { mutableStateOf(settings.showPaidModels) }
 
@@ -242,6 +252,7 @@ fun SettingsScreen(
         mutableStateOf(settings.supportId)
     }
     var showCloudBackupEnableConfirm by remember { mutableStateOf(false) }
+    var showChangeCloudPasswordDialog by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
     val cloudVaultAvailable = remember {
         com.anant.fitbuddy.data.backup.mongo.MongoUriVault.isAvailable()
@@ -283,6 +294,18 @@ fun SettingsScreen(
         .ifBlank { settings.openRouterOAuthKey }
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
     val ollamaApiKey = ollamaKeys.firstOrNull().orEmpty()
+    val openAiKey = openAiKeys.firstOrNull().orEmpty()
+
+    // OpenAI has no free tier: force "Show paid models" on whenever it's the selected
+    // provider — the toggle is also locked (disabled) while selected. Auto failover defaults
+    // to off for a freshly-selected OpenAI (not coupled/locked — the user can re-enable it).
+    LaunchedEffect(provider) {
+        if (provider == AiProvider.OPENAI && !showPaidModels) {
+            showPaidModels = true
+            aiAutoFailover = false
+            onSaveQuiet(settings.copy(showPaidModels = true, aiAutoFailover = false))
+        }
+    }
 
     LaunchedEffect(confettiKey) {
         if (confettiKey == 0) return@LaunchedEffect
@@ -354,6 +377,7 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .dismissKeyboardOnTap()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -374,21 +398,26 @@ fun SettingsScreen(
                 hint = "When on, FitBuddy tries other API keys, then other models on the " +
                     "same platform. When off, only your selected model is used, but " +
                     "other API keys are still tried on failure. Change platform " +
-                    "manually if everything fails. Saves as soon as you toggle."
+                    "manually if everything fails."
             )
 
-            if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI) {
+            if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI || provider == AiProvider.OPENAI) {
                 SettingToggleRow(
                     title = "Show paid models",
                     checked = showPaidModels,
+                    enabled = provider != AiProvider.OPENAI,
                     onCheckedChange = { enabled ->
                         showPaidModels = enabled
                         onSaveQuiet(settings.copy(showPaidModels = enabled))
                     },
                     hintTitle = "Paid models",
-                    hint = "Off (default): free models only. On: also list paid models. " +
-                        "While paid models are shown, Refresh skips reachability checks " +
-                        "so paid endpoints are never pinged."
+                    hint = if (provider == AiProvider.OPENAI) {
+                        "OpenAI has no free tier, so paid models always stay on for this provider."
+                    } else {
+                        "Off (default): free models only. On: also list paid models. " +
+                            "While paid models are shown, the Refresh button skips reachability " +
+                            "checks so paid endpoints are never pinged on their own."
+                    }
                 )
             }
 
@@ -423,7 +452,8 @@ fun SettingsScreen(
             val options = listOf(
                 AiProvider.OPENROUTER to "OpenRouter",
                 AiProvider.GEMINI to "Gemini",
-                AiProvider.OLLAMA to "Ollama"
+                AiProvider.OLLAMA to "Ollama",
+                AiProvider.OPENAI to "OpenAI"
             )
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 options.forEachIndexed { index, (value, label) ->
@@ -586,6 +616,7 @@ fun SettingsScreen(
                         apiKey = ollamaListKey,
                         baseUrl = ollamaListUrl,
                         onLoad = onLoadModels,
+                        showPaidModels = showPaidModels,
                         hintTitle = if (ollamaUseCloud) "Ollama Cloud" else "Ollama Local",
                         hint = if (ollamaUseCloud) {
                             "Cloud uses https://ollama.com. Create keys at ollama.com/settings/keys. " +
@@ -605,6 +636,41 @@ fun SettingsScreen(
                         apiKey = ollamaListKey,
                         baseUrl = ollamaListUrl,
                         onLoad = onLoadTextModels
+                    )
+                }
+
+                AiProvider.OPENAI -> {
+                    ApiKeyChipEditor(
+                        label = "API keys",
+                        keys = openAiKeys,
+                        onKeysChange = { openAiKeys = it }
+                    )
+                    ModelDropdown(
+                        label = "Photo model (vision)",
+                        noun = "vision",
+                        selectedModel = openAiModel,
+                        onModelChange = { openAiModel = it },
+                        modelsState = modelsState,
+                        provider = AiProvider.OPENAI,
+                        apiKey = openAiKey,
+                        onLoad = onLoadModels,
+                        showPaidModels = true,
+                        fallbackOptions = OpenAiCatalog.VISION_MODELS,
+                        hintTitle = "OpenAI",
+                        hint = "Get a key at platform.openai.com/api-keys. OpenAI is paid — " +
+                            "there is no free tier, so Auto failover stays off."
+                    )
+                    ModelDropdown(
+                        label = "Text model",
+                        noun = "chat",
+                        selectedModel = openAiTextModel,
+                        onModelChange = { openAiTextModel = it },
+                        modelsState = textModelsState,
+                        provider = AiProvider.OPENAI,
+                        apiKey = openAiKey,
+                        onLoad = onLoadTextModels,
+                        showPaidModels = true,
+                        fallbackOptions = OpenAiCatalog.TEXT_MODELS
                     )
                 }
             }
@@ -629,6 +695,10 @@ fun SettingsScreen(
                             ollamaUseCloud = ollamaUseCloud,
                             ollamaApiKeys = ollamaKeys,
                             ollamaApiKey = ollamaApiKey,
+                            openAiApiKeys = openAiKeys,
+                            openAiApiKey = openAiKey,
+                            openAiModel = openAiModel.trim(),
+                            openAiTextModel = openAiTextModel.trim(),
                             aiAutoFailover = aiAutoFailover,
                             showPaidModels = showPaidModels
                         )
@@ -1011,6 +1081,13 @@ fun SettingsScreen(
                 ) {
                     Text("Upload now")
                 }
+                OutlinedButton(
+                    onClick = { showChangeCloudPasswordDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = settings.cloudBackupEnabled && !mongoBackupBusy
+                ) {
+                    Text("Change cloud backup password")
+                }
             }
         }
 
@@ -1093,7 +1170,7 @@ fun SettingsScreen(
         if (developerUnlocked) {
             SettingsCard(title = "Developer", initiallyExpanded = false) {
                 Text(
-                    text = "Niche debug / experimental tools. Tap Package 8 times again to hide.",
+                    text = "Niche debug / experimental tools. Tap Package 31 times again to hide.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1296,44 +1373,21 @@ fun SettingsScreen(
         )
 
         if (showCloudBackupEnableConfirm) {
-            AlertDialog(
-                onDismissRequest = { showCloudBackupEnableConfirm = false },
-                title = { Text("Keep your Support ID safe") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "Cloud backups are keyed by your Support ID. Copy it now and store it " +
-                                "somewhere safe — you will need it to restore after reinstalling."
-                        )
-                        Text(
-                            text = settings.supportId.ifBlank { "(generating…)" },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
+            EnableCloudBackupDialog(
+                supportId = settings.supportId,
+                busy = mongoBackupBusy,
+                onCopySupportId = {
+                    val id = settings.supportId
+                    if (id.isNotBlank()) {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(id))
+                        onSupportIdCopied()
                     }
                 },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val id = settings.supportId
-                            if (id.isNotBlank()) {
-                                clipboardManager.setText(
-                                    androidx.compose.ui.text.AnnotatedString(id)
-                                )
-                                onSupportIdCopied()
-                            }
-                            showCloudBackupEnableConfirm = false
-                            onCloudBackupEnabledChange(true)
-                        }
-                    ) {
-                        Text("Copy & enable")
-                    }
+                onConfirm = { password ->
+                    showCloudBackupEnableConfirm = false
+                    onEnableCloudBackup(password)
                 },
-                dismissButton = {
-                    TextButton(onClick = { showCloudBackupEnableConfirm = false }) {
-                        Text("Cancel")
-                    }
-                }
+                onDismiss = { showCloudBackupEnableConfirm = false }
             )
         }
 
@@ -1373,6 +1427,17 @@ fun SettingsScreen(
                         Text("Cancel")
                     }
                 }
+            )
+        }
+
+        if (showChangeCloudPasswordDialog) {
+            ChangeCloudPasswordDialog(
+                busy = mongoBackupBusy,
+                onConfirm = { password ->
+                    onChangeCloudPassword(password)
+                    showChangeCloudPasswordDialog = false
+                },
+                onDismiss = { showChangeCloudPasswordDialog = false }
             )
         }
 
@@ -1607,16 +1672,20 @@ private fun ModelDropdown(
     onLoad: (AiProvider, String, Boolean, String, Boolean) -> Unit,
     baseUrl: String = "",
     showPaidModels: Boolean = false,
+    fallbackOptions: List<ModelOption> = emptyList(),
     hintTitle: String? = null,
     hint: String? = null
 ) {
-    // Re-fetch when the provider, key, Ollama URL, or paid-models toggle changes.
+    // Listing models is a free/cheap metadata call (unlike the Refresh reachability probe,
+    // which sends real chat completions) — auto-fetch on input change regardless of platform.
     LaunchedEffect(provider, apiKey, baseUrl, showPaidModels) {
         onLoad(provider, apiKey, false, baseUrl, showPaidModels)
     }
 
     var expanded by remember { mutableStateOf(false) }
-    val options = modelsState.options
+    // Fall back to curated options (e.g. OpenAI defaults) so the list is never empty before
+    // the live fetch resolves (or if it fails).
+    val options = modelsState.options.ifEmpty { fallbackOptions }
     val ollamaNeedsUrl = provider == AiProvider.OLLAMA &&
         baseUrl != AppSettings.OLLAMA_CLOUD_BASE_URL &&
         baseUrl.isBlank()
@@ -1722,7 +1791,9 @@ private fun ModelDropdown(
             HintIconButton(title = hintTitle, message = hint)
         }
         IconButton(
-            onClick = { onLoad(provider, apiKey, true, baseUrl, showPaidModels) },
+            onClick = {
+                onLoad(provider, apiKey, true, baseUrl, showPaidModels)
+            },
             enabled = !modelsState.isLoading
         ) {
             Icon(Icons.Filled.Refresh, contentDescription = "Reload models")
@@ -2257,4 +2328,185 @@ private fun AboutLinkRow(label: String, value: String, url: String) {
             color = MaterialTheme.colorScheme.primary
         )
     }
+}
+
+/**
+ * Shown when the user turns on cloud backup (Requirement 12). Explains that backups are encrypted
+ * on-device before upload (12.3), lets the user copy their Support ID, and offers an optional
+ * password (blank → Support ID default, 12.4). Non-blank passwords are validated 8–128 (12.5).
+ * Cancelling leaves cloud backup off and performs no upload (12.6).
+ */
+@Composable
+private fun EnableCloudBackupDialog(
+    supportId: String,
+    busy: Boolean,
+    onCopySupportId: () -> Unit,
+    onConfirm: (CharArray?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+
+    val isBlank = password.isEmpty() || password.all { it.isWhitespace() }
+    val passwordsMatch = password == confirmPassword
+    val lengthValid = isBlank || password.length in 8..128
+
+    val validationError = when {
+        !lengthValid && password.length < 8 -> "Password must be at least 8 characters"
+        !lengthValid -> "Password must be 128 characters or fewer"
+        !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch -> "Passwords do not match"
+        else -> null
+    }
+    val canConfirm = !busy && (isBlank || (lengthValid && passwordsMatch))
+
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text("Enable cloud backup") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Your backup is encrypted on this device before it's uploaded — the cloud only " +
+                        "ever stores encrypted data."
+                )
+                Text(
+                    "Cloud backups are keyed by your Support ID. Copy it now and store it safely — " +
+                        "you'll need it to restore after reinstalling."
+                )
+                Text(
+                    text = supportId.ifBlank { "(generating…)" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Optionally set a password. Leave blank to use default (Support ID) protection.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password (optional)") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = validationError != null && confirmPassword.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!isBlank) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        label = { Text("Confirm password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = confirmPassword.isNotEmpty() && !passwordsMatch,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (validationError != null) {
+                    Text(
+                        text = validationError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (busy) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onCopySupportId()
+                    onConfirm(if (isBlank) null else password.toCharArray())
+                },
+                enabled = canConfirm
+            ) { Text("Copy ID & enable") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun ChangeCloudPasswordDialog(
+    busy: Boolean,
+    onConfirm: (CharArray?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+
+    val isBlank = newPassword.isEmpty() || newPassword.all { it.isWhitespace() }
+    val passwordsMatch = newPassword == confirmPassword
+    val lengthValid = isBlank || newPassword.length in 8..128
+
+    // Derive validation error
+    val validationError = when {
+        !lengthValid && newPassword.length < 8 -> "Password must be at least 8 characters"
+        !lengthValid -> "Password must be 128 characters or fewer"
+        !isBlank && !passwordsMatch && confirmPassword.isNotEmpty() -> "Passwords do not match"
+        else -> null
+    }
+    val canConfirm = !busy && (isBlank || (lengthValid && passwordsMatch))
+
+    AlertDialog(
+        onDismissRequest = {
+            if (!busy) onDismiss()
+        },
+        title = { Text("Change cloud backup password") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Set a new password to protect your cloud backup. " +
+                        "Leave blank to use default (Support ID) protection.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("New password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = validationError != null && confirmPassword.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text("Confirm password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (validationError != null) {
+                    Text(
+                        text = validationError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (busy) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val password = if (isBlank) null else newPassword.toCharArray()
+                    onConfirm(password)
+                },
+                enabled = canConfirm
+            ) { Text("Change") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !busy
+            ) { Text("Cancel") }
+        }
+    )
 }

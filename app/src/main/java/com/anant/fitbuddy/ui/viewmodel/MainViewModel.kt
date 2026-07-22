@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.MainActivity
+import com.anant.fitbuddy.data.backup.BackupErrorMessages
+import com.anant.fitbuddy.data.backup.BackupImportResult
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
 import com.anant.fitbuddy.data.database.ExerciseLog
@@ -495,7 +497,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     val message = if (useCloud) {
-                        "Cloud upload failed: ${e.message}"
+                        "Cloud upload failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
                     } else {
                         "Export failed: ${e.message}"
                     }
@@ -705,6 +707,7 @@ class MainViewModel(
                             else -> repository.fetchOllamaVisionModels(url, apiKey)
                         }
                     }
+                    AiProvider.OPENAI -> repository.fetchOpenAiVisionModels(apiKey)
                 }
                 // Skip reachability probes when paid models are listed (never ping paid endpoints).
                 if (force && !includePaid) {
@@ -756,6 +759,7 @@ class MainViewModel(
                             else -> repository.fetchOllamaTextModels(url, apiKey)
                         }
                     }
+                    AiProvider.OPENAI -> repository.fetchOpenAiTextModels(apiKey)
                 }
                 if (force && !includePaid) {
                     filterReachableIfPossible(catalog, provider, apiKey, baseUrl)
@@ -787,14 +791,19 @@ class MainViewModel(
         apiKey: String,
         baseUrl: String
     ): List<ModelOption> {
+        // OpenAI has no free tier — always shown as paid, so callers never reach here for it
+        // (force && !includePaid is never true), but never probe it regardless: billed calls.
+        if (provider == AiProvider.OPENAI) return catalog
+        val trimmedUrl = baseUrl.trim().trimEnd('/')
         val ollamaLocal = provider == AiProvider.OLLAMA &&
-            baseUrl.trim().trimEnd('/') != AppSettings.OLLAMA_CLOUD_BASE_URL
+            trimmedUrl != AppSettings.OLLAMA_CLOUD_BASE_URL
         if (apiKey.isBlank() && !ollamaLocal) return catalog
         val chatUrl = when (provider) {
             AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
             AiProvider.GEMINI ->
                 "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
             AiProvider.OLLAMA -> baseUrl.trim().trimEnd('/') + "/v1/chat/completions"
+            AiProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
         }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         return repository.filterReachableModels(catalog, chatUrl, auth)
@@ -1487,27 +1496,80 @@ class MainViewModel(
 
     // --- Backup (export / import) -----------------------------------------------------------
 
-    fun exportData(uri: Uri) {
+    /**
+     * Exports a local backup. When [password] is non-null, the backup is encrypted with that
+     * password (must be 8–128 chars; validation is done in the UI layer before calling this).
+     * The password CharArray is zeroed after use.
+     */
+    fun exportData(uri: Uri, password: CharArray? = null) {
         viewModelScope.launch {
-            runCatching { repository.exportData(uri) }
-                .onSuccess { count ->
-                    _analysisState.update { it.copy(userMessage = "Exported $count records") }
+            try {
+                val count = repository.exportData(uri, password)
+                _analysisState.update { it.copy(userMessage = "Exported $count records") }
+            } catch (e: Exception) {
+                val msg = if (password != null && password.isNotEmpty()) {
+                    "Export failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
+                } else {
+                    "Export failed: ${e.message}"
                 }
-                .onFailure { e ->
-                    _analysisState.update { it.copy(userMessage = "Export failed: ${e.message}") }
-                }
+                _analysisState.update { it.copy(userMessage = msg) }
+            } finally {
+                password?.fill('\u0000')
+            }
         }
     }
 
-    fun importData(uri: Uri) {
+    /**
+     * Imports a local backup with password support. For encrypted files, shows a password dialog
+     * (via [passwordProvider]) up to 5 times. Cancel/empty aborts leaving data unchanged.
+     */
+    fun importData(uri: Uri, passwordProvider: suspend () -> CharArray? = { null }) {
         viewModelScope.launch {
-            runCatching { repository.importData(uri) }
-                .onSuccess { count ->
-                    _analysisState.update { it.copy(userMessage = "Imported $count records") }
-                }
-                .onFailure { e ->
+            var attempts = 0
+            while (attempts < 5) {
+                val result = try {
+                    repository.importData(uri, passwordProvider)
+                } catch (e: Exception) {
                     _analysisState.update { it.copy(userMessage = "Import failed: ${e.message}") }
+                    return@launch
                 }
+                when (result) {
+                    is BackupImportResult.Success -> {
+                        _analysisState.update {
+                            it.copy(userMessage = "Imported ${result.recordCount} records")
+                        }
+                        return@launch
+                    }
+                    BackupImportResult.WrongPassword -> {
+                        attempts++
+                        if (attempts >= 5) {
+                            _analysisState.update {
+                                it.copy(userMessage = BackupErrorMessages.IMPORT_TOO_MANY_ATTEMPTS)
+                            }
+                            return@launch
+                        }
+                        // Loop continues — passwordProvider will be called again next iteration
+                    }
+                    BackupImportResult.PasswordRequired -> {
+                        _analysisState.update {
+                            it.copy(userMessage = BackupErrorMessages.IMPORT_ABORTED)
+                        }
+                        return@launch
+                    }
+                    BackupImportResult.Corrupt -> {
+                        _analysisState.update {
+                            it.copy(userMessage = "Import failed: ${BackupErrorMessages.BACKUP_CORRUPT}")
+                        }
+                        return@launch
+                    }
+                    BackupImportResult.Unrecognized -> {
+                        _analysisState.update {
+                            it.copy(userMessage = "Import failed: ${BackupErrorMessages.NOT_VALID_BACKUP}")
+                        }
+                        return@launch
+                    }
+                }
+            }
         }
     }
 
@@ -1525,19 +1587,22 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = "Cloud upload failed: ${e.message}")
+                        it.copy(userMessage = "Cloud upload failed: ${BackupErrorMessages.encryptionFailed(e.message)}")
                     }
                 }
             _mongoBackupBusy.value = false
         }
     }
 
-    fun downloadMongoBackup(supportId: String) {
+    fun downloadMongoBackup(
+        supportId: String,
+        passwordProvider: suspend () -> CharArray? = { null }
+    ) {
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val enteredId = supportId.trim()
             runCatching {
-                val count = repository.downloadMongoBackup(enteredId)
+                val count = repository.downloadMongoBackup(enteredId, passwordProvider)
                 val restored = settingsRepository.settings.first()
                 val reusedId = restored.supportId.trim().ifBlank { enteredId }
                 settingsRepository.save(
@@ -1556,7 +1621,32 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = "Cloud restore failed: ${e.message}")
+                        it.copy(userMessage = BackupErrorMessages.cloudRestoreFailed(e.message))
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    fun changeCloudPassword(newPassword: CharArray?) {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            val isBlank = newPassword == null || newPassword.isEmpty() ||
+                newPassword.all { it.isWhitespace() }
+            runCatching { repository.changeCloudPassword(newPassword) }
+                .onSuccess {
+                    val msg = if (isBlank) {
+                        "Cloud backup reset to default (Support ID) protection"
+                    } else {
+                        "Cloud backup password updated"
+                    }
+                    _analysisState.update { it.copy(userMessage = msg) }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(
+                            userMessage = "Password change failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
+                        )
                     }
                 }
             _mongoBackupBusy.value = false
@@ -1589,6 +1679,47 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Enables cloud backup and performs the first upload using [password] (Requirement 12).
+     * A blank/null password falls back to the Support ID (Requirement 12.4); length validation
+     * (8–128 for non-blank) happens in the enable dialog before this is called (Requirement 12.5).
+     * A non-blank password is stored encrypted (Android Keystore, device-local) so subsequent
+     * manual/auto uploads keep using it; a blank password uses the Support-ID default. On upload
+     * failure the toggle stays enabled and a retry runs on the next auto-upload.
+     */
+    fun enableCloudBackup(password: CharArray?) {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            val isBlank = password == null || password.isEmpty() || password.all { it.isWhitespace() }
+            runCatching {
+                settingsRepository.ensureSupportId()
+                val current = settingsRepository.settings.first()
+                settingsRepository.save(
+                    current.copy(cloudBackupEnabled = true, cloudAutoUploadEnabled = true)
+                )
+                // First upload seals with the chosen password (blank → Support ID).
+                repository.changeCloudPassword(password)
+            }
+                .onSuccess {
+                    _analysisState.update {
+                        it.copy(
+                            userMessage = if (isBlank) {
+                                "Cloud backup enabled with default (Support ID) protection"
+                            } else {
+                                "Cloud backup enabled and encrypted"
+                            }
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = "Cloud backup enable failed: ${e.message}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
     fun setCloudAutoUploadEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.save(settings.value.copy(cloudAutoUploadEnabled = enabled))
@@ -1606,13 +1737,17 @@ class MainViewModel(
      * Onboarding cloud restore. Reuses the Support ID from the backup payload (or the ID
      * entered to fetch it), enables cloud backup, then probes AI credentials.
      */
-    fun restoreOnboardingFromCloud(supportId: String, onResult: (Boolean, String?) -> Unit) {
+    fun restoreOnboardingFromCloud(
+        supportId: String,
+        passwordProvider: suspend () -> CharArray? = { null },
+        onResult: (Boolean, String?) -> Unit
+    ) {
         if (_onboardingRestoring.value) return
         _onboardingRestoring.value = true
         viewModelScope.launch {
             val enteredId = supportId.trim()
             val result = runCatching {
-                repository.downloadMongoBackup(enteredId)
+                repository.downloadMongoBackup(enteredId, passwordProvider)
                 val restored = settingsRepository.settings.first()
                 // Prefer Support ID from restored settings; fall back to the ID used to fetch.
                 val reusedId = restored.supportId.trim().ifBlank { enteredId }
@@ -1648,7 +1783,19 @@ class MainViewModel(
         _onboardingRestoring.value = true
         viewModelScope.launch {
             val result = runCatching {
-                repository.importData(uri)
+                val importResult = repository.importData(uri)
+                if (importResult !is BackupImportResult.Success) {
+                    error(
+                        when (importResult) {
+                            BackupImportResult.WrongPassword -> BackupErrorMessages.INCORRECT_PASSWORD
+                            BackupImportResult.PasswordRequired ->
+                                "This backup is password-protected"
+                            BackupImportResult.Corrupt -> BackupErrorMessages.BACKUP_CORRUPT
+                            BackupImportResult.Unrecognized -> BackupErrorMessages.NOT_VALID_BACKUP
+                            is BackupImportResult.Success -> "" // unreachable
+                        }
+                    )
+                }
                 val after = settingsRepository.settings.first()
                 if (after.supportId.isNotBlank()) {
                     CrashReporter.setSupportId(after.supportId)
@@ -1708,7 +1855,12 @@ class MainViewModel(
                     ollamaUseCloud = aiSettings.ollamaUseCloud,
                     ollamaApiKeys = aiSettings.ollamaApiKeys,
                     ollamaApiKey = aiSettings.ollamaApiKey,
-                    aiAutoFailover = aiSettings.aiAutoFailover
+                    openAiApiKeys = aiSettings.openAiApiKeys,
+                    openAiApiKey = aiSettings.openAiApiKey,
+                    openAiModel = aiSettings.openAiModel.ifBlank { settings.value.openAiModel },
+                    openAiTextModel = aiSettings.openAiTextModel,
+                    aiAutoFailover = aiSettings.aiAutoFailover,
+                    showPaidModels = aiSettings.showPaidModels
                 )
                 settingsRepository.save(merged)
                 _forceAiSetup.value = false
@@ -2289,7 +2441,12 @@ class MainViewModel(
                         ollamaUseCloud = aiSettings.ollamaUseCloud,
                         ollamaApiKeys = aiSettings.ollamaApiKeys,
                         ollamaApiKey = aiSettings.ollamaApiKey,
-                        aiAutoFailover = aiSettings.aiAutoFailover
+                        openAiApiKeys = aiSettings.openAiApiKeys,
+                        openAiApiKey = aiSettings.openAiApiKey,
+                        openAiModel = aiSettings.openAiModel.ifBlank { current.openAiModel },
+                        openAiTextModel = aiSettings.openAiTextModel,
+                        aiAutoFailover = aiSettings.aiAutoFailover,
+                        showPaidModels = aiSettings.showPaidModels
                     )
                 )
                 repository.saveProfile(
@@ -2456,6 +2613,11 @@ class MainViewModel(
                 } else {
                     repository.fetchOllamaVisionModels(base)
                 }
+            }
+            AiProvider.OPENAI -> {
+                val key = settings.activeKey(AiProvider.OPENAI)
+                check(key.isNotBlank()) { "Enter an OpenAI API key" }
+                repository.fetchOpenAiVisionModels(key)
             }
         }
     }

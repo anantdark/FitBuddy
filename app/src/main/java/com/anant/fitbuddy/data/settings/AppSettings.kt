@@ -7,12 +7,14 @@ import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 enum class AiProvider {
     OPENROUTER,
     GEMINI,
-    OLLAMA;
+    OLLAMA,
+    OPENAI;
 
     fun displayName(): String = when (this) {
         OPENROUTER -> "OpenRouter"
         GEMINI -> "Gemini"
         OLLAMA -> "Ollama"
+        OPENAI -> "OpenAI"
     }
 }
 
@@ -46,6 +48,10 @@ data class AppSettings(
     val ollamaUseCloud: Boolean = false,
     val ollamaApiKeys: List<String> = emptyList(),
     val ollamaApiKey: String = "",
+    val openAiApiKeys: List<String> = emptyList(),
+    val openAiApiKey: String = "",
+    val openAiModel: String = DEFAULT_OPENAI_MODEL,
+    val openAiTextModel: String = "",
     /**
      * When true, failed requests rotate API keys then other models on the same platform.
      * When false, only the selected model is used; API keys still rotate on failure.
@@ -113,6 +119,8 @@ data class AppSettings(
      * upload was ≥ 12 hours ago. Manual upload always bypasses the debounce.
      */
     val cloudAutoUploadEnabled: Boolean = true,
+    /** Non-secret UI flag: true when a custom password was set via change-password (not the Support ID default). */
+    val cloudBackupPasswordSet: Boolean = false,
     /** Atlas database name (default [DEFAULT_MONGO_DB_NAME]). Overridable in Developer tools. */
     val mongoDbName: String = DEFAULT_MONGO_DB_NAME,
     /** Atlas collection name (default [DEFAULT_MONGO_COLLECTION]). Overridable in Developer tools. */
@@ -169,6 +177,7 @@ data class AppSettings(
             AiProvider.OPENROUTER -> openRouterModel
             AiProvider.GEMINI -> geminiModel
             AiProvider.OLLAMA -> ollamaModel
+            AiProvider.OPENAI -> openAiModel
         }
 
     /**
@@ -180,6 +189,7 @@ data class AppSettings(
             AiProvider.OPENROUTER -> openRouterTextModel.ifBlank { openRouterModel }
             AiProvider.GEMINI -> geminiTextModel.ifBlank { geminiModel }
             AiProvider.OLLAMA -> ollamaTextModel.ifBlank { ollamaModel }
+            AiProvider.OPENAI -> openAiTextModel.ifBlank { openAiModel }
         }
 
     /** Picks the vision model when an image is attached, else the (cheaper) text model. */
@@ -199,6 +209,7 @@ data class AppSettings(
             AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
             AiProvider.GEMINI -> "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
             AiProvider.OLLAMA -> ollamaEffectiveBaseUrl + "/v1/chat/completions"
+            AiProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
         }
 
     /** Authorization header value, or null when the provider needs none (local Ollama). */
@@ -211,6 +222,7 @@ data class AppSettings(
             } else {
                 null
             }
+            AiProvider.OPENAI -> activeKey(AiProvider.OPENAI).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         }
 
     /** Manual (pasted) keys only — never includes [openRouterOAuthKey]. */
@@ -223,6 +235,9 @@ data class AppSettings(
         }
         AiProvider.OLLAMA -> ollamaApiKeys.ifEmpty {
             listOfNotNull(ollamaApiKey.takeIf { it.isNotBlank() })
+        }
+        AiProvider.OPENAI -> openAiApiKeys.ifEmpty {
+            listOfNotNull(openAiApiKey.takeIf { it.isNotBlank() })
         }
     }
 
@@ -242,6 +257,7 @@ data class AppSettings(
         }
         AiProvider.GEMINI -> geminiApiKey.ifBlank { geminiApiKeys.firstOrNull().orEmpty() }
         AiProvider.OLLAMA -> ollamaApiKey.ifBlank { ollamaApiKeys.firstOrNull().orEmpty() }
+        AiProvider.OPENAI -> openAiApiKey.ifBlank { openAiApiKeys.firstOrNull().orEmpty() }
     }
 
     /** In-memory copy with [key] as the active credential for [p] (failover attempt). */
@@ -249,6 +265,7 @@ data class AppSettings(
         AiProvider.OPENROUTER -> copy(provider = p, openRouterApiKey = key)
         AiProvider.GEMINI -> copy(provider = p, geminiApiKey = key)
         AiProvider.OLLAMA -> copy(provider = p, ollamaApiKey = key)
+        AiProvider.OPENAI -> copy(provider = p, openAiApiKey = key)
     }
 
     /** In-memory copy targeting [p] with both vision and text model ids set to [modelId]. */
@@ -268,6 +285,11 @@ data class AppSettings(
             ollamaModel = modelId,
             ollamaTextModel = modelId
         )
+        AiProvider.OPENAI -> copy(
+            provider = p,
+            openAiModel = modelId,
+            openAiTextModel = modelId
+        )
     }
 
     /** True when [p] has enough config to attempt a live call. */
@@ -280,6 +302,7 @@ data class AppSettings(
         } else {
             ollamaBaseUrl.isNotBlank() && ollamaModel.isNotBlank()
         }
+        AiProvider.OPENAI -> keysFor(p).isNotEmpty() && openAiModel.isNotBlank()
     }
 
     /** True when the preferred [provider] has enough config to attempt a live call. */
@@ -305,6 +328,7 @@ data class AppSettings(
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"
         const val DEFAULT_OLLAMA_MODEL = "llava"
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
+        const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
         /** Debounce window for startup auto-upload (manual upload bypasses this). */
@@ -319,6 +343,7 @@ data class AppSettings(
             openRouterKeys: List<String> = emptyList(),
             geminiKeys: List<String> = emptyList(),
             ollamaKeys: List<String> = emptyList(),
+            openAiKeys: List<String> = emptyList(),
             base: AppSettings = AppSettings()
         ): AppSettings = base.copy(
             openRouterApiKeys = openRouterKeys,
@@ -326,7 +351,9 @@ data class AppSettings(
             geminiApiKeys = geminiKeys,
             geminiApiKey = geminiKeys.firstOrNull().orEmpty(),
             ollamaApiKeys = ollamaKeys,
-            ollamaApiKey = ollamaKeys.firstOrNull().orEmpty()
+            ollamaApiKey = ollamaKeys.firstOrNull().orEmpty(),
+            openAiApiKeys = openAiKeys,
+            openAiApiKey = openAiKeys.firstOrNull().orEmpty()
         )
     }
 }

@@ -82,9 +82,11 @@ import com.anant.fitbuddy.util.ImageUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 private enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     PROGRESS("Progress", Icons.Filled.Insights),
@@ -200,6 +202,25 @@ fun MainScreen(
     var mealReviewSavesAsPreset by remember { mutableStateOf(false) }
     var lastOpenedEditMealId by remember { mutableStateOf<Int?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    // Export password dialog state
+    var showExportDialog by remember { mutableStateOf(false) }
+    var exportPassword by remember { mutableStateOf("") }
+    var exportConfirmPassword by remember { mutableStateOf("") }
+    // Import password dialog state (for encrypted backups)
+    var importPasswordPromptUri by remember { mutableStateOf<Uri?>(null) }
+    var importPassword by remember { mutableStateOf("") }
+    var importPasswordError by remember { mutableStateOf<String?>(null) }
+    var importPasswordAttempts by remember { mutableStateOf(0) }
+    var importPasswordContinuation by remember {
+        mutableStateOf<CancellableContinuation<CharArray?>?>(null)
+    }
+    // Cloud restore password dialog state (shown only when Support-ID decryption fails)
+    var cloudRestorePasswordPrompt by remember { mutableStateOf(false) }
+    var cloudRestorePassword by remember { mutableStateOf("") }
+    var cloudRestorePasswordError by remember { mutableStateOf<String?>(null) }
+    var cloudRestorePasswordContinuation by remember {
+        mutableStateOf<CancellableContinuation<CharArray?>?>(null)
+    }
     var livePillMessage by remember { mutableStateOf<String?>(null) }
     var showAnantEasterEgg by remember { mutableStateOf(false) }
 
@@ -277,7 +298,16 @@ fun MainScreen(
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
-    ) { uri -> uri?.let(viewModel::exportData) }
+    ) { uri ->
+        if (uri != null) {
+            val pw = exportPassword
+            val password = if (pw.isNotEmpty()) pw.toCharArray() else null
+            viewModel.exportData(uri, password)
+            exportPassword = ""
+            exportConfirmPassword = ""
+        }
+        showExportDialog = false
+    }
 
     val updateBackupExportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -355,7 +385,7 @@ fun MainScreen(
                 onDynamicColorChange = { enabled ->
                     viewModel.saveSettings(settings.copy(dynamicColor = enabled))
                 },
-                onExport = { exportLauncher.launch("fitness-backup.json") },
+                onExport = { showExportDialog = true },
                 onImport = { importLauncher.launch(arrayOf("application/json")) },
                 onEasterEggTriggered = {
                     livePillMessage = null
@@ -423,10 +453,20 @@ fun MainScreen(
                 mongoBackupBusy = mongoBackupBusy,
                 onCloudBackupEnabledChange = viewModel::setCloudBackupEnabled,
                 onPrepareCloudBackupEnable = viewModel::prepareCloudBackupEnable,
+                onEnableCloudBackup = viewModel::enableCloudBackup,
                 onCloudAutoUploadChange = viewModel::setCloudAutoUploadEnabled,
                 onMongoUpload = viewModel::uploadMongoBackup,
-                onMongoDownload = viewModel::downloadMongoBackup,
+                onMongoDownload = { supportId ->
+                    viewModel.downloadMongoBackup(supportId) {
+                        cloudRestorePasswordError = "Incorrect password — enter the password you set for this backup"
+                        cloudRestorePasswordPrompt = true
+                        suspendCancellableCoroutine { cont ->
+                            cloudRestorePasswordContinuation = cont
+                        }
+                    }
+                },
                 onRegenerateSupportId = viewModel::regenerateSupportId,
+                onChangeCloudPassword = viewModel::changeCloudPassword,
                 modifier = Modifier.padding(innerPadding)
             )
         }
@@ -1012,12 +1052,220 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.importData(uri)
+                    val importUri = uri
                     pendingImportUri = null
+                    importPassword = ""
+                    importPasswordError = null
+                    importPasswordAttempts = 0
+                    viewModel.importData(importUri) {
+                        // passwordProvider: show dialog and await user input
+                        importPasswordPromptUri = importUri
+                        importPasswordError = if (importPasswordAttempts > 0) "Incorrect password" else null
+                        suspendCancellableCoroutine { cont ->
+                            importPasswordContinuation = cont
+                        }
+                    }
                 }) { Text("Replace") }
             },
             dismissButton = {
                 TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Export dialog: optional password with confirmation (8–128, masked)
+    if (showExportDialog) {
+        val exportIsBlank = exportPassword.isEmpty() || exportPassword.all { it.isWhitespace() }
+        val exportPasswordsMatch = exportPassword == exportConfirmPassword
+        val exportLengthValid = exportIsBlank || exportPassword.length in 8..128
+        val exportValidationError = when {
+            !exportLengthValid && exportPassword.length < 8 ->
+                "Password must be at least 8 characters"
+            !exportLengthValid -> "Password must be 128 characters or fewer"
+            !exportIsBlank && exportConfirmPassword.isNotEmpty() && !exportPasswordsMatch ->
+                "Passwords do not match"
+            else -> null
+        }
+        val canExport = exportValidationError == null && (exportIsBlank || exportPasswordsMatch)
+        AlertDialog(
+            onDismissRequest = {
+                showExportDialog = false
+                exportPassword = ""
+                exportConfirmPassword = ""
+            },
+            title = { Text("Export backup") },
+            text = {
+                Column {
+                    Text(
+                        "Optionally protect this backup with a password.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.size(12.dp))
+                    OutlinedTextField(
+                        value = exportPassword,
+                        onValueChange = { exportPassword = it },
+                        label = { Text("Password (optional)") },
+                        singleLine = true,
+                        visualTransformation =
+                            androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        isError = exportValidationError != null &&
+                            exportValidationError != "Passwords do not match",
+                        supportingText = exportValidationError?.let { error ->
+                            { Text(error, color = MaterialTheme.colorScheme.error) }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (!exportIsBlank) {
+                        Spacer(Modifier.size(8.dp))
+                        OutlinedTextField(
+                            value = exportConfirmPassword,
+                            onValueChange = { exportConfirmPassword = it },
+                            label = { Text("Confirm password") },
+                            singleLine = true,
+                            visualTransformation =
+                                androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            isError = exportConfirmPassword.isNotEmpty() && !exportPasswordsMatch,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { exportLauncher.launch("fitness-backup.json") },
+                    enabled = canExport
+                ) { Text("Export") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showExportDialog = false
+                    exportPassword = ""
+                    exportConfirmPassword = ""
+                }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Import password dialog: shown only when the backup is encrypted (up to 5 attempts)
+    if (importPasswordPromptUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                importPasswordContinuation?.resumeWith(Result.success(null))
+                importPasswordContinuation = null
+                importPasswordPromptUri = null
+                importPassword = ""
+                importPasswordError = null
+            },
+            title = { Text("Password required") },
+            text = {
+                Column {
+                    Text(
+                        "This backup is encrypted. Enter the password to import it.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (importPasswordAttempts > 0 && importPasswordError != null) {
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            importPasswordError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.size(12.dp))
+                    OutlinedTextField(
+                        value = importPassword,
+                        onValueChange = { importPassword = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (importPasswordAttempts > 0) {
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            "Attempt ${importPasswordAttempts + 1} of 5",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val pw = importPassword.toCharArray()
+                        importPassword = ""
+                        importPasswordAttempts++
+                        importPasswordPromptUri = null
+                        importPasswordContinuation?.resumeWith(Result.success(pw))
+                        importPasswordContinuation = null
+                    },
+                    enabled = importPassword.isNotEmpty()
+                ) { Text("Unlock") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    importPasswordContinuation?.resumeWith(Result.success(null))
+                    importPasswordContinuation = null
+                    importPasswordPromptUri = null
+                    importPassword = ""
+                    importPasswordError = null
+                }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Cloud restore password dialog: shown only when Support-ID decryption fails
+    if (cloudRestorePasswordPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                cloudRestorePasswordContinuation?.resumeWith(Result.success(null))
+                cloudRestorePasswordContinuation = null
+                cloudRestorePasswordPrompt = false
+                cloudRestorePassword = ""
+                cloudRestorePasswordError = null
+            },
+            title = { Text("Password required") },
+            text = {
+                Column {
+                    Text(
+                        cloudRestorePasswordError ?: "Enter the password for this cloud backup.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (cloudRestorePasswordError != null)
+                            MaterialTheme.colorScheme.error
+                        else
+                            MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.size(12.dp))
+                    OutlinedTextField(
+                        value = cloudRestorePassword,
+                        onValueChange = { cloudRestorePassword = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val pw = cloudRestorePassword.toCharArray()
+                        cloudRestorePassword = ""
+                        cloudRestorePasswordPrompt = false
+                        cloudRestorePasswordError = null
+                        cloudRestorePasswordContinuation?.resumeWith(Result.success(pw))
+                        cloudRestorePasswordContinuation = null
+                    },
+                    enabled = cloudRestorePassword.isNotEmpty()
+                ) { Text("Unlock") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    cloudRestorePasswordContinuation?.resumeWith(Result.success(null))
+                    cloudRestorePasswordContinuation = null
+                    cloudRestorePasswordPrompt = false
+                    cloudRestorePassword = ""
+                    cloudRestorePasswordError = null
+                }) { Text("Cancel") }
             }
         )
     }

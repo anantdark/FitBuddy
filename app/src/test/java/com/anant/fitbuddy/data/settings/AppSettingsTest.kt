@@ -49,6 +49,17 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `openai sends bearer when a key is set`() {
+        val settings = AppSettings(
+            provider = AiProvider.OPENAI,
+            openAiApiKeys = listOf("sk-test"),
+            openAiApiKey = "sk-test"
+        )
+        assertEquals("Bearer sk-test", settings.authHeader)
+        assertEquals("https://api.openai.com/v1/chat/completions", settings.chatUrl)
+    }
+
+    @Test
     fun `openrouter auth header only present when key set`() {
         val noKey = AppSettings(provider = AiProvider.OPENROUTER, openRouterApiKey = "")
         assertNull(noKey.authHeader)

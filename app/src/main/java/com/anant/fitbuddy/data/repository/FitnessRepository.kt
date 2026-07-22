@@ -2,7 +2,13 @@ package com.anant.fitbuddy.data.repository
 
 import android.net.Uri
 import android.util.Base64
+import android.util.Log
+import com.anant.fitbuddy.data.backup.BackupErrorMessages
+import com.anant.fitbuddy.data.backup.BackupImportResult
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.crypto.BackupFormat
+import com.anant.fitbuddy.data.backup.crypto.BackupPasswordStore
+import com.anant.fitbuddy.data.backup.crypto.OpenResult
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupRepository
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.database.BodyMeasurement
@@ -161,18 +167,76 @@ class FitnessRepository(
 
     // --- Backup -----------------------------------------------------------------------------
 
-    suspend fun exportData(uri: Uri): Int {
-        val count = backupManager.exportTo(uri)
+    /**
+     * Exports a local backup to [uri], optionally sealing it with [password] (null/blank writes the
+     * legacy raw form; non-blank writes an encrypted envelope). Records a successful backup only
+     * AFTER a successful export: if [BackupManager.exportTo] throws (seal/encryption or write
+     * failure), the exception propagates and [SettingsRepository.recordSuccessfulBackup] never runs
+     * (Requirements 1.5, 10.2).
+     */
+    suspend fun exportData(uri: Uri, password: CharArray? = null): Int {
+        val count = backupManager.exportTo(uri, password)
         settingsRepository.recordSuccessfulBackup()
         return count
     }
 
-    suspend fun importData(uri: Uri): Int = backupManager.importFrom(uri)
+    /**
+     * Imports a local backup from [uri]. The [passwordProvider] is invoked only when the file is an
+     * encrypted envelope (default returns null, i.e. no password). Returns the [BackupImportResult]
+     * directly so callers can surface distinct messages and drive up-to-5-attempt retries for
+     * WrongPassword / Corrupt / Unrecognized / PasswordRequired (Requirements 2.4). Every
+     * non-success outcome leaves existing on-device data unchanged.
+     */
+    suspend fun importData(
+        uri: Uri,
+        passwordProvider: suspend () -> CharArray? = { null }
+    ): BackupImportResult = backupManager.importFrom(uri, passwordProvider)
 
     /**
      * Uploads a BackupData v5 JSON snapshot to the build-baked Atlas cluster.
      * Requires [AppSettings.cloudBackupEnabled] and a non-blank Support ID.
      */
+    /**
+     * Password used to seal an upload: the stored custom password when [AppSettings.cloudBackupPasswordSet]
+     * is on, otherwise the Support ID. If a custom password is flagged but can't be recovered on this
+     * device, this throws rather than silently downgrading the cloud copy to Support-ID protection.
+     */
+    private suspend fun resolveUploadPassword(settings: AppSettings, supportId: String): CharArray {
+        if (settings.cloudBackupPasswordSet) {
+            val stored = settingsRepository.getCloudBackupPasswordBlob()
+                ?.let { BackupPasswordStore.decrypt(it) }
+            if (stored != null && stored.isNotEmpty()) return stored
+            error(
+                "Backup password isn't available on this device. Re-enter it in " +
+                    "Settings → cloud backup password before uploading."
+            )
+        }
+        return supportId.toCharArray()
+    }
+
+    /**
+     * Persists [password] (encrypted, device-local) and flags a custom cloud password so later
+     * uploads seal with it instead of the Support ID. Best-effort — failures never fail the caller.
+     */
+    private suspend fun persistCustomCloudPassword(password: CharArray) {
+        runCatching {
+            settingsRepository.setCloudBackupPasswordBlob(BackupPasswordStore.encrypt(password))
+            settingsRepository.setCloudBackupPasswordSet(true)
+        }
+    }
+
+    /**
+     * Clears any stored custom cloud password so later uploads fall back to the Support ID. Called
+     * after restoring a backup that is Support-ID-protected / unencrypted, so the device's saved
+     * password always matches the protection of the backup it just restored. Best-effort.
+     */
+    private suspend fun clearCustomCloudPassword() {
+        runCatching {
+            settingsRepository.setCloudBackupPasswordBlob(null)
+            settingsRepository.setCloudBackupPasswordSet(false)
+        }
+    }
+
     suspend fun uploadMongoBackup(): Int {
         val settings = settingsRepository.settings.first()
         if (!settings.cloudBackupEnabled) {
@@ -185,6 +249,13 @@ class FitnessRepository(
         return try {
             val data = backupManager.buildBackupData()
             val payloadJson = backupManager.encode(data)
+            // Seal with the stored custom password when one is set, else the Support ID default.
+            val passwordChars = resolveUploadPassword(settings, supportId)
+            val sealedPayload = try {
+                backupManager.crypto.seal(payloadJson, passwordChars)
+            } finally {
+                passwordChars.fill('\u0000')
+            }
             mongoBackupRepository.upload(
                 baseUrl = MongoUriVault.baseUrl(),
                 apiKey = MongoUriVault.resolve(),
@@ -193,7 +264,7 @@ class FitnessRepository(
                     AppSettings.DEFAULT_MONGO_COLLECTION
                 },
                 supportId = supportId,
-                payloadJson = payloadJson,
+                payloadJson = sealedPayload,
                 exportedAt = data.exportedAt,
                 deviceName = DeviceIdentity.deviceName(backupManager.appContext),
                 macId = DeviceIdentity.macId(backupManager.appContext)
@@ -211,10 +282,15 @@ class FitnessRepository(
     }
 
     /**
-     * Restores the Atlas document whose `_id` is [supportId].
-     * Used from onboarding and Developer tools (does not require cloudBackupEnabled).
+     * Restores the Atlas document whose `_id` is [supportId]. Decrypts the downloaded envelope
+     * using the Support-ID-first policy (Requirement 4): auto-try the Support ID, prompt via
+     * [passwordProvider] only on failure. Legacy plaintext payloads import directly.
+     * On any failure path, existing data is left unchanged.
      */
-    suspend fun downloadMongoBackup(supportId: String): Int {
+    suspend fun downloadMongoBackup(
+        supportId: String,
+        passwordProvider: suspend () -> CharArray? = { null }
+    ): Int {
         if (!MongoUriVault.isAvailable()) {
             error("Cloud backup is not available in this build")
         }
@@ -232,7 +308,155 @@ class FitnessRepository(
             },
             supportId = id
         )
-        return backupManager.importFromJson(payloadJson)
+
+        return when (backupManager.crypto.classify(payloadJson)) {
+            BackupFormat.LEGACY_PLAIN -> {
+                val count = backupManager.importFromJson(payloadJson)
+                // Auto-migrate: re-encrypt with Support ID and upload (Requirements 9.2, 9.3)
+                try {
+                    val passwordChars = id.toCharArray()
+                    val sealedPayload = try {
+                        backupManager.crypto.seal(payloadJson, passwordChars)
+                    } finally {
+                        passwordChars.fill('\u0000')
+                    }
+                    mongoBackupRepository.upload(
+                        baseUrl = MongoUriVault.baseUrl(),
+                        apiKey = MongoUriVault.resolve(),
+                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                        collectionName = settings.mongoCollectionName.ifBlank {
+                            AppSettings.DEFAULT_MONGO_COLLECTION
+                        },
+                        supportId = id,
+                        payloadJson = sealedPayload,
+                        exportedAt = System.currentTimeMillis(),
+                        deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                        macId = DeviceIdentity.macId(backupManager.appContext)
+                    )
+                } catch (e: Exception) {
+                    // Migration failed — local data preserved, cloud doc unchanged (Requirement 9.4)
+                    Log.w(TAG, "Legacy cloud backup migration failed; will retry on next upload", e)
+                }
+                // Restored backup is Support-ID-protected — drop any stale custom password.
+                clearCustomCloudPassword()
+                count
+            }
+
+            BackupFormat.PLAIN_WRAPPED -> {
+                when (val result = backupManager.crypto.open(payloadJson, null)) {
+                    is OpenResult.Success -> {
+                        val count = backupManager.importFromJson(result.payloadJson)
+                        // Restored backup is unencrypted — drop any stale custom password.
+                        clearCustomCloudPassword()
+                        count
+                    }
+                    else -> error(BackupErrorMessages.BACKUP_CORRUPT)
+                }
+            }
+
+            BackupFormat.ENCRYPTED -> {
+                // Try Support ID first (no prompt)
+                val supportIdChars = id.toCharArray()
+                val autoResult = try {
+                    backupManager.crypto.open(payloadJson, supportIdChars)
+                } finally {
+                    supportIdChars.fill('\u0000')
+                }
+
+                when (autoResult) {
+                    is OpenResult.Success -> {
+                        val count = backupManager.importFromJson(autoResult.payloadJson)
+                        // Opened with the Support ID — this backup has no custom password, so drop
+                        // any stale one this device may have stored from an earlier backup.
+                        clearCustomCloudPassword()
+                        count
+                    }
+                    OpenResult.WrongPassword -> {
+                        // Support ID didn't work — prompt the user
+                        val userPassword = passwordProvider()
+                        if (userPassword == null || userPassword.isEmpty()) {
+                            error("Password required to restore this backup")
+                        }
+                        try {
+                            when (val prompted = backupManager.crypto.open(payloadJson, userPassword)) {
+                                is OpenResult.Success -> {
+                                    // Remember this custom password on-device so later uploads
+                                    // keep the backup custom-encrypted (not downgraded to Support ID).
+                                    persistCustomCloudPassword(userPassword)
+                                    backupManager.importFromJson(prompted.payloadJson)
+                                }
+                                OpenResult.WrongPassword -> error(BackupErrorMessages.INCORRECT_PASSWORD)
+                                OpenResult.Corrupt -> error(BackupErrorMessages.BACKUP_CORRUPT)
+                                OpenResult.Unreadable -> error(BackupErrorMessages.NOT_VALID_BACKUP)
+                            }
+                        } finally {
+                            userPassword.fill('\u0000')
+                        }
+                    }
+                    OpenResult.Corrupt -> error(BackupErrorMessages.BACKUP_CORRUPT)
+                    OpenResult.Unreadable -> error(BackupErrorMessages.NOT_VALID_BACKUP)
+                }
+            }
+
+            BackupFormat.UNKNOWN -> error(BackupErrorMessages.NOT_VALID_BACKUP)
+        }
+    }
+
+    /**
+     * Re-encrypts the current data snapshot with [newPassword] and uploads to replace the cloud
+     * document. A null/empty/all-whitespace password falls back to the Support ID (Requirement 11.3)
+     * and clears any stored custom password. Non-blank passwords must be 8–128 characters
+     * (Requirement 11.4) and are persisted **encrypted** via [BackupPasswordStore] (Android Keystore,
+     * device-local, never in exported/cloud backups) so later manual/auto uploads keep using them
+     * instead of downgrading to Support-ID protection. On any failure, the cloud backup and the
+     * stored password both remain unchanged (Requirement 11.5).
+     */
+    suspend fun changeCloudPassword(newPassword: CharArray?) {
+        // Validate: non-blank password must be 8–128 characters
+        val isBlank = newPassword == null || newPassword.isEmpty() || newPassword.all { it.isWhitespace() }
+        if (!isBlank && (newPassword.size < 8 || newPassword.size > 128)) {
+            throw IllegalArgumentException("Password must be 8–128 characters")
+        }
+        if (!MongoUriVault.isAvailable()) {
+            error("Cloud backup is not available in this build")
+        }
+        val settings = settingsRepository.settings.first()
+        val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
+
+        // Determine effective password: blank → Support ID
+        val effectivePassword = if (isBlank) supportId.toCharArray() else newPassword.copyOf()
+        try {
+            val data = backupManager.buildBackupData()
+            val payloadJson = backupManager.encode(data)
+            val sealedPayload = backupManager.crypto.seal(payloadJson, effectivePassword)
+            mongoBackupRepository.upload(
+                baseUrl = MongoUriVault.baseUrl(),
+                apiKey = MongoUriVault.resolve(),
+                databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                collectionName = settings.mongoCollectionName.ifBlank {
+                    AppSettings.DEFAULT_MONGO_COLLECTION
+                },
+                supportId = supportId,
+                payloadJson = sealedPayload,
+                exportedAt = data.exportedAt,
+                deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                macId = DeviceIdentity.macId(backupManager.appContext)
+            )
+            // Success: persist (or clear) the custom password so future uploads reuse it,
+            // update the UI flag, and record the upload timestamp/status.
+            if (isBlank) {
+                settingsRepository.setCloudBackupPasswordBlob(null)
+            } else {
+                settingsRepository.setCloudBackupPasswordBlob(
+                    BackupPasswordStore.encrypt(effectivePassword)
+                )
+            }
+            settingsRepository.setCloudBackupPasswordSet(!isBlank)
+            settingsRepository.setMongoUploadStatus(ok = true)
+        } finally {
+            effectivePassword.fill('\u0000')
+            newPassword?.fill('\u0000')
+        }
     }
 
     /**
@@ -674,6 +898,14 @@ class FitnessRepository(
     /** All Ollama models on the host for the text-query dropdown. */
     suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
         remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey)
+
+    /** Vision-capable OpenAI models for the Settings dropdown. */
+    suspend fun fetchOpenAiVisionModels(apiKey: String): List<ModelOption> =
+        remoteAiDataSource.fetchOpenAiVisionModels(apiKey)
+
+    /** OpenAI chat models for the text-query model dropdown. */
+    suspend fun fetchOpenAiTextModels(apiKey: String): List<ModelOption> =
+        remoteAiDataSource.fetchOpenAiTextModels(apiKey)
 
     /**
      * Drops models that do not answer chat with HTTP 200 or 429 (Refresh-models reachability).
@@ -1467,9 +1699,12 @@ class FitnessRepository(
         throw lastError ?: IllegalStateException("Couldn't connect to AI")
     }
 
-    /** Keys to try for [platform]; local Ollama uses a single empty key (no auth). */
+    /**
+     * Keys to try for [platform]. Local/custom Ollama (OpenAI-compatible) hosts are usually
+     * keyless, but may supply a key (OpenAI, secured LM Studio/vLLM); fall back to a single
+     * empty key so keyless hosts still work.
+     */
     private fun attemptKeys(settings: AppSettings, platform: AiProvider): List<String> {
-        if (platform == AiProvider.OLLAMA && !settings.ollamaUseCloud) return listOf("")
         val keys = if (platform == AiProvider.OPENROUTER) {
             settings.openRouterAttemptKeys()
         } else {
@@ -1506,12 +1741,17 @@ class FitnessRepository(
                 }
                 AiProvider.OLLAMA -> {
                     val base = settings.ollamaEffectiveBaseUrl
-                    val key = if (settings.ollamaUseCloud) listKey else ""
+                    val key = listKey
                     if (preferVisionModels) {
                         remoteAiDataSource.fetchOllamaVisionModels(base, key)
                     } else {
                         remoteAiDataSource.fetchOllamaTextModels(base, key)
                     }
+                }
+                AiProvider.OPENAI -> if (preferVisionModels) {
+                    remoteAiDataSource.fetchOpenAiVisionModels(listKey)
+                } else {
+                    remoteAiDataSource.fetchOpenAiTextModels(listKey)
                 }
             }
         }.getOrDefault(emptyList())
@@ -1530,5 +1770,9 @@ class FitnessRepository(
         val detail = e.message?.takeIf { it.isNotBlank() }
         return detail?.let { "Couldn't connect to AI: $it" }
             ?: "Couldn't connect to AI. Check your network and AI provider settings."
+    }
+
+    companion object {
+        private const val TAG = "FitnessRepository"
     }
 }
