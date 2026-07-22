@@ -102,14 +102,13 @@ progress charts, editable meal review, and reusable food presets.
   (persisted); then newer requests try the **preferred dropdown model** first again. Green
   “active” lines show the last successful model without changing the dropdown. **Show paid
   models** (off by default) lists paid OpenRouter/Gemini models too and disables Refresh
-  reachability probes. Paid mode is **coupled** with Auto failover: turning paid on forces Auto
-  off (and disables the Auto toggle) so failover never fans out across many billable models —
-  enforced in code via `AppSettings.effectiveAutoFailover`; turning paid off turns Auto back on.
-  While paid is on, the model dropdowns do **not** auto-refresh (the list only loads on the
-  Refresh button) to avoid hitting paid endpoints unprompted. Selecting the OpenAI endpoint
-  (OpenAI-compatible provider, Local mode, URL `https://api.openai.com`) auto-enables paid mode,
-  and the vision/text dropdowns fall back to curated OpenAI defaults (`OpenAiCatalog`) so at least
-  GPT-4o is always offered even before a Refresh. Gemini uses free Flash intelligence ranking
+  reachability probes. Auto failover is always on by default for all providers and is never
+  forced off automatically. While paid is on, the model dropdowns do **not** auto-refresh (the
+  list only loads on the Refresh button) to avoid hitting paid endpoints unprompted. Selecting
+  the OpenAI endpoint (OpenAI-compatible provider, Local mode, URL `https://api.openai.com`)
+  auto-enables paid mode, and the vision/text dropdowns fall back to curated OpenAI defaults
+  (`OpenAiCatalog`) so at least GPT-4o is always offered even before a Refresh. Gemini uses
+  free Flash intelligence ranking
   (3.5 Flash first; Pro above Flash when paid is on); OpenRouter/Ollama prefer Gemma by generation
   then size (Gemma 4 31b → 26b → Gemma 3…). Pills note model switches within the platform.
 - If no provider is configured at all, text logs use the offline simulator (photos require a key).

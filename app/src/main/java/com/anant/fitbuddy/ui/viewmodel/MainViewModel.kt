@@ -688,7 +688,7 @@ class MainViewModel(
         apiKey: String,
         force: Boolean = false,
         baseUrl: String = "",
-        includePaid: Boolean = settings.value.showPaidModels
+        includePaid: Boolean = settings.value.showPaidFor(provider)
     ) {
         val cacheKey = "${provider.name}:$apiKey:$baseUrl:$includePaid"
         if (_models.value.isLoading) return
@@ -740,7 +740,7 @@ class MainViewModel(
         apiKey: String,
         force: Boolean = false,
         baseUrl: String = "",
-        includePaid: Boolean = settings.value.showPaidModels
+        includePaid: Boolean = settings.value.showPaidFor(provider)
     ) {
         val cacheKey = "${provider.name}:$apiKey:$baseUrl:$includePaid"
         if (_textModels.value.isLoading) return
@@ -1873,8 +1873,8 @@ class MainViewModel(
                     openAiApiKey = aiSettings.openAiApiKey,
                     openAiModel = aiSettings.openAiModel.ifBlank { settings.value.openAiModel },
                     openAiTextModel = aiSettings.openAiTextModel,
-                    aiAutoFailover = aiSettings.aiAutoFailover,
-                    showPaidModels = aiSettings.showPaidModels
+                    aiAutoFailoverByProvider = aiSettings.aiAutoFailoverByProvider,
+                    showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                 )
                 settingsRepository.save(merged)
                 _forceAiSetup.value = false
@@ -2459,8 +2459,8 @@ class MainViewModel(
                         openAiApiKey = aiSettings.openAiApiKey,
                         openAiModel = aiSettings.openAiModel.ifBlank { current.openAiModel },
                         openAiTextModel = aiSettings.openAiTextModel,
-                        aiAutoFailover = aiSettings.aiAutoFailover,
-                        showPaidModels = aiSettings.showPaidModels
+                        aiAutoFailoverByProvider = aiSettings.aiAutoFailoverByProvider,
+                        showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                     )
                 )
                 repository.saveProfile(

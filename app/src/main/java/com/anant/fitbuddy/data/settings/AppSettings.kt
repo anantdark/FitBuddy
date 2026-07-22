@@ -53,17 +53,17 @@ data class AppSettings(
     val openAiModel: String = DEFAULT_OPENAI_MODEL,
     val openAiTextModel: String = "",
     /**
-     * When true, failed requests rotate API keys then other models on the same platform.
-     * When false, only the selected model is used; API keys still rotate on failure.
-     * Never switches platforms automatically.
+     * Per-provider flag: when true, failed requests rotate API keys then other models on the
+     * same platform. When false, only the selected model is used; API keys still rotate on
+     * failure. Never switches platforms automatically. Defaults to true for all providers.
      */
-    val aiAutoFailover: Boolean = true,
+    val aiAutoFailoverByProvider: Map<AiProvider, Boolean> = emptyMap(),
     /**
-     * When true, model dropdowns include paid OpenRouter / Gemini models (Pro, etc.).
+     * Per-provider flag: when true, model dropdowns include paid models (Pro, etc.).
      * Off by default (free-only). Refresh-models reachability probes are skipped while this
-     * is on so paid endpoints are never pinged.
+     * is on so paid endpoints are never pinged. OpenAI is always treated as paid.
      */
-    val showPaidModels: Boolean = false,
+    val showPaidModelsByProvider: Map<AiProvider, Boolean> = emptyMap(),
     /**
      * Last photo / text models Auto successfully used (with [activeAiProvider]).
      * Shown in green in Settings when Auto is on; the preferred dropdown selection is left
@@ -135,7 +135,26 @@ data class AppSettings(
      */
     val lastSuccessfulBackupAt: Long = 0L
 ) {
-    /** Trimmed first name for greetings; empty when not set. */
+    /** Auto failover enabled for [p] (defaults true when not explicitly set). */
+    fun autoFailoverFor(p: AiProvider): Boolean = aiAutoFailoverByProvider[p] ?: true
+
+    /** Show paid models enabled for [p] (always true for OpenAI; defaults false otherwise). */
+    fun showPaidFor(p: AiProvider): Boolean =
+        if (p == AiProvider.OPENAI) true else showPaidModelsByProvider[p] ?: false
+
+    /** Convenience for the active provider. */
+    val aiAutoFailover: Boolean get() = autoFailoverFor(provider)
+    val showPaidModels: Boolean get() = showPaidFor(provider)
+
+    /** Returns a copy with [p]'s auto-failover flag set to [value]. */
+    fun withAutoFailover(p: AiProvider, value: Boolean): AppSettings =
+        copy(aiAutoFailoverByProvider = aiAutoFailoverByProvider + (p to value))
+
+    /** Returns a copy with [p]'s show-paid flag set to [value]. */
+    fun withShowPaid(p: AiProvider, value: Boolean): AppSettings =
+        copy(showPaidModelsByProvider = showPaidModelsByProvider + (p to value))
+
+
     val displayFirstName: String
         get() = firstName.trim()
 

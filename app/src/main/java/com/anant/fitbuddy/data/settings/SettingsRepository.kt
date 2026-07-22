@@ -82,8 +82,20 @@ class SettingsRepository(context: Context) {
                 prefs[KEY_OPENAI_TEXT_MODEL] ?: "",
                 ""
             ),
-            aiAutoFailover = prefs[KEY_AI_AUTO_FAILOVER] ?: true,
-            showPaidModels = prefs[KEY_SHOW_PAID_MODELS] ?: false,
+            aiAutoFailoverByProvider = buildMap {
+                val legacyFailover = prefs[KEY_AI_AUTO_FAILOVER] ?: true
+                for (p in AiProvider.entries) {
+                    val key = autoFailoverKey(p)
+                    put(p, prefs[key] ?: legacyFailover)
+                }
+            },
+            showPaidModelsByProvider = buildMap {
+                val legacyPaid = prefs[KEY_SHOW_PAID_MODELS] ?: false
+                for (p in AiProvider.entries) {
+                    val key = showPaidKey(p)
+                    put(p, prefs[key] ?: if (p == AiProvider.OPENAI) true else legacyPaid)
+                }
+            },
             activeAiProvider = prefs[KEY_ACTIVE_AI_PROVIDER]?.let {
                 runCatching { AiProvider.valueOf(it) }.getOrNull()
             },
@@ -243,8 +255,12 @@ class SettingsRepository(context: Context) {
             prefs[KEY_OPENAI_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.OPENAI))
             prefs[KEY_OPENAI_MODEL] = settings.openAiModel
             prefs[KEY_OPENAI_TEXT_MODEL] = settings.openAiTextModel
-            prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover
-            prefs[KEY_SHOW_PAID_MODELS] = settings.showPaidModels
+            prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover // legacy compat
+            prefs[KEY_SHOW_PAID_MODELS] = settings.showPaidModels // legacy compat
+            for (p in AiProvider.entries) {
+                prefs[autoFailoverKey(p)] = settings.autoFailoverFor(p)
+                prefs[showPaidKey(p)] = settings.showPaidFor(p)
+            }
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
             prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
             prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
@@ -383,8 +399,12 @@ class SettingsRepository(context: Context) {
         val KEY_OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val KEY_OPENAI_MODEL = stringPreferencesKey("openai_model")
         val KEY_OPENAI_TEXT_MODEL = stringPreferencesKey("openai_text_model")
-        val KEY_AI_AUTO_FAILOVER = booleanPreferencesKey("ai_auto_failover")
-        val KEY_SHOW_PAID_MODELS = booleanPreferencesKey("show_paid_models")
+        val KEY_AI_AUTO_FAILOVER = booleanPreferencesKey("ai_auto_failover") // legacy
+        val KEY_SHOW_PAID_MODELS = booleanPreferencesKey("show_paid_models")  // legacy
+        fun autoFailoverKey(p: AiProvider) =
+            booleanPreferencesKey("ai_auto_failover_${p.name.lowercase()}")
+        fun showPaidKey(p: AiProvider) =
+            booleanPreferencesKey("show_paid_models_${p.name.lowercase()}")
         val KEY_ACTIVE_AI_PROVIDER = stringPreferencesKey("active_ai_provider")
         val KEY_ACTIVE_AI_MODEL = stringPreferencesKey("active_ai_model") // legacy
         val KEY_ACTIVE_PHOTO_MODEL = stringPreferencesKey("active_photo_model")

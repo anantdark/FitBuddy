@@ -232,8 +232,8 @@ fun SettingsScreen(
     }
     var openAiModel by remember(settings) { mutableStateOf(settings.openAiModel) }
     var openAiTextModel by remember(settings) { mutableStateOf(settings.openAiTextModel) }
-    var aiAutoFailover by remember(settings) { mutableStateOf(settings.aiAutoFailover) }
-    var showPaidModels by remember(settings) { mutableStateOf(settings.showPaidModels) }
+    var aiAutoFailover by remember(settings, provider) { mutableStateOf(settings.autoFailoverFor(provider)) }
+    var showPaidModels by remember(settings, provider) { mutableStateOf(settings.showPaidFor(provider)) }
 
     var profileFirstName by remember(settings.firstName) { mutableStateOf(settings.firstName) }
     var profileLastName by remember(settings.lastName) { mutableStateOf(settings.lastName) }
@@ -305,13 +305,11 @@ fun SettingsScreen(
     val openAiKey = openAiKeys.firstOrNull().orEmpty()
 
     // OpenAI has no free tier: force "Show paid models" on whenever it's the selected
-    // provider — the toggle is also locked (disabled) while selected. Auto failover defaults
-    // to off for a freshly-selected OpenAI (not coupled/locked — the user can re-enable it).
+    // provider — the toggle is also locked (disabled) while selected.
     LaunchedEffect(provider) {
         if (provider == AiProvider.OPENAI && !showPaidModels) {
             showPaidModels = true
-            aiAutoFailover = false
-            onSaveQuiet(settings.copy(showPaidModels = true, aiAutoFailover = false))
+            onSaveQuiet(settings.withShowPaid(AiProvider.OPENAI, true))
         }
     }
 
@@ -400,7 +398,7 @@ fun SettingsScreen(
                 onCheckedChange = { enabled ->
                     aiAutoFailover = enabled
                     // Persist immediately; leave other draft AI fields for Save AI Settings.
-                    onSaveQuiet(settings.copy(aiAutoFailover = enabled))
+                    onSaveQuiet(settings.withAutoFailover(provider, enabled))
                 },
                 hintTitle = "Auto failover",
                 hint = "When on, FitBuddy tries other API keys, then other models on the " +
@@ -416,7 +414,7 @@ fun SettingsScreen(
                     enabled = provider != AiProvider.OPENAI,
                     onCheckedChange = { enabled ->
                         showPaidModels = enabled
-                        onSaveQuiet(settings.copy(showPaidModels = enabled))
+                        onSaveQuiet(settings.withShowPaid(provider, enabled))
                     },
                     hintTitle = "Paid models",
                     hint = if (provider == AiProvider.OPENAI) {
@@ -662,7 +660,7 @@ fun SettingsScreen(
                         fallbackOptions = OpenAiCatalog.VISION_MODELS,
                         hintTitle = "OpenAI",
                         hint = "Get a key at platform.openai.com/api-keys. OpenAI is paid — " +
-                            "there is no free tier, so Auto failover stays off."
+                            "there is no free tier, so paid models are always shown."
                     )
                     ModelDropdown(
                         label = "Text model",
@@ -703,8 +701,10 @@ fun SettingsScreen(
                             openAiApiKey = openAiKey,
                             openAiModel = openAiModel.trim(),
                             openAiTextModel = openAiTextModel.trim(),
-                            aiAutoFailover = aiAutoFailover,
-                            showPaidModels = showPaidModels
+                            aiAutoFailoverByProvider = settings.aiAutoFailoverByProvider
+                                + (provider to aiAutoFailover),
+                            showPaidModelsByProvider = settings.showPaidModelsByProvider
+                                + (provider to showPaidModels)
                         )
                     )
                 }
