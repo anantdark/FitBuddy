@@ -4,11 +4,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.anant.fitbuddy.FitBuddyApp
+import com.anant.fitbuddy.crash.HeartbeatScheduler
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
-/** Re-arms the daily log reminder after reboot or app update; cancels legacy weekly Mongo alarms. */
+/** Re-arms the daily log reminder and heartbeat alarm after reboot or app update. */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -24,6 +25,7 @@ class BootReceiver : BroadcastReceiver() {
             (app as? FitBuddyApp)?.settingsRepository?.settings?.first()
         } ?: return
         ReminderScheduler.applyFromSettings(app, settings)
+        HeartbeatScheduler.schedule(app)
         MongoBackupScheduler.cancel(app)
     }
 }

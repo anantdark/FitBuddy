@@ -71,8 +71,12 @@ object CrashReporter {
             options.isSendDefaultPii = false
             options.tracesSampleRate = 0.0
             options.isEnableUserInteractionTracing = false
-            options.isEnableAutoSessionTracking = true
+            // Disable all automatic/periodic network traffic — we flush manually
+            // during heartbeats (UTC midnight) and let crash events through immediately.
+            options.isEnableAutoSessionTracking = false
+            options.isSendClientReports = false
             // Fleet pulse: Logs (samples) + Metrics (counts by device/version). Not Issues.
+            // These only emit data when we explicitly call emitFleetPulse + flush().
             options.logs.isEnabled = true
             options.metrics.isEnabled = true
             options.environment = if (BuildConfig.DEBUG) "debug" else "release"
