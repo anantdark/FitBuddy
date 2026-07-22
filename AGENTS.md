@@ -128,3 +128,18 @@ progress charts, editable meal review, and reusable food presets.
 - When committing: do **NOT** add yourself (or any AI / Claude / Cursor / Composer)
   as a `Co-authored-by` trailer, and do not add "Generated with …" footers to commit
   messages. You will NEVER mention yourself as coauthor in commits.
+
+## F-Droid release process
+- F-Droid tags follow the pattern **`v<version>-fdroid`** (regex: `^v[0-9.]+-fdroid$`).
+  Examples: `v3.1.3-fdroid`, `v3.2.0-fdroid`.
+- Pushing a tag matching `v*-fdroid` auto-triggers the **F-Droid Release** workflow
+  (`.github/workflows/fdroid-release.yml`). The workflow can also be dispatched manually.
+- The tag must point at a commit where `app/build.gradle.kts` has the fdroid flavor's
+  `versionName` and `versionCode` already bumped.
+- Steps to cut a new F-Droid release:
+  1. Bump `versionCode` and `versionName` in the `create("fdroid")` block of `app/build.gradle.kts`.
+  2. Commit, push to `main`.
+  3. Tag the commit: `git tag -a v<version>-fdroid -m "F-Droid <version>"` and push the tag.
+  4. The workflow builds, signs, and publishes a prerelease GitHub Release with the APK.
+  5. Update the fdroiddata metadata (`commit:`, `CurrentVersion`, `CurrentVersionCode`) to
+     reference the new tag.
