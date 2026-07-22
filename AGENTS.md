@@ -131,19 +131,20 @@ progress charts, editable meal review, and reusable food presets.
 
 ## F-Droid release process
 - Triggered via **Actions → F-Droid Release → Run workflow** in the GitHub UI.
-- Input: `major_minor` (e.g. `3.2`). Patch is computed as `run_number % 100`.
+- Input: `version` — the full version name (e.g. `3.2.0`). This is what users see.
+- `versionCode` is **auto-incremented** from the current value in `build.gradle.kts` (previous + 1).
+  It is completely independent of `versionName` and the workflow run number.
 - The workflow automatically:
-  1. Computes the full version (e.g. `3.2.5`) and `versionCode` (raw `run_number`).
-  2. Updates `versionCode` and `versionName` in the `create("fdroid")` block of
-     `app/build.gradle.kts`.
+  1. Reads the current `versionCode` from the `create("fdroid")` block and increments by 1.
+  2. Updates `versionCode` and `versionName` in `app/build.gradle.kts`.
   3. Commits the change to `main` with `[skip ci]` (won't trigger other workflows).
-  4. Creates and pushes tag `v<version>-fdroid` (e.g. `v3.2.5-fdroid`).
+  4. Creates and pushes tag `v<version>-fdroid` (e.g. `v3.2.0-fdroid`).
   5. Builds, signs, and publishes a prerelease GitHub Release with the APK.
 - **Critical constraints:**
   - `versionName` must exactly match the tag without `v` prefix and `-fdroid` suffix
-    (tag `v3.2.5-fdroid` → `versionName = "3.2.5"`). The workflow ensures this.
-  - `versionCode` must be strictly greater than the previous release. Using raw `run_number`
-    guarantees this as long as the workflow counter always increases.
+    (tag `v3.2.0-fdroid` → `versionName = "3.2.0"`). The workflow ensures this.
+  - `versionCode` must be strictly greater than the previous release. Auto-increment
+    guarantees this.
   - The F-Droid `Binaries` URL pattern is
     `https://github.com/anantdark/FitBuddy/releases/download/v%v-fdroid/FitBuddy-%v.apk`
     where `%v` = `versionName`. Tag, versionName, and APK filename must all agree.
@@ -156,6 +157,35 @@ progress charts, editable meal review, and reusable food presets.
   - Commit and push: `git push origin com.anant.fitbuddy`.
   - The existing MR at https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43406
     picks up the push automatically and re-runs the pipeline.
+
+## Fastlane metadata (F-Droid store listing)
+F-Droid reads store metadata from `fastlane/metadata/android/en-US/` at the tagged commit.
+Agents **must** keep this up to date before tagging a release.
+
+### Structure
+```
+fastlane/metadata/android/en-US/
+├── title.txt                  # App name ("FitBuddy")
+├── short_description.txt      # ≤80 chars, one-liner for search results
+├── full_description.txt       # Full store listing (features, privacy, providers)
+├── changelogs/<versionCode>.txt  # Per-release changelog (≤500 chars recommended)
+└── images/
+    ├── icon.png
+    └── phoneScreenshots/      # Numbered 1.png … N.png
+```
+
+### Rules for agents
+- **Every feature commit / PR**: if the change is user-visible, update `full_description.txt`
+  and/or `short_description.txt` to reflect the new capability. Keep descriptions accurate
+  and current — don't leave stale feature lists.
+- **Every F-Droid release**: create `changelogs/<new_versionCode>.txt` summarising what changed
+  since the last release. Use bullet points, ≤500 chars. The versionCode must match the
+  `versionCode` that will be written by the workflow (current value + 1).
+- **Screenshots**: update `images/phoneScreenshots/` when UI changes significantly. Number
+  sequentially (1.png, 2.png, …). Don't remove screenshots without replacing them.
+- **title.txt**: only change if the app is renamed.
+- Metadata must be committed **before** the release tag is created, since F-Droid checks out
+  the repo at the exact tag commit.
 
 ## GitHub release process
 - Every push to `main` auto-triggers the **Release** workflow (`.github/workflows/release.yml`).

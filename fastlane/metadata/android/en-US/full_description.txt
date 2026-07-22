@@ -1,29 +1,34 @@
-FitBuddy is a free and open source health tracker for Android, tuned for Indian diets and daily routines.
+FitBuddy is a free, open-source health tracker for Android, built for Indian diets and daily routines.
 
-Log meals and workouts with a photo or loose text. An optional LLM estimates calories and macros. Review and edit ingredients before saving, bookmark meals as presets, and track progress with dashboards and charts.
+Snap a photo or type what you ate — an LLM estimates calories and macros instantly. Review ingredients, tweak weights with live macro recalculation, and save. Bookmark favourite meals as presets for one-tap logging next time.
 
 Features:
-• Smart logging — photo or text; AI parses food and exercise
-• Meal review — edit dish name and ingredient weights with live macro recalc
-• Presets — bookmark meals for one-tap logging
-• Dashboard — daily calorie ring, food/exercise logs, macro breakdown
-• Analytics — custom charts for trends over time
-• Product barcode scan — look up packaged foods (Open Food Facts)
-• Offline fallback — works without an AI key via a built-in simulator
-• Material You — dynamic color on Android 12+
+• Smart logging — photo or text; AI parses food and exercise automatically
+• Meal review — edit dish name, adjust ingredient weights with live macro recalc
+• Presets — bookmark meals for one-tap future logging
+• Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
+• Analytics — custom charts tracking trends over time
+• Auto failover — rotates API keys and models on rate limits; stays on your preferred platform
+• Offline fallback — works without an AI key via built-in simulator
+• Material You — dynamic color theming on Android 12+
+• Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
 
-AI providers (optional, configured in Settings):
-• OpenRouter, Google Gemini, or Ollama (local or cloud)
-Without a key, the app uses the offline simulator. Photos need a configured provider.
+AI providers (configured at runtime in Settings):
+• OpenRouter — free vision models, automatic model dropdown
+• Google Gemini — AI Studio key, OpenAI-compatible endpoint
+• Ollama — local or cloud; HTTP cleartext for LAN setups
 
-Optional network services:
-• Crash reports (Sentry) — off by default; opt in under Settings
-• Cloud backup (MongoDB Atlas) — off by default; opt in under Backup
-These features contact third-party servers when enabled.
+Without a configured provider, the app works offline using the built-in simulator. Photos require a configured AI provider.
 
-Updates on this F-Droid build are delivered by F-Droid. In-app downloads of GitHub APKs are disabled.
+Privacy:
+• No ads, no tracking by default
+• Crash reports (Sentry) are off by default on F-Droid builds; opt in under Settings
+• Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup
+• AI providers are contacted only when you choose to enable them
 
-Note: The F-Droid APK is signed with F-Droid’s key. It cannot replace a GitHub or Play Store install in place (different signature).
+Updates on this F-Droid build are delivered by F-Droid. In-app GitHub APK downloads are disabled in this flavor.
+
+Note: The F-Droid APK uses F-Droid's signing key and cannot replace a GitHub or Play Store install in place.
 
 Source: https://github.com/anantdark/FitBuddy
-License: GPL-3.0
+License: GPL-3.0-only

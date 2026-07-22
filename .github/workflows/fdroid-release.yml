@@ -4,8 +4,8 @@ name: F-Droid Release
 on:
   workflow_dispatch:
     inputs:
-      major_minor:
-        description: "Major.minor version (e.g. 3.2). Patch = run_number % 100."
+      version:
+        description: "Full version name (e.g. 3.2.0). This is what users see."
         required: true
         type: string
       publish:
@@ -36,14 +36,19 @@ jobs:
       - name: Compute version
         id: resolve
         run: |
-          PATCH=$(( GITHUB_RUN_NUMBER % 100 ))
-          VERSION="${{ inputs.major_minor }}.${PATCH}"
-          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          VERSION="${{ inputs.version }}"
+          # Read current versionCode from the fdroid flavor block and increment by 1.
+          CURRENT_CODE=$(awk '/create\("fdroid"\)/,/^        \}/' app/build.gradle.kts | grep -o 'versionCode = [0-9]*' | grep -o '[0-9]*')
+          if [ -z "$CURRENT_CODE" ]; then
+            echo "::error::Could not read fdroid versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          VERSION_CODE=$(( CURRENT_CODE + 1 ))
           TAG="v${VERSION}-fdroid"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
-          echo "patch=${PATCH}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Previous versionCode: ${CURRENT_CODE}"
           echo "Releasing F-Droid ${VERSION} (code ${VERSION_CODE}, tag ${TAG})"
 
       - name: Bump version in build.gradle.kts

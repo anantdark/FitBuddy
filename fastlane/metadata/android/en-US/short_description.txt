@@ -1,1 +1,1 @@
-AI-assisted calorie and workout tracker for Indian diets, with offline fallback
+AI-powered calorie & workout tracker for Indian diets — log by photo or text
