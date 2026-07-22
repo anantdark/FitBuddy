@@ -130,36 +130,34 @@ progress charts, editable meal review, and reusable food presets.
   messages. You will NEVER mention yourself as coauthor in commits.
 
 ## F-Droid release process
-- F-Droid tags follow the pattern **`v<version>-fdroid`** (regex: `^v[0-9.]+-fdroid$`).
-  Examples: `v3.1.3-fdroid`, `v3.2.0-fdroid`.
-- Pushing a tag matching `v*-fdroid` auto-triggers the **F-Droid Release** workflow
-  (`.github/workflows/fdroid-release.yml`). The workflow can also be dispatched manually.
-- The tag must point at a commit where `app/build.gradle.kts` has the fdroid flavor's
-  `versionName` and `versionCode` already bumped.
+- Triggered via **Actions → F-Droid Release → Run workflow** in the GitHub UI.
+- Input: `major_minor` (e.g. `3.2`). Patch is computed as `run_number % 100`.
+- The workflow automatically:
+  1. Computes the full version (e.g. `3.2.5`) and `versionCode` (raw `run_number`).
+  2. Updates `versionCode` and `versionName` in the `create("fdroid")` block of
+     `app/build.gradle.kts`.
+  3. Commits the change to `main` with `[skip ci]` (won't trigger other workflows).
+  4. Creates and pushes tag `v<version>-fdroid` (e.g. `v3.2.5-fdroid`).
+  5. Builds, signs, and publishes a prerelease GitHub Release with the APK.
 - **Critical constraints:**
-  - `versionName` in `create("fdroid")` must exactly match the tag without `v` prefix and
-    `-fdroid` suffix (tag `v3.2.4-fdroid` → `versionName = "3.2.4"`).
-  - `versionCode` must be strictly greater than the previous release (Android rejects otherwise).
-  - The GitHub Release `Binaries` URL pattern is
+  - `versionName` must exactly match the tag without `v` prefix and `-fdroid` suffix
+    (tag `v3.2.5-fdroid` → `versionName = "3.2.5"`). The workflow ensures this.
+  - `versionCode` must be strictly greater than the previous release. Using raw `run_number`
+    guarantees this as long as the workflow counter always increases.
+  - The F-Droid `Binaries` URL pattern is
     `https://github.com/anantdark/FitBuddy/releases/download/v%v-fdroid/FitBuddy-%v.apk`
     where `%v` = `versionName`. Tag, versionName, and APK filename must all agree.
-- Steps to cut a new F-Droid release:
-  1. Bump `versionCode` (previous + 1) and `versionName` in the `create("fdroid")` block of
-     `app/build.gradle.kts`.
-  2. Commit, push to `main`.
-  3. Tag the commit: `git tag -a v<version>-fdroid -m "F-Droid <version>"` and push the tag.
-     The workflow auto-triggers, builds, signs, and publishes a prerelease GitHub Release.
-  4. Update the fdroiddata metadata on GitLab:
-     - Repo: `/private/tmp/fdroid-submit/fdroiddata` (fork of `fdroid/fdroiddata`).
-     - Branch: `com.anant.fitbuddy`.
-     - File: `metadata/com.anant.fitbuddy.yml`.
-     - Update `Builds[0].versionName`, `Builds[0].versionCode`, `Builds[0].commit` (set to
-       the tag name, e.g. `v3.2.4-fdroid`), plus `CurrentVersion` and `CurrentVersionCode`.
-     - Commit and push: `git push origin com.anant.fitbuddy`.
-     - The existing MR at https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43406
-       picks up the push automatically and re-runs the pipeline.
+- After the release, update the fdroiddata metadata on GitLab:
+  - Repo: `/private/tmp/fdroid-submit/fdroiddata` (fork of `fdroid/fdroiddata`).
+  - Branch: `com.anant.fitbuddy`.
+  - File: `metadata/com.anant.fitbuddy.yml`.
+  - Update `Builds[0].versionName`, `Builds[0].versionCode`, `Builds[0].commit` (set to
+    the tag name, e.g. `v3.2.5-fdroid`), plus `CurrentVersion` and `CurrentVersionCode`.
+  - Commit and push: `git push origin com.anant.fitbuddy`.
+  - The existing MR at https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43406
+    picks up the push automatically and re-runs the pipeline.
 
 ## GitHub release process
 - Every push to `main` auto-triggers the **Release** workflow (`.github/workflows/release.yml`).
-- Version: `3.1.<run_number % 100>`, `versionCode` = raw `run_number`.
+- Version: `3.2.<run_number % 100>`, `versionCode` = raw `run_number`.
 - Merged PRs create a push to `main`, so merging = releasing.

@@ -115,13 +115,13 @@ Architecture: **MVVM** — UI → ViewModel → Repository → Room + Remote AI.
 |----------|---------|--------------|
 | [CI](.github/workflows/ci.yml) | Push & PR to `main` | Compile debug/release, run unit tests |
 | [Release](.github/workflows/release.yml) | Push to `main` | Build signed APK + AAB, publish GitHub Release (latest) |
-| [F-Droid Release](.github/workflows/fdroid-release.yml) | Tag `v*-fdroid` pushed (or manual) | Build fdroid flavor, publish prerelease GitHub Release |
+| [F-Droid Release](.github/workflows/fdroid-release.yml) | Manual dispatch | Bump version, tag, build fdroid flavor, publish prerelease |
 
-### Release tags
+### Releasing
 
-Merged PRs trigger the GitHub release automatically (merge creates a push to `main`).
+The GitHub release triggers automatically on every push to `main` (including merged PRs). Version is `3.2.<run_number % 100>`.
 
-F-Droid releases use tags matching `v<version>-fdroid` (e.g. `v3.1.3-fdroid`). Pushing a tag with this pattern auto-triggers the F-Droid Release workflow. See [FDROID.md](FDROID.md) for the full process.
+The F-Droid release is triggered manually from **Actions → F-Droid Release → Run workflow**. You provide the `major.minor` version (e.g. `3.2`), and the patch is computed as `run_number % 100`. The workflow auto-bumps `build.gradle.kts`, commits, tags, builds, and publishes. See [FDROID.md](FDROID.md) for the full process.
 
 See [FDROID.md](FDROID.md) for the full F-Droid process.
 
