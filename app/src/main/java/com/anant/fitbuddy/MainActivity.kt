@@ -74,28 +74,11 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val onStartupPermissionsDenied: (List<String>) -> Unit = { denied ->
-                        val cameraDenied = Manifest.permission.CAMERA in denied
                         val notificationsDenied =
                             Manifest.permission.POST_NOTIFICATIONS in denied
                         if (notificationsDenied) {
                             viewModel.disableDailyLogReminder()
-                        }
-                        when {
-                            cameraDenied && notificationsDenied -> {
-                                viewModel.showTransientMessage(
-                                    "Camera and notifications not allowed."
-                                )
-                            }
-                            notificationsDenied -> {
-                                viewModel.showTransientMessage(
-                                    "Notifications not allowed."
-                                )
-                            }
-                            cameraDenied -> {
-                                viewModel.showTransientMessage(
-                                    "Camera permission not allowed."
-                                )
-                            }
+                            viewModel.showTransientMessage("Notifications not allowed.")
                         }
                     }
 

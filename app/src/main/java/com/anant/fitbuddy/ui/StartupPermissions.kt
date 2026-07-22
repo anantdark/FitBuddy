@@ -15,8 +15,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
 /**
- * Requests runtime permissions needed for core FitBuddy features (camera + notifications)
+ * Requests runtime permissions needed at startup (notifications for daily reminders)
  * once when the UI first becomes ready after cold start.
+ *
+ * Camera permission is requested on-demand when the user triggers the camera.
  *
  * [onDenied] receives permission names that the user rejected (or previously denied).
  */
@@ -37,7 +39,6 @@ fun RequestStartupPermissions(
     LaunchedEffect(Unit) {
         if (launched) return@LaunchedEffect
         val needed = buildList {
-            add(Manifest.permission.CAMERA)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
