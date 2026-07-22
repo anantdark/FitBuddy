@@ -58,14 +58,6 @@ class MainActivity : ComponentActivity() {
                     val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
                     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
 
-                    val onboardingImportLauncher = rememberLauncherForActivityResult(
-                        ActivityResultContracts.OpenDocument()
-                    ) { uri ->
-                        if (uri != null) {
-                            viewModel.restoreOnboardingFromLocal(uri) { _, _ -> }
-                        }
-                    }
-
                     LaunchedEffect(openRouterOAuthUri) {
                         val uri = openRouterOAuthUri ?: return@LaunchedEffect
                         viewModel.handleOpenRouterOAuthCallback(uri)
@@ -108,9 +100,7 @@ class MainActivity : ComponentActivity() {
                                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                                 onStartGuest = viewModel::startGuestOnboarding,
                                 onRestoreCloud = viewModel::restoreOnboardingFromCloud,
-                                onRequestLocalRestore = {
-                                    onboardingImportLauncher.launch(arrayOf("application/json", "*/*"))
-                                },
+                                onRestoreLocal = viewModel::restoreOnboardingFromLocal,
                                 onValidateAi = viewModel::validateOnboardingAi,
                                 onComplete = viewModel::completeOnboarding,
                                 onCompleteAiOnly = viewModel::completeAiSetupOnly

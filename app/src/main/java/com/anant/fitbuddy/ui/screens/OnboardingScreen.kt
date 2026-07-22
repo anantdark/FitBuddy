@@ -1,5 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -68,8 +71,10 @@ import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 private val GOAL_OPTIONS = listOf(
     "AUTO" to "Let AI decide",
@@ -128,7 +133,11 @@ fun OnboardingScreen(
         passwordProvider: suspend () -> CharArray?,
         onResult: (Boolean, String?) -> Unit
     ) -> Unit = { _, _, _ -> },
-    onRequestLocalRestore: () -> Unit = {},
+    onRestoreLocal: (
+        uri: Uri,
+        passwordProvider: suspend () -> CharArray?,
+        onResult: (Boolean, String?) -> Unit
+    ) -> Unit = { _, _, _ -> },
     onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
         firstName: String,
@@ -153,6 +162,38 @@ fun OnboardingScreen(
     var cloudRestorePassword by remember { mutableStateOf("") }
     var cloudRestorePasswordContinuation by remember {
         mutableStateOf<CancellableContinuation<CharArray?>?>(null)
+    }
+    // Password prompt for restoring a password-protected local backup file.
+    var localRestorePasswordPrompt by remember { mutableStateOf(false) }
+    var localRestorePassword by remember { mutableStateOf("") }
+    var localRestorePasswordAttempts by remember { mutableStateOf(0) }
+    var localRestoreError by remember { mutableStateOf<String?>(null) }
+    var localRestorePasswordContinuation by remember {
+        mutableStateOf<CancellableContinuation<CharArray?>?>(null)
+    }
+    val localImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            localRestoreError = null
+            localRestorePasswordAttempts = 0
+            onRestoreLocal(
+                uri,
+                {
+                    // Runs on a background dispatcher (BackupManager.importFrom); publish the
+                    // prompt + capture the continuation on the main thread so the dialog shows.
+                    withContext(Dispatchers.Main) {
+                        suspendCancellableCoroutine { cont ->
+                            localRestorePasswordContinuation = cont
+                            localRestorePassword = ""
+                            localRestorePasswordPrompt = true
+                        }
+                    }
+                }
+            ) { ok, error ->
+                if (!ok) localRestoreError = error
+            }
+        }
     }
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
@@ -447,12 +488,24 @@ fun OnboardingScreen(
                                 }
                             }
                             OutlinedButton(
-                                onClick = onRequestLocalRestore,
+                                onClick = {
+                                    localRestoreError = null
+                                    localImportLauncher.launch(
+                                        arrayOf("application/json", "*/*")
+                                    )
+                                },
                                 enabled = !busy,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     if (isRestoring) "Restoring…" else "Restore from local backup"
+                                )
+                            }
+                            localRestoreError?.let { err ->
+                                Text(
+                                    text = err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
                                 )
                             }
                         }
@@ -804,6 +857,57 @@ fun OnboardingScreen(
                     TextButton(
                         onClick = { resume(cloudRestorePassword.toCharArray()) },
                         enabled = cloudRestorePassword.isNotEmpty()
+                    ) { Text("Unlock") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { resume(null) }) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (localRestorePasswordPrompt) {
+            fun resume(result: CharArray?) {
+                localRestorePasswordContinuation?.resumeWith(Result.success(result))
+                localRestorePasswordContinuation = null
+                localRestorePasswordPrompt = false
+                localRestorePassword = ""
+            }
+            AlertDialog(
+                onDismissRequest = { resume(null) },
+                title = { Text("Password required") },
+                text = {
+                    Column {
+                        Text(
+                            "This backup is password-protected. Enter the password to restore it.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (localRestorePasswordAttempts > 0) {
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                "Incorrect password (attempt ${localRestorePasswordAttempts + 1} of 5)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Spacer(Modifier.size(12.dp))
+                        OutlinedTextField(
+                            value = localRestorePassword,
+                            onValueChange = { localRestorePassword = it },
+                            label = { Text("Password") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            localRestorePasswordAttempts++
+                            resume(localRestorePassword.toCharArray())
+                        },
+                        enabled = localRestorePassword.isNotEmpty()
                     ) { Text("Unlock") }
                 },
                 dismissButton = {

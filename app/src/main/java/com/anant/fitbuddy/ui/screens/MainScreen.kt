@@ -87,6 +87,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 private enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     PROGRESS("Progress", Icons.Filled.Insights),
@@ -458,10 +459,15 @@ fun MainScreen(
                 onMongoUpload = viewModel::uploadMongoBackup,
                 onMongoDownload = { supportId ->
                     viewModel.downloadMongoBackup(supportId) {
-                        cloudRestorePasswordError = "Incorrect password — enter the password you set for this backup"
-                        cloudRestorePasswordPrompt = true
-                        suspendCancellableCoroutine { cont ->
-                            cloudRestorePasswordContinuation = cont
+                        // Provider runs off the main thread; publish the prompt + continuation on
+                        // the main thread so the dialog recomposes and the restore doesn't hang.
+                        withContext(Dispatchers.Main) {
+                            suspendCancellableCoroutine { cont ->
+                                cloudRestorePasswordContinuation = cont
+                                cloudRestorePasswordError =
+                                    "Incorrect password — enter the password you set for this backup"
+                                cloudRestorePasswordPrompt = true
+                            }
                         }
                     }
                 },
@@ -1058,11 +1064,16 @@ fun MainScreen(
                     importPasswordError = null
                     importPasswordAttempts = 0
                     viewModel.importData(importUri) {
-                        // passwordProvider: show dialog and await user input
-                        importPasswordPromptUri = importUri
-                        importPasswordError = if (importPasswordAttempts > 0) "Incorrect password" else null
-                        suspendCancellableCoroutine { cont ->
-                            importPasswordContinuation = cont
+                        // The provider runs on Dispatchers.IO (BackupManager.importFrom), so publish
+                        // the prompt state and capture the continuation on the main thread —
+                        // otherwise the dialog never recomposes and the import hangs forever.
+                        withContext(Dispatchers.Main) {
+                            suspendCancellableCoroutine { cont ->
+                                importPasswordContinuation = cont
+                                importPasswordError =
+                                    if (importPasswordAttempts > 0) "Incorrect password" else null
+                                importPasswordPromptUri = importUri
+                            }
                         }
                     }
                 }) { Text("Replace") }

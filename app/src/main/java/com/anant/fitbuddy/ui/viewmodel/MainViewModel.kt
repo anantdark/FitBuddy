@@ -1777,19 +1777,33 @@ class MainViewModel(
         }
     }
 
-    /** Onboarding local file restore. Keeps Support ID from backup when present. */
-    fun restoreOnboardingFromLocal(uri: Uri, onResult: (Boolean, String?) -> Unit) {
+    /**
+     * Onboarding local file restore. Keeps Support ID from backup when present. For encrypted
+     * backups the [passwordProvider] is invoked to obtain the password (the UI shows a prompt);
+     * a wrong password retries up to 5 times total before failing.
+     */
+    fun restoreOnboardingFromLocal(
+        uri: Uri,
+        passwordProvider: suspend () -> CharArray? = { null },
+        onResult: (Boolean, String?) -> Unit
+    ) {
         if (_onboardingRestoring.value) return
         _onboardingRestoring.value = true
         viewModelScope.launch {
             val result = runCatching {
-                val importResult = repository.importData(uri)
+                var attempts = 1
+                var importResult = repository.importData(uri, passwordProvider)
+                while (importResult is BackupImportResult.WrongPassword && attempts < 5) {
+                    attempts++
+                    importResult = repository.importData(uri, passwordProvider)
+                }
                 if (importResult !is BackupImportResult.Success) {
                     error(
                         when (importResult) {
-                            BackupImportResult.WrongPassword -> BackupErrorMessages.INCORRECT_PASSWORD
+                            BackupImportResult.WrongPassword ->
+                                BackupErrorMessages.IMPORT_TOO_MANY_ATTEMPTS
                             BackupImportResult.PasswordRequired ->
-                                "This backup is password-protected"
+                                BackupErrorMessages.IMPORT_ABORTED
                             BackupImportResult.Corrupt -> BackupErrorMessages.BACKUP_CORRUPT
                             BackupImportResult.Unrecognized -> BackupErrorMessages.NOT_VALID_BACKUP
                             is BackupImportResult.Success -> "" // unreachable
