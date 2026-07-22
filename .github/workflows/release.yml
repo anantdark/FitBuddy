@@ -64,9 +64,11 @@ jobs:
       - name: Compute version metadata
         id: version
         run: |
+          BUILD_NUMBER=$(( GITHUB_RUN_NUMBER % 100 ))
           VERSION_CODE="${GITHUB_RUN_NUMBER}"
-          VERSION_NAME="3.0.${GITHUB_RUN_NUMBER}"
+          VERSION_NAME="3.1.${BUILD_NUMBER}"
           TAG="v${VERSION_NAME}-build${GITHUB_RUN_NUMBER}"
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
@@ -92,7 +94,7 @@ jobs:
         run: |
           {
             echo "notes<<EOF"
-            echo "## FitBuddy ${VERSION_NAME} (build ${GITHUB_RUN_NUMBER})"
+            echo "## FitBuddy ${VERSION_NAME} (build ${BUILD_NUMBER})"
             echo
             echo "**Version code:** ${VERSION_CODE}"
             echo "**Commit:** [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})"
@@ -105,6 +107,7 @@ jobs:
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
 
       # make_latest: true — this channel owns /releases/latest (site + in-app updates).
       # F-Droid tags use a separate workflow with make_latest: false.
@@ -112,7 +115,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: FitBuddy ${{ steps.version.outputs.version_name }} (build ${{ github.run_number }})
+          name: FitBuddy ${{ steps.version.outputs.version_name }} (build ${{ steps.version.outputs.build_number }})
           body: ${{ steps.notes.outputs.notes }}
           draft: false
           prerelease: false
