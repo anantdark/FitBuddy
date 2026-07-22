@@ -4,10 +4,6 @@ name: F-Droid Release
 on:
   workflow_dispatch:
     inputs:
-      major_minor:
-        description: "Major.minor version (e.g. 3.2). Patch = run_number % 100."
-        required: true
-        type: string
       publish:
         description: Publish a GitHub Release for this build (uncheck to just build + upload artifacts for local testing)
         required: false
@@ -36,14 +32,23 @@ jobs:
       - name: Compute version
         id: resolve
         run: |
-          PATCH=$(( GITHUB_RUN_NUMBER % 100 ))
-          VERSION="${{ inputs.major_minor }}.${PATCH}"
-          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          # Read current versionCode from the fdroid flavor block and increment by 1.
+          CURRENT_CODE=$(awk '/create\("fdroid"\)/,/^        \}/' app/build.gradle.kts | grep -o 'versionCode = [0-9]*' | grep -o '[0-9]*')
+          if [ -z "$CURRENT_CODE" ]; then
+            echo "::error::Could not read fdroid versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          VERSION_CODE=$(( CURRENT_CODE + 1 ))
+          MAJOR=3
+          BASE_MINOR=2
+          MINOR=$(( BASE_MINOR + VERSION_CODE / 100 ))
+          PATCH=$(( VERSION_CODE % 100 ))
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
           TAG="v${VERSION}-fdroid"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
-          echo "patch=${PATCH}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Previous versionCode: ${CURRENT_CODE}"
           echo "Releasing F-Droid ${VERSION} (code ${VERSION_CODE}, tag ${TAG})"
 
       - name: Bump version in build.gradle.kts
@@ -54,13 +59,40 @@ jobs:
           sed -i "/create(\"fdroid\")/,/^        }/ s/versionName = \"[^\"]*\"/versionName = \"${VERSION}\"/" app/build.gradle.kts
           echo "Bumped fdroid flavor to ${VERSION} (versionCode ${VERSION_CODE})"
 
+      - name: Generate changelog
+        run: |
+          VERSION_CODE="${{ steps.resolve.outputs.version_code }}"
+          CHANGELOG_FILE="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
+          mkdir -p "$(dirname "$CHANGELOG_FILE")"
+          # Find the last fdroid tag to diff against.
+          PREV_TAG=$(git tag --list 'v*-fdroid' --sort=-version:refname | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD~20..HEAD"
+          fi
+          # Extract user-facing commits (skip chore/ci/merge), prefix with bullet.
+          git log "$RANGE" --pretty=format:'%s' --no-merges \
+            | grep -iv '^chore\|^ci\|^merge\|^build\|^refactor\|^style\|^test' \
+            | sed 's/^/• /' \
+            | head -15 \
+            > "$CHANGELOG_FILE"
+          # Fallback if no user-facing commits found.
+          if [ ! -s "$CHANGELOG_FILE" ]; then
+            echo "• Bug fixes and performance improvements" > "$CHANGELOG_FILE"
+          fi
+          # Trim to ~500 chars (F-Droid recommendation).
+          truncate -s '<500' "$CHANGELOG_FILE" 2>/dev/null || true
+          echo "Generated changelog for versionCode ${VERSION_CODE}:"
+          cat "$CHANGELOG_FILE"
+
       - name: Commit and tag
         run: |
           VERSION="${{ steps.resolve.outputs.version }}"
           TAG="${{ steps.resolve.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle.kts
+          git add app/build.gradle.kts fastlane/metadata/android/en-US/changelogs/
           git commit -m "chore(fdroid): bump to ${VERSION} [skip ci]"
           git tag -a "${TAG}" -m "F-Droid ${VERSION}"
           git push origin HEAD:main --follow-tags

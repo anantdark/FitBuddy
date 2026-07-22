@@ -64,11 +64,14 @@ jobs:
       - name: Compute version metadata
         id: version
         run: |
-          BUILD_NUMBER=$(( GITHUB_RUN_NUMBER % 100 ))
+          MAJOR=3
+          BASE_MINOR=2
+          MINOR=$(( BASE_MINOR + GITHUB_RUN_NUMBER / 100 ))
+          PATCH=$(( GITHUB_RUN_NUMBER % 100 ))
           VERSION_CODE="${GITHUB_RUN_NUMBER}"
-          VERSION_NAME="3.2.${BUILD_NUMBER}"
+          VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}"
           TAG="v${VERSION_NAME}-build${GITHUB_RUN_NUMBER}"
-          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"

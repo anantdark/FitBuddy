@@ -1,0 +1,4 @@
+• Cloud backup routes through secure HTTPS proxy
+• Replaced barcode scanner with smaller open-source library
+• Crash reporting and auto-update off by default on F-Droid
+• Fixed heartbeat delivery independence from crash-reporting toggle
