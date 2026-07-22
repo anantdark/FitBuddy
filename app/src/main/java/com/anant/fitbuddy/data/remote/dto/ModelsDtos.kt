@@ -6,8 +6,35 @@ import com.squareup.moshi.JsonClass
 /** Response of GET /models on OpenRouter (and OpenAI-compatible gateways). */
 @JsonClass(generateAdapter = true)
 data class ModelsResponse(
-    @Json(name = "data") val data: List<ModelDto> = emptyList()
-)
+    @Json(name = "data") val data: List<ModelDto> = emptyList(),
+    /**
+     * llama.cpp (and Ollama's native listing) return a parallel `models` array alongside the
+     * OpenAI-compat `data` array. Unlike `data`, it carries capability flags — the only reliable
+     * modality signal these self-hosted servers expose (the `data` entries have none).
+     */
+    @Json(name = "models") val models: List<NativeModelDto> = emptyList()
+) {
+    /** Model ids the host advertises as multimodal/vision (empty when it reports no capabilities). */
+    val visionCapableIds: Set<String>
+        get() = models
+            .filter { it.isMultimodal }
+            .flatMap { listOfNotNull(it.model, it.name) }
+            .toSet()
+}
+
+/** Native (non-OpenAI) model entry from llama.cpp / Ollama, used only for its capability flags. */
+@JsonClass(generateAdapter = true)
+data class NativeModelDto(
+    @Json(name = "name") val name: String? = null,
+    @Json(name = "model") val model: String? = null,
+    @Json(name = "capabilities") val capabilities: List<String>? = null
+) {
+    /** True when the server tags this model as image-capable. */
+    val isMultimodal: Boolean
+        get() = capabilities?.any {
+            it.equals("multimodal", ignoreCase = true) || it.equals("vision", ignoreCase = true)
+        } == true
+}
 
 @JsonClass(generateAdapter = true)
 data class ModelDto(

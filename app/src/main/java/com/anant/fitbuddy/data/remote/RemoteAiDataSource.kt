@@ -466,9 +466,22 @@ class RemoteAiDataSource(
             .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
     }
 
-    /** Vision-capable Ollama models (name heuristic — `/v1/models` has no modality flag). */
-    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
-        fetchOllamaModels(baseUrl, apiKey).filter { isLikelyOllamaVisionModel(it.id) }
+    /**
+     * Vision-capable models from an Ollama/llama.cpp host. Prefers the server-reported
+     * `capabilities` (llama.cpp tags multimodal models in the `/v1/models` `models` array);
+     * falls back to a name heuristic for hosts that expose no capability flags.
+     */
+    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> {
+        val base = baseUrl.trim().trimEnd('/')
+        require(base.isNotBlank()) { "Ollama server URL is required to list models" }
+        val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
+        val response = api.listModels("$base/v1/models", auth)
+        val visionIds = response.visionCapableIds
+        return response.data
+            .filter { it.id in visionIds || isLikelyOllamaVisionModel(it.id) }
+            .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
+            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
+    }
 
     /** Text/chat Ollama models (full catalog from the host). */
     suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
