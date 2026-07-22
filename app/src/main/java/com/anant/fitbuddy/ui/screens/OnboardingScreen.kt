@@ -269,8 +269,12 @@ fun OnboardingScreen(
             openAiApiKey = oaKeys.firstOrNull().orEmpty(),
             openAiModel = if (usingOpenAi) OpenAiCatalog.VISION_MODELS.first().id else AppSettings.DEFAULT_OPENAI_MODEL,
             openAiTextModel = if (usingOpenAi) OpenAiCatalog.TEXT_MODELS.first().id else "",
-            showPaidModels = usingOpenAi,
-            aiAutoFailover = !usingOpenAi
+            showPaidModelsByProvider = if (usingOpenAi) {
+                mapOf(AiProvider.OPENAI to true)
+            } else {
+                emptyMap()
+            },
+            aiAutoFailoverByProvider = emptyMap() // all default to true
         )
     }
 
