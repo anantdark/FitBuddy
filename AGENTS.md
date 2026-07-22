@@ -131,18 +131,20 @@ progress charts, editable meal review, and reusable food presets.
 
 ## F-Droid release process
 - Triggered via **Actions → F-Droid Release → Run workflow** in the GitHub UI.
-- Input: `version` — the full version name (e.g. `3.2.0`). This is what users see.
-- `versionCode` is **auto-incremented** from the current value in `build.gradle.kts` (previous + 1).
-  It is completely independent of `versionName` and the workflow run number.
+- No version input needed — it's fully automatic.
+- `versionCode` is auto-incremented from the current value in `build.gradle.kts` (previous + 1).
+- `versionName` is derived from `versionCode` using the same formula as the GitHub release:
+  `3.<2 + code/100>.<code % 100>` (e.g. code 60→3.2.60, code 100→3.3.0).
 - The workflow automatically:
   1. Reads the current `versionCode` from the `create("fdroid")` block and increments by 1.
-  2. Updates `versionCode` and `versionName` in `app/build.gradle.kts`.
-  3. Commits the change to `main` with `[skip ci]` (won't trigger other workflows).
-  4. Creates and pushes tag `v<version>-fdroid` (e.g. `v3.2.0-fdroid`).
-  5. Builds, signs, and publishes a prerelease GitHub Release with the APK.
+  2. Computes `versionName` from the new code.
+  3. Updates `versionCode` and `versionName` in `app/build.gradle.kts`.
+  4. Commits the change to `main` with `[skip ci]` (won't trigger other workflows).
+  5. Creates and pushes tag `v<version>-fdroid` (e.g. `v3.2.60-fdroid`).
+  6. Builds, signs, and publishes a prerelease GitHub Release with the APK.
 - **Critical constraints:**
-  - `versionName` must exactly match the tag without `v` prefix and `-fdroid` suffix
-    (tag `v3.2.0-fdroid` → `versionName = "3.2.0"`). The workflow ensures this.
+  - `versionName` must exactly match the tag without `v` prefix and `-fdroid` suffix.
+    The workflow ensures this.
   - `versionCode` must be strictly greater than the previous release. Auto-increment
     guarantees this.
   - The F-Droid `Binaries` URL pattern is

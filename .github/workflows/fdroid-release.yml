@@ -4,10 +4,6 @@ name: F-Droid Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Full version name (e.g. 3.2.0). This is what users see."
-        required: true
-        type: string
       publish:
         description: Publish a GitHub Release for this build (uncheck to just build + upload artifacts for local testing)
         required: false
@@ -36,7 +32,6 @@ jobs:
       - name: Compute version
         id: resolve
         run: |
-          VERSION="${{ inputs.version }}"
           # Read current versionCode from the fdroid flavor block and increment by 1.
           CURRENT_CODE=$(awk '/create\("fdroid"\)/,/^        \}/' app/build.gradle.kts | grep -o 'versionCode = [0-9]*' | grep -o '[0-9]*')
           if [ -z "$CURRENT_CODE" ]; then
@@ -44,6 +39,11 @@ jobs:
             exit 1
           fi
           VERSION_CODE=$(( CURRENT_CODE + 1 ))
+          MAJOR=3
+          BASE_MINOR=2
+          MINOR=$(( BASE_MINOR + VERSION_CODE / 100 ))
+          PATCH=$(( VERSION_CODE % 100 ))
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
           TAG="v${VERSION}-fdroid"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
