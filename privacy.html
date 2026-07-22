@@ -103,7 +103,8 @@
         <li>Food and exercise logs, meal presets, saved foods</li>
         <li>AI provider choice, API keys, OpenRouter sign-in token, and model preferences (DataStore)</li>
         <li>Reminder schedule (local notification preference)</li>
-        <li>Optional JSON backups you export yourself</li>
+        <li>Optional JSON backups you export yourself (optionally password-encrypted)</li>
+        <li>Optional custom backup password (encrypted, device-only via the Android Keystore)</li>
         <li>Anonymous Support ID for crash support and cloud backup keying (not your name or email)</li>
       </ul>
       <p>
@@ -115,7 +116,8 @@
       <p>
         When you analyze a photo or text, design targets, estimate workout calories,
         or use Progress Coach, FitBuddy sends the relevant content to the provider
-        you configured (OpenRouter, Gemini, or Ollama). That can include:
+        you configured (OpenRouter, Gemini, Ollama, OpenAI, or any OpenAI-compatible
+        server you point Local mode at). That can include:
       </p>
       <ul>
         <li>Meal photos or typed descriptions</li>
@@ -144,16 +146,26 @@
       </p>
       <ul>
         <li>
-          <strong>What goes up:</strong> the same BackupData JSON as a local export
-          (logs, profile, settings, presets, and related fields) so you can restore after reinstall.
-          Treat the Support ID like a restore password — anyone with it can request that document.
+          <strong>What goes up:</strong> the same BackupData as a local export
+          (logs, profile, settings, presets, and related fields) so you can restore after reinstall,
+          <strong>encrypted on-device</strong> before upload — the cloud only ever stores
+          encrypted data.
+        </li>
+        <li>
+          <strong>Encryption:</strong> AES-256-GCM with a key derived (PBKDF2-HMAC-SHA256)
+          from either an optional password you set or, by default, your Support ID. Custom
+          passwords are stored device-only via the Android Keystore and are never included
+          in exports or uploads. Forgetting a custom password means the backup can’t be
+          recovered.
         </li>
         <li>
           <strong>Control:</strong> off by default; you opt in, can Upload now, or use
-          Auto-upload on startup (12-hour debounce).
+          Auto-upload on startup (12-hour debounce). Change or reset the password anytime
+          from Settings.
         </li>
         <li>
-          <strong>Restore:</strong> during onboarding via Support ID, or Developer tools.
+          <strong>Restore:</strong> during onboarding via Support ID (or a local file),
+          prompting for the password when the backup is encrypted.
         </li>
       </ul>
       <p>

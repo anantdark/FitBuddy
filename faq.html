@@ -101,7 +101,8 @@
         <p>
           Yes for signup — FitBuddy needs a working AI connection. For OpenRouter you can
           tap <strong>Continue with OpenRouter</strong> (account sign-in, no paste) or add
-          API keys. Gemini and Ollama Cloud need keys; Ollama Local needs a reachable server URL.
+          API keys. Gemini, OpenAI, and Ollama Cloud need keys; Ollama Local needs a reachable
+          server URL (optionally with a key).
           Photo and freeform logging, target design, and the Progress Coach all use that provider.
         </p>
       </details>
@@ -121,7 +122,10 @@
         <p>
           <strong>OpenRouter</strong> is convenient for free vision models and account sign-in.
           <strong>Gemini</strong> works well if you already have a Google AI Studio key.
-          <strong>Ollama</strong> is best if you want local models on your LAN, or Ollama Cloud.
+          <strong>Ollama</strong> is best if you want local models on your LAN, or Ollama Cloud —
+          and Local mode works with any OpenAI-compatible server (LM Studio, vLLM, LocalAI).
+          <strong>OpenAI</strong> connects directly with your OpenAI key (gpt-4o / gpt-4o-mini);
+          it has no free tier, so paid models stay on and Auto failover stays off for it.
           You can switch anytime in Settings — FitBuddy does not auto-switch platforms.
         </p>
       </details>
@@ -130,8 +134,9 @@
         <summary>What does Show paid models do?</summary>
         <p>
           Off by default, model dropdowns list free (or free-vision) options. Turn
-          <strong>Show paid models</strong> on in Settings to include paid models in the
-          Photo and Text lists for the current provider.
+          <strong>Show paid models</strong> on in Settings to include paid OpenRouter and
+          Gemini models in the Photo and Text lists. OpenAI has no free tier, so it always
+          keeps paid models on.
         </p>
       </details>
 
@@ -276,10 +281,32 @@
         <summary>How do I back up my data?</summary>
         <p>
           Settings → Backup → <strong>Export</strong> creates a JSON file (logs, profile,
-          settings, presets, and related data). For personal cloud backup (when available in
-          your build): enable cloud backup, keep your <strong>Support ID</strong> safe, then
-          use Upload now or Auto-upload on startup. Restore from cloud or a local file during
-          onboarding after reinstall — day-to-day Settings does not show Import.
+          settings, presets, and related data). You can optionally set a password to encrypt
+          the file. For personal cloud backup (when available in your build): enable cloud
+          backup, keep your <strong>Support ID</strong> safe, then use Upload now or
+          Auto-upload on startup. Restore from cloud or a local file during onboarding after
+          reinstall — day-to-day Settings does not show Import.
+        </p>
+      </details>
+
+      <details>
+        <summary>Are my backups encrypted?</summary>
+        <p>
+          Cloud backups always are — the payload is encrypted on-device (AES-256) before
+          upload, so the cloud only ever stores encrypted data. Local exports are encrypted
+          when you set a password in the Export dialog. Set an optional password when you
+          enable cloud backup (blank uses default Support ID protection), and change it later
+          via <strong>Change cloud backup password</strong>. Custom passwords are stored
+          device-only in the Android Keystore and never leave your phone.
+        </p>
+      </details>
+
+      <details>
+        <summary>What if I forget my backup password?</summary>
+        <p>
+          There’s no recovery — the password is never uploaded, so an encrypted backup can’t
+          be opened without it. If you only used default (Support ID) protection, your Support
+          ID unlocks the backup, which is another reason to keep that ID safe.
         </p>
       </details>
 
@@ -288,8 +315,9 @@
         <p>
           On first launch choose <strong>Restore from cloud backup</strong> (enter the Support ID
           that uploaded the backup) or <strong>Restore from local backup</strong> (pick your
-          Export JSON). If AI credentials don’t validate after restore, FitBuddy asks you to
-          reconnect AI only.
+          Export JSON). If the backup is password-protected, FitBuddy prompts for the password
+          (up to five attempts). If AI credentials don’t validate after restore, FitBuddy asks
+          you to reconnect AI only.
         </p>
       </details>
 

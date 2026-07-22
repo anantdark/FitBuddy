@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Onboarding — FitBuddy</title>
-  <meta name="description" content="Set up FitBuddy: start fresh or restore a backup, connect OpenRouter / Gemini / Ollama, enter your profile, and get personalized calorie targets." />
+  <meta name="description" content="Set up FitBuddy: start fresh or restore a backup, connect OpenRouter / Gemini / Ollama / OpenAI, enter your profile, and get personalized calorie targets." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="FitBuddy" />
   <meta property="og:title" content="FitBuddy onboarding — connect AI and set your profile" />
@@ -130,6 +130,11 @@
         </li>
       </ul>
       <p>
+        If the backup you restore is password-protected, FitBuddy prompts for the
+        password before importing (with retries) — this works the same for cloud and
+        local restores.
+      </p>
+      <p>
         After a successful restore, if AI credentials are missing or no longer work,
         FitBuddy opens <span class="ui-label">Reconnect AI</span> so you can connect a
         provider again without re-entering your whole profile.
@@ -159,8 +164,14 @@
         <li><span class="ui-label">Gemini</span> — Google AI Studio API key(s)</li>
         <li>
           <span class="ui-label">Ollama</span> —
-          <span class="ui-label">Local</span> (server URL, e.g. a LAN host) or
+          <span class="ui-label">Local</span> (any OpenAI-compatible server URL — Ollama,
+          LM Studio, vLLM, LocalAI, or a LAN host — with an optional API key) or
           <span class="ui-label">Cloud</span> (Ollama Cloud API key)
+        </li>
+        <li>
+          <span class="ui-label">OpenAI</span> — OpenAI API key; defaults to
+          <span class="ui-label">gpt-4o</span> / <span class="ui-label">gpt-4o-mini</span>.
+          OpenAI has no free tier, so paid models stay on and Auto failover stays off.
         </li>
       </ul>
       <p>
@@ -243,6 +254,10 @@
           <a href="https://docs.ollama.com/quickstart" rel="noopener">Install &amp; setup</a>
           · Cloud keys:
           <a href="https://ollama.com/settings/keys" rel="noopener">ollama.com/settings/keys</a>
+        </li>
+        <li>
+          <strong>OpenAI</strong> —
+          <a href="https://platform.openai.com/api-keys" rel="noopener">platform.openai.com/api-keys</a>
         </li>
       </ul>
 

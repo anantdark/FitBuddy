@@ -265,14 +265,25 @@
           dropdown model is tried first again. A green <span class="ui-label">active</span>
           pill shows the last model that worked without changing your dropdown choice.
         </li>
-        <li>Provider segments: OpenRouter / Gemini / Ollama (Local or Cloud)</li>
+        <li>Provider segments: OpenRouter / Gemini / Ollama (Local or Cloud) / OpenAI</li>
+        <li>
+          <strong>OpenAI</strong> — paste an OpenAI API key; defaults to
+          <span class="ui-label">gpt-4o</span> / <span class="ui-label">gpt-4o-mini</span>
+          with a curated model catalog. No free tier, so paid models stay on and
+          Auto failover stays off for this provider.
+        </li>
+        <li>
+          <strong>Ollama Local</strong> — points at any OpenAI-compatible server
+          (Ollama, LM Studio, vLLM, LocalAI, or <span class="ui-label">https://api.openai.com</span>)
+          with an <em>optional</em> API key; keyless local servers still work.
+        </li>
         <li>
           <strong>OpenRouter</strong> —
           <span class="ui-label">Continue with OpenRouter</span> for account sign-in, or
           expand API keys to paste keys. Manual keys are preferred when both exist;
           <span class="ui-label">Disconnect OpenRouter</span> clears the sign-in token.
         </li>
-        <li>Multiple <span class="ui-label">API keys</span> as chips (Gemini / Ollama / optional OpenRouter keys)</li>
+        <li>Multiple <span class="ui-label">API keys</span> as chips (Gemini / Ollama / OpenAI / optional OpenRouter keys)</li>
         <li>
           <span class="ui-label">Show paid models</span> — off by default (free vision / free text lists).
           Turn on to include paid models in the Photo and Text dropdowns.
@@ -315,11 +326,20 @@
         </li>
         <li>
           <span class="ui-label">Export</span> — write a JSON backup (logs, profile, settings,
-          presets, and related data) to a file you choose.
+          presets, and related data) to a file you choose. The export dialog lets you
+          <em>optionally set a password</em> (8–128 chars) — the file is then encrypted
+          with AES-256 and needs that password to restore.
         </li>
         <li>
           <span class="ui-label">Enable cloud backup</span> — opt in when the build includes
-          the cloud vault. You’ll be prompted to copy your Support ID first.
+          the cloud vault. You’ll be prompted to copy your Support ID first, and can
+          optionally set a backup password (leave it blank to use default Support ID
+          protection). Either way the backup is encrypted on-device before upload —
+          the cloud only ever stores encrypted data.
+        </li>
+        <li>
+          <span class="ui-label">Change cloud backup password</span> — update the password
+          later from Settings; leave it blank to reset to default (Support ID) protection.
         </li>
         <li>
           <span class="ui-label">Auto-upload on startup</span> — when enabled, uploads on app
@@ -329,6 +349,12 @@
           <span class="ui-label">Upload now</span> — immediate upload while cloud backup is on.
         </li>
       </ul>
+      <p>
+        Restoring an encrypted backup (cloud or local) prompts for the password, with up
+        to five attempts and clear messages for wrong-password, corrupt, or unrecognized
+        files. Your custom password is stored device-only via the Android Keystore and is
+        never included in exports or uploads.
+      </p>
       <p>
         Restoring from cloud or a local file happens during
         <a href="onboarding.html#path">onboarding</a> (or via Developer tools if unlocked).
