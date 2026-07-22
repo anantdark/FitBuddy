@@ -182,7 +182,8 @@
 
       <h3>Barcode</h3>
       <p>
-        Point the camera at a barcode, or type an EAN/UPC. FitBuddy looks up the product
+        Point the camera at a barcode, or type an EAN/UPC. Scanning uses an open-source
+        decoder on-device (no Google ML Kit); FitBuddy then looks up the product
         on Open Food Facts (needs network). From Body you can also
         <span class="ui-label">Scan barcode</span> to save into your food library.
       </p>
@@ -260,6 +261,9 @@
           <span class="ui-label">Auto failover</span> — on failure, try other API keys,
           then other models on the <em>same</em> platform. Never switches platforms automatically.
           When off, only the selected model is used; keys still rotate on failure.
+          Rate-limited models are skipped until the next UTC midnight, then your preferred
+          dropdown model is tried first again. A green <span class="ui-label">active</span>
+          pill shows the last model that worked without changing your dropdown choice.
         </li>
         <li>Provider segments: OpenRouter / Gemini / Ollama (Local or Cloud)</li>
         <li>

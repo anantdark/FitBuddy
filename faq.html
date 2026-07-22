@@ -152,6 +152,8 @@
           When on, a failed request tries other API keys, then other models on the
           <em>same</em> preferred platform. When off, only your selected model is used,
           but keys still rotate on failure. It never jumps to another provider for you.
+          Rate-limited models are skipped until the next UTC midnight, and a green
+          <em>active</em> pill shows the model that actually served your request.
         </p>
       </details>
 
@@ -206,8 +208,10 @@
       <details>
         <summary>Barcode not found</summary>
         <p>
-          Lookups use Open Food Facts. Regional or new products may be missing — enter
-          nutrition manually or describe the food instead. Check network connectivity.
+          The scanner decodes barcodes on-device with an open-source library (no Google
+          ML Kit); lookups then use Open Food Facts. Regional or new products may be
+          missing — enter nutrition manually or describe the food instead. Check network
+          connectivity for the lookup step.
         </p>
       </details>
 
