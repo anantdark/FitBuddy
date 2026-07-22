@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -529,37 +530,16 @@ fun OnboardingScreen(
                                 AiProvider.OLLAMA to "Ollama",
                                 AiProvider.OPENAI to "OpenAI"
                             )
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                providerOptions.forEachIndexed { index, (value, label) ->
-                                    val weight by animateFloatAsState(
-                                        targetValue = if (aiProvider == value) 1.7f else 1f,
-                                        label = "providerPillWeight"
-                                    )
-                                    SegmentedButton(
-                                        modifier = Modifier.weight(weight),
-                                        selected = aiProvider == value,
-                                        onClick = {
-                                            if (aiProvider != value) {
-                                                aiProvider = value
-                                                invalidateAi()
-                                            }
-                                        },
-                                        shape = SegmentedButtonDefaults.itemShape(
-                                            index,
-                                            providerOptions.size
-                                        ),
-                                        icon = {}
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                            ProviderSelectorGrid(
+                                options = providerOptions,
+                                selected = aiProvider,
+                                onSelect = {
+                                    if (aiProvider != it) {
+                                        aiProvider = it
+                                        invalidateAi()
                                     }
                                 }
-                            }
+                            )
 
                             when (aiProvider) {
                                 AiProvider.OPENROUTER -> {
