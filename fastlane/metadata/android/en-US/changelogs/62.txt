@@ -1,0 +1,2 @@
+• fix: prompt for password when restoring encrypted backup during onboarding
+• feat: encrypted cloud backups and OpenAI provider support
