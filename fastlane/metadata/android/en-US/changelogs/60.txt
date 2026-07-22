@@ -1,6 +1,1 @@
-• Auto failover — rotates API keys and models on rate limits within preferred platform
-• Show paid models toggle for OpenRouter/Gemini
-• Rate-limited models auto-retry after UTC midnight
-• Active model indicator pill shows last successful model
-• Refreshed F-Droid store listing and metadata
-• Bug fixes and performance improvements
+• docs: add commit message conventions for changelog generation [skip ci]
