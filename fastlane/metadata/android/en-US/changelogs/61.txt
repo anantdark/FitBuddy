@@ -1,0 +1,1 @@
+• fix: request camera permission only when camera is triggered, not at startup
