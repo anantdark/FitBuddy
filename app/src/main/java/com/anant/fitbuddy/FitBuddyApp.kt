@@ -4,6 +4,7 @@ import android.app.Application
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
+import com.anant.fitbuddy.crash.HeartbeatScheduler
 import com.anant.fitbuddy.data.backup.BackupManager
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
@@ -23,8 +24,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import java.time.LocalDate
-import java.time.ZoneOffset
 
 /**
  * Application-scoped service locator. Everything is created lazily and lives for the whole
@@ -117,11 +116,12 @@ class FitBuddyApp : Application() {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
-        // Heartbeats are fleet install/version telemetry, not crash reports — they run
-        // regardless of settings.crashReportingEnabled.
+        // Update heartbeat (one-shot on upgrade) runs immediately; daily heartbeat is
+        // scheduled via an inexact alarm around UTC midnight.
         Thread({
-            runBlocking(Dispatchers.IO) { maybeSendHeartbeats() }
+            runBlocking(Dispatchers.IO) { maybeSendUpdateHeartbeat() }
         }, "fitbuddy-heartbeat").start()
+        HeartbeatScheduler.schedule(this)
     }
 
     /** Startup auto-upload when opted in and outside the 12h debounce window. */
@@ -132,17 +132,15 @@ class FitBuddyApp : Application() {
     }
 
     /**
-     * On upgrade: one "FitBuddy update heartbeat" (independent of the daily pulse).
-     * Otherwise / additionally the usual once-per-UTC-day pulse.
+     * On upgrade: one "FitBuddy update heartbeat" (independent of the daily alarm).
      * Fresh installs only seed the stored version code (no update pulse).
      */
-    private suspend fun maybeSendHeartbeats() {
+    private suspend fun maybeSendUpdateHeartbeat() {
         val settings = settingsRepository.settings.first()
         val info = HeartbeatInfo(
             aiProvider = settings.provider.name,
             username = settings.usernameForHeartbeat
         )
-        val today = LocalDate.now(ZoneOffset.UTC).toString()
         val current = BuildConfig.VERSION_CODE
         val previous = settingsRepository.lastKnownVersionCode()
 
@@ -152,16 +150,9 @@ class FitBuddyApp : Application() {
             if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
                 settingsRepository.setLastKnownVersionCode(current)
             }
-            // Leave previous unset on failure so the next cold start retries the update pulse.
-            // Update pulse is independent of the daily once-per-UTC-day gate.
         } else if (current != previous) {
             // Downgrade / same-channel swap — sync without an update pulse.
             settingsRepository.setLastKnownVersionCode(current)
-        }
-
-        if (settingsRepository.lastHeartbeatUtcDay() == today) return
-        if (CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)) {
-            settingsRepository.markHeartbeatSent(today)
         }
     }
 }

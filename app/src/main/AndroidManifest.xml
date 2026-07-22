@@ -67,6 +67,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".crash.HeartbeatReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".data.backup.mongo.MongoBackupReceiver"
             android:exported="false" />
 
