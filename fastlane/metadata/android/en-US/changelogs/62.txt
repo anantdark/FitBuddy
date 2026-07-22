@@ -1,0 +1,2 @@
+• Local AI servers: vision models on llama.cpp and other OpenAI-compatible hosts are now detected from the server's reported capabilities, so they show up in the photo-model list
+• AI provider picker now lays out as a 2x2 grid so all four providers stay readable
