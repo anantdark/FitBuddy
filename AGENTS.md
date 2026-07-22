@@ -84,10 +84,13 @@ progress charts, editable meal review, and reusable food presets.
 - **Gemini**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`; Bearer key;
   model list via `.../v1beta/models?key=...`; dropdown = vision-capable Gemini models (heuristic,
   since the list API exposes no modality flag). Model ids strip the `models/` prefix.
-- **Ollama**: Local or Cloud (Settings toggle). Local = user-supplied base URL, no auth,
-  `GET {url}/v1/models` for dropdowns, cleartext LAN HTTP (`usesCleartextTraffic=true`).
+- **Ollama / OpenAI-compatible**: Local or Cloud (Settings toggle). Local = user-supplied base URL
+  pointing at **any** OpenAI-compatible host (Ollama, OpenAI `https://api.openai.com`, LM Studio,
+  vLLM, LocalAI) with an **optional** API key (Bearer, sent only when set — keyless local still
+  works), `GET {url}/v1/models` for dropdowns, cleartext LAN HTTP (`usesCleartextTraffic=true`).
   Cloud = `https://ollama.com` + Bearer API key from ollama.com/settings/keys; same
-  `/v1/models` + `/v1/chat/completions`. Vision dropdown uses a name heuristic (llava, etc.).
+  `/v1/models` + `/v1/chat/completions`. Vision dropdown uses a name heuristic (llava, etc.);
+  models not matched (e.g. `gpt-4o`) can be typed in the Model id field manually.
 - Config is **runtime** via Settings screen (DataStore), not compile-time. `BuildConfig`
   (`OPENROUTER_API_KEY`, `AI_MODEL` from `local.properties`) only seeds first-run defaults.
 - Multiple API keys per provider (Settings chips). **Auto failover** (default on): same model →
@@ -99,9 +102,16 @@ progress charts, editable meal review, and reusable food presets.
   (persisted); then newer requests try the **preferred dropdown model** first again. Green
   “active” lines show the last successful model without changing the dropdown. **Show paid
   models** (off by default) lists paid OpenRouter/Gemini models too and disables Refresh
-  reachability probes. Gemini uses free Flash intelligence ranking (3.5 Flash first; Pro above
-  Flash when paid is on); OpenRouter/Ollama prefer Gemma by generation then size (Gemma 4 31b →
-  26b → Gemma 3…). Pills note model switches within the platform.
+  reachability probes. Paid mode is **coupled** with Auto failover: turning paid on forces Auto
+  off (and disables the Auto toggle) so failover never fans out across many billable models —
+  enforced in code via `AppSettings.effectiveAutoFailover`; turning paid off turns Auto back on.
+  While paid is on, the model dropdowns do **not** auto-refresh (the list only loads on the
+  Refresh button) to avoid hitting paid endpoints unprompted. Selecting the OpenAI endpoint
+  (OpenAI-compatible provider, Local mode, URL `https://api.openai.com`) auto-enables paid mode,
+  and the vision/text dropdowns fall back to curated OpenAI defaults (`OpenAiCatalog`) so at least
+  GPT-4o is always offered even before a Refresh. Gemini uses free Flash intelligence ranking
+  (3.5 Flash first; Pro above Flash when paid is on); OpenRouter/Ollama prefer Gemma by generation
+  then size (Gemma 4 31b → 26b → Gemma 3…). Pills note model switches within the platform.
 - If no provider is configured at all, text logs use the offline simulator (photos require a key).
 
 ## Key flows

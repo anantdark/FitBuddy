@@ -6,6 +6,7 @@ import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.crash.HeartbeatScheduler
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.crypto.BackupCrypto
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.remote.NetworkModule
@@ -72,6 +73,7 @@ class FitBuddyApp : Application() {
                 workoutSessionDao = database.workoutSessionDao(),
                 workoutExerciseDao = database.workoutExerciseDao(),
                 settingsRepository = settingsRepository,
+                crypto = BackupCrypto(NetworkModule.moshi),
                 moshi = NetworkModule.moshi
             )
         )

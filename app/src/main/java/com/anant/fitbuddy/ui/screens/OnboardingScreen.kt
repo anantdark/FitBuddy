@@ -1,6 +1,10 @@
 package com.anant.fitbuddy.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import com.anant.fitbuddy.ui.components.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -50,9 +56,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.components.ConfettiOverlay
@@ -60,8 +68,13 @@ import com.anant.fitbuddy.ui.components.CraftedWithLoveCredit
 import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
+import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 private val GOAL_OPTIONS = listOf(
     "AUTO" to "Let AI decide",
@@ -92,6 +105,9 @@ private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
     ),
     AiProvider.OLLAMA to (
         "Ollama install & setup guide" to "https://docs.ollama.com/quickstart"
+    ),
+    AiProvider.OPENAI to (
+        "How to create an OpenAI API key" to "https://platform.openai.com/api-keys"
     )
 )
 
@@ -112,8 +128,16 @@ fun OnboardingScreen(
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
     onStartGuest: () -> Unit = {},
-    onRestoreCloud: (supportId: String, onResult: (Boolean, String?) -> Unit) -> Unit = { _, _ -> },
-    onRequestLocalRestore: () -> Unit = {},
+    onRestoreCloud: (
+        supportId: String,
+        passwordProvider: suspend () -> CharArray?,
+        onResult: (Boolean, String?) -> Unit
+    ) -> Unit = { _, _, _ -> },
+    onRestoreLocal: (
+        uri: Uri,
+        passwordProvider: suspend () -> CharArray?,
+        onResult: (Boolean, String?) -> Unit
+    ) -> Unit = { _, _, _ -> },
     onValidateAi: (AppSettings, (Boolean, String?) -> Unit) -> Unit,
     onComplete: (
         firstName: String,
@@ -133,6 +157,44 @@ fun OnboardingScreen(
     var step by remember(aiOnly) { mutableIntStateOf(if (aiOnly) 0 else -1) }
     var cloudSupportId by remember { mutableStateOf("") }
     var cloudError by remember { mutableStateOf<String?>(null) }
+    // Password prompt for restoring a custom-password-protected cloud backup.
+    var cloudRestorePasswordPrompt by remember { mutableStateOf(false) }
+    var cloudRestorePassword by remember { mutableStateOf("") }
+    var cloudRestorePasswordContinuation by remember {
+        mutableStateOf<CancellableContinuation<CharArray?>?>(null)
+    }
+    // Password prompt for restoring a password-protected local backup file.
+    var localRestorePasswordPrompt by remember { mutableStateOf(false) }
+    var localRestorePassword by remember { mutableStateOf("") }
+    var localRestorePasswordAttempts by remember { mutableStateOf(0) }
+    var localRestoreError by remember { mutableStateOf<String?>(null) }
+    var localRestorePasswordContinuation by remember {
+        mutableStateOf<CancellableContinuation<CharArray?>?>(null)
+    }
+    val localImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            localRestoreError = null
+            localRestorePasswordAttempts = 0
+            onRestoreLocal(
+                uri,
+                {
+                    // Runs on a background dispatcher (BackupManager.importFrom); publish the
+                    // prompt + capture the continuation on the main thread so the dialog shows.
+                    withContext(Dispatchers.Main) {
+                        suspendCancellableCoroutine { cont ->
+                            localRestorePasswordContinuation = cont
+                            localRestorePassword = ""
+                            localRestorePasswordPrompt = true
+                        }
+                    }
+                }
+            ) { ok, error ->
+                if (!ok) localRestoreError = error
+            }
+        }
+    }
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
@@ -157,6 +219,7 @@ fun OnboardingScreen(
     var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
     var ollamaUseCloud by remember { mutableStateOf(false) }
     var ollamaKeys by remember { mutableStateOf(emptyList<String>()) }
+    var openAiKeys by remember { mutableStateOf(emptyList<String>()) }
     var aiValidated by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
 
@@ -174,12 +237,18 @@ fun OnboardingScreen(
         } else {
             ollamaUrl.isNotBlank()
         }
+        AiProvider.OPENAI -> openAiKeys.isNotEmpty()
     }
 
     fun buildAiSettings(): AppSettings {
         val orKeys = if (aiProvider == AiProvider.OPENROUTER) apiKeys else emptyList()
         val gemKeys = if (aiProvider == AiProvider.GEMINI) apiKeys else emptyList()
         val olKeys = if (aiProvider == AiProvider.OLLAMA && ollamaUseCloud) ollamaKeys else emptyList()
+        val oaKeys = if (aiProvider == AiProvider.OPENAI) openAiKeys else emptyList()
+        // OpenAI is paid, no free tier: always show paid models and force-disable Auto
+        // failover so it never fans out across many billable models. Seed curated defaults
+        // so a fresh setup works without hunting for a model id.
+        val usingOpenAi = aiProvider == AiProvider.OPENAI
         return AppSettings(
             provider = aiProvider,
             openRouterApiKeys = orKeys,
@@ -195,7 +264,12 @@ fun OnboardingScreen(
             ollamaUseCloud = aiProvider == AiProvider.OLLAMA && ollamaUseCloud,
             ollamaApiKeys = olKeys,
             ollamaApiKey = olKeys.firstOrNull().orEmpty(),
-            aiAutoFailover = true
+            openAiApiKeys = oaKeys,
+            openAiApiKey = oaKeys.firstOrNull().orEmpty(),
+            openAiModel = if (usingOpenAi) OpenAiCatalog.VISION_MODELS.first().id else AppSettings.DEFAULT_OPENAI_MODEL,
+            openAiTextModel = if (usingOpenAi) OpenAiCatalog.TEXT_MODELS.first().id else "",
+            showPaidModels = usingOpenAi,
+            aiAutoFailover = !usingOpenAi
         )
     }
 
@@ -290,6 +364,7 @@ fun OnboardingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .padding(horizontal = 24.dp)
                 .dismissKeyboardOnTap()
         ) {
@@ -413,12 +488,24 @@ fun OnboardingScreen(
                                 }
                             }
                             OutlinedButton(
-                                onClick = onRequestLocalRestore,
+                                onClick = {
+                                    localRestoreError = null
+                                    localImportLauncher.launch(
+                                        arrayOf("application/json", "*/*")
+                                    )
+                                },
                                 enabled = !busy,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     if (isRestoring) "Restoring…" else "Restore from local backup"
+                                )
+                            }
+                            localRestoreError?.let { err ->
+                                Text(
+                                    text = err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
                                 )
                             }
                         }
@@ -439,11 +526,17 @@ fun OnboardingScreen(
                             val providerOptions = listOf(
                                 AiProvider.OPENROUTER to "OpenRouter",
                                 AiProvider.GEMINI to "Gemini",
-                                AiProvider.OLLAMA to "Ollama"
+                                AiProvider.OLLAMA to "Ollama",
+                                AiProvider.OPENAI to "OpenAI"
                             )
                             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                                 providerOptions.forEachIndexed { index, (value, label) ->
+                                    val weight by animateFloatAsState(
+                                        targetValue = if (aiProvider == value) 1.7f else 1f,
+                                        label = "providerPillWeight"
+                                    )
                                     SegmentedButton(
+                                        modifier = Modifier.weight(weight),
                                         selected = aiProvider == value,
                                         onClick = {
                                             if (aiProvider != value) {
@@ -454,8 +547,17 @@ fun OnboardingScreen(
                                         shape = SegmentedButtonDefaults.itemShape(
                                             index,
                                             providerOptions.size
+                                        ),
+                                        icon = {}
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
-                                    ) { Text(label) }
+                                    }
                                 }
                             }
 
@@ -544,6 +646,20 @@ fun OnboardingScreen(
                                         }
                                     }
                                 }
+
+                                AiProvider.OPENAI -> {
+                                    AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
+                                        OnboardingDocsLink(label = label, url = url)
+                                    }
+                                    ApiKeyChipEditor(
+                                        label = "API keys",
+                                        keys = openAiKeys,
+                                        onKeysChange = {
+                                            openAiKeys = it
+                                            invalidateAi()
+                                        }
+                                    )
+                                }
                             }
 
                             aiError?.let { message ->
@@ -617,7 +733,18 @@ fun OnboardingScreen(
                             enabled = cloudSupportId.isNotBlank() && !busy,
                             onClick = {
                                 cloudError = null
-                                onRestoreCloud(cloudSupportId.trim()) { ok, error ->
+                                onRestoreCloud(
+                                    cloudSupportId.trim(),
+                                    {
+                                        // Prompt for the custom password when the Support-ID
+                                        // auto-attempt fails, then await the user's entry.
+                                        cloudRestorePassword = ""
+                                        cloudRestorePasswordPrompt = true
+                                        suspendCancellableCoroutine { cont ->
+                                            cloudRestorePasswordContinuation = cont
+                                        }
+                                    }
+                                ) { ok, error ->
                                     if (!ok) {
                                         cloudError = error ?: "Restore failed"
                                     }
@@ -695,6 +822,98 @@ fun OnboardingScreen(
                     grand = true
                 )
             }
+        }
+
+        if (cloudRestorePasswordPrompt) {
+            fun resume(result: CharArray?) {
+                cloudRestorePasswordContinuation?.resumeWith(Result.success(result))
+                cloudRestorePasswordContinuation = null
+                cloudRestorePasswordPrompt = false
+                cloudRestorePassword = ""
+            }
+            AlertDialog(
+                onDismissRequest = { resume(null) },
+                title = { Text("Password required") },
+                text = {
+                    Column {
+                        Text(
+                            "This cloud backup is protected by a custom password. " +
+                                "Enter it to restore.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.size(12.dp))
+                        OutlinedTextField(
+                            value = cloudRestorePassword,
+                            onValueChange = { cloudRestorePassword = it },
+                            label = { Text("Password") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { resume(cloudRestorePassword.toCharArray()) },
+                        enabled = cloudRestorePassword.isNotEmpty()
+                    ) { Text("Unlock") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { resume(null) }) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (localRestorePasswordPrompt) {
+            fun resume(result: CharArray?) {
+                localRestorePasswordContinuation?.resumeWith(Result.success(result))
+                localRestorePasswordContinuation = null
+                localRestorePasswordPrompt = false
+                localRestorePassword = ""
+            }
+            AlertDialog(
+                onDismissRequest = { resume(null) },
+                title = { Text("Password required") },
+                text = {
+                    Column {
+                        Text(
+                            "This backup is password-protected. Enter the password to restore it.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (localRestorePasswordAttempts > 0) {
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                "Incorrect password (attempt ${localRestorePasswordAttempts + 1} of 5)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Spacer(Modifier.size(12.dp))
+                        OutlinedTextField(
+                            value = localRestorePassword,
+                            onValueChange = { localRestorePassword = it },
+                            label = { Text("Password") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            localRestorePasswordAttempts++
+                            resume(localRestorePassword.toCharArray())
+                        },
+                        enabled = localRestorePassword.isNotEmpty()
+                    ) { Text("Unlock") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { resume(null) }) { Text("Cancel") }
+                }
+            )
         }
     }
 }

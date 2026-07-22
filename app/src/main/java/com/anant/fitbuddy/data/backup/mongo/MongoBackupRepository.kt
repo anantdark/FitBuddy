@@ -19,11 +19,11 @@ import java.util.concurrent.TimeUnit
  * credentials, only a shared API key ([MongoUriVault]). One document per install,
  * keyed by [supportId] as `_id` server-side.
  */
-class MongoBackupRepository(
+open class MongoBackupRepository(
     private val http: OkHttpClient = defaultClient()
 ) {
 
-    suspend fun upload(
+    open suspend fun upload(
         baseUrl: String,
         apiKey: String,
         databaseName: String,

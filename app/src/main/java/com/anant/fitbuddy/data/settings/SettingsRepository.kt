@@ -27,6 +27,7 @@ class SettingsRepository(context: Context) {
         )
         val geminiKeys = parseApiKeys(prefs[KEY_GEMINI_KEY])
         val ollamaKeys = parseApiKeys(prefs[KEY_OLLAMA_API_KEY])
+        val openAiKeys = parseApiKeys(prefs[KEY_OPENAI_API_KEY])
         AppSettings(
             provider = runCatching { AiProvider.valueOf(prefs[KEY_PROVIDER] ?: "") }
                 .getOrDefault(AiProvider.OPENROUTER),
@@ -69,6 +70,18 @@ class SettingsRepository(context: Context) {
             ollamaUseCloud = prefs[KEY_OLLAMA_USE_CLOUD] ?: false,
             ollamaApiKeys = ollamaKeys,
             ollamaApiKey = ollamaKeys.firstOrNull().orEmpty(),
+            openAiApiKeys = openAiKeys,
+            openAiApiKey = openAiKeys.firstOrNull().orEmpty(),
+            openAiModel = sanitizeModelIdFor(
+                AiProvider.OPENAI,
+                prefs[KEY_OPENAI_MODEL] ?: AppSettings.DEFAULT_OPENAI_MODEL,
+                AppSettings.DEFAULT_OPENAI_MODEL
+            ),
+            openAiTextModel = sanitizeModelIdFor(
+                AiProvider.OPENAI,
+                prefs[KEY_OPENAI_TEXT_MODEL] ?: "",
+                ""
+            ),
             aiAutoFailover = prefs[KEY_AI_AUTO_FAILOVER] ?: true,
             showPaidModels = prefs[KEY_SHOW_PAID_MODELS] ?: false,
             activeAiProvider = prefs[KEY_ACTIVE_AI_PROVIDER]?.let {
@@ -105,6 +118,7 @@ class SettingsRepository(context: Context) {
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
             cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false,
             cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
+            cloudBackupPasswordSet = prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] ?: false,
             mongoDbName = prefs[KEY_MONGO_DB_NAME]?.ifBlank { null }
                 ?: AppSettings.DEFAULT_MONGO_DB_NAME,
             mongoCollectionName = prefs[KEY_MONGO_COLLECTION]?.ifBlank { null }
@@ -226,6 +240,9 @@ class SettingsRepository(context: Context) {
             prefs[KEY_OLLAMA_TEXT_MODEL] = settings.ollamaTextModel
             prefs[KEY_OLLAMA_USE_CLOUD] = settings.ollamaUseCloud
             prefs[KEY_OLLAMA_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.OLLAMA))
+            prefs[KEY_OPENAI_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.OPENAI))
+            prefs[KEY_OPENAI_MODEL] = settings.openAiModel
+            prefs[KEY_OPENAI_TEXT_MODEL] = settings.openAiTextModel
             prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover
             prefs[KEY_SHOW_PAID_MODELS] = settings.showPaidModels
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
@@ -245,6 +262,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
             prefs[KEY_CLOUD_BACKUP_ENABLED] = settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = settings.cloudAutoUploadEnabled
+            prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = settings.cloudBackupPasswordSet
             prefs[KEY_MONGO_DB_NAME] = settings.mongoDbName.ifBlank {
                 AppSettings.DEFAULT_MONGO_DB_NAME
             }
@@ -267,6 +285,7 @@ class SettingsRepository(context: Context) {
                 AiProvider.OPENROUTER -> settings.openRouterTextModel
                 AiProvider.GEMINI -> settings.geminiTextModel
                 AiProvider.OLLAMA -> settings.ollamaTextModel
+                AiProvider.OPENAI -> settings.openAiTextModel
             }.trim()
             val text = textRaw.ifBlank { settings.textModel }
             if (text.isNotBlank() && isPlausibleModelIdFor(settings.provider, text)) {
@@ -297,6 +316,29 @@ class SettingsRepository(context: Context) {
         dataStore.edit { prefs -> prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] = at }
         return at
     }
+
+    /** Non-secret UI flag: records whether a custom cloud password is set (vs Support ID default). */
+    suspend fun setCloudBackupPasswordSet(value: Boolean) {
+        dataStore.edit { prefs -> prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = value }
+    }
+
+    /**
+     * Stores (or clears, when [blob] is null) the Keystore-encrypted custom backup password blob.
+     * This is device-local and deliberately excluded from [AppSettings] / backup exports.
+     */
+    suspend fun setCloudBackupPasswordBlob(blob: String?) {
+        dataStore.edit { prefs ->
+            if (blob.isNullOrBlank()) {
+                prefs.remove(KEY_CLOUD_BACKUP_PW_BLOB)
+            } else {
+                prefs[KEY_CLOUD_BACKUP_PW_BLOB] = blob
+            }
+        }
+    }
+
+    /** Reads the encrypted custom backup password blob, or null when none is stored. */
+    suspend fun getCloudBackupPasswordBlob(): String? =
+        dataStore.data.first()[KEY_CLOUD_BACKUP_PW_BLOB]?.ifBlank { null }
 
     /** Persists an OAuth-issued OpenRouter key without touching manual API keys. */
     suspend fun setOpenRouterOAuthKey(key: String) {
@@ -338,6 +380,9 @@ class SettingsRepository(context: Context) {
         val KEY_OLLAMA_TEXT_MODEL = stringPreferencesKey("ollama_text_model")
         val KEY_OLLAMA_USE_CLOUD = booleanPreferencesKey("ollama_use_cloud")
         val KEY_OLLAMA_API_KEY = stringPreferencesKey("ollama_api_key")
+        val KEY_OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
+        val KEY_OPENAI_MODEL = stringPreferencesKey("openai_model")
+        val KEY_OPENAI_TEXT_MODEL = stringPreferencesKey("openai_text_model")
         val KEY_AI_AUTO_FAILOVER = booleanPreferencesKey("ai_auto_failover")
         val KEY_SHOW_PAID_MODELS = booleanPreferencesKey("show_paid_models")
         val KEY_ACTIVE_AI_PROVIDER = stringPreferencesKey("active_ai_provider")
@@ -362,6 +407,9 @@ class SettingsRepository(context: Context) {
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
         val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
         val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")
+        val KEY_CLOUD_BACKUP_PASSWORD_SET = booleanPreferencesKey("cloud_backup_password_set")
+        // Keystore-encrypted custom backup password. Device-local; never in AppSettings/backups.
+        val KEY_CLOUD_BACKUP_PW_BLOB = stringPreferencesKey("cloud_backup_pw_blob")
         val KEY_MONGO_DB_NAME = stringPreferencesKey("mongo_db_name")
         val KEY_MONGO_COLLECTION = stringPreferencesKey("mongo_collection_name")
         val KEY_MONGO_LAST_UPLOAD_AT = longPreferencesKey("mongo_last_upload_at")

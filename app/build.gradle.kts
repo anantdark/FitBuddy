@@ -154,6 +154,13 @@ android {
         includeInApk = false
         includeInBundle = false
     }
+    // Robolectric provides real android.util.Base64 / framework behavior for JVM unit tests
+    // (e.g. BackupCryptoTest), which the default android.jar stubs would otherwise throw on.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
     // MongoDB driver JARs both ship META-INF/native-image props; Android merge fails otherwise.
     packaging {
         resources {
@@ -216,6 +223,10 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     // Real org.json for JVM unit tests (Android stubs throw at runtime).
     testImplementation("org.json:json:20240303")
+    // Robolectric supplies real android.util.Base64 (and framework) impls on the JVM so
+    // BackupCrypto's seal/open/classify can be exercised as plain unit tests. 4.16 supports
+    // SDK 36 and requires JDK 21, matching this project's compileSdk/toolchain.
+    testImplementation("org.robolectric:robolectric:4.16")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
