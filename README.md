@@ -114,14 +114,16 @@ Architecture: **MVVM** — UI → ViewModel → Repository → Room + Remote AI.
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | [CI](.github/workflows/ci.yml) | Push & PR to `main` | Compile debug/release, run unit tests |
-| [Release](.github/workflows/release.yml) | Push to `main` | Build signed APK + AAB, publish GitHub Release |
+| [Release](.github/workflows/release.yml) | Push to `main` | Build signed APK + AAB, publish GitHub Release (latest) |
 | [F-Droid Release](.github/workflows/fdroid-release.yml) | Tag `v*-fdroid` pushed (or manual) | Build fdroid flavor, publish prerelease GitHub Release |
 
-Merged PRs trigger release automatically (merge creates a push to `main`).
+### Release tags
 
-### F-Droid tags
+Merged PRs trigger the GitHub release automatically (merge creates a push to `main`).
 
 F-Droid releases use tags matching `v<version>-fdroid` (e.g. `v3.1.3-fdroid`). Pushing a tag with this pattern auto-triggers the F-Droid Release workflow. See [FDROID.md](FDROID.md) for the full process.
+
+See [FDROID.md](FDROID.md) for the full F-Droid process.
 
 ### Required: signed release builds in CI
 

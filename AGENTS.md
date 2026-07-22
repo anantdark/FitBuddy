@@ -136,10 +136,30 @@ progress charts, editable meal review, and reusable food presets.
   (`.github/workflows/fdroid-release.yml`). The workflow can also be dispatched manually.
 - The tag must point at a commit where `app/build.gradle.kts` has the fdroid flavor's
   `versionName` and `versionCode` already bumped.
+- **Critical constraints:**
+  - `versionName` in `create("fdroid")` must exactly match the tag without `v` prefix and
+    `-fdroid` suffix (tag `v3.2.4-fdroid` → `versionName = "3.2.4"`).
+  - `versionCode` must be strictly greater than the previous release (Android rejects otherwise).
+  - The GitHub Release `Binaries` URL pattern is
+    `https://github.com/anantdark/FitBuddy/releases/download/v%v-fdroid/FitBuddy-%v.apk`
+    where `%v` = `versionName`. Tag, versionName, and APK filename must all agree.
 - Steps to cut a new F-Droid release:
-  1. Bump `versionCode` and `versionName` in the `create("fdroid")` block of `app/build.gradle.kts`.
+  1. Bump `versionCode` (previous + 1) and `versionName` in the `create("fdroid")` block of
+     `app/build.gradle.kts`.
   2. Commit, push to `main`.
   3. Tag the commit: `git tag -a v<version>-fdroid -m "F-Droid <version>"` and push the tag.
-  4. The workflow builds, signs, and publishes a prerelease GitHub Release with the APK.
-  5. Update the fdroiddata metadata (`commit:`, `CurrentVersion`, `CurrentVersionCode`) to
-     reference the new tag.
+     The workflow auto-triggers, builds, signs, and publishes a prerelease GitHub Release.
+  4. Update the fdroiddata metadata on GitLab:
+     - Repo: `/private/tmp/fdroid-submit/fdroiddata` (fork of `fdroid/fdroiddata`).
+     - Branch: `com.anant.fitbuddy`.
+     - File: `metadata/com.anant.fitbuddy.yml`.
+     - Update `Builds[0].versionName`, `Builds[0].versionCode`, `Builds[0].commit` (set to
+       the tag name, e.g. `v3.2.4-fdroid`), plus `CurrentVersion` and `CurrentVersionCode`.
+     - Commit and push: `git push origin com.anant.fitbuddy`.
+     - The existing MR at https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43406
+       picks up the push automatically and re-runs the pipeline.
+
+## GitHub release process
+- Every push to `main` auto-triggers the **Release** workflow (`.github/workflows/release.yml`).
+- Version: `3.1.<run_number % 100>`, `versionCode` = raw `run_number`.
+- Merged PRs create a push to `main`, so merging = releasing.

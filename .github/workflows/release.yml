@@ -66,7 +66,7 @@ jobs:
         run: |
           BUILD_NUMBER=$(( GITHUB_RUN_NUMBER % 100 ))
           VERSION_CODE="${GITHUB_RUN_NUMBER}"
-          VERSION_NAME="3.1.${BUILD_NUMBER}"
+          VERSION_NAME="3.2.${BUILD_NUMBER}"
           TAG="v${VERSION_NAME}-build${GITHUB_RUN_NUMBER}"
           echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
