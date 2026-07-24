@@ -1,5 +1,15 @@
 package com.anant.fitbuddy.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,17 +44,29 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.data.database.ExerciseLog
 import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.ui.components.CalorieRing
@@ -55,6 +77,9 @@ import com.anant.fitbuddy.ui.components.PressableCard
 import com.anant.fitbuddy.ui.components.WeekDayMacroBar
 import com.anant.fitbuddy.ui.components.WeekMacroBarChart
 import com.anant.fitbuddy.ui.components.pressable
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
@@ -86,6 +111,7 @@ fun DashboardHomeScreen(
     weekSnapshots: Map<String, DayLogSnapshot>,
     profileState: DashboardUiState,
     isAnalyzing: Boolean,
+    analyzingModel: String? = null,
     onOpenWeekHistory: () -> Unit,
     onEditFood: (FoodLog) -> Unit,
     onDeleteFood: (FoodLog) -> Unit,
@@ -119,7 +145,7 @@ fun DashboardHomeScreen(
         }
 
         if (isAnalyzing) {
-            item { AnalyzingBanner() }
+            item { AnalyzingBanner(analyzingModel) }
         }
 
         item { MacroRow(todayState) }
@@ -317,6 +343,7 @@ fun WeekHistoryScreen(
     weekSnapshots: Map<String, DayLogSnapshot>,
     profileState: DashboardUiState,
     isAnalyzing: Boolean,
+    analyzingModel: String? = null,
     onSelectDate: (String) -> Unit,
     onShiftWeek: (Int) -> Unit,
     onEditFood: (FoodLog) -> Unit,
@@ -440,7 +467,7 @@ fun WeekHistoryScreen(
         }
 
         if (isAnalyzing) {
-            item { AnalyzingBanner() }
+            item { AnalyzingBanner(analyzingModel) }
         }
 
         item {
@@ -752,8 +779,41 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Three plasma orbs chasing each other along interlocked Lissajous paths.
+ * Driven by raw frame-clock milliseconds via [withInfiniteAnimationFrameMillis] so the
+ * time value grows monotonically — the animation is perfectly seamless with no reset jump.
+ * Incommensurable frequency ratios (irrational multiples) mean the pattern never closes
+ * back to exactly the same state, so it always looks like it's mid-motion.
+ */
 @Composable
-private fun AnalyzingBanner() {
+private fun AnalyzingBanner(modelId: String? = null) {
+    // Monotonically growing frame clock — never resets, no loop seam.
+    var frameMillis by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withInfiniteAnimationFrameMillis { frameMillis = it }
+        }
+    }
+
+    val primary   = MaterialTheme.colorScheme.primary
+    val tertiary  = MaterialTheme.colorScheme.tertiary
+    val secondary = MaterialTheme.colorScheme.secondary
+
+    // Orb definitions: (x-freq-hz, y-freq-hz, phase-offset-turns)
+    // Irrational ratios → Lissajous figure that never closes.
+    val orbs = remember {
+        listOf(
+            Triple(0.143, 0.202, 0.00),  // ≈1 : √2
+            Triple(0.247, 0.143, 0.33),  // ≈√3 : 1
+            Triple(0.143, 0.320, 0.67),  // ≈1 : √5
+        )
+    }
+    val orbColors = listOf(primary, tertiary, secondary)
+    val tailSteps = 10
+    // Tail step is 28 ms back in time — derived from raw millis, so also seamless.
+    val tailStepMs = 28L
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -761,19 +821,81 @@ private fun AnalyzingBanner() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            androidx.compose.material3.CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                strokeWidth = 2.dp
-            )
-            Text(
-                text = "Analyzing with FitBuddy AI…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
-            )
+            Canvas(modifier = Modifier.size(44.dp)) {
+                val cx = size.width  / 2f
+                val cy = size.height / 2f
+                val rx = cx * 0.84f
+                val ry = cy * 0.84f
+
+                fun orbPos(freqX: Double, freqY: Double, phase: Double, ms: Long): Offset {
+                    val tSec = ms / 1000.0
+                    val ox = rx * sin(2.0 * PI * freqX * tSec + phase * 2.0 * PI).toFloat()
+                    val oy = ry * cos(2.0 * PI * freqY * tSec + phase * 2.0 * PI * 0.7).toFloat()
+                    return Offset(cx + ox, cy + oy)
+                }
+
+                orbs.forEachIndexed { i, (fx, fy, ph) ->
+                    val color = orbColors[i]
+
+                    // Comet tail — past positions at evenly spaced ms offsets
+                    for (step in tailSteps downTo 1) {
+                        val pastMs = frameMillis - step * tailStepMs
+                        val pos = orbPos(fx, fy, ph, pastMs)
+                        val fraction = step.toFloat() / tailSteps
+                        val tailAlpha = (1f - fraction) * 0.38f
+                        val tailRadius = 3.2.dp.toPx() * (1f - fraction * 0.55f)
+                        drawCircle(
+                            color = color.copy(alpha = tailAlpha),
+                            radius = tailRadius,
+                            center = pos
+                        )
+                    }
+
+                    // Head glow + solid core
+                    val headPos = orbPos(fx, fy, ph, frameMillis)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(color.copy(alpha = 0.28f), Color.Transparent),
+                            center = headPos,
+                            radius = 8.dp.toPx()
+                        ),
+                        radius = 8.dp.toPx(),
+                        center = headPos
+                    )
+                    drawCircle(
+                        color = color.copy(alpha = 0.92f),
+                        radius = 3.2.dp.toPx(),
+                        center = headPos
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "ANALYZING",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 3.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (!modelId.isNullOrBlank()) {
+                    Text(
+                        text = modelId,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f),
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

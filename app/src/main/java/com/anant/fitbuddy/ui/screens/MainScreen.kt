@@ -570,6 +570,7 @@ fun MainScreen(
                                 weekSnapshots = weekSnapshots,
                                 profileState = dashboardState,
                                 isAnalyzing = analysisState.isLoading,
+                                analyzingModel = analysisState.analyzingModel,
                                 onOpenWeekHistory = {
                                     viewModel.refreshToToday()
                                     showWeekHistory = true
@@ -673,6 +674,7 @@ fun MainScreen(
                         weekSnapshots = weekSnapshots,
                         profileState = dashboardState,
                         isAnalyzing = analysisState.isLoading,
+                        analyzingModel = analysisState.analyzingModel,
                         onSelectDate = viewModel::selectDate,
                         onShiftWeek = viewModel::shiftHistoryWeek,
                         onEditFood = viewModel::editFoodLog,

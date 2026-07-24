@@ -120,6 +120,8 @@ data class ModelsUiState(
 @Immutable
 data class AnalysisUiState(
     val isLoading: Boolean = false,
+    /** Model ID currently being used for analysis (updates dynamically on auto-failover). */
+    val analyzingModel: String? = null,
     val clarificationMessage: String? = null,
     val foodDraft: FoodDraft? = null,
     val mealDraft: MealDraft? = null,
@@ -1916,13 +1918,17 @@ class MainViewModel(
             "ai",
             if (image != null) "analyze_photo" else "analyze_text"
         )
-        _analysisState.update { it.copy(isLoading = true, clarificationMessage = null) }
+        val initialModel = settings.value.modelFor(image != null).takeIf { it.isNotBlank() }
+        _analysisState.update { it.copy(isLoading = true, clarificationMessage = null, analyzingModel = initialModel) }
         viewModelScope.launch {
             val outcome = repository.analyze(
                 text,
                 image,
                 buildUserStateContext(),
-                customTimestamp = activeDayTimestamp()
+                customTimestamp = activeDayTimestamp(),
+                onModelActive = { modelId ->
+                    _analysisState.update { it.copy(analyzingModel = modelId) }
+                }
             )
             handleOutcome(outcome)
         }
@@ -1936,6 +1942,7 @@ class MainViewModel(
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
+                        analyzingModel = null,
                         clarificationMessage = null,
                         foodDraft = outcome.draft,
                         mealDraft = null,
@@ -1950,6 +1957,7 @@ class MainViewModel(
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
+                        analyzingModel = null,
                         clarificationMessage = null,
                         userMessage = outcome.failoverNote
                             ?: "Logged ${outcome.activityName} · -${outcome.caloriesBurned} kcal",
@@ -1961,6 +1969,7 @@ class MainViewModel(
             is AnalysisOutcome.NeedsClarification -> _analysisState.update {
                 it.copy(
                     isLoading = false,
+                    analyzingModel = null,
                     clarificationMessage = outcome.message,
                     userMessage = outcome.failoverNote,
                     rawAiJson = rawJson
@@ -1972,6 +1981,7 @@ class MainViewModel(
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
+                        analyzingModel = null,
                         errorDialogTitle = "Item not identified",
                         errorDialogMessage = outcome.message,
                         userMessage = outcome.failoverNote,
@@ -1985,6 +1995,7 @@ class MainViewModel(
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
+                        analyzingModel = null,
                         errorDialogTitle = "Couldn't reach AI",
                         errorDialogMessage = outcome.message,
                         rawAiJson = rawJson

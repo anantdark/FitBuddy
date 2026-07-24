@@ -718,7 +718,8 @@ class FitnessRepository(
         imageBytes: ByteArray?,
         userStateContextJson: String,
         forceEstimate: Boolean = false,
-        customTimestamp: Long? = null
+        customTimestamp: Long? = null,
+        onModelActive: ((String) -> Unit)? = null
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
         val forceOffline = settings.developerModeUnlocked && settings.forceOfflineAiSimulator
@@ -733,7 +734,8 @@ class FitnessRepository(
                 }
                 val (response, failoverNote) = withAiFailover(
                     settings,
-                    preferVisionModels = imageBytes != null
+                    preferVisionModels = imageBytes != null,
+                    onModelActive = onModelActive
                 ) { active ->
                     remoteAiDataSource.analyze(
                         active, userText, userStateContextJson, dataUrl, forceEstimate
@@ -1628,6 +1630,7 @@ class FitnessRepository(
     private suspend fun <T> withAiFailover(
         settings: AppSettings,
         preferVisionModels: Boolean = false,
+        onModelActive: ((String) -> Unit)? = null,
         block: suspend (AppSettings) -> T
     ): Pair<T, String?> {
         check(settings.isConfigured) { "No AI provider configured" }
@@ -1641,10 +1644,12 @@ class FitnessRepository(
             for (key in keys) {
                 try {
                     val attempt = settings.withKey(platform, key)
+                    val activeModel = attempt.modelFor(preferVisionModels)
+                    onModelActive?.invoke(activeModel)
                     val result = block(attempt)
                     settingsRepository.setActiveAiModel(
                         platform,
-                        attempt.modelFor(preferVisionModels),
+                        activeModel,
                         forPhoto = preferVisionModels
                     )
                     return result to null
@@ -1671,6 +1676,7 @@ class FitnessRepository(
                     val attempt = settings
                         .withModel(platform, modelId)
                         .withKey(platform, key)
+                    onModelActive?.invoke(modelId)
                     val result = block(attempt)
                     settingsRepository.setActiveAiModel(
                         platform,
