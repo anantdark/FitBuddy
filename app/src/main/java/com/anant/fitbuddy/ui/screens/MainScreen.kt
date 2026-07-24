@@ -275,6 +275,7 @@ fun MainScreen(
     // Android 6+. Launching without it crashes with SecurityException (permission denial).
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
         if (granted) {
+            viewModel.notifyExternalMediaLaunch()
             cameraLauncher.launch(null)
         } else {
             scope.launch {
@@ -716,6 +717,7 @@ fun MainScreen(
             onDismiss = { showLogHub = false },
             onLogPhoto = {
                 showLogHub = false
+                viewModel.notifyExternalMediaLaunch()
                 if (cameraPermission.status.isGranted) {
                     cameraLauncher.launch(null)
                 } else {
@@ -724,6 +726,7 @@ fun MainScreen(
             },
             onLogGallery = {
                 showLogHub = false
+                viewModel.notifyExternalMediaLaunch()
                 galleryLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )

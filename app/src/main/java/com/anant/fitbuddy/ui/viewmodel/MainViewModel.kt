@@ -250,8 +250,21 @@ class MainViewModel(
             DateUtils.rollingWeekDates()
         )
 
+    /**
+     * Set before launching an external camera or gallery activity so that the
+     * ON_RESUME triggered on return does not reset the user's past-day selection.
+     * Cleared automatically once [activeDayTimestamp] consumes it.
+     */
+    private var _suppressNextResumeRefresh = false
+
+    /** Call this immediately before launching the camera or gallery picker. */
+    fun notifyExternalMediaLaunch() {
+        _suppressNextResumeRefresh = true
+    }
+
     /** Snap dashboard back to the real local today (cold start, resume, tab re-show). */
     fun refreshToToday() {
+        if (_suppressNextResumeRefresh) return
         val now = DateUtils.today()
         _realToday.value = now
         _weekEndDate.value = now
@@ -293,7 +306,10 @@ class MainViewModel(
     }
 
     /** Wall-clock time relocated onto the active (selected) calendar day. */
-    fun activeDayTimestamp(): Long = DateUtils.timestampOnDate(_selectedDate.value)
+    fun activeDayTimestamp(): Long {
+        _suppressNextResumeRefresh = false
+        return DateUtils.timestampOnDate(_selectedDate.value)
+    }
 
     // --- Update check -------------------------------------------------------------------------
 
