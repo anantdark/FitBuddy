@@ -43,7 +43,7 @@ datastorePreferences = "1.1.7"
 material = "1.4.+"
 zxingCore = "3.5.3"
 sentryAndroid = "8.49.0"
-browser = "1.8.0"
+browser = "1.10.0"
 
 [libraries]
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
