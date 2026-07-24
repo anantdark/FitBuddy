@@ -367,7 +367,7 @@ fun OnboardingScreen(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxSize() 
                 .padding(innerPadding)
                 .imePadding()
                 .padding(horizontal = 24.dp)
