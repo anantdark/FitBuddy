@@ -136,7 +136,7 @@ jobs:
         run: ./gradlew :app:assembleFdroidRelease --no-daemon
 
       - name: Upload R8 mapping (crash deobfuscation)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mapping-fdroid-${{ steps.resolve.outputs.version_code }}
           path: app/build/outputs/mapping/fdroidRelease/mapping.txt
@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload built APK (unpublished test build)
         if: ${{ inputs.publish == false }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apk-fdroid-${{ steps.resolve.outputs.version_code }}
           path: app/build/outputs/apk/fdroid/release/FitBuddy-${{ steps.resolve.outputs.version }}.apk
