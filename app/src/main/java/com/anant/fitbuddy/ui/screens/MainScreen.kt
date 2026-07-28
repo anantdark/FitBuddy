@@ -149,6 +149,7 @@ fun MainScreen(
     val exercisePickerExercises by viewModel.exercisePickerExercises.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
+    val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable { mutableStateOf(Tab.DASHBOARD) }
     // Tabs are composed once on first visit and then kept alive (just hidden) so switching back
@@ -848,9 +849,12 @@ fun MainScreen(
 
     if (showBarcodeScan) {
         BarcodeScanDialog(
+            isLookingUp = barcodeLookupLoading,
             onBarcode = { code ->
-                showBarcodeScan = false
-                viewModel.lookupBarcode(code) { product -> pendingProduct = product }
+                viewModel.lookupBarcode(code) { product ->
+                    showBarcodeScan = false
+                    pendingProduct = product
+                }
             },
             onDismiss = {
                 showBarcodeScan = false

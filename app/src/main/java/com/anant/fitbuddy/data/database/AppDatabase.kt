@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -46,13 +48,34 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "fitness_tracker_db"
                 )
-                    // Dev convenience: schema changes during early iteration won't crash the app.
-                    // Replace with real Migrations before shipping to production.
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    // Versions 1–10 were pre-production dev iterations with no real migration
+                    // path — allow destructive fallback only for those ancient databases.
+                    // Version 11 is the first production-shipped schema; any upgrade from v11+
+                    // must provide an explicit Migration object so user data is never silently
+                    // wiped on an app update.
+                    .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
                 INSTANCE = instance
                 instance
             }
         }
+
+        /**
+         * Template for the next schema migration. Copy, rename, increment version numbers,
+         * add the required ALTER TABLE / CREATE TABLE statements, add the new version to
+         * [getDatabase], and bump [AppDatabase] version in the @Database annotation.
+         *
+         * Example — adding a nullable column to food_logs:
+         *
+         *   val MIGRATION_11_12 = migration(11, 12) {
+         *       it.execSQL("ALTER TABLE food_logs ADD COLUMN notes TEXT")
+         *   }
+         *
+         * Then in getDatabase: .addMigrations(MIGRATION_11_12)
+         */
+        fun migration(from: Int, to: Int, block: (SupportSQLiteDatabase) -> Unit): Migration =
+            object : Migration(from, to) {
+                override fun migrate(db: SupportSQLiteDatabase) = block(db)
+            }
     }
 }

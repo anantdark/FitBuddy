@@ -99,6 +99,12 @@ data class AppSettings(
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = DEFAULT_REMINDER_HOUR,
     val dailyLogReminderMinute: Int = DEFAULT_REMINDER_MINUTE,
+    /**
+     * Local hour (0–23) at which the app's "day" rolls over. Default 0 = midnight.
+     * Logs created before this hour (e.g. 2 AM with offset 3) are attributed to the
+     * previous calendar day.
+     */
+    val dayChangeHour: Int = DEFAULT_DAY_CHANGE_HOUR,
     /** Persisted after Package-name unlock gesture in About. */
     val developerModeUnlocked: Boolean = false,
     /** Developer: bypass live AI and use the offline simulator (text only). */
@@ -350,6 +356,7 @@ data class AppSettings(
         const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
+        const val DEFAULT_DAY_CHANGE_HOUR = 0
         /** Debounce window for startup auto-upload (manual upload bypasses this). */
         const val CLOUD_AUTO_UPLOAD_DEBOUNCE_MS: Long = 12L * 60L * 60L * 1000L
         /** Max age of [lastSuccessfulBackupAt] before auto-install after backup-and-update. */
