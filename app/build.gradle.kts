@@ -216,7 +216,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation(libs.sentry.android)
-    implementation(libs.zxing.core)
+    implementation(libs.zxing.cpp)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)
