@@ -6,6 +6,9 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 [![Release](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/en/packages/com.anant.fitbuddy/)
+[<img src="https://www.openapk.net/images/openapk-badge.png" alt="Get it on OpenAPK" height="80">](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/)
+
 ## Features
 
 - **Smart logging** — photo or text input; AI parses food and exercise
@@ -19,9 +22,9 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 
 ## Download
 
-Pre-built APKs and AABs are attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`.
+Pre-built APKs and AABs are also attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`.
 
-FitBuddy is also on [F-Droid](https://f-droid.org/) (see [FDROID.md](FDROID.md)) — same codebase and commit as GitHub Releases, built with the `fdroid` product flavor instead of `github`. F-Droid owns updates for that build; it's signed with a different key from the GitHub Releases APK, so the two aren't interchangeable updates for the same install.
+FitBuddy is on [F-Droid](https://f-droid.org/en/packages/com.anant.fitbuddy/) and [OpenAPK](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/) — same codebase and commit as GitHub Releases, built with the `fdroid` product flavor instead of `github`. F-Droid owns updates for that build; it's signed with a different key from the GitHub Releases APK, so the two aren't interchangeable updates for the same install.
 
 ## AI providers
 
