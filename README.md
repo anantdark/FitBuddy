@@ -9,6 +9,8 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/en/packages/com.anant.fitbuddy/)
 [<img src="https://www.openapk.net/images/openapk-badge.png" alt="Get it on OpenAPK" height="80">](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/)
 
+[<img src="https://img.shields.io/badge/Get_it_on-AndroidFreeware-blue?style=for-the-badge&logo=android" alt="Get it on AndroidFreeware" height="80">](https://www.androidfreeware.net/download-fitbuddy-apk.html)
+
 ## Features
 
 - **Smart logging** — photo or text input; AI parses food and exercise
