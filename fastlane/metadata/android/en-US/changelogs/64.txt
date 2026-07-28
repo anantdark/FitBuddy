@@ -1,0 +1,2 @@
+• fix: photo food log saves to selected past day (#35)
+• feat: remember auto failover and paid models per AI provider
