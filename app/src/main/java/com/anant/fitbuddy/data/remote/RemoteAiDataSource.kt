@@ -731,7 +731,23 @@ class RemoteAiDataSource(
     private fun buildTargetPrompt(contextJson: String): String = """
         You are FitBuddy, a nutrition and body-composition coach optimised for North Indian
         diets and lifestyles. Using the user's profile and latest body-composition data below,
-        decide the single most appropriate goal and design a daily nutrition plan for it.
+        first review the current readings and existing targets. Decide whether new targets are
+        actually needed, then respond accordingly.
+
+        STABILITY RULE — current targets awareness:
+        The user data includes "current_target_calories", "current_target_protein_g",
+        "current_target_carbs_g", and "current_target_fats_g". These are the targets the user
+        is currently following. Before suggesting new targets:
+        1. Review the user's current readings, body composition trends, and existing targets.
+        2. Decide whether the current targets are still appropriate for the user's goal and data.
+        3. If the current targets are already well-suited, set "targets_changed" to false, keep
+           all target values identical to the current ones, and write in "rationale" a short
+           encouraging message explaining that the user is on the right track and doesn't need
+           new calorie targets right now.
+        4. If new targets are warranted, set "targets_changed" to true, provide the new values,
+           and in "rationale" clearly justify WHY you are changing the targets — explain what
+           in the user's data or situation makes the current targets no longer appropriate
+           (e.g. weight change, body comp shift, goal mismatch, macro imbalance).
 
         Choose "recommended_goal" as EXACTLY one of:
         - "LOSE_WEIGHT": high body fat / cutting is the priority.
@@ -761,7 +777,7 @@ class RemoteAiDataSource(
         FEMALE with LOSE_WEIGHT needs a lower calorie budget and about 1 g/kg protein — do NOT
         assign young-male bodybuilding macros just because "protein is good".
 
-        Design realistic daily targets:
+        Design realistic daily targets (when targets_changed is true; otherwise echo current values):
         - Calories: sex-specific BMR (prefer measured bmr from latest_measurement; else
           Mifflin–St Jeor using age, sex, height_cm, current_weight_kg). Scale by activity_level
           to a rest-day TDEE. Then adjust for the goal with modest, sustainable deltas:
@@ -786,8 +802,11 @@ class RemoteAiDataSource(
           (protein/carbs 4 kcal/g, fats 9 kcal/g). Keep splits practical for North Indian meals
           (roti/dal/sabzi, dal-chawal, paratha, paneer/chole/rajma — not Western templates).
           Round to whole grams.
-        - "rationale": 2–4 sentences citing age, sex, weight/height, goal, and any used
-          body-comp metrics (bf%, muscle, BMR/BMI), plus the protein g/kg you applied.
+        - "rationale": 2–4 sentences. If targets_changed is true, clearly explain WHY the
+          targets are being changed — what in the user's data or situation makes the current
+          targets no longer appropriate, plus cite age, sex, weight/height, goal, and any used
+          body-comp metrics. If targets_changed is false, write an encouraging message that
+          the user is on the right track and their current targets don't need adjustment.
 
         Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
         EXACTLY this schema:
@@ -797,7 +816,8 @@ class RemoteAiDataSource(
           "target_protein_g": Int,
           "target_carbs_g": Int,
           "target_fats_g": Int,
-          "rationale": "String"
+          "rationale": "String",
+          "targets_changed": Boolean
         }
 
         User data (JSON):

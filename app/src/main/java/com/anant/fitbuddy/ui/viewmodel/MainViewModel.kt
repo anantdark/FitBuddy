@@ -2773,6 +2773,9 @@ class MainViewModel(
             put("avg_daily_calories_in_recent", avgIntake ?: JSONObject.NULL)
             put("avg_daily_calories_burned_recent", avgBurned ?: JSONObject.NULL)
             put("current_target_calories", dashboardState.value.targetCalories)
+            put("current_target_protein_g", dashboardState.value.targetProtein)
+            put("current_target_carbs_g", dashboardState.value.targetCarbs)
+            put("current_target_fats_g", dashboardState.value.targetFats)
         }.toString()
     }
 
@@ -2784,12 +2787,17 @@ class MainViewModel(
     private suspend fun buildProgressContext(): String {
         val profile = dashboardState.value.profile
         val today = _realToday.value.ifBlank { DateUtils.today() }
-        // Inclusive 30-day window ending today.
-        val detailCutoff = DateUtils.addDays(today, -(PROGRESS_DETAIL_DAYS - 1))
+        // Exclude today's (incomplete) data — insight considers readings till yesterday only.
+        val yesterday = DateUtils.addDays(today, -1)
+        // Inclusive 30-day window ending yesterday.
+        val detailCutoff = DateUtils.addDays(yesterday, -(PROGRESS_DETAIL_DAYS - 1))
 
         val allFood = repository.getAllFoodDailySummaries()
+            .filter { it.dateString <= yesterday }
         val allExercise = repository.getAllExerciseDailySummaries()
+            .filter { it.dateString <= yesterday }
         val allMeasurements = repository.getAllBodyMeasurementsOnce()
+            .filter { it.dateString <= yesterday }
 
         val burnedByDate = allExercise.associate { it.dateString to it.totalBurned }
 
@@ -2840,9 +2848,10 @@ class MainViewModel(
             put(
                 "metrics_granularity_note",
                 "nutrition_daily / exercise_daily / body_measurements cover the past " +
-                    "$PROGRESS_DETAIL_DAYS days in detail. nutrition_prior_months / " +
-                    "exercise_prior_months / body_prior_months summarise older history as " +
-                    "calendar-month averages (omit if empty)."
+                    "$PROGRESS_DETAIL_DAYS days up to yesterday (today's incomplete data " +
+                    "is excluded). nutrition_prior_months / exercise_prior_months / " +
+                    "body_prior_months summarise older history as calendar-month averages " +
+                    "(omit if empty)."
             )
             put("avg_daily_net_calories_recent", avgNet ?: JSONObject.NULL)
             put("avg_exercise_calorie_eat_back_ratio", eatBackRatio ?: JSONObject.NULL)
