@@ -100,8 +100,8 @@ android {
             // F-Droid builds from source with no -P overrides, so defaultConfig's CI-driven
             // versionCode/versionName would resolve to 1/"3.0.0-dev" — below the already
             // published F-Droid release (57 / 3.1.1). Fixed here, bumped by hand per release.
-            versionCode = 63
-            versionName = "3.2.63"
+            versionCode = 64
+            versionName = "3.2.64"
         }
     }
 
@@ -222,7 +222,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     // Real org.json for JVM unit tests (Android stubs throw at runtime).
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260719")
     // Robolectric supplies real android.util.Base64 (and framework) impls on the JVM so
     // BackupCrypto's seal/open/classify can be exercised as plain unit tests. 4.16 supports
     // SDK 36 and requires JDK 21, matching this project's compileSdk/toolchain.
