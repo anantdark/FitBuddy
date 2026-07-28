@@ -576,13 +576,15 @@ private fun TargetProposalDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-        title = { Text("AI recommendation") },
+        title = { Text(if (plan.targetsChanged) "AI recommendation" else "You're on track") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Suggested goal: $goalLabel", fontWeight = FontWeight.SemiBold)
-                Text("${plan.dailyTargetCalories} kcal / day")
-                Text("Protein ${plan.targetProteinG}g · Carbs ${plan.targetCarbsG}g · Fats ${plan.targetFatsG}g")
-                HorizontalDivider()
+                if (plan.targetsChanged) {
+                    Text("Suggested goal: $goalLabel", fontWeight = FontWeight.SemiBold)
+                    Text("${plan.dailyTargetCalories} kcal / day")
+                    Text("Protein ${plan.targetProteinG}g · Carbs ${plan.targetCarbsG}g · Fats ${plan.targetFatsG}g")
+                    HorizontalDivider()
+                }
                 Text(
                     plan.rationale,
                     style = MaterialTheme.typography.bodySmall,
@@ -590,8 +592,18 @@ private fun TargetProposalDialog(
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onApply) { Text("Apply") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Discard") } }
+        confirmButton = {
+            if (plan.targetsChanged) {
+                TextButton(onClick = onApply) { Text("Apply") }
+            } else {
+                TextButton(onClick = onDismiss) { Text("OK") }
+            }
+        },
+        dismissButton = {
+            if (plan.targetsChanged) {
+                TextButton(onClick = onDismiss) { Text("Discard") }
+            }
+        }
     )
 }
 
