@@ -123,6 +123,8 @@ class SettingsRepository(context: Context) {
                 ?: AppSettings.DEFAULT_REMINDER_HOUR).coerceIn(0, 23),
             dailyLogReminderMinute = (prefs[KEY_DAILY_LOG_REMINDER_MINUTE]
                 ?: AppSettings.DEFAULT_REMINDER_MINUTE).coerceIn(0, 59),
+            dayChangeHour = (prefs[KEY_DAY_CHANGE_HOUR]
+                ?: AppSettings.DEFAULT_DAY_CHANGE_HOUR).coerceIn(0, 23),
             developerModeUnlocked = prefs[KEY_DEVELOPER_UNLOCKED] ?: false,
             forceOfflineAiSimulator = prefs[KEY_FORCE_OFFLINE_AI] ?: false,
             showRawAiJson = prefs[KEY_SHOW_RAW_AI_JSON] ?: false,
@@ -271,6 +273,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_DAILY_LOG_REMINDER] = settings.dailyLogReminderEnabled
             prefs[KEY_DAILY_LOG_REMINDER_HOUR] = settings.dailyLogReminderHour.coerceIn(0, 23)
             prefs[KEY_DAILY_LOG_REMINDER_MINUTE] = settings.dailyLogReminderMinute.coerceIn(0, 59)
+            prefs[KEY_DAY_CHANGE_HOUR] = settings.dayChangeHour.coerceIn(0, 23)
             prefs[KEY_DEVELOPER_UNLOCKED] = settings.developerModeUnlocked
             prefs[KEY_FORCE_OFFLINE_AI] = settings.forceOfflineAiSimulator
             prefs[KEY_SHOW_RAW_AI_JSON] = settings.showRawAiJson
@@ -420,6 +423,7 @@ class SettingsRepository(context: Context) {
         val KEY_DAILY_LOG_REMINDER = booleanPreferencesKey("daily_log_reminder_enabled")
         val KEY_DAILY_LOG_REMINDER_HOUR = intPreferencesKey("daily_log_reminder_hour")
         val KEY_DAILY_LOG_REMINDER_MINUTE = intPreferencesKey("daily_log_reminder_minute")
+        val KEY_DAY_CHANGE_HOUR = intPreferencesKey("day_change_hour")
         val KEY_DEVELOPER_UNLOCKED = booleanPreferencesKey("developer_mode_unlocked")
         val KEY_FORCE_OFFLINE_AI = booleanPreferencesKey("force_offline_ai_simulator")
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")

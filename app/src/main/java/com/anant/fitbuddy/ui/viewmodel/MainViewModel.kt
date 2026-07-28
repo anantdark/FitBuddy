@@ -56,9 +56,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
@@ -229,6 +231,10 @@ class MainViewModel(
 
     // --- Selected calendar day (rolling week dashboard) ------------------------------------
 
+    /** Returns the logical "today" string for the current day-change-hour setting. */
+    private fun todayWithOffset(): String =
+        DateUtils.today(settings.value.dayChangeHour)
+
     private val _realToday = MutableStateFlow(DateUtils.today())
     val realToday: StateFlow<String> = _realToday.asStateFlow()
 
@@ -265,7 +271,7 @@ class MainViewModel(
     /** Snap dashboard back to the real local today (cold start, resume, tab re-show). */
     fun refreshToToday() {
         if (_suppressNextResumeRefresh) return
-        val now = DateUtils.today()
+        val now = todayWithOffset()
         _realToday.value = now
         _weekEndDate.value = now
         _selectedDate.value = now
@@ -592,6 +598,15 @@ class MainViewModel(
     val settings: StateFlow<AppSettings> = settingsRepository.settings
         .onEach { _hasSettingsSnapshot.value = true }
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
+
+    init {
+        // Re-snap "today" whenever the day-change hour is changed in Settings.
+        settingsRepository.settings
+            .map { it.dayChangeHour }
+            .distinctUntilChanged()
+            .onEach { refreshToToday() }
+            .launchIn(viewModelScope)
+    }
 
     /** Reactive: true when the preferred provider is configured for live AI calls. */
     val isAiOnline: StateFlow<Boolean> = settingsRepository.settings

@@ -24,7 +24,18 @@ object DateUtils {
 
     fun format(timestamp: Long): String = formatter().format(Date(timestamp))
 
-    fun today(): String = format(System.currentTimeMillis())
+    /**
+     * The logical "today" string for the app, respecting [dayChangeHour].
+     *
+     * When [dayChangeHour] is 0 (default / midnight) this is identical to the plain
+     * calendar day. When non-zero (e.g. 3), the calendar day does not roll over until
+     * [dayChangeHour] o'clock local time — so a log at 2 AM with offset 3 still lands
+     * on the previous day's date string.
+     */
+    fun today(dayChangeHour: Int = 0): String {
+        val offsetMs = dayChangeHour.coerceIn(0, 23) * 60L * 60L * 1000L
+        return format(System.currentTimeMillis() - offsetMs)
+    }
 
     fun parse(dateString: String): Date =
         formatter().parse(dateString) ?: error("Invalid date: $dateString")

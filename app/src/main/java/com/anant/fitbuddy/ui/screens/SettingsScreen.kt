@@ -857,6 +857,48 @@ fun SettingsScreen(
                 hintTitle = "Material You",
                 hint = "Use wallpaper-based dynamic colors (Android 12+)."
             )
+
+            // Day-change hour — dropdown 12AM (midnight) … 11AM
+            val dayChangeOptions = (0..11).toList()
+            var dayChangeExpanded by remember { mutableStateOf(false) }
+            fun hourLabel(h: Int): String = if (h == 0) "12AM (midnight)" else "${h}AM"
+            ExposedDropdownMenuBox(
+                expanded = dayChangeExpanded,
+                onExpandedChange = { dayChangeExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = hourLabel(settings.dayChangeHour),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Day starts at") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dayChangeExpanded) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = dayChangeExpanded,
+                    onDismissRequest = { dayChangeExpanded = false }
+                ) {
+                    dayChangeOptions.forEach { h ->
+                        DropdownMenuItem(
+                            text = { Text(hourLabel(h)) },
+                            onClick = {
+                                onSave(settings.copy(dayChangeHour = h))
+                                dayChangeExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Logs before this hour count toward the previous day. " +
+                    "Useful if you eat late at night.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         if (showReminderTimePicker) {
