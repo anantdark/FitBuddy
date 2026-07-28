@@ -4,6 +4,7 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 
 [![CI](https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml)
 [![Release](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/anantdark/FitBuddy)](https://github.com/anantdark/FitBuddy/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/en/packages/com.anant.fitbuddy/)
