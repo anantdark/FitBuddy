@@ -1,0 +1,8 @@
+• docs: add GitHub Release version badge [skip ci]
+• docs: add AndroidFreeware download badge [skip ci]
+• docs: add F-Droid and OpenAPK download badges [skip ci]
+• feat: AI target recommendations evaluate current targets before suggesting changes
+• fix: preserve user data on app update (Room migration safety)
+• feat: configurable day-start hour in Settings
+• feat: replace ZXing Java with zxing-cpp for barcode scanning
+• feat: solar system orbit animation math with property tests
