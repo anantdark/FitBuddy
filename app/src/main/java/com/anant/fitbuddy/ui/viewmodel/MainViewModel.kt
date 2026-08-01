@@ -244,9 +244,9 @@ class MainViewModel(
     /** Last day of the week strip shown in Week history (defaults to [realToday]). */
     private val _weekEndDate = MutableStateFlow(DateUtils.today())
 
-    /** Calendar month (`yyyy-MM`) shown on the Progress Monthly charts. */
-    private val _analyticsMonthYm = MutableStateFlow(DateUtils.yearMonth())
-    val analyticsMonthYm: StateFlow<String> = _analyticsMonthYm.asStateFlow()
+    /** End date for the rolling 30-day analytics window. */
+    private val _monthlyEndDate = MutableStateFlow(DateUtils.today())
+    val monthlyEndDate: StateFlow<String> = _monthlyEndDate.asStateFlow()
 
     val weekDates: StateFlow<List<String>> = _weekEndDate
         .map { DateUtils.rollingWeekDates(it) }
@@ -275,7 +275,7 @@ class MainViewModel(
         _realToday.value = now
         _weekEndDate.value = now
         _selectedDate.value = now
-        _analyticsMonthYm.value = DateUtils.yearMonth(now)
+        _monthlyEndDate.value = now
     }
 
     fun selectDate(date: String) {
@@ -304,11 +304,11 @@ class MainViewModel(
         _selectedDate.value = newDates[idx]
     }
 
-    fun shiftAnalyticsMonth(deltaMonths: Int) {
-        if (deltaMonths == 0) return
-        val currentYm = DateUtils.yearMonth(_realToday.value)
-        val proposed = DateUtils.addMonths(_analyticsMonthYm.value, deltaMonths)
-        _analyticsMonthYm.value = if (proposed > currentYm) currentYm else proposed
+    fun shiftAnalyticsMonth(delta: Int) {
+        if (delta == 0) return
+        val today = _realToday.value
+        val proposed = DateUtils.addDays(_monthlyEndDate.value, delta * 30)
+        _monthlyEndDate.value = if (proposed > today) today else proposed
     }
 
     /** Wall-clock time relocated onto the active (selected) calendar day. */
@@ -1133,9 +1133,9 @@ class MainViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val monthlyFood: StateFlow<List<FoodDailySummary>> =
-        _analyticsMonthYm
-            .flatMapLatest { ym ->
-                val (start, end) = DateUtils.monthBounds(ym)
+        _monthlyEndDate
+            .flatMapLatest { endDate ->
+                val (start, end) = DateUtils.rolling30DayBounds(endDate)
                 repository.getFoodSummariesBetween(start, end)
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -1146,9 +1146,9 @@ class MainViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val monthlyExercise: StateFlow<List<ExerciseDailySummary>> =
-        _analyticsMonthYm
-            .flatMapLatest { ym ->
-                val (start, end) = DateUtils.monthBounds(ym)
+        _monthlyEndDate
+            .flatMapLatest { endDate ->
+                val (start, end) = DateUtils.rolling30DayBounds(endDate)
                 repository.getExerciseSummariesBetween(start, end)
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

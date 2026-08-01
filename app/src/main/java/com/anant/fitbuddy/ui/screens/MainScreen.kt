@@ -129,7 +129,7 @@ fun MainScreen(
     val monthlyFood by viewModel.monthlyFood.collectAsStateWithLifecycle()
     val weeklyExercise by viewModel.weeklyExercise.collectAsStateWithLifecycle()
     val monthlyExercise by viewModel.monthlyExercise.collectAsStateWithLifecycle()
-    val analyticsMonthYm by viewModel.analyticsMonthYm.collectAsStateWithLifecycle()
+    val monthlyEndDate by viewModel.monthlyEndDate.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val hasSettingsSnapshot by viewModel.hasSettingsSnapshot.collectAsStateWithLifecycle()
     val modelsState by viewModel.models.collectAsStateWithLifecycle()
@@ -593,7 +593,7 @@ fun MainScreen(
                                 monthlyExercise = monthlyExercise,
                                 measurements = measurements,
                                 targetCalories = dashboardState.targetCalories,
-                                analyticsMonthYm = analyticsMonthYm,
+                                monthlyEndDate = monthlyEndDate,
                                 realToday = realToday,
                                 progressInsightState = progressInsightState,
                                 isAiConfigured = isAiOnline,
