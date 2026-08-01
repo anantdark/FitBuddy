@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 data class HeartbeatInfo(
     val aiProvider: String,
     val username: String = "",
+    val recordCount: Int = 0,
     val androidSdk: Int = Build.VERSION.SDK_INT,
     val manufacturer: String = Build.MANUFACTURER.orEmpty().take(64),
     val model: String = Build.MODEL.orEmpty().take(64)
@@ -177,6 +178,7 @@ object CrashReporter {
             if (username.isNotEmpty()) {
                 add(SentryAttribute.stringAttribute("username", username.take(128)))
             }
+            add(SentryAttribute.integerAttribute("record_count", info.recordCount))
         }
         val attrs = SentryAttributes.of(*attrList.toTypedArray())
         Sentry.metrics().count(

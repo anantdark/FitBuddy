@@ -79,9 +79,11 @@ fun WorkoutLogDialog(
     pickerExercises: List<CommonExercise>,
     isClassifyingCustom: Boolean,
     isInferringExercises: Boolean,
+    isNamingWorkout: Boolean,
     isAiOnline: Boolean,
     onClassifyCustom: (rawName: String, onResolved: (name: String, equipment: String) -> Unit) -> Unit,
     onInferExercises: (description: String, onResolved: (List<ExerciseDraft>) -> Unit) -> Unit,
+    onSuggestName: (exerciseNames: List<String>, onResolved: (String) -> Unit) -> Unit,
     onSave: (WorkoutDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -177,6 +179,31 @@ fun WorkoutLogDialog(
                         label = { Text("Session name") },
                         singleLine = true,
                         enabled = !state.isSaving,
+                        trailingIcon = {
+                            if (isNamingWorkout) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                IconButton(
+                                    onClick = {
+                                        val names = exercises.map { it.name }
+                                        if (names.isNotEmpty()) {
+                                            onSuggestName(names) { suggested ->
+                                                sessionName = suggested
+                                            }
+                                        }
+                                    },
+                                    enabled = exercises.isNotEmpty() && isAiOnline && !state.isSaving
+                                ) {
+                                    Icon(
+                                        Icons.Filled.AutoAwesome,
+                                        contentDescription = "Suggest name with AI"
+                                    )
+                                }
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -243,7 +270,11 @@ fun WorkoutLogDialog(
                     }
                 } else {
                     itemsIndexed(exercises, key = { index, _ -> index }) { index, exercise ->
-                        ExerciseRow(exercise = exercise, onDelete = { exercises.removeAt(index) })
+                        ExerciseRow(
+                            exercise = exercise,
+                            onEdit = { updated -> exercises[index] = updated },
+                            onDelete = { exercises.removeAt(index) }
+                        )
                     }
                 }
 
@@ -302,8 +333,14 @@ fun WorkoutLogDialog(
 }
 
 @Composable
-private fun ExerciseRow(exercise: ExerciseDraft, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun ExerciseRow(exercise: ExerciseDraft, onEdit: (ExerciseDraft) -> Unit, onDelete: () -> Unit) {
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showEditDialog = true }
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -331,6 +368,11 @@ private fun ExerciseRow(exercise: ExerciseDraft, onDelete: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(
+                    "Tap to edit",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(
@@ -341,6 +383,100 @@ private fun ExerciseRow(exercise: ExerciseDraft, onDelete: () -> Unit) {
             }
         }
     }
+
+    if (showEditDialog) {
+        EditExerciseDialog(
+            exercise = exercise,
+            onSave = { updated ->
+                onEdit(updated)
+                showEditDialog = false
+            },
+            onDismiss = { showEditDialog = false }
+        )
+    }
+}
+
+/** Inline editor for an exercise already in the session — edit sets/reps/weight or duration. */
+@Composable
+private fun EditExerciseDialog(
+    exercise: ExerciseDraft,
+    onSave: (ExerciseDraft) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isCardio = exercise.isCardio()
+    var sets by remember { mutableStateOf(exercise.sets.toString()) }
+    var reps by remember { mutableStateOf(exercise.reps.toString()) }
+    var weight by remember { mutableStateOf(exercise.weightKg?.toString() ?: "") }
+    var duration by remember { mutableStateOf(exercise.durationMinutes?.toString() ?: "30") }
+    var distance by remember { mutableStateOf(exercise.distanceKm?.let { formatDistanceKm(it) } ?: "") }
+    val needsWeight = !isCardio && exercise.equipment != Equipment.BODYWEIGHT
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit ${exercise.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isCardio) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            DetailField("Duration (min)", duration) {
+                                duration = it.filter { c -> c.isDigit() }.take(3)
+                            }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            DetailField("Distance (km)", distance, decimal = true) {
+                                distance = it.filter { c -> c.isDigit() || c == '.' }
+                            }
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            DetailField("Sets", sets) { sets = it.filter { c -> c.isDigit() }.take(2) }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            DetailField("Reps", reps) { reps = it.filter { c -> c.isDigit() }.take(3) }
+                        }
+                    }
+                    if (needsWeight) {
+                        DetailField("Weight (kg)", weight, decimal = true) {
+                            weight = it.filter { c -> c.isDigit() || c == '.' }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = if (isCardio) {
+                    (duration.toIntOrNull() ?: 0) > 0
+                } else {
+                    (sets.toIntOrNull() ?: 0) > 0 && (reps.toIntOrNull() ?: 0) > 0
+                },
+                onClick = {
+                    if (isCardio) {
+                        onSave(
+                            exercise.copy(
+                                durationMinutes = duration.toIntOrNull() ?: exercise.durationMinutes,
+                                distanceKm = distance.toDoubleOrNull()?.takeIf { it > 0 }
+                            )
+                        )
+                    } else {
+                        onSave(
+                            exercise.copy(
+                                sets = sets.toIntOrNull() ?: exercise.sets,
+                                reps = reps.toIntOrNull() ?: exercise.reps,
+                                weightKg = weight.toDoubleOrNull()
+                            )
+                        )
+                    }
+                }
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 /** Picker listing the common + saved exercise library, plus custom text and AI inference. */

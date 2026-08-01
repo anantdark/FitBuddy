@@ -24,6 +24,9 @@ interface UserProfileDao {
 
 @Dao
 interface FoodLogDao {
+    @Query("SELECT COUNT(*) FROM food_logs")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM food_logs ORDER BY timestamp DESC")
     fun getAllFoodLogs(): Flow<List<FoodLog>>
 
@@ -139,6 +142,9 @@ data class FoodTotals(
 
 @Dao
 interface ExerciseLogDao {
+    @Query("SELECT COUNT(*) FROM exercise_logs")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM exercise_logs ORDER BY timestamp DESC")
     fun getAllExerciseLogs(): Flow<List<ExerciseLog>>
 
@@ -323,6 +329,9 @@ interface WorkoutExerciseDao {
 
 @Dao
 interface BodyMeasurementDao {
+    @Query("SELECT COUNT(*) FROM body_measurements")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC")
     fun getAll(): Flow<List<BodyMeasurement>>
 

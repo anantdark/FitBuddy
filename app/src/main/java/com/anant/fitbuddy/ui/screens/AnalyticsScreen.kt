@@ -130,7 +130,7 @@ fun AnalyticsScreen(
     monthlyExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCalories: Int,
-    analyticsMonthYm: String,
+    monthlyEndDate: String,
     realToday: String,
     progressInsightState: ProgressInsightUiState,
     isAiConfigured: Boolean,
@@ -145,10 +145,9 @@ fun AnalyticsScreen(
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
     val exerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
-    val currentMonthYm = DateUtils.yearMonth(realToday)
-    val isCurrentMonth = analyticsMonthYm == currentMonthYm
-    val monthLabel = remember(analyticsMonthYm, isCurrentMonth) {
-        if (isCurrentMonth) "This month" else DateUtils.monthLabel(analyticsMonthYm)
+    val isLatestWindow = monthlyEndDate == realToday
+    val rangeLabel = remember(monthlyEndDate, isLatestWindow) {
+        if (isLatestWindow) "Last 30 days" else DateUtils.rolling30DayLabel(monthlyEndDate)
     }
 
     progressInsightState.summary?.let {
@@ -189,14 +188,14 @@ fun AnalyticsScreen(
         if (selectedRange == 1) {
             item {
                 MonthRangeNavigator(
-                    label = monthLabel,
-                    rangeSubtitle = if (isCurrentMonth) {
-                        DateUtils.monthLabel(analyticsMonthYm)
+                    label = rangeLabel,
+                    rangeSubtitle = if (isLatestWindow) {
+                        DateUtils.rolling30DayLabel(monthlyEndDate)
                     } else {
                         null
                     },
                     canGoPrev = true,
-                    canGoNext = analyticsMonthYm < currentMonthYm,
+                    canGoNext = !isLatestWindow,
                     onPrev = { onShiftMonth(-1) },
                     onNext = { onShiftMonth(1) }
                 )
@@ -259,7 +258,7 @@ private fun MonthRangeNavigator(
         IconButton(onClick = onPrev, enabled = canGoPrev) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Previous month",
+                contentDescription = "Previous 30 days",
                 tint = if (canGoPrev) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -287,7 +286,7 @@ private fun MonthRangeNavigator(
         IconButton(onClick = onNext, enabled = canGoNext) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Next month",
+                contentDescription = "Next 30 days",
                 tint = if (canGoNext) {
                     MaterialTheme.colorScheme.onSurface
                 } else {

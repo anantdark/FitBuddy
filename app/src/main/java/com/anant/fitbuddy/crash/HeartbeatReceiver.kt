@@ -28,9 +28,11 @@ class HeartbeatReceiver : BroadcastReceiver() {
                 return@runBlocking
             }
             val settings = settingsRepository.settings.first()
+            val recordCount = runCatching { app.repository.getTotalRecordCount() }.getOrDefault(0)
             val info = HeartbeatInfo(
                 aiProvider = settings.provider.name,
-                username = settings.usernameForHeartbeat
+                username = settings.usernameForHeartbeat,
+                recordCount = recordCount
             )
             if (CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)) {
                 settingsRepository.markHeartbeatSent(today)

@@ -165,4 +165,23 @@ object DateUtils {
     /** Display label for a `yyyy-MM` key, e.g. "Jul 2026". */
     fun monthLabel(yearMonth: String): String =
         SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(parse("$yearMonth-01"))
+
+    /** Rolling 30-day bounds ending on [endInclusive]: start = endInclusive − 29 days. */
+    fun rolling30DayBounds(endInclusive: String = today()): Pair<String, String> =
+        addDays(endInclusive, -29) to endInclusive
+
+    /** Compact label for a 30-day range, e.g. "Jul 3 – Aug 1" or "Jun 2 – Jul 1, 2025". */
+    fun rolling30DayLabel(endInclusive: String): String {
+        val start = addDays(endInclusive, -29)
+        val startDate = parse(start)
+        val endDate = parse(endInclusive)
+        val startCal = Calendar.getInstance().apply { time = startDate }
+        val endCal = Calendar.getInstance().apply { time = endDate }
+        val sameYear = startCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR)
+        val startFmt = if (sameYear) "MMM d" else "MMM d, yyyy"
+        val endFmt = "MMM d"
+        val startLabel = SimpleDateFormat(startFmt, Locale.getDefault()).format(startDate)
+        val endLabel = SimpleDateFormat(endFmt, Locale.getDefault()).format(endDate)
+        return "$startLabel – $endLabel"
+    }
 }

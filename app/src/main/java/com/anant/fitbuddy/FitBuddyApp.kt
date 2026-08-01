@@ -139,9 +139,11 @@ class FitBuddyApp : Application() {
      */
     private suspend fun maybeSendUpdateHeartbeat() {
         val settings = settingsRepository.settings.first()
+        val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
         val info = HeartbeatInfo(
             aiProvider = settings.provider.name,
-            username = settings.usernameForHeartbeat
+            username = settings.usernameForHeartbeat,
+            recordCount = recordCount
         )
         val current = BuildConfig.VERSION_CODE
         val previous = settingsRepository.lastKnownVersionCode()
