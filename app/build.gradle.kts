@@ -69,6 +69,9 @@ android {
         applicationId = "com.anant.fitbuddy"
         minSdk = 29
         targetSdk = 36
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
         versionCode = ciVersionCode ?: 1
         versionName = ciVersionName ?: "3.0.0-dev"
 
