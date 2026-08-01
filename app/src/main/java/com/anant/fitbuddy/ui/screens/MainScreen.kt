@@ -149,6 +149,7 @@ fun MainScreen(
     val exercisePickerExercises by viewModel.exercisePickerExercises.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
+    val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable { mutableStateOf(Tab.DASHBOARD) }
@@ -894,9 +895,11 @@ fun MainScreen(
             pickerExercises = exercisePickerExercises,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
+            isNamingWorkout = workoutNaming,
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
+            onSuggestName = viewModel::suggestWorkoutName,
             onSave = viewModel::logWorkoutSession,
             onDismiss = {
                 showWorkoutDialog = false
@@ -912,9 +915,11 @@ fun MainScreen(
             pickerExercises = exercisePickerExercises,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
+            isNamingWorkout = workoutNaming,
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
+            onSuggestName = viewModel::suggestWorkoutName,
             onSave = viewModel::saveEditingWorkout,
             onDismiss = viewModel::dismissWorkoutDetails
         )

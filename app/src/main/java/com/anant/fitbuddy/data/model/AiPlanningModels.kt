@@ -65,3 +65,9 @@ data class ParsedWorkoutExercise(
 data class ParsedWorkoutResponse(
     @Json(name = "exercises") val exercises: List<ParsedWorkoutExercise> = emptyList()
 )
+
+/** AI-suggested session name based on exercises performed. */
+@JsonClass(generateAdapter = true)
+data class WorkoutNameResponse(
+    @Json(name = "name") val name: String
+)

@@ -10,6 +10,7 @@ import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
+import com.anant.fitbuddy.data.model.WorkoutNameResponse
 import com.anant.fitbuddy.data.model.normalized
 import com.anant.fitbuddy.data.remote.dto.ChatErrorDto
 import com.anant.fitbuddy.data.remote.dto.ChatMessage
@@ -52,6 +53,7 @@ class RemoteAiDataSource(
     private val workoutCaloriesAdapter = moshi.adapter(WorkoutCaloriesResponse::class.java)
     private val customExerciseAdapter = moshi.adapter(CustomExerciseResponse::class.java)
     private val parsedWorkoutAdapter = moshi.adapter(ParsedWorkoutResponse::class.java)
+    private val workoutNameAdapter = moshi.adapter(WorkoutNameResponse::class.java)
 
     /** Last assistant JSON string from [completeToJson] (developer tooling). */
     @Volatile
@@ -163,6 +165,15 @@ class RemoteAiDataSource(
     ): ParsedWorkoutResponse {
         val json = completeToJson(settings, buildParseWorkoutPrompt(description, knownExerciseNames), null)
         return parseJson(parsedWorkoutAdapter, json)
+    }
+
+    /** Suggests a short session name based on the exercises in the workout. */
+    suspend fun suggestWorkoutName(
+        settings: AppSettings,
+        exerciseNames: List<String>
+    ): WorkoutNameResponse {
+        val json = completeToJson(settings, buildWorkoutNamePrompt(exerciseNames), null)
+        return parseJson(workoutNameAdapter, json)
     }
 
     /**
@@ -1017,6 +1028,24 @@ class RemoteAiDataSource(
 
             User description:
             $description
+        """.trimIndent()
+    }
+
+    private fun buildWorkoutNamePrompt(exerciseNames: List<String>): String {
+        val list = exerciseNames.joinToString("\n") { "- $it" }
+        return """
+            You are FitBuddy. Given the list of exercises in a workout session, suggest a short,
+            descriptive name for the session (2-4 words max). Examples: "Chest & Triceps",
+            "Back Day", "Leg Workout", "Full Body", "Push Day", "Cardio Session", "Upper Body".
+
+            Pick the most accurate label based on the muscle groups or style of training. Do NOT
+            include a number of exercises or duration. Just a clean, gym-standard session label.
+
+            Respond with a SINGLE JSON object and nothing else:
+            { "name": "String" }
+
+            Exercises in this session:
+            $list
         """.trimIndent()
     }
 }

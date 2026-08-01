@@ -98,6 +98,10 @@ class FitnessRepository(
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
     val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
     val allExerciseLogs: Flow<List<ExerciseLog>> = exerciseLogDao.getAllExerciseLogs()
+
+    /** Total user-created records across food logs, exercise logs, and measurements. */
+    suspend fun getTotalRecordCount(): Int =
+        foodLogDao.count() + exerciseLogDao.count() + bodyMeasurementDao.count()
     val savedFoods: Flow<List<SavedFood>> = savedFoodDao.getAll()
     val mealPresets: Flow<List<MealPreset>> = mealPresetDao.getAll()
     val exercisePresets: Flow<List<ExercisePreset>> = exercisePresetDao.getAllPresets()
@@ -631,6 +635,46 @@ class FitnessRepository(
                 )
             }
         }
+
+        return result
+    }
+
+    /**
+     * Upgrades a simple AI-logged [ExerciseLog] (no underlying session) into a structured workout
+     * by creating a [WorkoutSession] + exercises and linking it to the existing log row. Re-estimates
+     * calories from the new exercise structure and updates the ExerciseLog accordingly.
+     */
+    suspend fun upgradeExerciseLogToWorkout(
+        exerciseLogId: Int,
+        draft: WorkoutDraft,
+        weightKg: Double,
+        contextJson: String
+    ): WorkoutCaloriesResponse {
+        val existingLog = exerciseLogDao.getById(exerciseLogId)
+            ?: error("This exercise log no longer exists")
+
+        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+
+        val sessionId = workoutSessionDao.insert(
+            WorkoutSession(
+                name = draft.name,
+                timestamp = existingLog.timestamp,
+                dateString = existingLog.dateString,
+                durationMinutes = result.durationMinutes,
+                caloriesBurned = result.caloriesBurned,
+                exerciseLogId = exerciseLogId
+            )
+        ).toInt()
+
+        workoutExerciseDao.insertAll(draft.exercises.toWorkoutExercises(sessionId))
+
+        exerciseLogDao.insertExerciseLog(
+            existingLog.copy(
+                activityName = draft.name,
+                caloriesBurned = result.caloriesBurned,
+                durationMinutes = result.durationMinutes
+            )
+        )
 
         return result
     }
@@ -1181,6 +1225,22 @@ class FitnessRepository(
                 distanceKm = row.distanceKm?.takeIf { it > 0 }
             )
         }
+    }
+
+    /**
+     * Asks the AI to suggest a short session name (e.g. "Chest & Triceps") based on the
+     * exercises in the workout. Returns the suggested name, or throws if AI is not configured.
+     */
+    suspend fun suggestWorkoutName(exerciseNames: List<String>): String {
+        require(exerciseNames.isNotEmpty()) { "Add exercises first" }
+        val settings = settingsRepository.settings.first()
+        check(settings.isConfigured) {
+            "Connect an AI provider in Settings to use AI naming."
+        }
+        val (result, _) = withAiFailover(settings) { s ->
+            remoteAiDataSource.suggestWorkoutName(s, exerciseNames)
+        }
+        return result.name.trim().ifBlank { "Workout" }
     }
 
     private suspend fun ensureExercisePreset(name: String, equipment: String) {

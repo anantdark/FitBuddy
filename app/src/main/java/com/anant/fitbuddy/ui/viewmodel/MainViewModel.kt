@@ -669,9 +669,11 @@ class MainViewModel(
 
     private suspend fun sendHeartbeatInternal(force: Boolean = false) {
         val s = settings.value
+        val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
         val info = HeartbeatInfo(
             aiProvider = s.provider.name,
-            username = s.usernameForHeartbeat
+            username = s.usernameForHeartbeat,
+            recordCount = recordCount
         )
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
@@ -1103,6 +1105,26 @@ class MainViewModel(
         }
     }
 
+    private val _workoutNaming = MutableStateFlow(false)
+    /** True while an AI workout-name suggestion is in flight. */
+    val workoutNaming: StateFlow<Boolean> = _workoutNaming.asStateFlow()
+
+    /** Asks AI to suggest a short session name based on the exercises currently in the draft. */
+    fun suggestWorkoutName(exerciseNames: List<String>, onResolved: (String) -> Unit) {
+        if (_workoutNaming.value || _workoutInferring.value) return
+        _workoutNaming.value = true
+        viewModelScope.launch {
+            runCatching { repository.suggestWorkoutName(exerciseNames) }
+                .onSuccess { name -> onResolved(name) }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = e.message ?: "Couldn't suggest a name")
+                    }
+                }
+            _workoutNaming.value = false
+        }
+    }
+
     // --- Analytics --------------------------------------------------------------------------
 
     val weeklyFood: StateFlow<List<FoodDailySummary>> =
@@ -1208,36 +1230,52 @@ class MainViewModel(
     /**
      * Loads a logged exercise entry's underlying workout (sets/reps/weight per exercise), if it
      * was logged via the structured workout dialog, so it can be viewed/edited. Entries logged
-     * via photo/text/preset have no such breakdown; the user is told so instead.
+     * via photo/text/preset get a default cardio draft so the user can still edit or restructure.
      */
     fun openWorkoutDetails(log: ExerciseLog) {
         viewModelScope.launch {
             val details = repository.getWorkoutDetails(log.id)
-            if (details == null) {
-                _analysisState.update {
-                    it.copy(userMessage = "No exercise breakdown saved for this entry")
-                }
-                return@launch
-            }
-            _editingWorkout.value = WorkoutEditUiState(
-                exerciseLogId = log.id,
-                sessionId = details.session.id,
-                draft = WorkoutDraft(
-                    name = details.session.name,
-                    durationMinutes = details.session.durationMinutes,
-                    exercises = details.exercises.map {
-                        ExerciseDraft(
-                            name = it.name,
-                            sets = it.sets,
-                            reps = it.reps,
-                            weightKg = it.weightKg,
-                            equipment = it.equipment,
-                            durationMinutes = it.durationMinutes,
-                            distanceKm = it.distanceKm
-                        )
-                    }
+            if (details != null) {
+                _editingWorkout.value = WorkoutEditUiState(
+                    exerciseLogId = log.id,
+                    sessionId = details.session.id,
+                    draft = WorkoutDraft(
+                        name = details.session.name,
+                        durationMinutes = details.session.durationMinutes,
+                        exercises = details.exercises.map {
+                            ExerciseDraft(
+                                name = it.name,
+                                sets = it.sets,
+                                reps = it.reps,
+                                weightKg = it.weightKg,
+                                equipment = it.equipment,
+                                durationMinutes = it.durationMinutes,
+                                distanceKm = it.distanceKm
+                            )
+                        }
+                    )
                 )
-            )
+            } else {
+                // Simple AI-logged exercise with no structured breakdown — open editor with a
+                // cardio draft so the user can edit name/duration or add exercises.
+                _editingWorkout.value = WorkoutEditUiState(
+                    exerciseLogId = log.id,
+                    sessionId = 0,
+                    draft = WorkoutDraft(
+                        name = log.activityName,
+                        durationMinutes = log.durationMinutes.coerceAtLeast(5),
+                        exercises = listOf(
+                            ExerciseDraft(
+                                name = log.activityName,
+                                sets = 1,
+                                reps = 1,
+                                equipment = Equipment.CARDIO,
+                                durationMinutes = log.durationMinutes.coerceAtLeast(1)
+                            )
+                        )
+                    )
+                )
+            }
         }
     }
 
@@ -1297,13 +1335,23 @@ class MainViewModel(
         viewModelScope.launch {
             val weightKg = currentWeightKg()
             runCatching {
-                repository.updateWorkoutSession(
-                    sessionId = editing.sessionId,
-                    exerciseLogId = editing.exerciseLogId,
-                    draft = draft,
-                    weightKg = weightKg,
-                    contextJson = buildWorkoutContext(draft, weightKg)
-                )
+                if (editing.sessionId == 0) {
+                    // Simple AI-logged exercise being upgraded to a structured workout.
+                    repository.upgradeExerciseLogToWorkout(
+                        exerciseLogId = editing.exerciseLogId,
+                        draft = draft,
+                        weightKg = weightKg,
+                        contextJson = buildWorkoutContext(draft, weightKg)
+                    )
+                } else {
+                    repository.updateWorkoutSession(
+                        sessionId = editing.sessionId,
+                        exerciseLogId = editing.exerciseLogId,
+                        draft = draft,
+                        weightKg = weightKg,
+                        contextJson = buildWorkoutContext(draft, weightKg)
+                    )
+                }
             }
                 .onSuccess { result ->
                     _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
