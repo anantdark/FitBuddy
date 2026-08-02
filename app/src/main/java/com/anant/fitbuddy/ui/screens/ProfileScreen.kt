@@ -90,6 +90,7 @@ fun BodyScreen(
     targetPlanState: TargetPlanUiState,
     isAiConfigured: Boolean,
     animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
+    forceShowAnimation: Boolean = false,
     onSave: (
         weightKg: Double,
         dailyTargetCalories: Int,
@@ -181,6 +182,7 @@ fun BodyScreen(
             planState = targetPlanState,
             isAiConfigured = isAiConfigured,
             animationChoice = animationChoice,
+            forceShowAnimation = forceShowAnimation,
             onRequestPlan = {
                 onRequestTargetPlan(
                     profile?.age ?: 0,
@@ -423,6 +425,7 @@ private fun AiTargetsCard(
     planState: TargetPlanUiState,
     isAiConfigured: Boolean,
     animationChoice: String,
+    forceShowAnimation: Boolean = false,
     onRequestPlan: () -> Unit
 ) {
     SectionCard(title = "Daily targets") {
@@ -431,7 +434,7 @@ private fun AiTargetsCard(
         NumberField("Carbs (g)", targetCarbs, onValueChange = onCarbsChange)
         NumberField("Fats (g)", targetFats, onValueChange = onFatsChange)
 
-        val planLoading = planState.isLoading
+        val planLoading = planState.isLoading || forceShowAnimation
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = isAiConfigured && !planLoading,

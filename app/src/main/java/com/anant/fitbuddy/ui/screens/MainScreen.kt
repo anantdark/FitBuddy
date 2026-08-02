@@ -572,7 +572,8 @@ fun MainScreen(
                                 realToday = realToday,
                                 weekSnapshots = weekSnapshots,
                                 profileState = dashboardState,
-                                isAnalyzing = analysisState.isLoading,
+                                isAnalyzing = analysisState.isLoading ||
+                                    settings.forceShowLoadingAnimations,
                                 analyzingModel = analysisState.analyzingModel,
                                 animationChoice = settings.analyzingAnimationChoice,
                                 onOpenWeekHistory = {
@@ -599,6 +600,7 @@ fun MainScreen(
                                 progressInsightState = progressInsightState,
                                 isAiConfigured = isAiOnline,
                                 animationChoice = settings.insightAnimationChoice,
+                                forceShowAnimation = settings.forceShowLoadingAnimations,
                                 onShiftMonth = viewModel::shiftAnalyticsMonth,
                                 onRequestInsight = viewModel::requestProgressInsight,
                                 onOpenChat = { showProgressChat = true },
@@ -613,6 +615,7 @@ fun MainScreen(
                                 targetPlanState = targetPlanState,
                                 isAiConfigured = isAiOnline,
                                 animationChoice = settings.insightAnimationChoice,
+                                forceShowAnimation = settings.forceShowLoadingAnimations,
                                 onSave = viewModel::saveProfile,
                                 onAddMeasurement = viewModel::addMeasurement,
                                 onDeleteMeasurement = viewModel::deleteMeasurement,
@@ -679,7 +682,8 @@ fun MainScreen(
                         realToday = realToday,
                         weekSnapshots = weekSnapshots,
                         profileState = dashboardState,
-                        isAnalyzing = analysisState.isLoading,
+                        isAnalyzing = analysisState.isLoading ||
+                            settings.forceShowLoadingAnimations,
                         analyzingModel = analysisState.analyzingModel,
                         animationChoice = settings.analyzingAnimationChoice,
                         onSelectDate = viewModel::selectDate,

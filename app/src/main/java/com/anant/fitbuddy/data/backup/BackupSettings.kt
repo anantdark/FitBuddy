@@ -75,6 +75,7 @@ data class BackupSettings(
     val showRawAiJson: Boolean = false,
     val strictClarification: Boolean = false,
     val verboseHttpLogging: Boolean = false,
+    val forceShowLoadingAnimations: Boolean = false,
     val cloudBackupEnabled: Boolean = false,
     val cloudAutoUploadEnabled: Boolean = true,
     val mongoDbName: String = AppSettings.DEFAULT_MONGO_DB_NAME,
@@ -89,8 +90,10 @@ data class BackupSettings(
             return when (shared) {
                 AppSettings.LOADING_ANIM_OFF,
                 AppSettings.LOADING_ANIM_RANDOM -> shared
-                "solar_system" -> if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
-                "japan_rowing" -> if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
+                "solar_system", "tiranga" ->
+                    if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
+                "japan_rowing", "tiranga_insight" ->
+                    if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
                 else -> AppSettings.LOADING_ANIM_RANDOM
             }
         }
@@ -164,6 +167,7 @@ data class BackupSettings(
                 showRawAiJson = showRawAiJson,
                 strictClarification = strictClarification,
                 verboseHttpLogging = verboseHttpLogging,
+                forceShowLoadingAnimations = forceShowLoadingAnimations,
                 cloudBackupEnabled = cloudBackupEnabled,
                 cloudAutoUploadEnabled = cloudAutoUploadEnabled,
                 mongoDbName = mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
@@ -221,6 +225,7 @@ data class BackupSettings(
             showRawAiJson = settings.showRawAiJson,
             strictClarification = settings.strictClarification,
             verboseHttpLogging = settings.verboseHttpLogging,
+            forceShowLoadingAnimations = settings.forceShowLoadingAnimations,
             cloudBackupEnabled = settings.cloudBackupEnabled,
             cloudAutoUploadEnabled = settings.cloudAutoUploadEnabled,
             mongoDbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },

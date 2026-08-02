@@ -146,6 +146,7 @@ class SettingsRepository(context: Context) {
             showRawAiJson = prefs[KEY_SHOW_RAW_AI_JSON] ?: false,
             strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
+            forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
             cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false,
             cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
             cloudBackupPasswordSet = prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] ?: false,
@@ -300,6 +301,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_SHOW_RAW_AI_JSON] = settings.showRawAiJson
             prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
+            prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
             prefs[KEY_CLOUD_BACKUP_ENABLED] = settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = settings.cloudAutoUploadEnabled
             prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = settings.cloudBackupPasswordSet
@@ -457,8 +459,10 @@ class SettingsRepository(context: Context) {
                 return when (shared) {
                     AppSettings.LOADING_ANIM_OFF,
                     AppSettings.LOADING_ANIM_RANDOM -> shared
-                    "solar_system" -> if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
-                    "japan_rowing" -> if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
+                    "solar_system", "tiranga" ->
+                        if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
+                    "japan_rowing", "tiranga_insight" ->
+                        if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
                     else -> AppSettings.LOADING_ANIM_RANDOM
                 }
             }
@@ -483,6 +487,7 @@ class SettingsRepository(context: Context) {
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
         val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
+        val KEY_FORCE_SHOW_LOADING_ANIMS = booleanPreferencesKey("force_show_loading_animations")
         val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
         val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")
         val KEY_CLOUD_BACKUP_PASSWORD_SET = booleanPreferencesKey("cloud_backup_password_set")

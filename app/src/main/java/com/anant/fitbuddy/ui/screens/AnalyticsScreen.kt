@@ -124,6 +124,7 @@ fun AnalyticsScreen(
     progressInsightState: ProgressInsightUiState,
     isAiConfigured: Boolean,
     animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
+    forceShowAnimation: Boolean = false,
     onShiftMonth: (Int) -> Unit,
     onRequestInsight: () -> Unit,
     onOpenChat: () -> Unit,
@@ -158,6 +159,7 @@ fun AnalyticsScreen(
                 state = progressInsightState,
                 isAiConfigured = isAiConfigured,
                 animationChoice = animationChoice,
+                forceShowAnimation = forceShowAnimation,
                 onRequestInsight = onRequestInsight
             )
         }
@@ -402,6 +404,7 @@ private fun InsightCard(
     state: ProgressInsightUiState,
     isAiConfigured: Boolean,
     animationChoice: String,
+    forceShowAnimation: Boolean = false,
     onRequestInsight: () -> Unit
 ) {
     ChartCard(title = "AI Progress Coach") {
@@ -418,7 +421,7 @@ private fun InsightCard(
             Spacer(Modifier.height(8.dp))
         }
 
-        val insightLoading = state.isLoading
+        val insightLoading = state.isLoading || forceShowAnimation
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = isAiConfigured && !insightLoading && !state.isChatLoading,
