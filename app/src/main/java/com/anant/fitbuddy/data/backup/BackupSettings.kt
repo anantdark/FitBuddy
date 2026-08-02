@@ -89,8 +89,10 @@ data class BackupSettings(
             return when (shared) {
                 AppSettings.LOADING_ANIM_OFF,
                 AppSettings.LOADING_ANIM_RANDOM -> shared
-                "solar_system" -> if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
-                "japan_rowing" -> if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
+                "solar_system", "tiranga" ->
+                    if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
+                "japan_rowing", "tiranga_insight" ->
+                    if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
                 else -> AppSettings.LOADING_ANIM_RANDOM
             }
         }
