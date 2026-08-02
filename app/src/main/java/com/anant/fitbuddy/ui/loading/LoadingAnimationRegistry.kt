@@ -3,6 +3,7 @@ package com.anant.fitbuddy.ui.loading
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.animations.JapanRowingLoadingAnimation
 import com.anant.fitbuddy.ui.loading.animations.SolarSystemLoadingAnimation
+import com.anant.fitbuddy.ui.loading.animations.TirangaLoadingAnimation
 import kotlin.random.Random
 
 /**
@@ -12,6 +13,7 @@ import kotlin.random.Random
 object LoadingAnimationRegistry {
     val all: List<LoadingAnimation> = listOf(
         SolarSystemLoadingAnimation,
+        TirangaLoadingAnimation,
         JapanRowingLoadingAnimation,
     )
 
