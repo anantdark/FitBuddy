@@ -96,7 +96,13 @@ class RemoteAiDataSource(
         settings: AppSettings,
         contextJson: String
     ): TargetPlanResponse {
-        val json = completeToJson(settings, buildTargetPrompt(contextJson), null)
+        // temperature=0: target math should be deterministic across identical inputs
+        val json = completeToJson(
+            settings,
+            buildTargetPrompt(contextJson),
+            imageDataUrl = null,
+            temperature = 0.0
+        )
         return parseJson(targetPlanAdapter, json)
     }
 
@@ -190,16 +196,31 @@ class RemoteAiDataSource(
     private suspend fun completeToJson(
         settings: AppSettings,
         promptText: String,
-        imageDataUrl: String?
+        imageDataUrl: String?,
+        temperature: Double = 0.2
     ): String {
         val hasImage = imageDataUrl != null
         val response = try {
-            sendChat(settings, promptText, imageDataUrl, includeResponseFormat = true)
+            sendChat(
+                settings,
+                promptText,
+                imageDataUrl,
+                includeResponseFormat = true,
+                temperature = temperature
+            )
         } catch (e: AiBadRequestException) {
             if (hasImage) throw IllegalStateException(e.message, e.cause)
-            runCatching { sendChat(settings, promptText, null, includeResponseFormat = false) }
+            runCatching {
+                sendChat(
+                    settings,
+                    promptText,
+                    null,
+                    includeResponseFormat = false,
+                    temperature = temperature
+                )
+            }
                 .getOrElse {
-                    runCatching { sendChatPlain(settings, promptText) }
+                    runCatching { sendChatPlain(settings, promptText, temperature) }
                         .getOrElse { throw IllegalStateException(e.message, e.cause) }
                 }
         }
@@ -212,7 +233,8 @@ class RemoteAiDataSource(
         settings: AppSettings,
         promptText: String,
         imageDataUrl: String?,
-        includeResponseFormat: Boolean
+        includeResponseFormat: Boolean,
+        temperature: Double = 0.2
     ): ChatResponse {
         val hasImage = imageDataUrl != null
         val contentParts = buildList {
@@ -224,15 +246,21 @@ class RemoteAiDataSource(
         val request = ChatRequest(
             model = settings.modelFor(hasImage),
             messages = listOf(ChatMessage(role = "user", content = contentParts)),
-            responseFormat = if (includeResponseFormat) ResponseFormat() else null
+            responseFormat = if (includeResponseFormat) ResponseFormat() else null,
+            temperature = temperature
         )
         return chatWithRetry { api.chatCompletion(settings.chatUrl, settings.authHeader, request) }
     }
 
-    private suspend fun sendChatPlain(settings: AppSettings, promptText: String): ChatResponse {
+    private suspend fun sendChatPlain(
+        settings: AppSettings,
+        promptText: String,
+        temperature: Double = 0.2
+    ): ChatResponse {
         val request = ChatRequestPlain(
             model = settings.modelFor(false),
-            messages = listOf(ChatMessagePlain(role = "user", content = promptText))
+            messages = listOf(ChatMessagePlain(role = "user", content = promptText)),
+            temperature = temperature
         )
         return chatWithRetry { api.chatCompletionPlain(settings.chatUrl, settings.authHeader, request) }
     }
@@ -741,83 +769,65 @@ class RemoteAiDataSource(
 
     private fun buildTargetPrompt(contextJson: String): String = """
         You are FitBuddy, a nutrition and body-composition coach optimised for North Indian
-        diets and lifestyles. Using the user's profile and latest body-composition data below,
-        first review the current readings and existing targets. Decide whether new targets are
-        actually needed, then respond accordingly.
+        diets and lifestyles. Compute daily targets from the user JSON using the FIXED formula
+        below. Do NOT freestyle calorie numbers — identical inputs must produce identical outputs.
 
-        STABILITY RULE — current targets awareness:
-        The user data includes "current_target_calories", "current_target_protein_g",
-        "current_target_carbs_g", and "current_target_fats_g". These are the targets the user
-        is currently following. Before suggesting new targets:
-        1. Review the user's current readings, body composition trends, and existing targets.
-        2. Decide whether the current targets are still appropriate for the user's goal and data.
-        3. If the current targets are already well-suited, set "targets_changed" to false, keep
-           all target values identical to the current ones, and write in "rationale" a short
-           encouraging message explaining that the user is on the right track and doesn't need
-           new calorie targets right now.
-        4. If new targets are warranted, set "targets_changed" to true, provide the new values,
-           and in "rationale" clearly justify WHY you are changing the targets — explain what
-           in the user's data or situation makes the current targets no longer appropriate
-           (e.g. weight change, body comp shift, goal mismatch, macro imbalance).
+        IMPORTANT — "daily_target_calories" is a REST-DAY baseline. The app tracks NET calories
+        as (eaten − exercise burned) and credits exercise back 1:1 onto the day's allowance.
+        Do NOT inflate the baseline to pre-account for exercise. Mention eat-back briefly in
+        rationale only when avg_daily_calories_burned_recent is meaningfully > 0.
 
-        Choose "recommended_goal" as EXACTLY one of:
-        - "LOSE_WEIGHT": high body fat / cutting is the priority.
-        - "GAIN_MUSCLE": lean already or clearly under-muscled; a lean bulk is best.
-        - "RECOMP": simultaneously lose fat and gain muscle (typical for moderate body fat).
-        If the user's profile specifies a goal other than "AUTO", respect it unless the data makes it
-        clearly unsafe, and design the plan for that goal.
+        Personalise from ACTUAL JSON fields only — never invent missing demographics or scale
+        metrics. Prefer latest_measurement.bmr / body_fat_pct / muscle fields when present.
 
-        IMPORTANT — how this app applies "daily_target_calories": the app tracks a NET calorie
-        balance for each day, computed as (calories eaten) MINUS (calories burned via logged
-        exercise). The user's remaining allowance = daily_target_calories - net calories, which
-        means every exercise session automatically credits its estimated burn back onto that day's
-        eating allowance (a 1:1 "eat back your exercise calories" model). Design
-        "daily_target_calories" as the appropriate REST-DAY baseline intake for the goal — do NOT
-        inflate it further to pre-account for exercise, since the app already adds that back
-        automatically per session. Because exercise-calorie estimates are frequently overestimated,
-        keep the baseline honestly aligned with the goal (do not be overly generous) so that
-        crediting exercise back can't silently erase a fat-loss deficit or blow past a lean-bulk
-        surplus; mention this "eat-back" mechanic briefly in the rationale if the user logs
-        exercise often, per "avg_daily_calories_burned_recent" in the data below.
+        STEP 1 — recommended_goal (exactly one of LOSE_WEIGHT | GAIN_MUSCLE | RECOMP):
+        - If stated_goal is not "AUTO", use stated_goal unless clearly unsafe.
+        - Else: high body fat → LOSE_WEIGHT; lean / under-muscled → GAIN_MUSCLE;
+          moderate body fat → RECOMP.
 
-        Personalise from the ACTUAL fields present in the JSON — never invent missing demographics
-        or scale metrics. Required anchors when available: age, sex, height_cm, current_weight_kg,
-        activity_level, stated_goal. When "latest_measurement" is present, prefer its fields over
-        guesses: bmr, bmi, body_fat_pct, muscle_mass_kg / skeletal_muscle_mass_kg /
-        fat_free_mass_kg, fat_mass_kg, visceral_fat, metabolic_age, etc. Example: an older
-        FEMALE with LOSE_WEIGHT needs a lower calorie budget and about 1 g/kg protein — do NOT
-        assign young-male bodybuilding macros just because "protein is good".
+        STEP 2 — compute ideal_calories with this exact formula (no ranges):
+        a) BMR = latest_measurement.bmr if present and > 0; else Mifflin–St Jeor:
+           men: 10*kg + 6.25*cm − 5*age + 5; women: 10*kg + 6.25*cm − 5*age − 161.
+           If sex unknown, use the women formula.
+        b) Activity multiplier (activity_level → factor):
+           SEDENTARY=1.2, LIGHT=1.375, MODERATE=1.55, ACTIVE=1.725, VERY_ACTIVE=1.9.
+           Unknown/blank → 1.55.
+        c) TDEE = round(BMR * multiplier).
+        d) Goal adjustment (fixed deltas, not ranges):
+           LOSE_WEIGHT: TDEE − 400; if age≥50 OR (sex FEMALE/female and kg<60) use TDEE − 300.
+           RECOMP: TDEE (maintenance).
+           GAIN_MUSCLE: TDEE + 250.
+        e) Floors: women ≥1200, men ≥1500 (skip floor only if notably small / missing sex).
+        f) Round the result to the NEAREST 50 kcal → ideal_calories.
 
-        Design realistic daily targets (when targets_changed is true; otherwise echo current values):
-        - Calories: sex-specific BMR (prefer measured bmr from latest_measurement; else
-          Mifflin–St Jeor using age, sex, height_cm, current_weight_kg). Scale by activity_level
-          to a rest-day TDEE. Then adjust for the goal with modest, sustainable deltas:
-          LOSE_WEIGHT ~300–500 kcal below TDEE (smaller deficit for older adults / lower BMR /
-          smaller women; floor ~1200 kcal women / ~1500 kcal men unless the person is notably
-          small); RECOMP near maintenance; GAIN_MUSCLE ~200–300 kcal above TDEE. Prefer
-          conservative numbers. This is the REST-DAY baseline, not exercise-inclusive.
-        - Protein (g per kg CURRENT bodyweight) — match goal; modulate with age/sex/body comp;
-          never default to bodybuilding-high protein:
-            · LOSE_WEIGHT: ~1.0 g/kg. Fine for muscle preservation in general fat loss. Older
-              adults and many women do not need more than this for weight loss; do not push
-              1.5–2 g/kg on a cut unless stated_goal is RECOMP/GAIN_MUSCLE.
-            · RECOMP or GAIN_MUSCLE: 1.5–2.0 g/kg (high protein). Use the LOWER end when heavier,
-              older, female, calorie budget is tight, or body_fat_pct is high; UPPER end only when
-              lean, actively strength-training, and younger/mid-adult. Cap at ~2.0 g/kg — never
-              invent 2.2+ g/kg.
-          If muscle_mass_kg or fat_free_mass_kg is logged and protein-at-bodyweight looks
-          extreme for a high-BF person on LOSE_WEIGHT, stay near 1.0 g/kg bodyweight (do not
-          secretly switch to 2 g/kg "per lean mass" for fat-loss goals).
-        - Fats ~0.8–1.0 g/kg or ~20–30% of calories (do not starve fats for older women). Fill
-          remaining calories with carbs. Macros must sum roughly to the calorie target
-          (protein/carbs 4 kcal/g, fats 9 kcal/g). Keep splits practical for North Indian meals
-          (roti/dal/sabzi, dal-chawal, paratha, paneer/chole/rajma — not Western templates).
-          Round to whole grams.
-        - "rationale": 2–4 sentences. If targets_changed is true, clearly explain WHY the
-          targets are being changed — what in the user's data or situation makes the current
-          targets no longer appropriate, plus cite age, sex, weight/height, goal, and any used
-          body-comp metrics. If targets_changed is false, write an encouraging message that
-          the user is on the right track and their current targets don't need adjustment.
+        STEP 3 — compute ideal macros (whole grams; per CURRENT bodyweight kg):
+        - Protein:
+            LOSE_WEIGHT: round(1.0 * kg). Do NOT push 1.5–2 g/kg on a cut.
+            RECOMP / GAIN_MUSCLE: 1.6 g/kg default; use 1.5 if heavier/older/female/high BF
+            or calorie budget tight; use 1.8 only if lean + younger/mid-adult. Cap 2.0 g/kg.
+            Never invent 2.2+ g/kg. Never secretly switch to per-lean-mass on LOSE_WEIGHT.
+        - Fats: round(0.9 * kg), at least ~20% of ideal_calories (9 kcal/g).
+        - Carbs: fill remaining calories → carbs_g = round((ideal_calories − protein*4 − fats*9) / 4),
+          floored at 0. Keep splits practical for North Indian meals (roti/dal/sabzi, etc.).
+
+        STEP 4 — STABILITY / HYSTERESIS (mandatory; no soft judgment):
+        Current targets are current_target_calories / current_target_protein_g /
+        current_target_carbs_g / current_target_fats_g.
+        Let cal_delta = abs(ideal_calories − current_target_calories).
+        Let protein_delta = abs(ideal_protein_g − current_target_protein_g).
+        Change targets (targets_changed=true) ONLY if ANY of these hold:
+          (A) current_target_calories is missing or ≤0, OR
+          (B) cal_delta ≥ 150, OR
+          (C) protein_delta ≥ 20.
+        Do NOT invent other reasons to change. Soft vibes ("could be a bit higher") are forbidden.
+        Otherwise targets_changed=false: echo ALL four current target values EXACTLY
+        (do not "nudge" them), keep recommended_goal as decided in STEP 1, and write a short
+        encouraging rationale that current targets are already appropriate.
+
+        When targets_changed=true, output the ideal_* values from STEPs 2–3 and justify WHY
+        in rationale (cite age, sex, weight/height, goal, BMR/TDEE, and the cal_delta).
+
+        rationale: 2–4 sentences in either case.
 
         Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
         EXACTLY this schema:

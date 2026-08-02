@@ -1,5 +1,7 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.ui.loading.animations.streakScale
+import com.anant.fitbuddy.ui.loading.animations.trailAlpha
 import org.junit.Test
 import kotlin.random.Random
 

@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.anant.fitbuddy.ui.components.MacroCarbsColor
 import com.anant.fitbuddy.ui.components.MacroFatsColor
 import com.anant.fitbuddy.ui.components.MacroProteinColor
+import com.anant.fitbuddy.ui.loading.animations.solarSystemPlanets
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

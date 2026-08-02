@@ -1,4 +1,4 @@
-package com.anant.fitbuddy.ui.screens
+package com.anant.fitbuddy.ui.loading.animations
 
 import androidx.compose.ui.graphics.Color
 import kotlin.math.cos

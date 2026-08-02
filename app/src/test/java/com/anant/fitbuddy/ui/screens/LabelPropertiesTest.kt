@@ -1,5 +1,7 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.ui.loading.animations.analyzingCaptions
+import com.anant.fitbuddy.ui.loading.animations.analyzingLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
