@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.ui.loading.animations.accumulateScaledTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

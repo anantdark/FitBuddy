@@ -1,17 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -47,31 +37,21 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.data.database.ExerciseLog
 import com.anant.fitbuddy.data.database.FoodLog
+import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.components.CalorieRing
 import com.anant.fitbuddy.ui.components.MacroCarbsColor
 import com.anant.fitbuddy.ui.components.MacroFatsColor
@@ -80,9 +60,8 @@ import com.anant.fitbuddy.ui.components.PressableCard
 import com.anant.fitbuddy.ui.components.WeekDayMacroBar
 import com.anant.fitbuddy.ui.components.WeekMacroBarChart
 import com.anant.fitbuddy.ui.components.pressable
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
+import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
+import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
@@ -115,6 +94,7 @@ fun DashboardHomeScreen(
     profileState: DashboardUiState,
     isAnalyzing: Boolean,
     analyzingModel: String? = null,
+    animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
     onOpenWeekHistory: () -> Unit,
     onEditFood: (FoodLog) -> Unit,
     onDeleteFood: (FoodLog) -> Unit,
@@ -148,7 +128,13 @@ fun DashboardHomeScreen(
         }
 
         if (isAnalyzing) {
-            item { AnalyzingBanner(analyzingModel) }
+            item {
+                LoadingAnimationHost(
+                    slot = LoadingAnimationSlot.ANALYZING,
+                    animationChoice = animationChoice,
+                    label = analyzingModel
+                )
+            }
         }
 
         item { MacroRow(todayState) }
@@ -425,6 +411,7 @@ fun WeekHistoryScreen(
     profileState: DashboardUiState,
     isAnalyzing: Boolean,
     analyzingModel: String? = null,
+    animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
     onSelectDate: (String) -> Unit,
     onShiftWeek: (Int) -> Unit,
     onEditFood: (FoodLog) -> Unit,
@@ -548,7 +535,13 @@ fun WeekHistoryScreen(
         }
 
         if (isAnalyzing) {
-            item { AnalyzingBanner(analyzingModel) }
+            item {
+                LoadingAnimationHost(
+                    slot = LoadingAnimationSlot.ANALYZING,
+                    animationChoice = animationChoice,
+                    label = analyzingModel
+                )
+            }
         }
 
         item {
@@ -856,302 +849,6 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
                 fontWeight = FontWeight.Bold,
                 color = accent
             )
-        }
-    }
-}
-
-@Composable
-private fun AnalyzingBanner(modelId: String? = null) {
-    var scaledTime by remember { mutableStateOf(0.0) }
-    var lastFrame  by remember { mutableLongStateOf(0L) }
-    var speedMultiplier by remember { mutableFloatStateOf(1f) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            withInfiniteAnimationFrameMillis { now ->
-                val delta = if (lastFrame == 0L) 0L else (now - lastFrame)
-                lastFrame = now
-                scaledTime = accumulateScaledTime(scaledTime, delta, speedMultiplier)
-            }
-        }
-    }
-
-    // Cycling caption — advances every 1000 ms regardless of scaledTime
-    var captionIndex by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(8_000L)
-            captionIndex = (captionIndex + 1) % analyzingCaptions.size
-        }
-    }
-
-    val amber        = Color(0xFFFFC107)
-    val sunGlowColor = Color(0xFFFFE082)
-
-    val planets   = remember { solarSystemPlanets(MacroProteinColor, MacroCarbsColor, MacroFatsColor) }
-    val firstLine = analyzingLabel(modelId)
-
-    // ── Stars: 80 dots with stronger twinkle ─────────────────────────────────────────────
-    data class Star(val x: Float, val y: Float, val baseAlpha: Float,
-                    val freq: Double, val phase: Double, val radius: Float)
-    val stars = remember {
-        val rng = kotlin.random.Random(0xA57A_2024)
-        List(80) {
-            Star(
-                x         = rng.nextFloat(),
-                y         = rng.nextFloat(),
-                baseAlpha = 0.25f + rng.nextFloat() * 0.70f,   // wider alpha range
-                freq      = 0.0008 + rng.nextDouble() * 0.003,  // 3× faster twinkle
-                phase     = rng.nextDouble() * 6.283,
-                radius    = 0.5f + rng.nextFloat() * 1.8f       // more size variety
-            )
-        }
-    }
-
-    // ── Shooting stars: random direction, speed, lifetime, completely independent ────────
-    data class ShootingStar(
-        val startX: Float, val startY: Float,   // 0..1 normalised start pos
-        val dx: Float, val dy: Float,            // normalised direction (per period)
-        val periodMs: Double,                    // full-travel duration
-        val offsetMs: Double,                    // time offset so they fire at different times
-        val alpha: Float,                        // max brightness
-        val length: Float                        // tail length (0..1 of canvas width)
-    )
-    val shootingStars = remember {
-        val rng = kotlin.random.Random(0xB33F_2025)
-        List(6) {
-            // Random angle — any direction, not just left-to-right
-            val angle = rng.nextDouble() * 2.0 * Math.PI
-            ShootingStar(
-                startX   = rng.nextFloat(),
-                startY   = rng.nextFloat(),
-                dx       = cos(angle).toFloat(),
-                dy       = sin(angle).toFloat(),
-                periodMs = 1800.0 + rng.nextDouble() * 3200.0,  // 1.8–5 s cycle
-                offsetMs = rng.nextDouble() * 5000.0,            // staggered start
-                alpha    = 0.55f + rng.nextFloat() * 0.45f,
-                length   = 0.12f + rng.nextFloat() * 0.22f
-            )
-        }
-    }
-
-    val tailSteps     = 55
-    val tailStepMs    = 14.0
-    val sunTailSteps  = 40
-    val sunTailStepMs = 20.0
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape  = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Black)
-    ) {
-        Box {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(82.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                speedMultiplier = 3f
-                                try { tryAwaitRelease() } finally { speedMultiplier = 1f }
-                            }
-                        )
-                    }
-            ) {
-                val W     = size.width
-                val H     = size.height
-                val cy    = H / 2f
-                val halfW = W / 2f
-                val halfH = H / 2f
-                val now   = scaledTime
-
-                // ── Stars ──────────────────────────────────────────────────────────────────
-                stars.forEach { s ->
-                    // Full sine swing → very visible twinkle
-                    val twinkle = sin(now * s.freq + s.phase).toFloat()
-                    val a = (s.baseAlpha + twinkle * s.baseAlpha * 0.9f).coerceIn(0.02f, 1.0f)
-                    drawCircle(
-                        color  = Color.White.copy(alpha = a),
-                        radius = s.radius,
-                        center = Offset(s.x * W, s.y * H)
-                    )
-                }
-
-                // ── Shooting stars (fully random direction / timing) ───────────────────────
-                shootingStars.forEach { ss ->
-                    // t in [0,1] within its own period; active for first 15% of period
-                    val t = (((now + ss.offsetMs) % ss.periodMs) / ss.periodMs).toFloat()
-                    if (t < 0.15f) {
-                        val progress = t / 0.15f          // 0→1 during active window
-                        val headX = (ss.startX + ss.dx * ss.length * progress) * W
-                        val headY = (ss.startY + ss.dy * ss.length * H / W * progress) * H
-                        val tailX = (ss.startX + ss.dx * ss.length * (progress - 0.4f).coerceAtLeast(0f)) * W
-                        val tailY = (ss.startY + ss.dy * ss.length * H / W * (progress - 0.4f).coerceAtLeast(0f)) * H
-                        // Fade in then out
-                        val a = ss.alpha * (1f - abs(progress - 0.5f) * 2f)
-                        drawLine(
-                            brush = Brush.linearGradient(
-                                colors = listOf(Color.Transparent, Color.White.copy(alpha = a)),
-                                start  = Offset(tailX, tailY),
-                                end    = Offset(headX, headY)
-                            ),
-                            start       = Offset(tailX, tailY),
-                            end         = Offset(headX, headY),
-                            strokeWidth = 1.5.dp.toPx(),
-                            cap         = StrokeCap.Round
-                        )
-                    }
-                }
-
-                // ── Sun position ──────────────────────────────────────────────────────────
-                val sx     = sunX(now, W)
-                val sunPos = Offset(sx, cy)
-
-                // ── Sun cloud trail — gradient line fading left to right ─────────────────
-                val sunTrailPts = mutableListOf<Offset>()
-                for (step in sunTailSteps downTo 1) {
-                    val past = now - step * sunTailStepMs
-                    val psx  = sunX(past, W)
-                    if (psx > sx) continue
-                    sunTrailPts.add(Offset(psx, cy))
-                }
-                sunTrailPts.add(Offset(sx, cy))
-
-                val sunTrailW = 6.dp.toPx()
-                for (i in 0 until sunTrailPts.size - 1) {
-                    val p0 = sunTrailPts[i]
-                    val p1 = sunTrailPts[i + 1]
-                    val a0 = (i.toFloat() / sunTrailPts.size) * 0.45f
-                    val a1 = ((i + 1).toFloat() / sunTrailPts.size) * 0.45f
-                    val w  = sunTrailW * (i.toFloat() / sunTrailPts.size)
-                    drawLine(
-                        brush = Brush.linearGradient(
-                            colors = listOf(sunGlowColor.copy(alpha = a0), sunGlowColor.copy(alpha = a1)),
-                            start = p0, end = p1
-                        ),
-                        start = p0, end = p1,
-                        strokeWidth = w.coerceAtLeast(1.dp.toPx()),
-                        cap = StrokeCap.Round
-                    )
-                }
-
-                // ── Planet states + draw order ─────────────────────────────────────────────
-                val states = planets.map { spec ->
-                    spec to helicalPoint(spec, now, cy, halfW, halfH, W)
-                }
-                val (backPlanets, frontPlanets) = orderByDepth(states)
-
-                fun drawPlanet(spec: PlanetSpec, pos: Triple<Float, Float, Float>) {
-                    val (hx, hy, hz) = pos
-
-                    // Smooth gradient trail — collect valid past positions then draw segments
-                    // Each segment fades from transparent (tail end) to the planet's color (head).
-                    val trailPts = mutableListOf<Pair<Offset, Float>>()  // (position, alpha)
-                    for (step in tailSteps downTo 1) {
-                        val past = now - step * tailStepMs
-                        if (sunX(past, W) > sx) continue          // skip pre-wrap ghosts
-                        val (px, py, pz) = helicalPoint(spec, past, cy, halfW, halfH, W)
-                        val f     = step.toFloat() / tailSteps    // 1 = tail end, 0 = near head
-                        val alpha = (1f - f) * 0.55f * depthAlpha(pz)
-                        trailPts.add(Pair(Offset(px, py), alpha))
-                    }
-                    // Add head position as the final (brightest) point
-                    trailPts.add(Pair(Offset(hx, hy), 0.55f * depthAlpha(hz)))
-
-                    // Draw gradient segments along the collected trail
-                    val baseWidth = 4.dp.toPx() * depthScale(hz)
-                    for (i in 0 until trailPts.size - 1) {
-                        val (p0, a0) = trailPts[i]
-                        val (p1, a1) = trailPts[i + 1]
-                        val segWidth = baseWidth * (i.toFloat() / trailPts.size)
-                        drawLine(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    spec.color.copy(alpha = a0),
-                                    spec.color.copy(alpha = a1)
-                                ),
-                                start = p0,
-                                end   = p1
-                            ),
-                            start       = p0,
-                            end         = p1,
-                            strokeWidth = segWidth.coerceAtLeast(1.5.dp.toPx()),
-                            cap         = StrokeCap.Round
-                        )
-                    }
-
-                    // Planet head — radial glow + solid bright core
-                    val scale = depthScale(hz)
-                    val alpha = depthAlpha(hz)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(spec.color.copy(alpha = 0.45f * alpha), Color.Transparent),
-                            center = Offset(hx, hy), radius = 8.dp.toPx() * scale
-                        ),
-                        radius = 8.dp.toPx() * scale, center = Offset(hx, hy)
-                    )
-                    drawCircle(
-                        color  = spec.color.copy(alpha = 0.98f * alpha),
-                        radius = 3.dp.toPx() * scale,
-                        center = Offset(hx, hy)
-                    )
-                }
-
-                backPlanets.forEach { (spec, pos) -> drawPlanet(spec, pos) }
-
-                // ── Sun ───────────────────────────────────────────────────────────────────
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(amber.copy(alpha = 0.22f), Color.Transparent),
-                        center = sunPos, radius = 20.dp.toPx()
-                    ), radius = 20.dp.toPx(), center = sunPos
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(amber.copy(alpha = 0.60f), Color.Transparent),
-                        center = sunPos, radius = 9.dp.toPx()
-                    ), radius = 9.dp.toPx(), center = sunPos
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFFBE7), amber),
-                        center = sunPos, radius = 4.5.dp.toPx()
-                    ), radius = 4.5.dp.toPx(), center = sunPos
-                )
-
-                frontPlanets.forEach { (spec, pos) -> drawPlanet(spec, pos) }
-            }
-
-            // ── Label: overlaid bottom-left, fills to end so long model ids aren't cropped ──
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                Text(
-                    text     = firstLine,
-                    style    = MaterialTheme.typography.labelSmall.copy(
-                        fontFamily   = FontFamily.Monospace,
-                        letterSpacing = 2.sp,
-                        fontWeight   = FontWeight.Bold
-                    ),
-                    color    = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text  = analyzingCaptions[captionIndex],
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily    = FontFamily.Monospace,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color    = Color.White.copy(alpha = 0.55f),
-                    maxLines = 1
-                )
-            }
         }
     }
 }

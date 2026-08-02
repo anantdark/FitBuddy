@@ -76,6 +76,22 @@ data class AppSettings(
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
     /**
+     * Analyzing-banner wait UI: [LOADING_ANIM_OFF], [LOADING_ANIM_RANDOM], or a registered
+     * animation id that supports the analyzing slot.
+     */
+    val analyzingAnimationChoice: String = LOADING_ANIM_RANDOM,
+    /**
+     * Insight / AI-targets button wait UI: [LOADING_ANIM_OFF], [LOADING_ANIM_RANDOM], or a
+     * registered animation id that supports the insight slot.
+     */
+    val insightAnimationChoice: String = LOADING_ANIM_RANDOM,
+    /**
+     * When true, at least one loading slot may show a Canvas animation.
+     * Kept aligned with the per-slot choices via [withAnimationsEnabled] /
+     * [withAnalyzingAnimationChoice] / [withInsightAnimationChoice].
+     */
+    val animationsEnabled: Boolean = true,
+    /**
      * When true, FitBuddy checks GitHub Releases for a newer APK shortly after startup
      * (and still allows a manual check in Settings).
      */
@@ -347,7 +363,52 @@ data class AppSettings(
         return "$prov: $id"
     }
 
+    fun withAnalyzingAnimationChoice(choice: String): AppSettings {
+        val analyzing = choice.ifBlank { LOADING_ANIM_RANDOM }
+        return copy(
+            analyzingAnimationChoice = analyzing,
+            animationsEnabled = analyzing != LOADING_ANIM_OFF ||
+                insightAnimationChoice != LOADING_ANIM_OFF
+        )
+    }
+
+    fun withInsightAnimationChoice(choice: String): AppSettings {
+        val insight = choice.ifBlank { LOADING_ANIM_RANDOM }
+        return copy(
+            insightAnimationChoice = insight,
+            animationsEnabled = analyzingAnimationChoice != LOADING_ANIM_OFF ||
+                insight != LOADING_ANIM_OFF
+        )
+    }
+
+    /** User-facing master toggle: off → both spinners; on → restore Random where a slot was Off. */
+    fun withAnimationsEnabled(enabled: Boolean): AppSettings =
+        if (enabled) {
+            copy(
+                analyzingAnimationChoice = if (analyzingAnimationChoice == LOADING_ANIM_OFF) {
+                    LOADING_ANIM_RANDOM
+                } else {
+                    analyzingAnimationChoice
+                },
+                insightAnimationChoice = if (insightAnimationChoice == LOADING_ANIM_OFF) {
+                    LOADING_ANIM_RANDOM
+                } else {
+                    insightAnimationChoice
+                },
+                animationsEnabled = true
+            )
+        } else {
+            copy(
+                analyzingAnimationChoice = LOADING_ANIM_OFF,
+                insightAnimationChoice = LOADING_ANIM_OFF,
+                animationsEnabled = false
+            )
+        }
+
     companion object {
+        const val LOADING_ANIM_OFF = "off"
+        const val LOADING_ANIM_RANDOM = "random"
+
         const val DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free"
         const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"

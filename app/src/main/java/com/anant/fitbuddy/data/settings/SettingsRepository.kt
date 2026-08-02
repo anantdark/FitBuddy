@@ -28,6 +28,18 @@ class SettingsRepository(context: Context) {
         val geminiKeys = parseApiKeys(prefs[KEY_GEMINI_KEY])
         val ollamaKeys = parseApiKeys(prefs[KEY_OLLAMA_API_KEY])
         val openAiKeys = parseApiKeys(prefs[KEY_OPENAI_API_KEY])
+        val analyzingAnim = migrateSlotAnimationChoice(
+            slotStored = prefs[KEY_ANALYZING_ANIMATION_CHOICE],
+            legacyShared = prefs[KEY_LOADING_ANIMATION_CHOICE],
+            legacyEnabled = prefs[KEY_ANIMATIONS_ENABLED],
+            analyzingSlot = true
+        )
+        val insightAnim = migrateSlotAnimationChoice(
+            slotStored = prefs[KEY_INSIGHT_ANIMATION_CHOICE],
+            legacyShared = prefs[KEY_LOADING_ANIMATION_CHOICE],
+            legacyEnabled = prefs[KEY_ANIMATIONS_ENABLED],
+            analyzingSlot = false
+        )
         AppSettings(
             provider = runCatching { AiProvider.valueOf(prefs[KEY_PROVIDER] ?: "") }
                 .getOrDefault(AiProvider.OPENROUTER),
@@ -114,6 +126,10 @@ class SettingsRepository(context: Context) {
                 if (prov != null && raw.isNotBlank() && !isPlausibleModelIdFor(prov, raw)) "" else raw
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
+            analyzingAnimationChoice = analyzingAnim,
+            insightAnimationChoice = insightAnim,
+            animationsEnabled = analyzingAnim != AppSettings.LOADING_ANIM_OFF ||
+                insightAnim != AppSettings.LOADING_ANIM_OFF,
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
@@ -264,6 +280,11 @@ class SettingsRepository(context: Context) {
                 prefs[showPaidKey(p)] = settings.showPaidFor(p)
             }
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
+            prefs[KEY_ANALYZING_ANIMATION_CHOICE] = settings.analyzingAnimationChoice
+            prefs[KEY_INSIGHT_ANIMATION_CHOICE] = settings.insightAnimationChoice
+            prefs[KEY_ANIMATIONS_ENABLED] =
+                settings.analyzingAnimationChoice != AppSettings.LOADING_ANIM_OFF ||
+                    settings.insightAnimationChoice != AppSettings.LOADING_ANIM_OFF
             prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
             prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
             if (settings.supportId.isNotBlank()) {
@@ -413,7 +434,40 @@ class SettingsRepository(context: Context) {
         val KEY_ACTIVE_PHOTO_MODEL = stringPreferencesKey("active_photo_model")
         val KEY_ACTIVE_TEXT_MODEL = stringPreferencesKey("active_text_model")
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val KEY_ANALYZING_ANIMATION_CHOICE = stringPreferencesKey("analyzing_animation_choice")
+        val KEY_INSIGHT_ANIMATION_CHOICE = stringPreferencesKey("insight_animation_choice")
+        /** Legacy single-choice key; read for migration only. */
+        val KEY_LOADING_ANIMATION_CHOICE = stringPreferencesKey("loading_animation_choice")
+        val KEY_ANIMATIONS_ENABLED = booleanPreferencesKey("animations_enabled")
         val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
+
+        /**
+         * Prefer per-slot stored value; else migrate from legacy shared choice / boolean.
+         * Unknown fixed ids that do not match [analyzingSlot] become Random.
+         */
+        fun migrateSlotAnimationChoice(
+            slotStored: String?,
+            legacyShared: String?,
+            legacyEnabled: Boolean?,
+            analyzingSlot: Boolean
+        ): String {
+            if (!slotStored.isNullOrBlank()) return slotStored
+            val shared = legacyShared?.takeIf { it.isNotBlank() }
+            if (shared != null) {
+                return when (shared) {
+                    AppSettings.LOADING_ANIM_OFF,
+                    AppSettings.LOADING_ANIM_RANDOM -> shared
+                    "solar_system" -> if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
+                    "japan_rowing" -> if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
+                    else -> AppSettings.LOADING_ANIM_RANDOM
+                }
+            }
+            return if (legacyEnabled == false) {
+                AppSettings.LOADING_ANIM_OFF
+            } else {
+                AppSettings.LOADING_ANIM_RANDOM
+            }
+        }
         val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")

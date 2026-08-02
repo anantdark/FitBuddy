@@ -574,6 +574,7 @@ fun MainScreen(
                                 profileState = dashboardState,
                                 isAnalyzing = analysisState.isLoading,
                                 analyzingModel = analysisState.analyzingModel,
+                                animationChoice = settings.analyzingAnimationChoice,
                                 onOpenWeekHistory = {
                                     viewModel.refreshToToday()
                                     showWeekHistory = true
@@ -597,6 +598,7 @@ fun MainScreen(
                                 realToday = realToday,
                                 progressInsightState = progressInsightState,
                                 isAiConfigured = isAiOnline,
+                                animationChoice = settings.insightAnimationChoice,
                                 onShiftMonth = viewModel::shiftAnalyticsMonth,
                                 onRequestInsight = viewModel::requestProgressInsight,
                                 onOpenChat = { showProgressChat = true },
@@ -610,6 +612,7 @@ fun MainScreen(
                                 savedFoodCount = savedFoods.size,
                                 targetPlanState = targetPlanState,
                                 isAiConfigured = isAiOnline,
+                                animationChoice = settings.insightAnimationChoice,
                                 onSave = viewModel::saveProfile,
                                 onAddMeasurement = viewModel::addMeasurement,
                                 onDeleteMeasurement = viewModel::deleteMeasurement,
@@ -678,6 +681,7 @@ fun MainScreen(
                         profileState = dashboardState,
                         isAnalyzing = analysisState.isLoading,
                         analyzingModel = analysisState.analyzingModel,
+                        animationChoice = settings.analyzingAnimationChoice,
                         onSelectDate = viewModel::selectDate,
                         onShiftWeek = viewModel::shiftHistoryWeek,
                         onEditFood = viewModel::editFoodLog,

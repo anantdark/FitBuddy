@@ -1,20 +1,11 @@
 package com.anant.fitbuddy.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -38,9 +29,9 @@ import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import com.anant.fitbuddy.ui.components.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -57,29 +48,22 @@ import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.PI
-import kotlin.math.sin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.TargetPlanResponse
+import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
+import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.TargetPlanUiState
 
@@ -105,6 +89,7 @@ fun BodyScreen(
     savedFoodCount: Int,
     targetPlanState: TargetPlanUiState,
     isAiConfigured: Boolean,
+    animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
     onSave: (
         weightKg: Double,
         dailyTargetCalories: Int,
@@ -195,6 +180,7 @@ fun BodyScreen(
             rationale = profile?.goalRationale,
             planState = targetPlanState,
             isAiConfigured = isAiConfigured,
+            animationChoice = animationChoice,
             onRequestPlan = {
                 onRequestTargetPlan(
                     profile?.age ?: 0,
@@ -436,61 +422,38 @@ private fun AiTargetsCard(
     rationale: String?,
     planState: TargetPlanUiState,
     isAiConfigured: Boolean,
+    animationChoice: String,
     onRequestPlan: () -> Unit
 ) {
-    val boatTransition = rememberInfiniteTransition(label = "plan-boat")
-    val boatProgress by boatTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 15_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "plan-boat-progress"
-    )
-
-    var captionIndex by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(8_000L)
-            captionIndex = (captionIndex + 1) % PLAN_CAPTIONS.size
-        }
-    }
-
     SectionCard(title = "Daily targets") {
         NumberField("Calories (kcal)", targetCalories, onValueChange = onCaloriesChange)
         NumberField("Protein (g)", targetProtein, onValueChange = onProteinChange)
         NumberField("Carbs (g)", targetCarbs, onValueChange = onCarbsChange)
         NumberField("Fats (g)", targetFats, onValueChange = onFatsChange)
 
+        val planLoading = planState.isLoading
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = isAiConfigured && !planState.isLoading,
+            enabled = isAiConfigured && !planLoading,
             onClick = onRequestPlan,
-            contentPadding = if (planState.isLoading) PaddingValues(0.dp)
+            colors = if (planLoading) {
+                ButtonDefaults.buttonColors(
+                    disabledContainerColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                ButtonDefaults.buttonColors()
+            },
+            contentPadding = if (planLoading) PaddingValues(0.dp)
                              else PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            if (planState.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    JapanRowingAnimationProfile(
-                        boatProgress = boatProgress,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Text(
-                        text = PLAN_CAPTIONS[captionIndex],
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color.White,
-                        modifier = Modifier
-                            .background(
-                                color = Color(0x99000000),
-                                shape = MaterialTheme.shapes.small
-                            )
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
-                    )
-                }
+            if (planLoading) {
+                LoadingAnimationHost(
+                    slot = LoadingAnimationSlot.INSIGHT,
+                    animationChoice = animationChoice,
+                    captions = PLAN_CAPTIONS,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                )
             } else {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -803,154 +766,3 @@ private fun LabeledDropdown(
     }
 }
 
-// ---------- Japan rowing animation (shared with AnalyticsScreen) ----------
-
-@Composable
-private fun JapanRowingAnimationProfile(boatProgress: Float, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "japan-rowing-profile")
-
-    val waveOffset by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wave-offset"
-    )
-    val oarAngle by transition.animateFloat(
-        initialValue = -30f,
-        targetValue = 30f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "oar-angle"
-    )
-    val armAngle by transition.animateFloat(
-        initialValue = -20f,
-        targetValue = 20f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "arm-angle"
-    )
-
-    val japanRed  = Color(0xFFBC002D)
-    val waterBlue = Color(0xFF4A90D9)
-    val waterDark = Color(0xFF2E6DA4)
-    val skinColor = Color(0xFFFFD5A8)
-    val robeColor = Color(0xFF1A3A5C)
-    val hatColor  = Color(0xFF5C3D1E)
-    val boatColor = Color(0xFF8B4513)
-
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val waterLineY   = h * 0.65f
-        val waveAmplitude = h * 0.07f
-
-        drawRect(color = Color(0xFFF5EDE0), size = size)
-
-        val sunRadius = h * 0.22f
-        drawCircle(color = japanRed, radius = sunRadius,
-            center = Offset(w * 0.87f, waterLineY - sunRadius * 0.6f))
-
-        drawRect(color = waterBlue,
-            topLeft = Offset(0f, waterLineY),
-            size = androidx.compose.ui.geometry.Size(w, h - waterLineY))
-
-        profileDrawWaves(waveOffset, waterLineY, w, h, waveAmplitude, waterDark, alpha = 0.55f)
-        profileDrawWaves(waveOffset + 0.5f, waterLineY + waveAmplitude * 0.4f, w, h,
-            waveAmplitude * 0.5f, Color.White, alpha = 0.30f)
-
-        val boatX = boatProgress * (w + w * 0.3f) - w * 0.15f
-        val boatW = w * 0.22f
-        val boatH = h * 0.12f
-        val boatY = waterLineY - boatH * 0.5f
-
-        profileDrawBoat(boatX, boatY, boatW, boatH, boatColor)
-        profileDrawRower(
-            cx        = boatX + boatW * 0.38f,
-            baseY     = boatY,
-            scale     = boatH * 1.5f,
-            oarAngle  = oarAngle,
-            armAngle  = armAngle,
-            skinColor = skinColor,
-            robeColor = robeColor,
-            hatColor  = hatColor
-        )
-    }
-}
-
-private fun DrawScope.profileDrawWaves(
-    offsetFraction: Float, baseY: Float, w: Float, h: Float,
-    amplitude: Float, color: Color, alpha: Float
-) {
-    val waveLength = w * 0.35f
-    val path = Path()
-    val steps = 200
-    for (i in 0..steps) {
-        val x = i / steps.toFloat() * w
-        val phase = (x / waveLength + offsetFraction) * 2f * PI.toFloat()
-        val y = baseY - amplitude * sin(phase)
-        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-    }
-    path.lineTo(w, h); path.lineTo(0f, h); path.close()
-    drawPath(path, color = color.copy(alpha = alpha))
-}
-
-private fun DrawScope.profileDrawBoat(
-    cx: Float, topY: Float, boatW: Float, boatH: Float, color: Color
-) {
-    val path = Path().apply {
-        moveTo(cx - boatW * 0.5f, topY); lineTo(cx + boatW * 0.5f, topY)
-        lineTo(cx + boatW * 0.38f, topY + boatH); lineTo(cx - boatW * 0.38f, topY + boatH)
-        close()
-    }
-    drawPath(path, color = color)
-    drawPath(path, color = Color(0xFF5A2D0C), style = Stroke(width = boatH * 0.08f))
-}
-
-private fun DrawScope.profileDrawRower(
-    cx: Float, baseY: Float, scale: Float,
-    oarAngle: Float, armAngle: Float,
-    skinColor: Color, robeColor: Color, hatColor: Color
-) {
-    val u         = scale * 0.08f
-    val hipY      = baseY - u * 1.2f
-    val shoulderY = hipY  - u * 2.5f
-    val headY     = shoulderY - u * 1.8f
-
-    drawLine(color = robeColor, start = Offset(cx, hipY), end = Offset(cx, shoulderY),
-        strokeWidth = u * 2.2f, cap = StrokeCap.Round)
-    drawCircle(color = skinColor, radius = u * 1.0f, center = Offset(cx, headY))
-
-    val hatPath = Path().apply {
-        moveTo(cx, headY - u * 2.2f)
-        lineTo(cx - u * 2.2f, headY - u * 0.2f)
-        lineTo(cx + u * 2.2f, headY - u * 0.2f)
-        close()
-    }
-    drawPath(hatPath, color = hatColor)
-    drawLine(color = Color(0xFF3A2000),
-        start = Offset(cx - u * 2.2f, headY - u * 0.2f),
-        end   = Offset(cx + u * 2.2f, headY - u * 0.2f),
-        strokeWidth = u * 0.5f)
-
-    val armRad  = Math.toRadians(armAngle.toDouble()).toFloat()
-    val armLen  = u * 2.5f
-    val elbowX  = cx + armLen * sin(armRad)
-    val elbowY  = shoulderY + armLen * (1 - 0.3f * sin(armRad))
-    drawLine(color = skinColor, start = Offset(cx, shoulderY), end = Offset(elbowX, elbowY),
-        strokeWidth = u * 0.9f, cap = StrokeCap.Round)
-
-    val oarRad  = Math.toRadians(oarAngle.toDouble()).toFloat()
-    val oarLen  = u * 5.5f
-    val oarEndX = elbowX - oarLen * sin(oarRad)
-    val oarEndY = elbowY + oarLen * 0.6f
-    drawLine(color = Color(0xFF8B6914), start = Offset(elbowX, elbowY),
-        end = Offset(oarEndX, oarEndY), strokeWidth = u * 0.6f, cap = StrokeCap.Round)
-    drawCircle(color = Color(0xFFA0783C), radius = u * 0.8f, center = Offset(oarEndX, oarEndY))
-}

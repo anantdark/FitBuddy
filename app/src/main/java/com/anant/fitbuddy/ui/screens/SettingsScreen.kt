@@ -117,6 +117,8 @@ import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
+import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.settings.parseApiKeys
 import com.anant.fitbuddy.reminders.ReminderReceiver
@@ -857,6 +859,15 @@ fun SettingsScreen(
                 hintTitle = "Material You",
                 hint = "Use wallpaper-based dynamic colors (Android 12+)."
             )
+            SettingToggleRow(
+                title = "Loading animations",
+                checked = settings.animationsEnabled,
+                onCheckedChange = { enabled ->
+                    onSaveQuiet(settings.withAnimationsEnabled(enabled))
+                },
+                hintTitle = "Loading animations",
+                hint = "Play wait animations while AI analyses food or generates insights. Off shows a simple spinner."
+            )
 
             // Day-change hour — dropdown 12AM (midnight) … 11AM
             val dayChangeOptions = (0..11).toList()
@@ -1322,6 +1333,24 @@ fun SettingsScreen(
                 ) {
                     Text("Download & restore from cloud")
                 }
+
+                LoadingAnimationChoiceDropdown(
+                    label = "Analyzing banner",
+                    selected = settings.analyzingAnimationChoice,
+                    slot = LoadingAnimationSlot.ANALYZING,
+                    onSelect = { onSaveQuiet(settings.withAnalyzingAnimationChoice(it)) }
+                )
+                LoadingAnimationChoiceDropdown(
+                    label = "Insights button",
+                    selected = settings.insightAnimationChoice,
+                    slot = LoadingAnimationSlot.INSIGHT,
+                    onSelect = { onSaveQuiet(settings.withInsightAnimationChoice(it)) }
+                )
+                Text(
+                    text = "Per-slot wait UI: Random, Off (spinner), or a fixed animation for that slot.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 SettingToggleRow(
                     title = "Force offline AI simulator",
@@ -1946,6 +1975,57 @@ private fun SettingsCard(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     content()
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LoadingAnimationChoiceDropdown(
+    label: String,
+    selected: String,
+    slot: LoadingAnimationSlot,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = remember(slot) {
+        listOf(
+            AppSettings.LOADING_ANIM_RANDOM to "Random",
+            AppSettings.LOADING_ANIM_OFF to "Off (spinner)"
+        ) + LoadingAnimationRegistry.forSlot(slot).map { it.id to it.displayName }
+    }
+    val displayLabel = options.firstOrNull { it.first == selected }?.second
+        ?: selected.ifBlank { "Random" }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = displayLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { (value, optionLabel) ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel) },
+                    onClick = {
+                        expanded = false
+                        onSelect(value)
+                    }
+                )
             }
         }
     }

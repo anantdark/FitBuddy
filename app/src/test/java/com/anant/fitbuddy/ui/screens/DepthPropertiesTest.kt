@@ -1,6 +1,10 @@
 package com.anant.fitbuddy.ui.screens
 
 import androidx.compose.ui.graphics.Color
+import com.anant.fitbuddy.ui.loading.animations.PlanetSpec
+import com.anant.fitbuddy.ui.loading.animations.depthAlpha
+import com.anant.fitbuddy.ui.loading.animations.depthScale
+import com.anant.fitbuddy.ui.loading.animations.orderByDepth
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random

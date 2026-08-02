@@ -54,6 +54,14 @@ data class BackupSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
+    /** Empty = absent; restore falls back to [loadingAnimationChoice] / [animationsEnabled]. */
+    val analyzingAnimationChoice: String = "",
+    /** Empty = absent; restore falls back to [loadingAnimationChoice] / [animationsEnabled]. */
+    val insightAnimationChoice: String = "",
+    /** Legacy shared choice; used when per-slot fields are blank. */
+    val loadingAnimationChoice: String = "",
+    /** Legacy boolean; used only when all choice fields are blank. */
+    val animationsEnabled: Boolean = true,
     val autoCheckUpdates: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     val supportId: String = "",
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
@@ -74,6 +82,25 @@ data class BackupSettings(
     /** @deprecated Ignored on import — Atlas URI is build-baked. Kept for old JSON compatibility. */
     val mongoDbUri: String = "",
 ) {
+    private fun resolvedSlotChoice(slotStored: String, analyzingSlot: Boolean): String {
+        if (slotStored.isNotBlank()) return slotStored
+        val shared = loadingAnimationChoice.takeIf { it.isNotBlank() }
+        if (shared != null) {
+            return when (shared) {
+                AppSettings.LOADING_ANIM_OFF,
+                AppSettings.LOADING_ANIM_RANDOM -> shared
+                "solar_system" -> if (analyzingSlot) shared else AppSettings.LOADING_ANIM_RANDOM
+                "japan_rowing" -> if (analyzingSlot) AppSettings.LOADING_ANIM_RANDOM else shared
+                else -> AppSettings.LOADING_ANIM_RANDOM
+            }
+        }
+        return if (!animationsEnabled) {
+            AppSettings.LOADING_ANIM_OFF
+        } else {
+            AppSettings.LOADING_ANIM_RANDOM
+        }
+    }
+
     fun toAppSettings(): AppSettings {
         val provider = runCatching { AiProvider.valueOf(provider) }.getOrDefault(AiProvider.OPENROUTER)
         val activeProvider = activeAiProvider?.let {
@@ -113,6 +140,14 @@ data class BackupSettings(
                 activePhotoModel = activePhotoModel,
                 activeTextModel = activeTextModel,
                 dynamicColor = dynamicColor,
+                analyzingAnimationChoice = resolvedSlotChoice(analyzingAnimationChoice, analyzingSlot = true),
+                insightAnimationChoice = resolvedSlotChoice(insightAnimationChoice, analyzingSlot = false),
+                animationsEnabled = run {
+                    val analyzing = resolvedSlotChoice(analyzingAnimationChoice, analyzingSlot = true)
+                    val insight = resolvedSlotChoice(insightAnimationChoice, analyzingSlot = false)
+                    analyzing != AppSettings.LOADING_ANIM_OFF ||
+                        insight != AppSettings.LOADING_ANIM_OFF
+                },
                 // Never trust a restored value here: a backup made on a github build (or from
                 // before the distribution flavor split) would otherwise silently re-enable the
                 // GitHub auto-updater on an F-Droid install, which owns updates for that build.
@@ -169,6 +204,10 @@ data class BackupSettings(
             activePhotoModel = settings.activePhotoModel,
             activeTextModel = settings.activeTextModel,
             dynamicColor = settings.dynamicColor,
+            analyzingAnimationChoice = settings.analyzingAnimationChoice,
+            insightAnimationChoice = settings.insightAnimationChoice,
+            loadingAnimationChoice = "",
+            animationsEnabled = settings.animationsEnabled,
             autoCheckUpdates = settings.autoCheckUpdates,
             supportId = settings.supportId,
             crashReportingEnabled = settings.crashReportingEnabled,
