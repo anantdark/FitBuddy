@@ -31,7 +31,7 @@ import kotlinx.coroutines.delay
 /** Compact tiranga wash used inside insight / AI-target buttons. */
 object TirangaInsightLoadingAnimation : LoadingAnimation {
     override val id: String = "tiranga_insight"
-    override val displayName: String = "Tiranga"
+    override val displayName: String = "Indian flag"
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.INSIGHT)
     override val defaultCaptions: List<String> = JapanRowingLoadingAnimation.defaultCaptions
 

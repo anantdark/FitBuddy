@@ -132,6 +132,11 @@ data class AppSettings(
     /** Developer: OkHttp BODY logs even on release builds. */
     val verboseHttpLogging: Boolean = false,
     /**
+     * Developer: keep analyzing-banner and insight wait animations visible even when
+     * nothing is loading, so they can be previewed without waiting on AI.
+     */
+    val forceShowLoadingAnimations: Boolean = false,
+    /**
      * When true, uploads/downloads use the build-baked Atlas URI ([MongoUriVault]) and
      * this install's [supportId]. Off by default for guest installs until the user opts in.
      */

@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.ui.loading
 
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.ui.loading.animations.AppleTreeLoadingAnimation
 import com.anant.fitbuddy.ui.loading.animations.JapanRowingLoadingAnimation
 import com.anant.fitbuddy.ui.loading.animations.SolarSystemLoadingAnimation
 import com.anant.fitbuddy.ui.loading.animations.TirangaInsightLoadingAnimation
@@ -15,6 +16,7 @@ object LoadingAnimationRegistry {
     val all: List<LoadingAnimation> = listOf(
         SolarSystemLoadingAnimation,
         TirangaLoadingAnimation,
+        AppleTreeLoadingAnimation,
         JapanRowingLoadingAnimation,
         TirangaInsightLoadingAnimation,
     )

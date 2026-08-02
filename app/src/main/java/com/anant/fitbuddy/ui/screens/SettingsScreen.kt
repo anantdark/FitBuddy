@@ -868,6 +868,25 @@ fun SettingsScreen(
                 hintTitle = "Loading animations",
                 hint = "Play wait animations while AI analyses food or generates insights. Off shows a simple spinner."
             )
+            if (settings.animationsEnabled) {
+                LoadingAnimationChoiceDropdown(
+                    label = "Analyzing banner",
+                    selected = settings.analyzingAnimationChoice,
+                    slot = LoadingAnimationSlot.ANALYZING,
+                    onSelect = { onSaveQuiet(settings.withAnalyzingAnimationChoice(it)) }
+                )
+                LoadingAnimationChoiceDropdown(
+                    label = "Insights button",
+                    selected = settings.insightAnimationChoice,
+                    slot = LoadingAnimationSlot.INSIGHT,
+                    onSelect = { onSaveQuiet(settings.withInsightAnimationChoice(it)) }
+                )
+                Text(
+                    text = "Per-slot wait UI: Random, Off (spinner), or a fixed animation for that slot.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             // Day-change hour — dropdown 12AM (midnight) … 11AM
             val dayChangeOptions = (0..11).toList()
@@ -1334,22 +1353,15 @@ fun SettingsScreen(
                     Text("Download & restore from cloud")
                 }
 
-                LoadingAnimationChoiceDropdown(
-                    label = "Analyzing banner",
-                    selected = settings.analyzingAnimationChoice,
-                    slot = LoadingAnimationSlot.ANALYZING,
-                    onSelect = { onSaveQuiet(settings.withAnalyzingAnimationChoice(it)) }
-                )
-                LoadingAnimationChoiceDropdown(
-                    label = "Insights button",
-                    selected = settings.insightAnimationChoice,
-                    slot = LoadingAnimationSlot.INSIGHT,
-                    onSelect = { onSaveQuiet(settings.withInsightAnimationChoice(it)) }
-                )
-                Text(
-                    text = "Per-slot wait UI: Random, Off (spinner), or a fixed animation for that slot.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                SettingToggleRow(
+                    title = "Keep animations visible",
+                    checked = settings.forceShowLoadingAnimations,
+                    onCheckedChange = {
+                        onSaveQuiet(settings.copy(forceShowLoadingAnimations = it))
+                    },
+                    hintTitle = "Keep animations visible",
+                    hint = "Always show the analyzing banner and insight wait animations " +
+                        "so you can preview them without waiting on AI."
                 )
 
                 SettingToggleRow(
