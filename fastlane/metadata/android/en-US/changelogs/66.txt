@@ -1,0 +1,2 @@
+• fix: monthly progress graph shows rolling 30 days instead of calendar month
+• feat: editable workout exercises, AI session naming, and upgrade simple logs to structured workouts

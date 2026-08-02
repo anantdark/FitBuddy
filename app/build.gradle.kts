@@ -103,8 +103,8 @@ android {
             // F-Droid builds from source with no -P overrides, so defaultConfig's CI-driven
             // versionCode/versionName would resolve to 1/"3.0.0-dev" — below the already
             // published F-Droid release (57 / 3.1.1). Fixed here, bumped by hand per release.
-            versionCode = 64
-            versionName = "3.2.64"
+            versionCode = 66
+            versionName = "3.2.66"
         }
     }
 

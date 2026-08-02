@@ -12,7 +12,7 @@ buildscript {
     // it strictly to 13.0 on the buildscript classpath. Force the newer version.
     configurations.classpath {
         resolutionStrategy {
-            force("org.jetbrains:annotations:23.0.0")
+            force("org.jetbrains:annotations:26.1.0")
         }
     }
 }
