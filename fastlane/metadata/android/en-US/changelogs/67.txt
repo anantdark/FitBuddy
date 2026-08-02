@@ -1,0 +1,4 @@
+• feat: add tiranga flowing-flag analyzing banner
+• feat: per-slot loading animations with settings controls
+• fix: make AI calorie recommendations consistent
+• feat: drop x86/armv7a native libs, ship arm64-only (~15 MB smaller APK)
