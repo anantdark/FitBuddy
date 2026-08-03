@@ -255,8 +255,13 @@ class FitnessRepository(
      *
      * @param force when false (auto-upload), skip the PUT if tip plaintext matches the last
      *   uploaded content hash. Manual Upload now / pre-update backup should pass true.
+     * @param forceNewChunk when true (developer tools), freeze all tip log rows into the current
+     *   tip chunk and append a new tip — even if sealed size is under [BackupData.MAX_TIP_SEALED_BYTES].
      */
-    suspend fun uploadMongoBackup(force: Boolean = false): CloudUploadResult {
+    suspend fun uploadMongoBackup(
+        force: Boolean = false,
+        forceNewChunk: Boolean = false
+    ): CloudUploadResult {
         val settings = settingsRepository.settings.first()
         if (!settings.cloudBackupEnabled) {
             error("Cloud backup is disabled")
@@ -274,7 +279,7 @@ class FitnessRepository(
             var tip = BackupTipBuilder.buildTip(full, frozen)
             val tipHash = BackupContentHasher.hash(tip, backupManager::encode)
             val count = backupManager.countRecords(full)
-            if (!force) {
+            if (!force && !forceNewChunk) {
                 val previous = settingsRepository.getMongoTipContentHash()
                 if (previous.isNotEmpty() && previous == tipHash) {
                     settingsRepository.setMongoUploadStatus(ok = true)
@@ -291,11 +296,17 @@ class FitnessRepository(
                     seal(data).toByteArray(Charsets.UTF_8).size
 
                 var sealedTip = seal(tip)
-                if (sealedTip.toByteArray(Charsets.UTF_8).size > BackupData.MAX_TIP_SEALED_BYTES) {
-                    val (frozenSegment, newTip) = BackupTipBuilder.partitionForRollover(
-                        tip = tip,
-                        maxSealedBytes = BackupData.MAX_TIP_SEALED_BYTES
-                    ) { candidate -> sealedByteSize(candidate) }
+                val shouldRollover = forceNewChunk ||
+                    sealedTip.toByteArray(Charsets.UTF_8).size > BackupData.MAX_TIP_SEALED_BYTES
+                if (shouldRollover) {
+                    val (frozenSegment, newTip) = if (forceNewChunk) {
+                        BackupTipBuilder.forceRollover(tip)
+                    } else {
+                        BackupTipBuilder.partitionForRollover(
+                            tip = tip,
+                            maxSealedBytes = BackupData.MAX_TIP_SEALED_BYTES
+                        ) { candidate -> sealedByteSize(candidate) }
+                    }
                     val oldTipId = frozen.tipChunkId.ifBlank { supportId }
                     val oldIndex = BackupChunkIds.parseChunkIndex(oldTipId, supportId) ?: 0
                     val newIndex = maxOf(frozen.nextChunkIndex, oldIndex + 1)
@@ -304,13 +315,18 @@ class FitnessRepository(
                     tip = newTip
                     sealedTip = seal(tip)
 
+                    val dbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+                    val collName = settings.mongoCollectionName.ifBlank {
+                        AppSettings.DEFAULT_MONGO_COLLECTION
+                    }
+                    val deviceName = DeviceIdentity.deviceName(backupManager.appContext)
+                    val macId = DeviceIdentity.macId(backupManager.appContext)
+
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
                         apiKey = MongoUriVault.resolve(),
-                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                        collectionName = settings.mongoCollectionName.ifBlank {
-                            AppSettings.DEFAULT_MONGO_COLLECTION
-                        },
+                        databaseName = dbName,
+                        collectionName = collName,
                         supportId = supportId,
                         chunkId = oldTipId,
                         chunkIndex = oldIndex,
@@ -318,17 +334,15 @@ class FitnessRepository(
                         tipChunkId = if (oldTipId == supportId) newTipId else null,
                         payloadJson = sealedFrozen,
                         exportedAt = tip.exportedAt,
-                        deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        deviceName = deviceName,
+                        macId = macId,
                         headTipChunkId = newTipId
                     )
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
                         apiKey = MongoUriVault.resolve(),
-                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                        collectionName = settings.mongoCollectionName.ifBlank {
-                            AppSettings.DEFAULT_MONGO_COLLECTION
-                        },
+                        databaseName = dbName,
+                        collectionName = collName,
                         supportId = supportId,
                         chunkId = newTipId,
                         chunkIndex = newIndex,
@@ -336,8 +350,8 @@ class FitnessRepository(
                         tipChunkId = null,
                         payloadJson = sealedTip,
                         exportedAt = tip.exportedAt,
-                        deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        deviceName = deviceName,
+                        macId = macId,
                         headTipChunkId = newTipId
                     )
                     frozen = BackupTipBuilder.indexAfterFreezing(
@@ -349,6 +363,12 @@ class FitnessRepository(
                     saveFrozenIndex(frozen)
                     settingsRepository.setMongoTipContentHash(
                         BackupContentHasher.hash(tip, backupManager::encode)
+                    )
+                    settingsRepository.setMongoUploadStatus(ok = true)
+                    return CloudUploadResult(
+                        recordCount = count,
+                        skipped = false,
+                        newTipChunkId = newTipId
                     )
                 } else {
                     val tipId = frozen.tipChunkId.ifBlank { supportId }

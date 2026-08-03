@@ -202,8 +202,10 @@ open class MongoBackupRepository(
             supportId = json.optString("supportId").ifBlank { supportId },
             chunkId = json.optString("chunkId").ifBlank { fallbackChunkId },
             chunkIndex = json.optInt("chunkIndex", 0),
-            nextChunkId = json.optString("nextChunkId").takeIf { it.isNotBlank() },
-            tipChunkId = json.optString("tipChunkId").takeIf { it.isNotBlank() },
+            // Android JSONObject.optString coerces JSON null → the literal "null", which would
+            // make downloadChain request chunkId=null and 404 ("No cloud backup found…").
+            nextChunkId = optionalChunkRef(json, "nextChunkId"),
+            tipChunkId = optionalChunkRef(json, "tipChunkId"),
             storageVersion = json.optInt("storageVersion", 1),
             schemaVersion = json.optInt("schemaVersion", 0),
             exportedAt = json.optLong("exportedAt", 0L),
@@ -212,6 +214,17 @@ open class MongoBackupRepository(
             macId = json.optString("macId"),
             payloadJson = payloadJson
         )
+    }
+
+    /**
+     * Reads an optional chunk-id field. Must use [JSONObject.isNull] — do not use
+     * [JSONObject.optString] alone for nullable refs (Android returns `"null"` for JSON null).
+     */
+    internal fun optionalChunkRef(json: JSONObject, key: String): String? {
+        if (!json.has(key) || json.isNull(key)) return null
+        val value = json.optString(key).trim()
+        if (value.isEmpty() || value.equals("null", ignoreCase = true)) return null
+        return value
     }
 
     private fun backupUrl(

@@ -122,6 +122,30 @@ object BackupTipBuilder {
         }
 
         val freezeIds = sorted.take(best).groupBy({ it.kind }, { it.id })
+        return splitAtFreezeIds(tip, freezeIds)
+    }
+
+    /**
+     * Developer/testing helper: freeze every movable tip parent into a segment and leave the
+     * remainder tip with profile/settings/presets only. Fails when the tip has no log rows.
+     */
+    fun forceRollover(tip: BackupData): Pair<BackupData, BackupData> {
+        val parents = tip.foodLogs.map { ParentRef("food", it.id, it.dateString) } +
+            tip.exerciseLogs.map { ParentRef("exercise", it.id, it.dateString) } +
+            tip.measurements.map { ParentRef("measurement", it.id, it.dateString) } +
+            tip.workoutSessions.map { ParentRef("session", it.id, it.dateString) }
+        val sorted = parents.sortedWith(compareBy({ it.dateString }, { it.kind }, { it.id }))
+        if (sorted.isEmpty()) {
+            error("Cloud tip has no log rows to freeze into a new chunk")
+        }
+        val freezeIds = sorted.groupBy({ it.kind }, { it.id })
+        return splitAtFreezeIds(tip, freezeIds)
+    }
+
+    private fun splitAtFreezeIds(
+        tip: BackupData,
+        freezeIds: Map<String, List<Int>>
+    ): Pair<BackupData, BackupData> {
         val frozenSegment = extractParents(tip, freezeIds).copy(
             profile = null,
             settings = null,

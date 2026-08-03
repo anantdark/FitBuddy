@@ -39,7 +39,8 @@ keytool -genkeypair -v \
 ## 3. GitHub Actions (required for Releases)
 
 Add these repository secrets so CI always signs with the **release** key (otherwise each runner
-uses a different debug keystore and in-app updates fail between releases):
+uses a different debug keystore and browser-based updates can't install over a mismatched
+signature):
 
 | Secret | Value |
 |--------|-------|
@@ -102,6 +103,9 @@ Local/dev builds keep the fallback versions; CI sets them via `-PappVersionCode`
 ## 7. GitHub “Latest” vs F-Droid
 
 CI releases on `main` (`v*-buildN`, with `FitBuddy-latest.apk`) own GitHub **Latest** —
-the website and in-app updater use those. F-Droid publishes clean `vX.Y.Z` tags as
+the website and in-app update checker use those. When an update is available, FitBuddy
+opens the APK's GitHub `browser_download_url` in the system browser (direct download) —
+it does **not** declare `REQUEST_INSTALL_PACKAGES` or install APKs itself (Play Protect).
+F-Droid publishes clean `vX.Y.Z` tags as
 **prerelease** with `make_latest: false` (see `fdroid` branch workflow); F-Droid installs
 via the tag `Binaries` URL only, never `/releases/latest`.
