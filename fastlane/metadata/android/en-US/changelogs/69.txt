@@ -1,0 +1,4 @@
+• feat: append-only cloud backup chunk chains
+• feat: gzip backup payloads before encryption
+• feat: skip cloud upload when tip content is unchanged
+• feat: address progress insights by first name
