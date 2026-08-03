@@ -3,9 +3,11 @@ package com.anant.fitbuddy.data.repository
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import com.anant.fitbuddy.data.backup.BackupContentHasher
 import com.anant.fitbuddy.data.backup.BackupErrorMessages
 import com.anant.fitbuddy.data.backup.BackupImportResult
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.CloudUploadResult
 import com.anant.fitbuddy.data.backup.crypto.BackupFormat
 import com.anant.fitbuddy.data.backup.crypto.BackupPasswordStore
 import com.anant.fitbuddy.data.backup.crypto.OpenResult
@@ -241,7 +243,13 @@ class FitnessRepository(
         }
     }
 
-    suspend fun uploadMongoBackup(): Int {
+    /**
+     * Uploads a sealed BackupData snapshot to the cloud.
+     *
+     * @param force when false (auto-upload), skip the PUT if tip plaintext matches the last
+     *   uploaded content hash. Manual Upload now / pre-update backup should pass true.
+     */
+    suspend fun uploadMongoBackup(force: Boolean = false): CloudUploadResult {
         val settings = settingsRepository.settings.first()
         if (!settings.cloudBackupEnabled) {
             error("Cloud backup is disabled")
@@ -253,6 +261,16 @@ class FitnessRepository(
         return try {
             val data = backupManager.buildBackupData()
             val payloadJson = backupManager.encode(data)
+            val contentHash = BackupContentHasher.hash(data, backupManager::encode)
+            val count = backupManager.countRecords(data)
+            if (!force) {
+                val previous = settingsRepository.getMongoTipContentHash()
+                if (previous.isNotEmpty() && previous == contentHash) {
+                    // Content unchanged — skip PUT but refresh debounce / status timestamp.
+                    settingsRepository.setMongoUploadStatus(ok = true)
+                    return CloudUploadResult(recordCount = count, skipped = true)
+                }
+            }
             // Seal with the stored custom password when one is set, else the Support ID default.
             val passwordChars = resolveUploadPassword(settings, supportId)
             val sealedPayload = try {
@@ -273,9 +291,9 @@ class FitnessRepository(
                 deviceName = DeviceIdentity.deviceName(backupManager.appContext),
                 macId = DeviceIdentity.macId(backupManager.appContext)
             )
-            val count = backupManager.countRecords(data)
+            settingsRepository.setMongoTipContentHash(contentHash)
             settingsRepository.setMongoUploadStatus(ok = true)
-            count
+            CloudUploadResult(recordCount = count, skipped = false)
         } catch (e: Exception) {
             settingsRepository.setMongoUploadStatus(
                 ok = false,
@@ -456,6 +474,9 @@ class FitnessRepository(
                 )
             }
             settingsRepository.setCloudBackupPasswordSet(!isBlank)
+            settingsRepository.setMongoTipContentHash(
+                BackupContentHasher.hash(data, backupManager::encode)
+            )
             settingsRepository.setMongoUploadStatus(ok = true)
         } finally {
             effectivePassword.fill('\u0000')

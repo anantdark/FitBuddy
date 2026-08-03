@@ -486,7 +486,7 @@ class MainViewModel(
                 )
             }
             val result = if (useCloud) {
-                runCatching { repository.uploadMongoBackup() }
+                runCatching { repository.uploadMongoBackup(force = true).recordCount }
             } else {
                 runCatching { repository.exportData(uri!!) }
             }
@@ -1660,10 +1660,16 @@ class MainViewModel(
     fun uploadMongoBackup() {
         viewModelScope.launch {
             _mongoBackupBusy.value = true
-            runCatching { repository.uploadMongoBackup() }
-                .onSuccess { count ->
+            runCatching { repository.uploadMongoBackup(force = true) }
+                .onSuccess { result ->
                     _analysisState.update {
-                        it.copy(userMessage = "Uploaded $count records to cloud backup")
+                        it.copy(
+                            userMessage = if (result.skipped) {
+                                "Cloud backup already up to date"
+                            } else {
+                                "Uploaded ${result.recordCount} records to cloud backup"
+                            }
+                        )
                     }
                 }
                 .onFailure { e ->

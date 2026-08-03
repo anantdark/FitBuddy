@@ -13,6 +13,7 @@ import com.squareup.moshi.JsonClass
  * - model rate-limit cooldowns
  * - [AppSettings.mongoLastUploadAt] / [AppSettings.mongoLastUploadOk] / [AppSettings.mongoLastError]
  * - [AppSettings.lastSuccessfulBackupAt]
+ * - Tip content hash (DataStore mongo_tip_content_hash — device-local skip cache)
  * - Atlas connection URI (build-baked via MongoUriVault — never in backup JSON)
  * - Sentry heartbeat day, last-known version code, in-flight OAuth PKCE verifier
  *

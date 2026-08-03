@@ -351,6 +351,21 @@ class SettingsRepository(context: Context) {
     }
 
     /**
+     * SHA-256 hex of the last successfully uploaded tip plaintext (exportedAt-normalized).
+     * Device-local; not included in [AppSettings] / backup JSON.
+     */
+    suspend fun getMongoTipContentHash(): String =
+        dataStore.data.first()[KEY_MONGO_TIP_CONTENT_HASH].orEmpty()
+
+    suspend fun setMongoTipContentHash(hash: String) {
+        dataStore.edit { prefs ->
+            val trimmed = hash.trim()
+            if (trimmed.isEmpty()) prefs.remove(KEY_MONGO_TIP_CONTENT_HASH)
+            else prefs[KEY_MONGO_TIP_CONTENT_HASH] = trimmed
+        }
+    }
+
+    /**
      * Marks a successful local (or other) backup. Returns the recorded epoch ms.
      * Cloud uploads go through [setMongoUploadStatus] with ok=true instead.
      */
@@ -498,6 +513,7 @@ class SettingsRepository(context: Context) {
         val KEY_MONGO_LAST_UPLOAD_AT = longPreferencesKey("mongo_last_upload_at")
         val KEY_MONGO_LAST_UPLOAD_OK = booleanPreferencesKey("mongo_last_upload_ok")
         val KEY_MONGO_LAST_ERROR = stringPreferencesKey("mongo_last_error")
+        val KEY_MONGO_TIP_CONTENT_HASH = stringPreferencesKey("mongo_tip_content_hash")
         val KEY_LAST_SUCCESSFUL_BACKUP_AT = longPreferencesKey("last_successful_backup_at")
         // Device-local only — not in BackupSettings / BackupData v5.
         val KEY_FIRST_NAME = stringPreferencesKey("user_first_name")
