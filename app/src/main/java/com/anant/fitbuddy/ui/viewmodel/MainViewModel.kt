@@ -2876,7 +2876,12 @@ class MainViewModel(
             avgIntakeOnExerciseDays.toDouble() / totalBurned
         }
 
+        val firstName = settings.value.displayFirstName
         return JSONObject().apply {
+            put(
+                "first_name",
+                firstName.takeIf { it.isNotEmpty() } ?: JSONObject.NULL
+            )
             put("age", profile?.age?.takeIf { it > 0 } ?: JSONObject.NULL)
             put("sex", profile?.sex?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
             put("height_cm", profile?.heightCm?.takeIf { it > 0 } ?: JSONObject.NULL)
