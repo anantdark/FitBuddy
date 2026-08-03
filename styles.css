@@ -568,54 +568,8 @@ h2 {
   transform: none;
 }
 
-@media (max-width: 860px) {
-  .feature-list li {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-  }
 
-  .docs-layout {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }
 
-  .docs-nav {
-    position: static;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.65rem 1rem;
-  }
-
-  .docs-nav-title {
-    width: 100%;
-  }
-}
-
-@media (max-width: 560px) {
-  .site-header nav a:not([aria-current]) {
-    display: none;
-  }
-
-  .site-header nav a[href*="github"],
-  .site-header nav a[href*="docs"],
-  .site-header nav a[href="./"] {
-    display: inline;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-media img,
-  .brand-mark,
-  .hero h1,
-  .lede,
-  .cta-row,
-  .reveal {
-    animation: none !important;
-    transition: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-}
 
 /* ── FitBuddy: phones + stores ─────────────────────── */
 
@@ -674,22 +628,251 @@ h2 {
   max-width: 68rem;
 }
 
+/* ── Responsive ───────────────────────────────────── */
+
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+.site-header {
+  gap: 1rem;
+}
+
+.site-header .brand {
+  margin-right: auto;
+  position: relative;
+  z-index: 2;
+}
+
+.nav-toggle {
+  display: none;
+  position: relative;
+  z-index: 2;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(var(--ink-rgb, 12, 18, 16), 0.35);
+  color: var(--paper);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-toggle svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.nav-toggle .icon-close { display: none; }
+.nav-toggle[aria-expanded="true"] .icon-menu { display: none; }
+.nav-toggle[aria-expanded="true"] .icon-close { display: block; }
+
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.docs-main table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.terminal pre {
+  -webkit-overflow-scrolling: touch;
+}
+
+.terminal code {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
 @media (max-width: 860px) {
+  .site-header {
+    padding: 0.85rem 1rem;
+  }
+
+  .hero-copy {
+    padding: 5.5rem 1rem 3rem;
+  }
+
+  .strip,
+  .features,
+  .steps,
+  .compare {
+    padding: 3.5rem 1rem;
+  }
+
+  .feature-list li {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .step-list li {
+    grid-template-columns: 2.75rem 1fr;
+    gap: 0.75rem;
+  }
+
+  .docs-layout,
+  .docs-layout-wide {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+    padding: 5.5rem 1rem 3rem;
+  }
+
+  .docs-nav {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 0.9rem;
+  }
+
+  .docs-nav-title {
+    width: 100%;
+  }
+
   .phone-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.65rem;
   }
+
   .phone img {
     border-radius: 0.7rem;
   }
+
+  .site-footer {
+    padding: 2.5rem 1rem 3rem;
+  }
+
+  .terminal code {
+    font-size: 0.78rem;
+  }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .site-header nav {
+    display: none;
+    position: absolute;
+    top: calc(100% - 0.15rem);
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0.5rem 0.75rem 0.85rem;
+    background: rgba(var(--ink-rgb, 12, 18, 16), 0.96);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(12px);
+  }
+
+  .site-header nav.is-open {
+    display: flex;
+  }
+
+  .site-header nav a {
+    padding: 0.75rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 1rem;
+  }
+
+  .site-header nav a:last-child {
+    border-bottom: 0;
+  }
+
+  .brand-mark {
+    font-size: clamp(2rem, 11vw, 2.8rem);
+  }
+
+  .hero h1,
+  .docs-main h1 {
+    font-size: clamp(1.75rem, 8vw, 2.4rem);
+  }
+
+  h2 {
+    font-size: clamp(1.55rem, 7vw, 2.1rem);
+  }
+
+  .lede,
+  .section-lede {
+    font-size: 1rem;
+  }
+
+  .cta-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
   .phone-row {
     grid-template-columns: 1fr;
     justify-items: center;
+    gap: 1.5rem;
   }
+
   .phone img {
-    max-width: 220px;
+    max-width: min(260px, 78vw);
+  }
+
+  .store-badge img {
+    height: 48px;
+  }
+
+  .store-row {
+    justify-content: center;
+  }
+
+  .footer-links {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .terminal pre {
+    padding: 0.85rem;
+  }
+
+  .terminal code {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero-copy {
+    padding-top: 5rem;
+  }
+
+  .btn {
+    padding: 0.8rem 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-media img,
+  .brand-mark,
+  .hero h1,
+  .lede,
+  .cta-row,
+  .reveal {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
