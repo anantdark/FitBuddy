@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guide — FitBuddy</title>
+  <meta name="description" content="Beginner guide to installing FitBuddy, connecting AI, logging meals and workouts, and reading your progress." />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/docs/" />
+  <link rel="icon" href="../assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="../">FitBuddy</a>
+    <nav>
+      <a href="../#download">Download</a>
+      <a href="./" aria-current="page">Guide</a>
+      <a href="../faq.html">FAQ</a>
+      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Guide</p>
+      <a href="#what">What is FitBuddy?</a>
+      <a href="#install">Install</a>
+      <a href="#first">First-run setup</a>
+      <a href="#log">Log food</a>
+      <a href="#workout">Log workouts</a>
+      <a href="#progress">Progress</a>
+      <a href="#ai">AI providers</a>
+      <a href="#backup">Backups</a>
+      <a href="#tips">Tips</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Beginner guide</p>
+      <h1>From install to<br /><em>first thali log</em></h1>
+      <p class="lede">
+        Follow this once. After that you’ll mostly live on the Today tab —
+        snap, review, save.
+      </p>
+
+      <section id="what">
+        <h2>What is FitBuddy?</h2>
+        <p>
+          FitBuddy is a free, open-source Android app for tracking food and exercise.
+          You describe a meal with a <strong>photo</strong> or <strong>plain text</strong>;
+          an AI you configure estimates calories and macros. It’s especially useful if you
+          eat Indian food that generic western food databases miss.
+        </p>
+      </section>
+
+      <section id="install">
+        <h2>Install</h2>
+        <p>Pick one channel and stick to it (signing keys differ):</p>
+        <ul>
+          <li><a href="https://f-droid.org/en/packages/com.anant.fitbuddy/">F-Droid</a></li>
+          <li><a href="https://www.openapk.net/fitbuddy/com.anant.fitbuddy/">OpenAPK</a></li>
+          <li><a href="https://github.com/anantdark/FitBuddy/releases/latest/download/FitBuddy-latest.apk">GitHub APK</a> (arm64)</li>
+        </ul>
+        <p>Needs <strong>Android 10</strong> or newer.</p>
+      </section>
+
+      <section id="first">
+        <h2>First-run setup</h2>
+        <ol>
+          <li>Open FitBuddy → start fresh, or restore a backup if you have one.</li>
+          <li>Optionally connect an AI provider (OpenRouter is the easiest free option).</li>
+          <li>Set profile basics: sex, age, height, weight, activity, goal.</li>
+          <li>Land on <strong>Today</strong> — your daily calorie ring and log.</li>
+        </ol>
+        <p>No AI key? The offline simulator still lets you explore the UI.</p>
+      </section>
+
+      <section id="log">
+        <h2>Log food</h2>
+        <ol>
+          <li>Tap the log / + action and choose food.</li>
+          <li>Take a photo of the plate <em>or</em> type something like <code>2 roti, dal tadka, salad</code>.</li>
+          <li>Wait for analysis, then open <strong>meal review</strong>.</li>
+          <li>Fix the dish name, drag ingredient weights, confirm macros feel right.</li>
+          <li>Save. Bookmark as a <strong>preset</strong> if you’ll eat it again.</li>
+        </ol>
+        <p>You can always edit a past entry from the day log.</p>
+      </section>
+
+      <section id="workout">
+        <h2>Log workouts</h2>
+        <p>
+          Log a session with AI (e.g. “45 min walk”) or build a structured workout with
+          sets, reps, and weight. Simple AI logs can be upgraded into full editable sessions later.
+        </p>
+      </section>
+
+      <section id="progress">
+        <h2>Progress</h2>
+        <p>
+          The Progress tab shows trends over a rolling window — weight, calories, macros —
+          drawn on-device. Optional Progress Coach can summarize patterns using your AI provider.
+        </p>
+      </section>
+
+      <section id="ai">
+        <h2>AI providers</h2>
+        <p>Configure under <strong>Settings</strong>:</p>
+        <table>
+          <thead><tr><th>Provider</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>OpenRouter</td><td>Free vision models; optional account sign-in</td></tr>
+            <tr><td>Gemini</td><td>Google AI Studio key</td></tr>
+            <tr><td>OpenAI</td><td>Direct API key</td></tr>
+            <tr><td>Ollama / compatible</td><td>Local or any OpenAI-compatible host</td></tr>
+          </tbody>
+        </table>
+        <p>Keys stay in on-device DataStore. They are only sent to the provider you selected when you run an analysis.</p>
+      </section>
+
+      <section id="backup">
+        <h2>Backups</h2>
+        <p>
+          Export an encrypted JSON backup anytime. Optional cloud backup uses your Support ID
+          and AES-256-GCM — details on the <a href="../encryption.html">encryption</a> page.
+        </p>
+      </section>
+
+      <section id="tips">
+        <h2>Tips</h2>
+        <ul>
+          <li>Well-lit photos of the whole plate work better than close-ups of one bowl.</li>
+          <li>Presets beat re-analyzing the same breakfast every day.</li>
+          <li>Turn on reminders in Settings if you forget to log.</li>
+          <li>Crash reports are optional and anonymous — opt out anytime.</li>
+        </ul>
+      </section>
+
+      <p class="docs-end">
+        More answers in the <a href="../faq.html">FAQ</a> ·
+        <a href="../privacy.html">Privacy</a> ·
+        <a href="https://github.com/anantdark/FitBuddy">GitHub</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="../">FitBuddy</a>
+    <div class="footer-links">
+      <a href="../">Home</a>
+      <a href="../faq.html">FAQ</a>
+      <a href="../privacy.html">Privacy</a>
+    </div>
+  </footer>
+  <script src="../main.js"></script>
+</body>
+</html>

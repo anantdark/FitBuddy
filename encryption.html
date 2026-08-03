@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Encryption — FitBuddy</title>
+  <meta name="description" content="How FitBuddy encrypts backups with AES-256-GCM and PBKDF2 before optional cloud upload." />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/encryption.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="./">FitBuddy</a>
+    <nav>
+      <a href="docs/">Guide</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="encryption.html" aria-current="page">Encryption</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Security</p>
+      <a href="#overview">Overview</a>
+      <a href="#cipher">AES-256-GCM</a>
+      <a href="#kdf">Key derivation</a>
+      <a href="#cloud">Cloud chunks</a>
+      <a href="#zk">Zero-knowledge</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Security</p>
+      <h1>Encryption</h1>
+      <p class="lede">
+        Backups are sealed on your device with AES-256-GCM before they ever leave the app.
+        No backdoor, no master key, no password recovery — by design.
+      </p>
+
+      <section id="overview">
+        <h2>Overview</h2>
+        <ul>
+          <li><strong>Cipher:</strong> AES-256-GCM (authenticated encryption)</li>
+          <li><strong>Key derivation:</strong> PBKDF2-HMAC-SHA256, 120,000 iterations</li>
+          <li><strong>Salt:</strong> 128-bit random, per backup</li>
+          <li><strong>Nonce:</strong> 96-bit random, per backup</li>
+          <li><strong>Compression:</strong> gzip of JSON before encryption</li>
+        </ul>
+      </section>
+
+      <section id="cipher">
+        <h2>AES-256-GCM</h2>
+        <p>
+          AES-256 is the standard symmetric cipher used for highly sensitive data.
+          GCM adds integrity: if ciphertext is tampered with, decryption fails instead of
+          producing garbage. You get confidentiality, integrity, and authenticity together.
+        </p>
+      </section>
+
+      <section id="kdf">
+        <h2>Key derivation (PBKDF2)</h2>
+        <p>
+          Your password is never used raw as the key. FitBuddy derives a 256-bit key with
+          PBKDF2-HMAC-SHA256 (120k iterations) and a fresh random salt each backup —
+          defeating rainbow tables and making brute force expensive.
+        </p>
+        <p>
+          Default cloud backups can derive from your Support ID when you haven’t set a custom
+          password. Custom passwords live in the Android Keystore on-device only.
+        </p>
+      </section>
+
+      <section id="cloud">
+        <h2>Cloud chunk chains</h2>
+        <p>
+          Large histories upload as an append-only chain of sealed chunks. Routine uploads
+          refresh the tip when content changed; restore downloads and merges the full chain
+          into one snapshot.
+        </p>
+      </section>
+
+      <section id="zk">
+        <h2>Zero-knowledge design</h2>
+        <p>
+          The server only ever stores encrypted envelopes. Forgetting a custom password means
+          that backup cannot be recovered. Keep the password somewhere safe.
+        </p>
+      </section>
+
+      <p class="docs-end">
+        Also read <a href="privacy.html">Privacy</a> for what leaves the device at all.
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">FitBuddy</a>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy</a>
+      <a href="faq.html">FAQ</a>
+      <a href="https://github.com/anantdark/FitBuddy">GitHub</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>

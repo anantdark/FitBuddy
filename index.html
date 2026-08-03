@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FitBuddy — AI health tracker for Indian diets</title>
+  <meta name="description" content="Log meals with a photo or freeform text. FitBuddy estimates calories and macros — tuned for Indian food, offline-capable, open source for Android." />
+  <meta property="og:title" content="FitBuddy — Log the thali. Track the burn." />
+  <meta property="og:description" content="AI-powered Android health tracker for Indian diets. Photo or text in, calories and macros out." />
+  <meta property="og:image" content="https://anantdark.github.io/FitBuddy/assets/hero.jpg" />
+  <meta property="og:url" content="https://anantdark.github.io/FitBuddy/" />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="./">FitBuddy</a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/anantdark/FitBuddy" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-media" aria-hidden="true">
+        <img src="assets/hero.jpg" alt="" />
+        <div class="hero-veil"></div>
+      </div>
+      <div class="hero-copy">
+        <p class="brand-mark">FitBuddy</p>
+        <h1>Log the thali.<br /><em>Track the burn.</em></h1>
+        <p class="lede">
+          AI-powered health tracking for Android — snap a plate or type what you ate,
+          get calories and macros back. Tuned for Indian diets. Your data stays on your phone.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="#download">Get the app</a>
+          <a class="btn ghost" href="docs/">Beginner guide</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="strip phones-strip" id="how">
+      <h2>One flow. Real food.</h2>
+      <p class="section-lede">
+        Capture → review → watch the day add up. No calorie spreadsheet required.
+      </p>
+      <div class="phone-row">
+        <figure class="phone">
+          <img src="assets/screens/today.png" alt="Today dashboard with calorie ring" />
+          <figcaption>Today</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="assets/screens/food-review.png" alt="Meal review with ingredients" />
+          <figcaption>Review</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="assets/screens/progress.png" alt="Progress charts" />
+          <figcaption>Progress</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="features">
+      <h2>Built for how you actually eat.</h2>
+      <p class="section-lede">Dal, roti, leftovers, hotel thalis — freeform text and photos both work.</p>
+      <ul class="feature-list">
+        <li>
+          <h3>Smart logging</h3>
+          <p>Photo or loose text. Your chosen AI estimates calories and macros — including Indian dishes.</p>
+        </li>
+        <li>
+          <h3>Meal review</h3>
+          <p>Edit the dish name, tweak ingredient weights, watch macros update live. Save presets for next time.</p>
+        </li>
+        <li>
+          <h3>Workouts that stick</h3>
+          <p>Structured sessions with sets and reps, or upgrade a simple AI log into a full workout.</p>
+        </li>
+        <li>
+          <h3>Private by default</h3>
+          <p>Logs live on-device. Encrypted backups optional. Bring your own AI key — OpenRouter, Gemini, OpenAI, or Ollama.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section class="steps">
+      <h2>Three steps.</h2>
+      <ol class="step-list">
+        <li>
+          <span class="n">01</span>
+          <div>
+            <h3>Install</h3>
+            <p>F-Droid, OpenAPK, or the GitHub APK. Android 10+.</p>
+          </div>
+        </li>
+        <li>
+          <span class="n">02</span>
+          <div>
+            <h3>Connect AI <em>(or skip)</em></h3>
+            <p>OpenRouter sign-in, API key, or offline simulator — your call.</p>
+          </div>
+        </li>
+        <li>
+          <span class="n">03</span>
+          <div>
+            <h3>Log today’s food</h3>
+            <p>Snap a plate or type “2 roti + dal”. Review, save, done.</p>
+          </div>
+        </li>
+      </ol>
+      <a class="btn primary" href="docs/">Read the full beginner guide</a>
+    </section>
+
+    <section class="compare">
+      <h2>Your kitchen. Your keys.<br />Your device.</h2>
+      <p class="section-lede">
+        FitBuddy is open source (GPL-3.0). No FitBuddy account. Meal photos and API keys
+        stay on your phone except when you ask an AI provider you chose to analyze a log —
+        see <a href="privacy.html">Privacy</a>.
+      </p>
+    </section>
+
+    <section class="strip" id="download">
+      <h2>Get FitBuddy</h2>
+      <p class="section-lede">Same codebase on every store. Pick the channel you trust.</p>
+      <div class="store-row">
+        <a class="store-badge" href="https://f-droid.org/en/packages/com.anant.fitbuddy/" rel="noopener">
+          <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="64" />
+        </a>
+        <a class="store-badge" href="https://www.openapk.net/fitbuddy/com.anant.fitbuddy/" rel="noopener">
+          <img src="https://www.openapk.net/images/openapk-badge.png" alt="Get it on OpenAPK" height="64" />
+        </a>
+      </div>
+      <div class="cta-row" style="margin-top:1.5rem">
+        <a class="btn primary" href="https://github.com/anantdark/FitBuddy/releases/latest/download/FitBuddy-latest.apk">Download APK</a>
+        <a class="btn ghost" href="https://github.com/anantdark/FitBuddy/releases">All releases</a>
+      </div>
+      <p class="fine" style="margin-top:1rem">Requires Android 10+. GitHub APKs are arm64-v8a. F-Droid uses a different signing key — don’t mix update channels on one install.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">FitBuddy</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="encryption.html">Encryption</a>
+      <a href="https://github.com/anantdark/FitBuddy">GitHub</a>
+      <a href="https://github.com/anantdark/FitBuddy/blob/main/LICENSE">GPL-3.0</a>
+    </div>
+    <p class="fine">Open source health tracking for Android.</p>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

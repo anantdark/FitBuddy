@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy — FitBuddy</title>
+  <meta name="description" content="What FitBuddy stores on your device, what is sent to AI providers, optional cloud backup, and crash reports." />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/privacy.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="./">FitBuddy</a>
+    <nav>
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html" aria-current="page">Privacy</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Privacy</p>
+      <a href="#device">On your device</a>
+      <a href="#ai">AI provider</a>
+      <a href="#cloud">Cloud backup</a>
+      <a href="#network">Other network</a>
+      <a href="#sentry">Crash reports</a>
+      <a href="#permissions">Permissions</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Data</p>
+      <h1>Privacy</h1>
+      <p class="lede">
+        FitBuddy is designed so your food log and API keys live on your phone.
+        Network calls only happen for features you use. There is no FitBuddy account.
+      </p>
+
+      <section id="device">
+        <h2>Stored on your device</h2>
+        <ul>
+          <li>Profile, body readings, daily targets</li>
+          <li>Food and exercise logs, meal presets, saved foods</li>
+          <li>AI provider choice, API keys / OpenRouter token, model preferences</li>
+          <li>Reminder schedule</li>
+          <li>Optional local JSON backups (optionally password-encrypted)</li>
+          <li>Anonymous Support ID (not your name or email)</li>
+        </ul>
+        <p>Uninstalling removes local data unless you kept an export or cloud backup under your Support ID.</p>
+      </section>
+
+      <section id="ai">
+        <h2>Sent to your AI provider</h2>
+        <p>
+          When you analyze a photo or text, design targets, estimate workout calories,
+          or use Progress Coach, FitBuddy sends the relevant content to the provider you configured.
+          That can include meal photos or descriptions, profile snippets needed for the request,
+          and compressed progress metrics for insights.
+        </p>
+        <p>
+          Choose a provider you trust — their retention rules apply. Prefer local Ollama if you want analysis on your network.
+          FitBuddy does not upload your full history to a FitBuddy app server — there isn’t one.
+        </p>
+      </section>
+
+      <section id="cloud">
+        <h2>Optional personal cloud backup</h2>
+        <p>
+          When enabled, FitBuddy can upload <strong>gzip-compressed, AES-256-GCM encrypted</strong>
+          backups keyed by your Support ID. Encryption happens on-device before upload.
+          Off by default. Details: <a href="encryption.html">Encryption</a>.
+        </p>
+      </section>
+
+      <section id="network">
+        <h2>Other network use</h2>
+        <ul>
+          <li><strong>OpenRouter OAuth</strong> — browser sign-in when you choose it</li>
+          <li><strong>Open Food Facts</strong> — barcode product lookup (decode is on-device)</li>
+          <li><strong>GitHub</strong> — release / update checks; APK opens in your browser</li>
+        </ul>
+      </section>
+
+      <section id="sentry">
+        <h2>Optional crash reports (Sentry)</h2>
+        <p>
+          If enabled, anonymous crash/ANR data may be sent to help fix bugs.
+          <strong>Not sent:</strong> meals, photos, API keys, freeform food text.
+          Opt out anytime in Settings. Share your Support ID when asking for help.
+        </p>
+      </section>
+
+      <section id="permissions">
+        <h2>Permissions (typical)</h2>
+        <ul>
+          <li>Camera — food photos and barcodes</li>
+          <li>Photos / media — gallery pick</li>
+          <li>Notifications &amp; alarms — optional daily reminder</li>
+          <li>Internet — AI, barcode lookup, updates, optional cloud / crash reports</li>
+        </ul>
+      </section>
+
+      <p class="docs-end">
+        FitBuddy is GPL-3.0 —
+        <a href="https://github.com/anantdark/FitBuddy">inspect the code</a>.
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">FitBuddy</a>
+    <div class="footer-links">
+      <a href="encryption.html">Encryption</a>
+      <a href="faq.html">FAQ</a>
+      <a href="docs/">Guide</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>

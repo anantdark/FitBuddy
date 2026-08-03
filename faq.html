@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FAQ — FitBuddy</title>
+  <meta name="description" content="Frequently asked questions about FitBuddy: AI providers, accuracy, backups, reminders, and troubleshooting." />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/faq.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="./">FitBuddy</a>
+    <nav>
+      <a href="docs/">Guide</a>
+      <a href="faq.html" aria-current="page">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="#download" class="hide-sm">Download</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout docs-layout-wide">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">FAQ</p>
+      <a href="#ai">AI &amp; keys</a>
+      <a href="#logging">Logging</a>
+      <a href="#reminders">Reminders</a>
+      <a href="#backup">Backups</a>
+      <a href="#updates">Updates</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Answers</p>
+      <h1>Frequently asked<br /><em>questions</em></h1>
+      <p class="lede">Short answers. For a walkthrough, see the <a href="docs/">beginner guide</a>.</p>
+
+      <section id="ai">
+        <h2>AI &amp; keys</h2>
+        <dl class="faq">
+          <dt>Do I need an API key?</dt>
+          <dd>For real AI logging, yes — OpenRouter sign-in, or a key for Gemini / OpenAI / Ollama Cloud. Local Ollama needs a reachable URL. Without a provider, the offline simulator still demos the UI.</dd>
+          <dt>Which provider should I pick?</dt>
+          <dd><strong>OpenRouter</strong> is easiest for free vision models. <strong>Gemini</strong> if you have a Google AI Studio key. <strong>Ollama</strong> for local / LAN. <strong>OpenAI</strong> for direct gpt-4o access (paid).</dd>
+          <dt>What does Auto failover do?</dt>
+          <dd>On failure it tries other keys/models on the <em>same</em> provider — it never jumps platforms for you.</dd>
+        </dl>
+      </section>
+
+      <section id="logging">
+        <h2>Logging &amp; accuracy</h2>
+        <dl class="faq">
+          <dt>How accurate are calorie estimates?</dt>
+          <dd>They’re model estimates, not lab measurements — especially for mixed Indian plates. Always review weights. Weigh ingredients when precision matters.</dd>
+          <dt>Can I edit a meal or workout later?</dt>
+          <dd>Yes. Open it from the day log. Meals support live macro rescale; workouts support sets/reps/weight and AI session names.</dd>
+          <dt>Barcode not found?</dt>
+          <dd>Lookups use Open Food Facts after on-device decode. Regional products may be missing — describe the food instead.</dd>
+          <dt>What does “Monthly” mean on Progress?</dt>
+          <dd>A rolling 30-day window ending on the day you select — not a calendar month.</dd>
+        </dl>
+      </section>
+
+      <section id="reminders">
+        <h2>Reminders</h2>
+        <dl class="faq">
+          <dt>How do daily reminders work?</dt>
+          <dd>Settings → Daily log reminder. Allow notifications; for timely delivery also allow Alarms &amp; reminders.</dd>
+        </dl>
+      </section>
+
+      <section id="backup">
+        <h2>Backups</h2>
+        <dl class="faq">
+          <dt>Is cloud backup encrypted?</dt>
+          <dd>Yes — AES-256-GCM on-device before upload. See <a href="encryption.html">Encryption</a>.</dd>
+          <dt>I forgot my backup password</dt>
+          <dd>There is no recovery. That’s the point of zero-knowledge encryption. Keep a copy of the password somewhere safe.</dd>
+        </dl>
+      </section>
+
+      <section id="updates">
+        <h2>Updates</h2>
+        <dl class="faq">
+          <dt>F-Droid vs GitHub APK?</dt>
+          <dd>Same codebase, different signing keys. Don’t install one over the other expecting a seamless update — pick a channel and stay on it.</dd>
+          <dt>How do GitHub updates work?</dt>
+          <dd>Update checks open the APK download in your browser. FitBuddy does not sideload installers itself.</dd>
+        </dl>
+      </section>
+
+      <p class="docs-end" id="download">
+        <a class="btn primary" href="https://github.com/anantdark/FitBuddy/releases/latest/download/FitBuddy-latest.apk">Download APK</a>
+        · <a href="privacy.html">Privacy</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">FitBuddy</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/anantdark/FitBuddy">GitHub</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>
