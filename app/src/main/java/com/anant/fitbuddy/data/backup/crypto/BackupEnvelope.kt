@@ -10,6 +10,9 @@ import com.squareup.moshi.JsonClass
  * payload lives only inside [ciphertext] and the KDF parameters ([kdf], [iterations], [salt],
  * [iv]) are present. When [enc] is `"none"` the container is uniform but unencrypted and the
  * KDF parameters are omitted. The password is never stored in the envelope.
+ *
+ * When [compression] is `"gzip"`, the bytes inside [ciphertext] (before AES, or the base64
+ * payload for `enc=none`) are gzip(UTF-8 JSON). Omitted/null means legacy raw UTF-8.
  */
 @JsonClass(generateAdapter = true)
 data class BackupEnvelope(
@@ -26,8 +29,13 @@ data class BackupEnvelope(
     /** Per-backup random 12-byte GCM nonce, base64-encoded. Omitted when [enc] == `"none"`. */
     val iv: String? = null,
     /**
-     * Base64-encoded payload. For [enc] == `"AES-GCM"` this is `AES-GCM(payloadJson)` including the
-     * auth tag; for [enc] == `"none"` this is `base64(payloadJson)` so the container is uniform.
+     * Optional payload compression before encryption / wrapping.
+     * `"gzip"` = gunzip after decrypt; null/omitted = UTF-8 plaintext bytes (legacy).
+     */
+    val compression: String? = null,
+    /**
+     * Base64-encoded payload. For [enc] == `"AES-GCM"` this is `AES-GCM(payloadBytes)` including the
+     * auth tag; for [enc] == `"none"` this is `base64(payloadBytes)` so the container is uniform.
      */
     val ciphertext: String
 )
