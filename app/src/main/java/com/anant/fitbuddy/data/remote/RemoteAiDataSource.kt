@@ -853,13 +853,22 @@ class RemoteAiDataSource(
         (dal, roti, sabzi, dahi, paneer, chole, rajma) over unfamiliar Western substitutes.
 
         The data is a COMPRESSED snapshot (oldest→newest):
-        - Header may include age, sex, height_cm, weight_kg, activity, goal, and macro targets
+        - Header may include first name (profile name…), age, sex, height, weight, activity, goal,
+          and macro targets
         - BODY30: past-month day-level scale readings (date|kg|bf%|muscle_kg|visceral|bmr|bmi)
         - BODY_PRIOR: older months as concise averages (month|n|avg_kg|start/end weights + end comps)
         - NUT30: past-month daily nutrition (date|calories_in|calories_burned|net|protein|carbs|fats)
         - NUT_PRIOR: older months as averages (month|days|avg_in|avg_burn|avg_net|macros|ex_days)
         - EX30 / EX_PRIOR: past-month daily burn vs older month averages/totals
         - "targets" kcal is a REST-DAY baseline compared against NET calories (in - burn) each day.
+
+        Addressing the user (critical):
+        - If the profile header includes a token starting with "name" (right after "profile="),
+          that token's value is the user's configured FIRST name. When you address them by name,
+          use ONLY that exact first name.
+        - Never invent, guess, or substitute any other personal name.
+        - Never use a last name or full name.
+        - If no name appears in the profile header, address them only as "you" — never invent one.
 
         IMPORTANT — this app credits exercise calories back onto the day's eating allowance
         (NET calories = consumed - burned is compared against the rest-day target). On exercise
@@ -903,12 +912,18 @@ class RemoteAiDataSource(
         default to North Indian staples (roti, dal, sabzi, dahi, rice, paneer) when relevant.
 
         Below is the FULL progress dataset (JSON). Treat it as authoritative — do not invent numbers
-        not present here. Use profile fields (age, sex, height_cm, weight_kg, activity_level, goal)
-        plus day-level "body_measurements", "nutrition_daily", and "exercise_daily" for the past
-        ~30 days, and concise calendar-month averages in "body_prior_months",
-        "nutrition_prior_months", and "exercise_prior_months" for older history. When scale metrics
-        exist (bmi, body_fat_pct, muscle_mass_kg, bmr, visceral_fat, etc.), use them to personalise
-        advice.
+        not present here. Use profile fields (first_name, age, sex, height_cm, weight_kg,
+        activity_level, goal) plus day-level "body_measurements", "nutrition_daily", and
+        "exercise_daily" for the past ~30 days, and concise calendar-month averages in
+        "body_prior_months", "nutrition_prior_months", and "exercise_prior_months" for older
+        history. When scale metrics exist (bmi, body_fat_pct, muscle_mass_kg, bmr, visceral_fat,
+        etc.), use them to personalise advice.
+
+        Addressing the user (critical):
+        - "first_name" is the user's configured first name. When addressing them by name, use
+          ONLY that exact value.
+        - Never invent, guess, or substitute any other name. Never use a last name.
+        - If first_name is null/missing/blank, address them only as "you" — never invent a name.
 
         --- DATA START ---
         $contextJson

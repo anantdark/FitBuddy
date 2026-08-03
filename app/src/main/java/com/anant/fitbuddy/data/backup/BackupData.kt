@@ -29,9 +29,21 @@ data class BackupData(
     val workoutSessions: List<WorkoutSession> = emptyList(),
     val workoutExercises: List<WorkoutExercise> = emptyList(),
     /** Null on pre-v5 backups — import leaves current Settings untouched. */
-    val settings: BackupSettings? = null
+    val settings: BackupSettings? = null,
+    /** v6+: ids deleted after an earlier chunk froze them. Missing on v5 → empty. */
+    val deletedFoodLogIds: List<Int> = emptyList(),
+    val deletedMealFoodIds: List<Int> = emptyList(),
+    val deletedExerciseLogIds: List<Int> = emptyList(),
+    val deletedMeasurementIds: List<Int> = emptyList(),
+    val deletedSavedFoodIds: List<Int> = emptyList(),
+    val deletedMealPresetIds: List<Int> = emptyList(),
+    val deletedExercisePresetIds: List<Int> = emptyList(),
+    val deletedWorkoutSessionIds: List<Int> = emptyList(),
+    val deletedWorkoutExerciseIds: List<Int> = emptyList()
 ) {
     companion object {
-        const val CURRENT_VERSION = 5
+        const val CURRENT_VERSION = 6
+        /** Largest sealed tip payload before rollover (UTF-8 byte length of envelope JSON). */
+        const val MAX_TIP_SEALED_BYTES = 3 * 1024 * 1024
     }
 }

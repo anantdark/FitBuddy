@@ -12,6 +12,7 @@ class ProgressMetricsCompressorTest {
     @Test
     fun `compress emits compact profile targets and series headers`() {
         val context = JSONObject()
+            .put("first_name", "Anant")
             .put("age", 30)
             .put("sex", "male")
             .put("height_cm", 175)
@@ -103,7 +104,7 @@ class ProgressMetricsCompressorTest {
 
         val out = ProgressMetricsCompressor.compress(context)
 
-        assertTrue(out.contains("profile=age30 sexmale ht175cm wt72.5kg actmoderate"))
+        assertTrue(out.contains("profile=nameAnant age30 sexmale ht175cm wt72.5kg actmoderate"))
         assertTrue(out.contains("goal=lose fat"))
         assertTrue(out.contains("targets=kcal2200 p150 c200 f70"))
         assertTrue(out.contains("avg_net_kcal=1850.4"))
@@ -129,6 +130,17 @@ class ProgressMetricsCompressorTest {
         assertTrue(out.contains("BODY30"))
         assertTrue(out.contains("(none)"))
         assertTrue(out.contains("profile=age? sex? ht?cm wt?kg act?"))
+        assertFalse(out.contains("name"))
+    }
+
+    @Test
+    fun `blank first_name is omitted from profile`() {
+        val context = JSONObject()
+            .put("first_name", "  ")
+            .put("age", 40)
+        val out = ProgressMetricsCompressor.compress(context)
+        assertTrue(out.contains("profile=age40 "))
+        assertFalse(out.contains("name "))
     }
 
     @Test

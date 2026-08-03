@@ -18,6 +18,10 @@ object ProgressMetricsCompressor {
 
     fun compress(context: JSONObject): String = buildString {
         append("profile=")
+        val firstName = context.optString("first_name", "").trim()
+        if (firstName.isNotEmpty()) {
+            append("name$firstName ")
+        }
         append("age${optScalar(context, "age")} ")
         append("sex${context.optString("sex", "?").ifBlank { "?" }} ")
         append("ht${optScalar(context, "height_cm")}cm ")

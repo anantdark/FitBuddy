@@ -6,7 +6,11 @@ import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.security.SecureRandom
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -17,6 +21,9 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * On-device backup encryption core (Requirement 5). Wraps a serialized `BackupData` payload JSON
  * in a versioned [BackupEnvelope] using AES-256-GCM with a PBKDF2-HMAC-SHA256 derived key.
+ *
+ * New seals gzip the UTF-8 JSON before encryption (`compression: "gzip"`). Envelopes without that
+ * field still open as raw UTF-8 after decrypt.
  *
  * All key derivation and cipher work runs off the main thread on [Dispatchers.Default], mirroring
  * the existing image-processing pattern. Passwords are handled as [CharArray] and the local
@@ -52,7 +59,7 @@ class BackupCrypto(private val moshi: Moshi) {
     /**
      * Wraps [payloadJson]. A null/blank [password] returns the raw JSON unchanged (legacy plain
      * form, Requirements 1.3/9.1); a non-blank [password] derives a key and returns a serialized
-     * AES-GCM [BackupEnvelope] (Requirements 1.2, 8.1).
+     * AES-GCM [BackupEnvelope] (Requirements 1.2, 8.1) with gzip-compressed plaintext.
      */
     suspend fun seal(payloadJson: String, password: CharArray?): String = withContext(Dispatchers.Default) {
         if (isNullOrBlank(password)) return@withContext payloadJson
@@ -67,13 +74,14 @@ class BackupCrypto(private val moshi: Moshi) {
             } catch (e: Exception) {
                 throw IllegalStateException(BackupErrorMessages.KEY_DERIVATION_FAILED, e)
             }
+            val plainBytes = gzip(payloadJson.toByteArray(Charsets.UTF_8))
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(
                 Cipher.ENCRYPT_MODE,
                 SecretKeySpec(keyBytes, KEY_ALGORITHM),
                 GCMParameterSpec(GCM_TAG_BITS, iv)
             )
-            val ciphertext = cipher.doFinal(payloadJson.toByteArray(Charsets.UTF_8))
+            val ciphertext = cipher.doFinal(plainBytes)
             val envelope = BackupEnvelope(
                 fitbuddyBackup = ENVELOPE_VERSION,
                 enc = ENC_AES_GCM,
@@ -81,6 +89,7 @@ class BackupCrypto(private val moshi: Moshi) {
                 iterations = DEFAULT_ITERATIONS,
                 salt = encode(salt),
                 iv = encode(iv),
+                compression = COMPRESSION_GZIP,
                 ciphertext = encode(ciphertext)
             )
             envelopeAdapter.toJson(envelope)
@@ -108,10 +117,12 @@ class BackupCrypto(private val moshi: Moshi) {
 
     private fun openPlainWrapped(raw: String): OpenResult {
         val envelope = parseEnvelope(raw) ?: return OpenResult.Corrupt
-        val ciphertext = envelope.ciphertext
         return try {
-            OpenResult.Success(String(decode(ciphertext), Charsets.UTF_8))
+            val bytes = decode(envelope.ciphertext)
+            OpenResult.Success(decodePayloadBytes(bytes, envelope.compression))
         } catch (_: IllegalArgumentException) {
+            OpenResult.Corrupt
+        } catch (_: Exception) {
             OpenResult.Corrupt
         }
     }
@@ -147,7 +158,7 @@ class BackupCrypto(private val moshi: Moshi) {
                 GCMParameterSpec(GCM_TAG_BITS, ivBytes)
             )
             val plaintext = cipher.doFinal(cipherBytes)
-            OpenResult.Success(String(plaintext, Charsets.UTF_8))
+            OpenResult.Success(decodePayloadBytes(plaintext, envelope.compression))
         } catch (_: AEADBadTagException) {
             OpenResult.WrongPassword
         } catch (_: Exception) {
@@ -159,6 +170,24 @@ class BackupCrypto(private val moshi: Moshi) {
             keyBytes?.fill(0)
         }
     }
+
+    private fun decodePayloadBytes(bytes: ByteArray, compression: String?): String {
+        val utf8Bytes = when (compression?.trim()?.lowercase()) {
+            null, "" -> bytes
+            COMPRESSION_GZIP -> gunzip(bytes)
+            else -> error("Unsupported backup compression: $compression")
+        }
+        return String(utf8Bytes, Charsets.UTF_8)
+    }
+
+    private fun gzip(input: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream(input.size.coerceAtLeast(64))
+        GZIPOutputStream(out).use { it.write(input) }
+        return out.toByteArray()
+    }
+
+    private fun gunzip(input: ByteArray): ByteArray =
+        GZIPInputStream(ByteArrayInputStream(input)).use { it.readBytes() }
 
     private fun deriveKey(password: CharArray, salt: ByteArray, iterations: Int): ByteArray {
         val spec = PBEKeySpec(password, salt, iterations, KEY_BITS)
@@ -194,6 +223,7 @@ class BackupCrypto(private val moshi: Moshi) {
 
     companion object {
         const val DEFAULT_ITERATIONS = 120_000
+        const val COMPRESSION_GZIP = "gzip"
         private const val ENVELOPE_VERSION = 1
         private const val SALT_BYTES = 16
         private const val IV_BYTES = 12

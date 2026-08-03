@@ -486,7 +486,7 @@ class MainViewModel(
                 )
             }
             val result = if (useCloud) {
-                runCatching { repository.uploadMongoBackup() }
+                runCatching { repository.uploadMongoBackup(force = true).recordCount }
             } else {
                 runCatching { repository.exportData(uri!!) }
             }
@@ -1660,10 +1660,16 @@ class MainViewModel(
     fun uploadMongoBackup() {
         viewModelScope.launch {
             _mongoBackupBusy.value = true
-            runCatching { repository.uploadMongoBackup() }
-                .onSuccess { count ->
+            runCatching { repository.uploadMongoBackup(force = true) }
+                .onSuccess { result ->
                     _analysisState.update {
-                        it.copy(userMessage = "Uploaded $count records to cloud backup")
+                        it.copy(
+                            userMessage = if (result.skipped) {
+                                "Cloud backup already up to date"
+                            } else {
+                                "Uploaded ${result.recordCount} records to cloud backup"
+                            }
+                        )
                     }
                 }
                 .onFailure { e ->
@@ -2876,7 +2882,12 @@ class MainViewModel(
             avgIntakeOnExerciseDays.toDouble() / totalBurned
         }
 
+        val firstName = settings.value.displayFirstName
         return JSONObject().apply {
+            put(
+                "first_name",
+                firstName.takeIf { it.isNotEmpty() } ?: JSONObject.NULL
+            )
             put("age", profile?.age?.takeIf { it > 0 } ?: JSONObject.NULL)
             put("sex", profile?.sex?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
             put("height_cm", profile?.heightCm?.takeIf { it > 0 } ?: JSONObject.NULL)

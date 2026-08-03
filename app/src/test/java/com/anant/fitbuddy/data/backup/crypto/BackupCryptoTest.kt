@@ -303,6 +303,75 @@ class BackupCryptoTest {
         return envelopeAdapter.toJson(mutated)
     }
 
+    /**
+     * Builds a pre-gzip AES-GCM envelope (raw UTF-8 plaintext, no compression field) so open()
+     * must still accept historical cloud/local backups.
+     */
+    private fun sealRawUtf8AesGcm(payloadJson: String, password: CharArray): String {
+        val salt = ByteArray(16).also { Random(1).nextBytes(it) }
+        val iv = ByteArray(12).also { Random(2).nextBytes(it) }
+        val spec = javax.crypto.spec.PBEKeySpec(password, salt, BackupCrypto.DEFAULT_ITERATIONS, 256)
+        val key = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            .generateSecret(spec).encoded
+        spec.clearPassword()
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(
+            javax.crypto.Cipher.ENCRYPT_MODE,
+            javax.crypto.spec.SecretKeySpec(key, "AES"),
+            javax.crypto.spec.GCMParameterSpec(128, iv)
+        )
+        val ciphertext = cipher.doFinal(payloadJson.toByteArray(Charsets.UTF_8))
+        return envelopeAdapter.toJson(
+            BackupEnvelope(
+                fitbuddyBackup = 1,
+                enc = "AES-GCM",
+                kdf = "PBKDF2-HMAC-SHA256",
+                iterations = BackupCrypto.DEFAULT_ITERATIONS,
+                salt = Base64.encodeToString(salt, Base64.NO_WRAP),
+                iv = Base64.encodeToString(iv, Base64.NO_WRAP),
+                compression = null,
+                ciphertext = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+            )
+        )
+    }
+
+    @Test
+    fun seal_setsGzipCompressionFlag() = runBlocking {
+        val sealed = crypto.seal(legacyPayload, "gzip-flag-password".toCharArray())
+        val envelope = envelopeAdapter.fromJson(sealed)!!
+        assertEquals(BackupCrypto.COMPRESSION_GZIP, envelope.compression)
+    }
+
+    @Test
+    fun open_legacyEncryptedEnvelopeWithoutCompression_stillWorks() = runBlocking {
+        val password = "legacy-no-gzip".toCharArray()
+        val legacySealed = sealRawUtf8AesGcm(legacyPayload, password)
+        val envelope = envelopeAdapter.fromJson(legacySealed)!!
+        assertEquals(null, envelope.compression)
+        val opened = crypto.open(legacySealed, password.copyOf())
+        assertTrue(opened is OpenResult.Success)
+        assertEquals(legacyPayload, (opened as OpenResult.Success).payloadJson)
+    }
+
+    @Test
+    fun open_plainWrappedWithGzip_roundTrips() = runBlocking {
+        val gzipped = java.io.ByteArrayOutputStream().use { out ->
+            java.util.zip.GZIPOutputStream(out).use { it.write(legacyPayload.toByteArray(Charsets.UTF_8)) }
+            out.toByteArray()
+        }
+        val wrapped = envelopeAdapter.toJson(
+            BackupEnvelope(
+                fitbuddyBackup = 1,
+                enc = "none",
+                compression = BackupCrypto.COMPRESSION_GZIP,
+                ciphertext = Base64.encodeToString(gzipped, Base64.NO_WRAP)
+            )
+        )
+        val opened = crypto.open(wrapped, null)
+        assertTrue(opened is OpenResult.Success)
+        assertEquals(legacyPayload, (opened as OpenResult.Success).payloadJson)
+    }
+
     /** Random non-blank password of exactly [len] chars drawn from printable ascii + some unicode. */
     private fun randomPassword(len: Int, rng: Random): CharArray {
         require(len >= 1)
