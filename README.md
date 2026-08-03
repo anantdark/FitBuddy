@@ -16,16 +16,19 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 
 - **Smart logging** — photo or text input; AI parses food and exercise
 - **Meal review** — edit dish name, tweak ingredient weights with live macro recalc
+- **Editable workouts** — structured sessions with AI-suggested names; upgrade simple logs
 - **Presets** — bookmark meals for one-tap logging
 - **Dashboard** — daily calorie ring, food/exercise logs, macro breakdown
-- **Analytics** — custom Canvas charts for trends over time
+- **Analytics** — custom Canvas charts; rolling 30-day “monthly” window
+- **Encrypted backups** — AES-256-GCM local export + cloud; gzip; append-only chunk chains
+- **Loading animations** — per-slot Analyzing / Insights choices in Settings
 - **Offline fallback** — works without AI config via built-in simulator
 - **Crash reports** — optional anonymous Sentry reports (opt out in Settings; Support ID for 1:1 help)
 - **Material You** — dynamic color theming on Android 12+
 
 ## Download
 
-Pre-built APKs and AABs are also attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`.
+Pre-built APKs and AABs are also attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`. Release APKs are **arm64-v8a only**. Update checks open the APK download in the system browser (no in-app installer).
 
 FitBuddy is on [F-Droid](https://f-droid.org/en/packages/com.anant.fitbuddy/) and [OpenAPK](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/) — same codebase and commit as GitHub Releases, built with the `fdroid` product flavor instead of `github`. F-Droid owns updates for that build; it's signed with a different key from the GitHub Releases APK, so the two aren't interchangeable updates for the same install.
 
@@ -35,9 +38,10 @@ Configure at runtime in **Settings** (stored locally via DataStore):
 
 | Provider | Notes |
 |----------|-------|
-| **OpenRouter** | Free vision models via model dropdown |
+| **OpenRouter** | Free vision models via model dropdown; optional account sign-in |
 | **Gemini** | Google AI Studio key; OpenAI-compatible endpoint |
-| **Ollama** | Local models (e.g. `llava`); HTTP cleartext enabled for LAN |
+| **OpenAI** | Direct API key; curated gpt-4o catalog |
+| **Ollama / compatible** | Local or cloud; any OpenAI-compatible host (LM Studio, vLLM, LocalAI); optional API key |
 
 First-run defaults can be seeded from `local.properties` (see below). Without a key, the app uses the offline simulator.
 
@@ -134,7 +138,7 @@ See [FDROID.md](FDROID.md) for the full F-Droid process.
 ### Required: signed release builds in CI
 
 Release workflow **fails** without these [repository secrets](https://github.com/anantdark/FitBuddy/settings/secrets/actions)
-(so every APK shares one signing key and in-app updates work):
+(so every APK shares one signing key and browser-based updates can install over the previous release):
 
 | Secret | Value |
 |--------|-------|
@@ -144,8 +148,8 @@ Release workflow **fails** without these [repository secrets](https://github.com
 | `RELEASE_KEY_PASSWORD` | Key password |
 
 See [DISTRIBUTION.md](DISTRIBUTION.md) to create the keystore. After the first release signed
-with a new keystore, uninstall any older install once, then install that APK — later in-app
-updates will succeed.
+with a new keystore, uninstall any older install once, then install that APK — later
+updates over that install will succeed.
 
 ## Contributing
 
@@ -164,3 +168,4 @@ GPL-3.0 — see [LICENSE](LICENSE).
 - [FDROID.md](FDROID.md) — F-Droid release process, tagging, and submission notes
 - [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store publishing & keystore setup
 - [AGENTS.md](AGENTS.md) — contributor context for architecture and conventions
+- [Docs site](https://anantdark.github.io/FitBuddy/) — onboarding, usage guide, encryption, FAQ, privacy

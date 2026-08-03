@@ -5,9 +5,12 @@ Snap a photo or type what you ate — an LLM estimates calories and macros insta
 Features:
 • Smart logging — photo or text; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc
+• Editable workouts — structured sessions, AI session names, upgrade simple logs
 • Presets — bookmark meals for one-tap future logging
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
-• Analytics — custom charts tracking trends over time
+• Analytics — custom charts; rolling 30-day progress window
+• Encrypted backups — AES-256-GCM; gzip; optional cloud with append-only chunks
+• Loading animations — choose Analyzing / Insights wait animations in Settings
 • Auto failover — rotates API keys and models on rate limits; stays on your preferred platform
 • Offline fallback — works without an AI key via built-in simulator
 • Material You — dynamic color theming on Android 12+
@@ -16,7 +19,8 @@ Features:
 AI providers (configured at runtime in Settings):
 • OpenRouter — free vision models, automatic model dropdown
 • Google Gemini — AI Studio key, OpenAI-compatible endpoint
-• Ollama or any OpenAI-compatible server (OpenAI, LM Studio, vLLM, LocalAI) — local or cloud, optional API key
+• OpenAI — direct API key with curated models
+• Ollama or any OpenAI-compatible server (LM Studio, vLLM, LocalAI) — local or cloud, optional API key
 
 Without a configured provider, the app works offline using the built-in simulator. Photos require a configured AI provider.
 
