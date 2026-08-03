@@ -26,7 +26,7 @@ Privacy:
 • Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup
 • AI providers are contacted only when you choose to enable them
 
-Updates on this F-Droid build are delivered by F-Droid. In-app GitHub APK downloads are disabled in this flavor.
+Updates on this F-Droid build are delivered by F-Droid. The GitHub update checker is disabled in this flavor.
 
 Note: The F-Droid APK uses F-Droid's signing key and cannot replace a GitHub or Play Store install in place.
 

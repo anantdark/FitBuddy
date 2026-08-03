@@ -143,7 +143,8 @@ class FitBuddyApp : Application() {
         val info = HeartbeatInfo(
             aiProvider = settings.provider.name,
             username = settings.usernameForHeartbeat,
-            recordCount = recordCount
+            recordCount = recordCount,
+            isDeveloper = settings.developerModeUnlocked
         )
         val current = BuildConfig.VERSION_CODE
         val previous = settingsRepository.lastKnownVersionCode()

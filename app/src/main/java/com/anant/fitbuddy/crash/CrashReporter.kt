@@ -30,6 +30,8 @@ data class HeartbeatInfo(
     val aiProvider: String,
     val username: String = "",
     val recordCount: Int = 0,
+    /** True when Settings developer tools are unlocked on this install. */
+    val isDeveloper: Boolean = false,
     val androidSdk: Int = Build.VERSION.SDK_INT,
     val manufacturer: String = Build.MANUFACTURER.orEmpty().take(64),
     val model: String = Build.MODEL.orEmpty().take(64)
@@ -179,6 +181,7 @@ object CrashReporter {
                 add(SentryAttribute.stringAttribute("username", username.take(128)))
             }
             add(SentryAttribute.integerAttribute("record_count", info.recordCount))
+            add(SentryAttribute.booleanAttribute("is_developer", info.isDeveloper))
         }
         val attrs = SentryAttributes.of(*attrList.toTypedArray())
         Sentry.metrics().count(

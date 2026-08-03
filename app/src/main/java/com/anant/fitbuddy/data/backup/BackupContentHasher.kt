@@ -22,5 +22,7 @@ object BackupContentHasher {
 data class CloudUploadResult(
     val recordCount: Int,
     /** True when the tip plaintext matched the last uploaded hash and no PUT was sent. */
-    val skipped: Boolean = false
+    val skipped: Boolean = false,
+    /** Set when upload created/advanced a tip chunk id (rollover or force-new-chunk). */
+    val newTipChunkId: String? = null
 )

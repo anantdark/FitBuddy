@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -77,7 +78,6 @@ import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
-import com.anant.fitbuddy.util.ApkInstaller
 import com.anant.fitbuddy.util.ImageUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -460,6 +460,7 @@ fun MainScreen(
                 onEnableCloudBackup = viewModel::enableCloudBackup,
                 onCloudAutoUploadChange = viewModel::setCloudAutoUploadEnabled,
                 onMongoUpload = viewModel::uploadMongoBackup,
+                onForceNewCloudChunk = viewModel::forceNewCloudBackupChunk,
                 onMongoDownload = { supportId ->
                     viewModel.downloadMongoBackup(supportId) {
                         // Provider runs off the main thread; publish the prompt + continuation on
@@ -1303,23 +1304,23 @@ fun MainScreen(
         )
     }
 
+    /** Open the APK browser_download_url so the system browser starts the download. */
     fun startUpdateDownload(downloadUrl: String) {
-        viewModel.beginUpdateDownload()
-        scope.launch {
-            try {
-                ApkInstaller.downloadAndInstall(context, downloadUrl) { progress ->
-                    viewModel.updateDownloadProgress(progress)
-                }
-                viewModel.finishUpdateDownload()
-            } catch (e: Exception) {
-                viewModel.failUpdateDownload(
-                    e.message?.takeIf { it.isNotBlank() } ?: "Update download failed"
-                )
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl)).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            context.startActivity(intent)
+            viewModel.onUpdateDownloadOpened()
+        } catch (e: Exception) {
+            viewModel.failOpenUpdateDownload(
+                e.message?.takeIf { it.isNotBlank() } ?: "Could not open download link"
+            )
         }
     }
 
-    // After Export backup & update succeeds with a fresh backup timestamp, auto-install.
+    // After Export backup & update succeeds with a fresh backup timestamp, open the APK URL.
     LaunchedEffect(
         updateState.backupCompleted,
         updateState.pendingDownloadUrlAfterBackup,

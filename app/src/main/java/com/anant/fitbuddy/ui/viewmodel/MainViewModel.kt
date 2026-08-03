@@ -205,9 +205,6 @@ data class DayLogSnapshot(
 @Immutable
 data class UpdateUiState(
     val isChecking: Boolean = false,
-    val isDownloading: Boolean = false,
-    /** 0f–1f when known; null while checking size / indeterminate download. */
-    val downloadProgress: Float? = null,
     val updateInfo: UpdateCheckResult.Available? = null,
     val statusMessage: String? = null,
     val statusIsError: Boolean = false,
@@ -216,7 +213,7 @@ data class UpdateUiState(
     val isExportingBackup: Boolean = false,
     /** Waiting for the SAF create-document picker (local export path). */
     val isAwaitingBackupFilePick: Boolean = false,
-    /** Download URL to start after [backupCompleted]; set by Export backup & update. */
+    /** APK download URL to open in the browser after [backupCompleted]. */
     val pendingDownloadUrlAfterBackup: String? = null,
     /** Inline status under the update dialog backup actions. */
     val backupStatusMessage: String? = null,
@@ -326,7 +323,7 @@ class MainViewModel(
     fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
         // F-Droid owns updates for that build; never point it at the github flavor's releases.
         if (BuildConfig.IS_FDROID) return
-        if (_updateState.value.isChecking || _updateState.value.isDownloading) return
+        if (_updateState.value.isChecking) return
         viewModelScope.launch {
             _updateState.update {
                 it.copy(
@@ -383,9 +380,9 @@ class MainViewModel(
     }
 
     fun dismissUpdatePrompt() {
-        // Don't dismiss while SAF picker is open or backup/download is running.
+        // Don't dismiss while SAF picker is open or backup is running.
         val s = _updateState.value
-        if (s.isAwaitingBackupFilePick || s.isExportingBackup || s.isDownloading) return
+        if (s.isAwaitingBackupFilePick || s.isExportingBackup) return
         _updateState.update {
             it.copy(
                 updateInfo = null,
@@ -401,13 +398,15 @@ class MainViewModel(
         }
     }
 
-    fun beginUpdateDownload() {
+    /**
+     * Called after opening the APK asset download URL in the system browser.
+     * Clears the update prompt; the browser handles the download.
+     */
+    fun onUpdateDownloadOpened() {
         _updateState.update {
             it.copy(
-                isDownloading = true,
-                downloadProgress = null,
                 updateInfo = null,
-                statusMessage = null,
+                statusMessage = "Download started in your browser — install the APK when it finishes",
                 statusIsError = false,
                 backupCompleted = false,
                 isExportingBackup = false,
@@ -415,6 +414,17 @@ class MainViewModel(
                 pendingDownloadUrlAfterBackup = null,
                 backupStatusMessage = null,
                 backupStatusIsError = false
+            )
+        }
+    }
+
+    fun failOpenUpdateDownload(message: String) {
+        _updateState.update {
+            it.copy(
+                statusMessage = message,
+                statusIsError = true,
+                pendingDownloadUrlAfterBackup = null,
+                backupCompleted = false
             )
         }
     }
@@ -428,7 +438,7 @@ class MainViewModel(
      * @return true if the UI should launch the SAF create-document picker.
      */
     fun beginExportBackupAndUpdate(downloadUrl: String): Boolean {
-        if (_updateState.value.isExportingBackup || _updateState.value.isDownloading) return false
+        if (_updateState.value.isExportingBackup) return false
         if (_updateState.value.backupCompleted) return false
         _updateState.update {
             it.copy(
@@ -459,10 +469,10 @@ class MainViewModel(
 
     /**
      * Pre-update backup: cloud upload when enabled, otherwise local file via [uri].
-     * On success sets [UpdateUiState.backupCompleted] so the update download can start.
+     * On success sets [UpdateUiState.backupCompleted] so the APK URL can open in the browser.
      */
     fun exportBackupForUpdate(uri: Uri? = null) {
-        if (_updateState.value.isExportingBackup || _updateState.value.isDownloading) return
+        if (_updateState.value.isExportingBackup) return
         if (_updateState.value.backupCompleted) return
         val useCloud = settings.value.cloudBackupEnabled
         if (!useCloud && uri == null) {
@@ -538,44 +548,17 @@ class MainViewModel(
         }
     }
 
-    fun updateDownloadProgress(progress: Float) {
-        _updateState.update {
-            it.copy(
-                downloadProgress = progress.takeIf { p -> p >= 0f }
-            )
-        }
-    }
-
-    fun finishUpdateDownload() {
-        _updateState.update {
-            it.copy(isDownloading = false, downloadProgress = null)
-        }
-    }
-
-    fun failUpdateDownload(message: String) {
-        _updateState.update {
-            it.copy(
-                isDownloading = false,
-                downloadProgress = null,
-                statusMessage = message,
-                statusIsError = true
-            )
-        }
-    }
-
     /** Developer: open the update prompt with fake release info (no network). */
     fun showTestUpdatePrompt() {
         _updateState.update {
             it.copy(
                 isChecking = false,
-                isDownloading = false,
-                downloadProgress = null,
                 updateInfo = UpdateCheckResult.Available(
                     versionName = "99.0.0-test",
                     versionCode = BuildConfig.VERSION_CODE + 999,
                     downloadUrl = "https://example.invalid/fitbuddy-test-update.apk",
                     releaseNotes = "- Test update prompt for backup-before-update UI\n" +
-                        "- Download will intentionally fail",
+                        "- Browser open will fail (invalid host)",
                     htmlUrl = ""
                 ),
                 statusMessage = null,
@@ -673,7 +656,8 @@ class MainViewModel(
         val info = HeartbeatInfo(
             aiProvider = s.provider.name,
             username = s.usernameForHeartbeat,
-            recordCount = recordCount
+            recordCount = recordCount,
+            isDeveloper = s.developerModeUnlocked
         )
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
@@ -1675,6 +1659,28 @@ class MainViewModel(
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(userMessage = "Cloud upload failed: ${BackupErrorMessages.encryptionFailed(e.message)}")
+                    }
+                }
+            _mongoBackupBusy.value = false
+        }
+    }
+
+    /** Developer tools: freeze current tip log rows and append a new cloud tip chunk. */
+    fun forceNewCloudBackupChunk() {
+        viewModelScope.launch {
+            _mongoBackupBusy.value = true
+            runCatching { repository.uploadMongoBackup(force = true, forceNewChunk = true) }
+                .onSuccess { result ->
+                    val tip = result.newTipChunkId?.let { " · tip $it" }.orEmpty()
+                    _analysisState.update {
+                        it.copy(userMessage = "Created new cloud chunk$tip")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(
+                            userMessage = "Create chunk failed: ${e.message ?: e.javaClass.simpleName}"
+                        )
                     }
                 }
             _mongoBackupBusy.value = false

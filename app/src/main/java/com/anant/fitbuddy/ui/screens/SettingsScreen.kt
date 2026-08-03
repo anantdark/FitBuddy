@@ -201,6 +201,7 @@ fun SettingsScreen(
     onEnableCloudBackup: (CharArray?) -> Unit = {},
     onCloudAutoUploadChange: (Boolean) -> Unit = {},
     onMongoUpload: () -> Unit = {},
+    onForceNewCloudChunk: () -> Unit = {},
     onMongoDownload: (supportId: String) -> Unit = {},
     onChangeCloudPassword: (CharArray?) -> Unit = {},
     onRegenerateSupportId: () -> Unit = {},
@@ -995,7 +996,7 @@ fun SettingsScreen(
                 )
                 OutlinedButton(
                     onClick = onCheckForUpdates,
-                    enabled = !updateState.isChecking && !updateState.isDownloading,
+                    enabled = !updateState.isChecking,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (updateState.isChecking) {
@@ -1352,6 +1353,21 @@ fun SettingsScreen(
                 ) {
                     Text("Download & restore from cloud")
                 }
+                OutlinedButton(
+                    onClick = onForceNewCloudChunk,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = cloudVaultAvailable &&
+                        settings.cloudBackupEnabled &&
+                        !mongoBackupBusy
+                ) {
+                    Text("Create new cloud chunk")
+                }
+                Text(
+                    text = "Freezes current tip log rows into the active chunk and appends a " +
+                        "new tip (same as size-based rollover). Needs at least one tip log row.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 SettingToggleRow(
                     title = "Keep animations visible",
@@ -1561,8 +1577,7 @@ fun UpdatePromptDialogs(
 
     updateState.updateInfo?.let { info ->
         val highlights = remember(info.releaseNotes) { releaseNoteHighlights(info.releaseNotes) }
-        val busy = updateState.isDownloading ||
-            updateState.isExportingBackup ||
+        val busy = updateState.isExportingBackup ||
             updateState.isAwaitingBackupFilePick
         var skipCountdownSec by remember(info.versionCode, info.downloadUrl) { mutableIntStateOf(5) }
         LaunchedEffect(info.versionCode, info.downloadUrl) {
@@ -1680,47 +1695,6 @@ fun UpdatePromptDialogs(
             },
             confirmButton = {},
             dismissButton = {}
-        )
-    }
-
-    if (updateState.isDownloading) {
-        AlertDialog(
-            onDismissRequest = {},
-            icon = {
-                CircularProgressIndicator(modifier = Modifier.size(36.dp), strokeWidth = 3.dp)
-            },
-            title = { Text("Downloading update") },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val progress = updateState.downloadProgress
-                    if (progress != null) {
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = "${(progress * 100).toInt()}% complete",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    } else {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        Text(
-                            text = "Downloading APK…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text(
-                        text = "Keep FitBuddy open until the installer opens.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {}
         )
     }
 }
