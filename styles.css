@@ -1,12 +1,14 @@
 :root {
-  --ink: #0c1210;
-  --ink-2: #141c18;
-  --fog: #c8d2c4;
-  --mist: #8a9688;
-  --paper: #e8efe4;
-  --amber: #e8a54b;
-  --amber-deep: #c47d22;
-  --line: rgba(232, 239, 228, 0.12);
+  /* FitBuddy: midnight navy + saffron (distinct from macpaper forest/amber) */
+  --ink: #0a0e1a;
+  --ink-2: #121828;
+  --fog: #c5cbe0;
+  --mist: #8b93ad;
+  --paper: #eef1f8;
+  --amber: #ff9f43;
+  --amber-deep: #e07a2f;
+  --line: rgba(238, 241, 248, 0.12);
+  --ink-rgb: 10, 14, 26;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font-display: "Syne", system-ui, sans-serif;
   --font-serif: "Instrument Serif", Georgia, serif;
@@ -68,7 +70,11 @@ code {
   align-items: center;
   justify-content: space-between;
   padding: 1.1rem 1.5rem;
-  background: linear-gradient(to bottom, rgba(12, 18, 16, 0.92), rgba(12, 18, 16, 0));
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--ink-rgb), 0.92),
+    rgba(var(--ink-rgb), 0)
+  );
 }
 
 .brand {
@@ -122,8 +128,14 @@ code {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to top, var(--ink) 0%, rgba(12, 18, 16, 0.55) 42%, rgba(12, 18, 16, 0.2) 100%),
-    linear-gradient(120deg, rgba(12, 18, 16, 0.55), transparent 55%);
+    linear-gradient(
+      to top,
+      var(--ink) 0%,
+      rgba(var(--ink-rgb), 0.58) 42%,
+      rgba(var(--ink-rgb), 0.18) 100%
+    ),
+    linear-gradient(105deg, rgba(255, 159, 67, 0.12), transparent 42%),
+    linear-gradient(120deg, rgba(var(--ink-rgb), 0.6), transparent 55%);
 }
 
 .hero-copy {
@@ -197,14 +209,14 @@ code {
 }
 
 .btn.primary:hover {
-  background: #f0b45f;
+  background: #ffb05c;
   color: var(--ink) !important;
 }
 
 .btn.ghost {
   border-color: var(--line);
   color: var(--paper) !important;
-  background: rgba(12, 18, 16, 0.35);
+  background: rgba(var(--ink-rgb), 0.4);
   backdrop-filter: blur(8px);
 }
 
@@ -267,9 +279,9 @@ h2 {
   background: #3a4540;
 }
 
-.terminal-bar span:nth-child(1) { background: #6b5140; }
-.terminal-bar span:nth-child(2) { background: #6b5f34; }
-.terminal-bar span:nth-child(3) { background: #3f5a48; }
+.terminal-bar span:nth-child(1) { background: #7a4a3a; }
+.terminal-bar span:nth-child(2) { background: #8a6a32; }
+.terminal-bar span:nth-child(3) { background: #3a4a6a; }
 
 .copy-btn {
   margin-left: auto;
@@ -405,7 +417,8 @@ h2 {
 
 .docs-body {
   background:
-    radial-gradient(ellipse 80% 50% at 100% -10%, rgba(232, 165, 75, 0.08), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 100% -10%, rgba(255, 159, 67, 0.1), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(70, 100, 180, 0.08), transparent 45%),
     var(--ink);
 }
 

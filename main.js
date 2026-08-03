@@ -48,8 +48,8 @@
     const onScroll = () => {
       const past = window.scrollY > hero.offsetHeight * 0.55;
       header.style.background = past
-        ? "rgba(12, 18, 16, 0.92)"
-        : "linear-gradient(to bottom, rgba(12, 18, 16, 0.92), rgba(12, 18, 16, 0))";
+        ? "rgba(10, 14, 26, 0.92)"
+        : "linear-gradient(to bottom, rgba(10, 14, 26, 0.92), rgba(10, 14, 26, 0))";
       header.style.backdropFilter = past ? "blur(10px)" : "none";
     };
     onScroll();
