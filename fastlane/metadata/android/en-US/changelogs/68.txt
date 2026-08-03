@@ -1,0 +1,4 @@
+• feat: add DNA helix analyzing banners
+• feat: add apple-tree loading animation and preview toggle
+• feat: replace analyzing banner with a miniature solar system
+• feat: add tiranga loading animation for insights button
