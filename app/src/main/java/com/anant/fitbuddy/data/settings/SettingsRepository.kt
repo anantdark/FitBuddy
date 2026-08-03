@@ -365,6 +365,18 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    /** Opaque JSON for [com.anant.fitbuddy.data.backup.FrozenBackupIndex] (device-local). */
+    suspend fun getFrozenBackupIndexJson(): String =
+        dataStore.data.first()[KEY_FROZEN_BACKUP_INDEX].orEmpty()
+
+    suspend fun setFrozenBackupIndexJson(json: String) {
+        dataStore.edit { prefs ->
+            val trimmed = json.trim()
+            if (trimmed.isEmpty()) prefs.remove(KEY_FROZEN_BACKUP_INDEX)
+            else prefs[KEY_FROZEN_BACKUP_INDEX] = trimmed
+        }
+    }
+
     /**
      * Marks a successful local (or other) backup. Returns the recorded epoch ms.
      * Cloud uploads go through [setMongoUploadStatus] with ok=true instead.
@@ -514,6 +526,7 @@ class SettingsRepository(context: Context) {
         val KEY_MONGO_LAST_UPLOAD_OK = booleanPreferencesKey("mongo_last_upload_ok")
         val KEY_MONGO_LAST_ERROR = stringPreferencesKey("mongo_last_error")
         val KEY_MONGO_TIP_CONTENT_HASH = stringPreferencesKey("mongo_tip_content_hash")
+        val KEY_FROZEN_BACKUP_INDEX = stringPreferencesKey("frozen_backup_index_json")
         val KEY_LAST_SUCCESSFUL_BACKUP_AT = longPreferencesKey("last_successful_backup_at")
         // Device-local only — not in BackupSettings / BackupData v5.
         val KEY_FIRST_NAME = stringPreferencesKey("user_first_name")

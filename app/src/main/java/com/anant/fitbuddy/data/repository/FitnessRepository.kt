@@ -3,16 +3,23 @@ package com.anant.fitbuddy.data.repository
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import com.anant.fitbuddy.data.backup.BackupChunkIds
+import com.anant.fitbuddy.data.backup.BackupChunkMerger
 import com.anant.fitbuddy.data.backup.BackupContentHasher
+import com.anant.fitbuddy.data.backup.BackupData
 import com.anant.fitbuddy.data.backup.BackupErrorMessages
 import com.anant.fitbuddy.data.backup.BackupImportResult
 import com.anant.fitbuddy.data.backup.BackupManager
+import com.anant.fitbuddy.data.backup.BackupTipBuilder
 import com.anant.fitbuddy.data.backup.CloudUploadResult
+import com.anant.fitbuddy.data.backup.FrozenBackupIndex
+import com.anant.fitbuddy.data.backup.FrozenBackupIndexJson
 import com.anant.fitbuddy.data.backup.crypto.BackupFormat
 import com.anant.fitbuddy.data.backup.crypto.BackupPasswordStore
 import com.anant.fitbuddy.data.backup.crypto.OpenResult
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupRepository
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -244,7 +251,7 @@ class FitnessRepository(
     }
 
     /**
-     * Uploads a sealed BackupData snapshot to the cloud.
+     * Uploads a sealed BackupData tip to the cloud (append-only chunk chain).
      *
      * @param force when false (auto-upload), skip the PUT if tip plaintext matches the last
      *   uploaded content hash. Manual Upload now / pre-update backup should pass true.
@@ -258,40 +265,120 @@ class FitnessRepository(
             error("Cloud backup is not available in this build")
         }
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
+        if (!BackupChunkIds.isValidSupportId(supportId)) {
+            error("Support ID is invalid for cloud chunk backups")
+        }
         return try {
-            val data = backupManager.buildBackupData()
-            val payloadJson = backupManager.encode(data)
-            val contentHash = BackupContentHasher.hash(data, backupManager::encode)
-            val count = backupManager.countRecords(data)
+            val full = backupManager.buildBackupData()
+            var frozen = loadFrozenIndex()
+            var tip = BackupTipBuilder.buildTip(full, frozen)
+            val tipHash = BackupContentHasher.hash(tip, backupManager::encode)
+            val count = backupManager.countRecords(full)
             if (!force) {
                 val previous = settingsRepository.getMongoTipContentHash()
-                if (previous.isNotEmpty() && previous == contentHash) {
-                    // Content unchanged — skip PUT but refresh debounce / status timestamp.
+                if (previous.isNotEmpty() && previous == tipHash) {
                     settingsRepository.setMongoUploadStatus(ok = true)
                     return CloudUploadResult(recordCount = count, skipped = true)
                 }
             }
-            // Seal with the stored custom password when one is set, else the Support ID default.
+
             val passwordChars = resolveUploadPassword(settings, supportId)
-            val sealedPayload = try {
-                backupManager.crypto.seal(payloadJson, passwordChars)
+            try {
+                suspend fun seal(data: BackupData): String =
+                    backupManager.crypto.seal(backupManager.encode(data), passwordChars.copyOf())
+
+                suspend fun sealedByteSize(data: BackupData): Int =
+                    seal(data).toByteArray(Charsets.UTF_8).size
+
+                var sealedTip = seal(tip)
+                if (sealedTip.toByteArray(Charsets.UTF_8).size > BackupData.MAX_TIP_SEALED_BYTES) {
+                    val (frozenSegment, newTip) = BackupTipBuilder.partitionForRollover(
+                        tip = tip,
+                        maxSealedBytes = BackupData.MAX_TIP_SEALED_BYTES
+                    ) { candidate -> sealedByteSize(candidate) }
+                    val oldTipId = frozen.tipChunkId.ifBlank { supportId }
+                    val oldIndex = BackupChunkIds.parseChunkIndex(oldTipId, supportId) ?: 0
+                    val newIndex = maxOf(frozen.nextChunkIndex, oldIndex + 1)
+                    val newTipId = BackupChunkIds.chunkId(supportId, newIndex)
+                    val sealedFrozen = seal(frozenSegment.copy(exportedAt = tip.exportedAt))
+                    tip = newTip
+                    sealedTip = seal(tip)
+
+                    mongoBackupRepository.uploadChunk(
+                        baseUrl = MongoUriVault.baseUrl(),
+                        apiKey = MongoUriVault.resolve(),
+                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                        collectionName = settings.mongoCollectionName.ifBlank {
+                            AppSettings.DEFAULT_MONGO_COLLECTION
+                        },
+                        supportId = supportId,
+                        chunkId = oldTipId,
+                        chunkIndex = oldIndex,
+                        nextChunkId = newTipId,
+                        tipChunkId = if (oldTipId == supportId) newTipId else null,
+                        payloadJson = sealedFrozen,
+                        exportedAt = tip.exportedAt,
+                        deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        headTipChunkId = newTipId
+                    )
+                    mongoBackupRepository.uploadChunk(
+                        baseUrl = MongoUriVault.baseUrl(),
+                        apiKey = MongoUriVault.resolve(),
+                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                        collectionName = settings.mongoCollectionName.ifBlank {
+                            AppSettings.DEFAULT_MONGO_COLLECTION
+                        },
+                        supportId = supportId,
+                        chunkId = newTipId,
+                        chunkIndex = newIndex,
+                        nextChunkId = null,
+                        tipChunkId = null,
+                        payloadJson = sealedTip,
+                        exportedAt = tip.exportedAt,
+                        deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        headTipChunkId = newTipId
+                    )
+                    frozen = BackupTipBuilder.indexAfterFreezing(
+                        previous = frozen,
+                        frozenSegment = frozenSegment,
+                        newTipChunkId = newTipId,
+                        nextChunkIndex = newIndex + 1
+                    )
+                    saveFrozenIndex(frozen)
+                    settingsRepository.setMongoTipContentHash(
+                        BackupContentHasher.hash(tip, backupManager::encode)
+                    )
+                } else {
+                    val tipId = frozen.tipChunkId.ifBlank { supportId }
+                    val tipIndex = BackupChunkIds.parseChunkIndex(tipId, supportId) ?: 0
+                    mongoBackupRepository.uploadChunk(
+                        baseUrl = MongoUriVault.baseUrl(),
+                        apiKey = MongoUriVault.resolve(),
+                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                        collectionName = settings.mongoCollectionName.ifBlank {
+                            AppSettings.DEFAULT_MONGO_COLLECTION
+                        },
+                        supportId = supportId,
+                        chunkId = tipId,
+                        chunkIndex = tipIndex,
+                        nextChunkId = null,
+                        tipChunkId = if (tipId == supportId) supportId else null,
+                        payloadJson = sealedTip,
+                        exportedAt = tip.exportedAt,
+                        deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        headTipChunkId = if (tipId != supportId) tipId else null
+                    )
+                    if (frozen.tipChunkId.isBlank()) {
+                        saveFrozenIndex(frozen.copy(tipChunkId = supportId))
+                    }
+                    settingsRepository.setMongoTipContentHash(tipHash)
+                }
             } finally {
                 passwordChars.fill('\u0000')
             }
-            mongoBackupRepository.upload(
-                baseUrl = MongoUriVault.baseUrl(),
-                apiKey = MongoUriVault.resolve(),
-                databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                collectionName = settings.mongoCollectionName.ifBlank {
-                    AppSettings.DEFAULT_MONGO_COLLECTION
-                },
-                supportId = supportId,
-                payloadJson = sealedPayload,
-                exportedAt = data.exportedAt,
-                deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                macId = DeviceIdentity.macId(backupManager.appContext)
-            )
-            settingsRepository.setMongoTipContentHash(contentHash)
             settingsRepository.setMongoUploadStatus(ok = true)
             CloudUploadResult(recordCount = count, skipped = false)
         } catch (e: Exception) {
@@ -303,10 +390,21 @@ class FitnessRepository(
         }
     }
 
+    private suspend fun loadFrozenIndex(): FrozenBackupIndex =
+        FrozenBackupIndexJson.decode(
+            NetworkModule.moshi,
+            settingsRepository.getFrozenBackupIndexJson()
+        )
+
+    private suspend fun saveFrozenIndex(index: FrozenBackupIndex) {
+        settingsRepository.setFrozenBackupIndexJson(
+            FrozenBackupIndexJson.encode(NetworkModule.moshi, index)
+        )
+    }
+
     /**
-     * Restores the Atlas document whose `_id` is [supportId]. Decrypts the downloaded envelope
-     * using the Support-ID-first policy (Requirement 4): auto-try the Support ID, prompt via
-     * [passwordProvider] only on failure. Legacy plaintext payloads import directly.
+     * Restores the cloud backup for [supportId] (single doc or chunk chain). Decrypts each
+     * envelope (Support-ID first, then [passwordProvider]), merges segments, then imports.
      * On any failure path, existing data is left unchanged.
      */
     suspend fun downloadMongoBackup(
@@ -321,34 +419,77 @@ class FitnessRepository(
             error("Support ID is required to restore")
         }
         val settings = settingsRepository.settings.first()
-        val payloadJson = mongoBackupRepository.downloadPayloadJson(
+        val dbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+        val collName = settings.mongoCollectionName.ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
+        val chain = mongoBackupRepository.downloadChain(
             baseUrl = MongoUriVault.baseUrl(),
             apiKey = MongoUriVault.resolve(),
-            databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-            collectionName = settings.mongoCollectionName.ifBlank {
-                AppSettings.DEFAULT_MONGO_COLLECTION
-            },
+            databaseName = dbName,
+            collectionName = collName,
             supportId = id
         )
+        if (chain.isEmpty()) error("No cloud backup found for Support ID $id")
 
-        return when (backupManager.crypto.classify(payloadJson)) {
-            BackupFormat.LEGACY_PLAIN -> {
-                val count = backupManager.importFromJson(payloadJson)
-                // Auto-migrate: re-encrypt with Support ID and upload (Requirements 9.2, 9.3)
+        var resolvedPassword: CharArray? = null
+        var usedCustomPassword = false
+        try {
+            val segments = ArrayList<BackupData>(chain.size)
+            for ((index, doc) in chain.withIndex()) {
+                val opened = openCloudPayload(
+                    payloadJson = doc.payloadJson,
+                    supportId = id,
+                    passwordProvider = if (index == 0) passwordProvider else ({
+                        resolvedPassword?.copyOf()
+                    }),
+                    onOpenedWithSupportId = {
+                        usedCustomPassword = false
+                    },
+                    onOpenedWithCustomPassword = { pw ->
+                        usedCustomPassword = true
+                        resolvedPassword?.fill('\u0000')
+                        resolvedPassword = pw.copyOf()
+                    }
+                )
+                val data = NetworkModule.moshi.adapter(BackupData::class.java).fromJson(opened)
+                    ?: error("Cloud backup chunk is not valid BackupData")
+                segments += data
+            }
+            val merged = BackupChunkMerger.merge(segments)
+            val count = backupManager.importFromJson(backupManager.encode(merged))
+            if (usedCustomPassword) {
+                resolvedPassword?.let { persistCustomCloudPassword(it) }
+            } else {
+                clearCustomCloudPassword()
+            }
+            // Reset local frozen index; next upload rebuilds tip from Room.
+            saveFrozenIndex(
+                FrozenBackupIndex(
+                    nextChunkIndex = chain.size.coerceAtLeast(1),
+                    tipChunkId = chain.last().chunkId
+                )
+            )
+            settingsRepository.setMongoTipContentHash(
+                BackupContentHasher.hash(
+                    BackupTipBuilder.buildTip(merged, loadFrozenIndex()),
+                    backupManager::encode
+                )
+            )
+            // Legacy single plaintext head: migrate to sealed Support-ID tip when possible.
+            if (chain.size == 1 &&
+                backupManager.crypto.classify(chain[0].payloadJson) == BackupFormat.LEGACY_PLAIN
+            ) {
                 try {
                     val passwordChars = id.toCharArray()
                     val sealedPayload = try {
-                        backupManager.crypto.seal(payloadJson, passwordChars)
+                        backupManager.crypto.seal(backupManager.encode(merged), passwordChars)
                     } finally {
                         passwordChars.fill('\u0000')
                     }
                     mongoBackupRepository.upload(
                         baseUrl = MongoUriVault.baseUrl(),
                         apiKey = MongoUriVault.resolve(),
-                        databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                        collectionName = settings.mongoCollectionName.ifBlank {
-                            AppSettings.DEFAULT_MONGO_COLLECTION
-                        },
+                        databaseName = dbName,
+                        collectionName = collName,
                         supportId = id,
                         payloadJson = sealedPayload,
                         exportedAt = System.currentTimeMillis(),
@@ -356,45 +497,49 @@ class FitnessRepository(
                         macId = DeviceIdentity.macId(backupManager.appContext)
                     )
                 } catch (e: Exception) {
-                    // Migration failed — local data preserved, cloud doc unchanged (Requirement 9.4)
                     Log.w(TAG, "Legacy cloud backup migration failed; will retry on next upload", e)
                 }
-                // Restored backup is Support-ID-protected — drop any stale custom password.
-                clearCustomCloudPassword()
-                count
             }
+            return count
+        } finally {
+            resolvedPassword?.fill('\u0000')
+        }
+    }
 
+    private suspend fun openCloudPayload(
+        payloadJson: String,
+        supportId: String,
+        passwordProvider: suspend () -> CharArray?,
+        onOpenedWithSupportId: () -> Unit,
+        onOpenedWithCustomPassword: (CharArray) -> Unit
+    ): String {
+        return when (backupManager.crypto.classify(payloadJson)) {
+            BackupFormat.LEGACY_PLAIN -> {
+                onOpenedWithSupportId()
+                payloadJson
+            }
             BackupFormat.PLAIN_WRAPPED -> {
                 when (val result = backupManager.crypto.open(payloadJson, null)) {
                     is OpenResult.Success -> {
-                        val count = backupManager.importFromJson(result.payloadJson)
-                        // Restored backup is unencrypted — drop any stale custom password.
-                        clearCustomCloudPassword()
-                        count
+                        onOpenedWithSupportId()
+                        result.payloadJson
                     }
                     else -> error(BackupErrorMessages.BACKUP_CORRUPT)
                 }
             }
-
             BackupFormat.ENCRYPTED -> {
-                // Try Support ID first (no prompt)
-                val supportIdChars = id.toCharArray()
+                val supportIdChars = supportId.toCharArray()
                 val autoResult = try {
                     backupManager.crypto.open(payloadJson, supportIdChars)
                 } finally {
                     supportIdChars.fill('\u0000')
                 }
-
                 when (autoResult) {
                     is OpenResult.Success -> {
-                        val count = backupManager.importFromJson(autoResult.payloadJson)
-                        // Opened with the Support ID — this backup has no custom password, so drop
-                        // any stale one this device may have stored from an earlier backup.
-                        clearCustomCloudPassword()
-                        count
+                        onOpenedWithSupportId()
+                        autoResult.payloadJson
                     }
                     OpenResult.WrongPassword -> {
-                        // Support ID didn't work — prompt the user
                         val userPassword = passwordProvider()
                         if (userPassword == null || userPassword.isEmpty()) {
                             error("Password required to restore this backup")
@@ -402,16 +547,15 @@ class FitnessRepository(
                         try {
                             when (val prompted = backupManager.crypto.open(payloadJson, userPassword)) {
                                 is OpenResult.Success -> {
-                                    // Remember this custom password on-device so later uploads
-                                    // keep the backup custom-encrypted (not downgraded to Support ID).
-                                    persistCustomCloudPassword(userPassword)
-                                    backupManager.importFromJson(prompted.payloadJson)
+                                    onOpenedWithCustomPassword(userPassword)
+                                    prompted.payloadJson
                                 }
                                 OpenResult.WrongPassword -> error(BackupErrorMessages.INCORRECT_PASSWORD)
                                 OpenResult.Corrupt -> error(BackupErrorMessages.BACKUP_CORRUPT)
                                 OpenResult.Unreadable -> error(BackupErrorMessages.NOT_VALID_BACKUP)
                             }
                         } finally {
+                            // Caller may have copied; still wipe this instance.
                             userPassword.fill('\u0000')
                         }
                     }
@@ -419,7 +563,6 @@ class FitnessRepository(
                     OpenResult.Unreadable -> error(BackupErrorMessages.NOT_VALID_BACKUP)
                 }
             }
-
             BackupFormat.UNKNOWN -> error(BackupErrorMessages.NOT_VALID_BACKUP)
         }
     }
@@ -432,6 +575,9 @@ class FitnessRepository(
      * device-local, never in exported/cloud backups) so later manual/auto uploads keep using them
      * instead of downgrading to Support-ID protection. On any failure, the cloud backup and the
      * stored password both remain unchanged (Requirement 11.5).
+     *
+     * Multi-chunk backups: downloads the chain, re-seals every chunk with the new password, and
+     * PUTs each node (tip-only rule does not apply).
      */
     suspend fun changeCloudPassword(newPassword: CharArray?) {
         // Validate: non-blank password must be 8–128 characters
@@ -444,28 +590,68 @@ class FitnessRepository(
         }
         val settings = settingsRepository.settings.first()
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
+        val dbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
+        val collName = settings.mongoCollectionName.ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
 
-        // Determine effective password: blank → Support ID
+        val oldPassword = resolveUploadPassword(settings, supportId)
         val effectivePassword = if (isBlank) supportId.toCharArray() else newPassword.copyOf()
         try {
-            val data = backupManager.buildBackupData()
-            val payloadJson = backupManager.encode(data)
-            val sealedPayload = backupManager.crypto.seal(payloadJson, effectivePassword)
-            mongoBackupRepository.upload(
-                baseUrl = MongoUriVault.baseUrl(),
-                apiKey = MongoUriVault.resolve(),
-                databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                collectionName = settings.mongoCollectionName.ifBlank {
-                    AppSettings.DEFAULT_MONGO_COLLECTION
-                },
-                supportId = supportId,
-                payloadJson = sealedPayload,
-                exportedAt = data.exportedAt,
-                deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                macId = DeviceIdentity.macId(backupManager.appContext)
-            )
-            // Success: persist (or clear) the custom password so future uploads reuse it,
-            // update the UI flag, and record the upload timestamp/status.
+            val chain = runCatching {
+                mongoBackupRepository.downloadChain(
+                    baseUrl = MongoUriVault.baseUrl(),
+                    apiKey = MongoUriVault.resolve(),
+                    databaseName = dbName,
+                    collectionName = collName,
+                    supportId = supportId
+                )
+            }.getOrDefault(emptyList())
+
+            if (chain.size > 1) {
+                for (doc in chain) {
+                    val plain = when (
+                        val opened = backupManager.crypto.open(doc.payloadJson, oldPassword.copyOf())
+                    ) {
+                        is OpenResult.Success -> opened.payloadJson
+                        else -> error(BackupErrorMessages.INCORRECT_PASSWORD)
+                    }
+                    val resealed = backupManager.crypto.seal(plain, effectivePassword.copyOf())
+                    mongoBackupRepository.uploadChunk(
+                        baseUrl = MongoUriVault.baseUrl(),
+                        apiKey = MongoUriVault.resolve(),
+                        databaseName = dbName,
+                        collectionName = collName,
+                        supportId = supportId,
+                        chunkId = doc.chunkId,
+                        chunkIndex = doc.chunkIndex,
+                        nextChunkId = doc.nextChunkId,
+                        tipChunkId = doc.tipChunkId,
+                        payloadJson = resealed,
+                        exportedAt = doc.exportedAt,
+                        deviceName = doc.deviceName.ifBlank {
+                            DeviceIdentity.deviceName(backupManager.appContext)
+                        },
+                        macId = doc.macId.ifBlank { DeviceIdentity.macId(backupManager.appContext) }
+                    )
+                }
+            } else {
+                val data = backupManager.buildBackupData()
+                val payloadJson = backupManager.encode(data)
+                val sealedPayload = backupManager.crypto.seal(payloadJson, effectivePassword.copyOf())
+                mongoBackupRepository.upload(
+                    baseUrl = MongoUriVault.baseUrl(),
+                    apiKey = MongoUriVault.resolve(),
+                    databaseName = dbName,
+                    collectionName = collName,
+                    supportId = supportId,
+                    payloadJson = sealedPayload,
+                    exportedAt = data.exportedAt,
+                    deviceName = DeviceIdentity.deviceName(backupManager.appContext),
+                    macId = DeviceIdentity.macId(backupManager.appContext)
+                )
+                settingsRepository.setMongoTipContentHash(
+                    BackupContentHasher.hash(data, backupManager::encode)
+                )
+            }
             if (isBlank) {
                 settingsRepository.setCloudBackupPasswordBlob(null)
             } else {
@@ -474,11 +660,9 @@ class FitnessRepository(
                 )
             }
             settingsRepository.setCloudBackupPasswordSet(!isBlank)
-            settingsRepository.setMongoTipContentHash(
-                BackupContentHasher.hash(data, backupManager::encode)
-            )
             settingsRepository.setMongoUploadStatus(ok = true)
         } finally {
+            oldPassword.fill('\u0000')
             effectivePassword.fill('\u0000')
             newPassword?.fill('\u0000')
         }
@@ -498,6 +682,7 @@ class FitnessRepository(
     }
 
     fun getFoodLogsForDate(dateString: String): Flow<List<FoodLog>> = foodLogDao.getFoodLogsByDate(dateString)
+
     fun getExerciseLogsForDate(dateString: String): Flow<List<ExerciseLog>> = exerciseLogDao.getExerciseLogsByDate(dateString)
 
     fun getExerciseBurnToday(dateString: String): Flow<Int?> = exerciseLogDao.getTotalBurnedForDate(dateString)
