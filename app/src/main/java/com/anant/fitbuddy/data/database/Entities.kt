@@ -99,7 +99,9 @@ data class SavedFood(
     val fatsG: Int,
     val createdAt: Long,
     val barcode: String? = null,
-    val ingredients: List<LoggedIngredient>? = null
+    val ingredients: List<LoggedIngredient>? = null,
+    /** Manual library order; lower values appear first. */
+    val sortOrder: Int = 0
 )
 
 /** A reusable meal template (multiple foods) for one-tap logging from the dashboard. */
@@ -113,7 +115,9 @@ data class MealPreset(
     val carbsG: Int,
     val fatsG: Int,
     val createdAt: Long,
-    val foods: List<com.anant.fitbuddy.data.model.PresetMealFood>? = null
+    val foods: List<com.anant.fitbuddy.data.model.PresetMealFood>? = null,
+    /** Manual library order; lower values appear first. */
+    val sortOrder: Int = 0
 )
 
 /** A user-added exercise saved for the workout picker after AI (or offline) normalisation. */

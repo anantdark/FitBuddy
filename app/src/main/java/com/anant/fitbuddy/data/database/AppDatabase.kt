@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -41,6 +41,37 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        /** Adds manual [sortOrder] for saved foods and meal presets. */
+        val MIGRATION_11_12 = migration(11, 12) { db ->
+            db.execSQL(
+                "ALTER TABLE saved_foods ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0"
+            )
+            db.execSQL(
+                "ALTER TABLE meal_presets ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0"
+            )
+            // Preserve previous name-ASC order as the initial manual order.
+            db.execSQL(
+                """
+                UPDATE saved_foods SET sortOrder = (
+                    SELECT COUNT(*) FROM saved_foods AS s2
+                    WHERE s2.name COLLATE NOCASE < saved_foods.name COLLATE NOCASE
+                       OR (s2.name COLLATE NOCASE = saved_foods.name COLLATE NOCASE
+                           AND s2.id < saved_foods.id)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                UPDATE meal_presets SET sortOrder = (
+                    SELECT COUNT(*) FROM meal_presets AS m2
+                    WHERE m2.name COLLATE NOCASE < meal_presets.name COLLATE NOCASE
+                       OR (m2.name COLLATE NOCASE = meal_presets.name COLLATE NOCASE
+                           AND m2.id < meal_presets.id)
+                )
+                """.trimIndent()
+            )
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -53,6 +84,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // Version 11 is the first production-shipped schema; any upgrade from v11+
                     // must provide an explicit Migration object so user data is never silently
                     // wiped on an app update.
+                    .addMigrations(MIGRATION_11_12)
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
                 INSTANCE = instance
@@ -67,11 +99,11 @@ abstract class AppDatabase : RoomDatabase() {
          *
          * Example — adding a nullable column to food_logs:
          *
-         *   val MIGRATION_11_12 = migration(11, 12) {
+         *   val MIGRATION_12_13 = migration(12, 13) {
          *       it.execSQL("ALTER TABLE food_logs ADD COLUMN notes TEXT")
          *   }
          *
-         * Then in getDatabase: .addMigrations(MIGRATION_11_12)
+         * Then in getDatabase: .addMigrations(MIGRATION_11_12, MIGRATION_12_13)
          */
         fun migration(from: Int, to: Int, block: (SupportSQLiteDatabase) -> Unit): Migration =
             object : Migration(from, to) {

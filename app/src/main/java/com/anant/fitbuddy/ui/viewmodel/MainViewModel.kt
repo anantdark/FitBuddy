@@ -979,6 +979,32 @@ class MainViewModel(
         }
     }
 
+    fun updateSavedFood(food: SavedFood) {
+        viewModelScope.launch {
+            runCatching { repository.updateSavedFood(food) }
+                .onSuccess {
+                    _analysisState.update { it.copy(userMessage = "Updated \"${food.name}\"") }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = e.message ?: "Couldn't update food")
+                    }
+                }
+        }
+    }
+
+    fun moveSavedFood(food: SavedFood, direction: Int) {
+        viewModelScope.launch {
+            repository.moveSavedFood(food, direction)
+        }
+    }
+
+    fun moveMealPreset(preset: MealPreset, direction: Int) {
+        viewModelScope.launch {
+            repository.moveMealPreset(preset, direction)
+        }
+    }
+
     private val _barcodeLookupLoading = MutableStateFlow(false)
     val barcodeLookupLoading: StateFlow<Boolean> = _barcodeLookupLoading.asStateFlow()
 
@@ -1014,6 +1040,25 @@ class MainViewModel(
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(userMessage = e.message ?: "Couldn't save food")
+                    }
+                }
+        }
+    }
+
+    /** Logs a barcode product to the active day without saving it to the library. */
+    fun logScannedProduct(product: ScannedProduct) {
+        viewModelScope.launch {
+            runCatching {
+                repository.logScannedProduct(product, activeDayTimestamp())
+            }
+                .onSuccess {
+                    _analysisState.update {
+                        it.copy(userMessage = "Logged ${product.name} · ${product.calories} kcal")
+                    }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = e.message ?: "Couldn't log food")
                     }
                 }
         }
