@@ -1318,7 +1318,8 @@ class FitnessRepository(
                 carbsG = draft.totalCarbs,
                 fatsG = draft.totalFats,
                 createdAt = System.currentTimeMillis(),
-                ingredients = draft.ingredients.map { LoggedIngredient.fromIngredientDraft(it) }
+                ingredients = draft.ingredients.map { LoggedIngredient.fromIngredientDraft(it) },
+                sortOrder = savedFoodDao.maxSortOrder() + 1
             )
         )
     }
@@ -1333,7 +1334,8 @@ class FitnessRepository(
                 carbsG = draft.totalCarbs,
                 fatsG = draft.totalFats,
                 createdAt = System.currentTimeMillis(),
-                foods = draft.foods.map { it.toPresetMealFood() }
+                foods = draft.foods.map { it.toPresetMealFood() },
+                sortOrder = mealPresetDao.maxSortOrder() + 1
             )
         )
     }
@@ -1341,6 +1343,38 @@ class FitnessRepository(
     suspend fun deleteSavedFood(food: SavedFood) = savedFoodDao.delete(food)
 
     suspend fun deleteMealPreset(preset: MealPreset) = mealPresetDao.delete(preset)
+
+    /** Updates an existing saved food (same id), preserving [SavedFood.sortOrder] and barcode. */
+    suspend fun updateSavedFood(food: SavedFood) {
+        require(food.id > 0) { "Saved food id required for update" }
+        savedFoodDao.insert(food)
+    }
+
+    /** Moves [food] one step up or down in the library order. */
+    suspend fun moveSavedFood(food: SavedFood, direction: Int) {
+        val list = savedFoodDao.getAllOnce().toMutableList()
+        val index = list.indexOfFirst { it.id == food.id }
+        if (index < 0) return
+        val target = index + direction
+        if (target !in list.indices) return
+        val tmp = list[index]
+        list[index] = list[target]
+        list[target] = tmp
+        savedFoodDao.insertAll(list.mapIndexed { i, item -> item.copy(sortOrder = i) })
+    }
+
+    /** Moves [preset] one step up or down in the meal-preset order. */
+    suspend fun moveMealPreset(preset: MealPreset, direction: Int) {
+        val list = mealPresetDao.getAllOnce().toMutableList()
+        val index = list.indexOfFirst { it.id == preset.id }
+        if (index < 0) return
+        val target = index + direction
+        if (target !in list.indices) return
+        val tmp = list[index]
+        list[index] = list[target]
+        list[target] = tmp
+        mealPresetDao.insertAll(list.mapIndexed { i, item -> item.copy(sortOrder = i) })
+    }
 
     /** Looks up a packaged product by EAN/UPC barcode via Open Food Facts. */
     suspend fun lookupProductByBarcode(barcode: String): ScannedProduct {
@@ -1371,7 +1405,22 @@ class FitnessRepository(
                 fatsG = product.fatsG,
                 createdAt = System.currentTimeMillis(),
                 barcode = product.barcode,
-                ingredients = entry.ingredients.map { LoggedIngredient.fromIngredientDraft(it) }
+                ingredients = entry.ingredients.map { LoggedIngredient.fromIngredientDraft(it) },
+                sortOrder = savedFoodDao.maxSortOrder() + 1
+            )
+        )
+    }
+
+    /** Logs a scanned product to [timestamp]'s day without adding it to the food library. */
+    suspend fun logScannedProduct(
+        product: ScannedProduct,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        saveMealDraft(
+            MealDraft(
+                name = product.name,
+                timestamp = timestamp,
+                foods = listOf(product.toFoodEntry())
             )
         )
     }

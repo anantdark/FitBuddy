@@ -209,14 +209,17 @@ data class ExerciseDailySummary(
 
 @Dao
 interface SavedFoodDao {
-    @Query("SELECT * FROM saved_foods ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM saved_foods ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
     fun getAll(): Flow<List<SavedFood>>
 
-    @Query("SELECT * FROM saved_foods ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM saved_foods ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
     suspend fun getAllOnce(): List<SavedFood>
 
     @Query("SELECT * FROM saved_foods WHERE barcode = :barcode LIMIT 1")
     suspend fun findByBarcode(barcode: String): SavedFood?
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM saved_foods")
+    suspend fun maxSortOrder(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(food: SavedFood)
@@ -233,11 +236,14 @@ interface SavedFoodDao {
 
 @Dao
 interface MealPresetDao {
-    @Query("SELECT * FROM meal_presets ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM meal_presets ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
     fun getAll(): Flow<List<MealPreset>>
 
-    @Query("SELECT * FROM meal_presets ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM meal_presets ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
     suspend fun getAllOnce(): List<MealPreset>
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM meal_presets")
+    suspend fun maxSortOrder(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(preset: MealPreset)

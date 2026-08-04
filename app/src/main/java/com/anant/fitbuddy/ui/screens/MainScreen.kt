@@ -715,7 +715,8 @@ fun MainScreen(
         }
     }
 
-    if (hasSettingsSnapshot && !settings.hasUserName) {
+    // Debug onboarding skips the name step; don't block the dashboard with a name prompt.
+    if (hasSettingsSnapshot && !settings.hasUserName && !BuildConfig.DEBUG) {
         NamePromptDialog(onSave = viewModel::saveUserName)
     }
 
@@ -776,6 +777,7 @@ fun MainScreen(
                 showMealPresetSheet = false
             },
             onDelete = viewModel::deleteMealPreset,
+            onMove = viewModel::moveMealPreset,
             onDismiss = { showMealPresetSheet = false }
         )
     }
@@ -793,6 +795,8 @@ fun MainScreen(
                 showSavedFoodSheet = false
             },
             onDelete = viewModel::deleteSavedFood,
+            onEdit = viewModel::updateSavedFood,
+            onMove = viewModel::moveSavedFood,
             onDismiss = { showSavedFoodSheet = false }
         )
     }
@@ -802,6 +806,8 @@ fun MainScreen(
             foods = savedFoods,
             mode = SavedFoodSheetMode.MANAGE_LIBRARY,
             onDelete = viewModel::deleteSavedFood,
+            onEdit = viewModel::updateSavedFood,
+            onMove = viewModel::moveSavedFood,
             onDismiss = { showSavedFoodManageSheet = false }
         )
     }
@@ -879,10 +885,11 @@ fun MainScreen(
     }
 
     pendingProduct?.let { product ->
+        val isMealAdd = scanFlow == ScanFlow.ADD_TO_MEAL
         ScannedProductDialog(
             product = product,
             isSaving = false,
-            primaryLabel = if (scanFlow == ScanFlow.ADD_TO_MEAL) "Add to meal" else "Save food",
+            primaryLabel = if (isMealAdd) "Add to meal" else "Save food",
             onPrimary = { confirmed ->
                 when (scanFlow) {
                     ScanFlow.ADD_TO_MEAL -> mealItems.add(confirmed.toFoodEntry())
@@ -890,6 +897,16 @@ fun MainScreen(
                 }
                 pendingProduct = null
                 scanFlow = null
+            },
+            secondaryLabel = if (isMealAdd) null else "Log today",
+            onSecondary = if (isMealAdd) {
+                null
+            } else {
+                { confirmed ->
+                    viewModel.logScannedProduct(confirmed)
+                    pendingProduct = null
+                    scanFlow = null
+                }
             },
             onDismiss = {
                 pendingProduct = null
@@ -1440,7 +1457,8 @@ private fun dashboardGreeting(firstName: String): String {
         in 17..20 -> "Good evening"
         else -> "Good night"
     }
-    return "$period, $firstName"
+    val name = firstName.trim()
+    return if (name.isEmpty()) period else "$period, $name"
 }
 
 @Composable
