@@ -192,6 +192,7 @@ fun SettingsScreen(
     onDeveloperUnlockHintDismiss: () -> Unit = {},
     onDeveloperModeToggled: (unlocked: Boolean) -> Unit = {},
     onClearModelCooldowns: () -> Unit = {},
+    onApplyBuiltInModelDefaults: () -> Unit = {},
     onShowTestUpdatePrompt: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     onPermissionDenied: (message: String) -> Unit = {},
@@ -316,6 +317,15 @@ fun SettingsScreen(
         }
     }
 
+    // Paid catalogs are manual pick only — keep Auto off (and the switch greyed out) for the
+    // whole time Show paid models is on.
+    LaunchedEffect(provider, showPaidModels) {
+        if (showPaidModels && aiAutoFailover) {
+            aiAutoFailover = false
+            onSaveQuiet(settings.withAutoFailover(provider, false))
+        }
+    }
+
     LaunchedEffect(confettiKey) {
         if (confettiKey == 0) return@LaunchedEffect
         showConfetti = true
@@ -398,16 +408,22 @@ fun SettingsScreen(
             SettingToggleRow(
                 title = "Auto failover",
                 checked = aiAutoFailover,
+                enabled = !showPaidModels,
                 onCheckedChange = { enabled ->
                     aiAutoFailover = enabled
                     // Persist immediately; leave other draft AI fields for Save AI Settings.
                     onSaveQuiet(settings.withAutoFailover(provider, enabled))
                 },
                 hintTitle = "Auto failover",
-                hint = "When on, FitBuddy tries other API keys, then other models on the " +
-                    "same platform. When off, only your selected model is used, but " +
-                    "other API keys are still tried on failure. Change platform " +
-                    "manually if everything fails."
+                hint = if (showPaidModels) {
+                    "Unavailable while Show paid models is on — pick one model yourself. " +
+                        "Turn paid models off to use Auto failover again."
+                } else {
+                    "When on, FitBuddy tries other API keys, then other models on the " +
+                        "same platform. When off, only your selected model is used, but " +
+                        "other API keys are still tried on failure. Change platform " +
+                        "manually if everything fails."
+                }
             )
 
             if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI || provider == AiProvider.OPENAI) {
@@ -417,15 +433,32 @@ fun SettingsScreen(
                     enabled = provider != AiProvider.OPENAI,
                     onCheckedChange = { enabled ->
                         showPaidModels = enabled
-                        onSaveQuiet(settings.withShowPaid(provider, enabled))
+                        if (provider == AiProvider.OPENAI) {
+                            onSaveQuiet(settings.withShowPaid(provider, enabled))
+                        } else if (enabled) {
+                            // Paid catalogs are manual pick only — turn Auto off for this provider.
+                            aiAutoFailover = false
+                            onSaveQuiet(
+                                settings
+                                    .withShowPaid(provider, true)
+                                    .withAutoFailover(provider, false)
+                            )
+                        } else {
+                            aiAutoFailover = true
+                            onSaveQuiet(
+                                settings
+                                    .withShowPaid(provider, false)
+                                    .withAutoFailover(provider, true)
+                            )
+                        }
                     },
                     hintTitle = "Paid models",
                     hint = if (provider == AiProvider.OPENAI) {
                         "OpenAI has no free tier, so paid models always stay on for this provider."
                     } else {
-                        "Off (default): free models only. On: also list paid models. " +
-                            "While paid models are shown, the Refresh button skips reachability " +
-                            "checks so paid endpoints are never pinged on their own."
+                        "Off (default): free models only. On: also list paid models and turn " +
+                            "Auto failover off so you pick one model yourself. Refresh skips " +
+                            "reachability checks while paid models are shown."
                     }
                 )
             }
@@ -451,9 +484,10 @@ fun SettingsScreen(
                     }
                     HintIconButton(
                         title = "Active models",
-                        message = "Green lines show the models last used successfully. Your " +
-                            "dropdown selection stays as the preferred model — Auto tries it " +
-                            "first again after rate-limit cooldowns end (next UTC midnight)."
+                        message = "Green lines show the models last used successfully (reset to " +
+                            "your dropdown picks when you Save AI Settings). Rate-limited models " +
+                            "are skipped until the next UTC midnight, unless you save that model " +
+                            "again — Save clears its cooldown so Auto retries your selection."
                     )
                 }
             }
@@ -527,7 +561,7 @@ fun SettingsScreen(
                         showPaidModels = showPaidModels,
                         hintTitle = "Text model",
                         hint = "Used for typed logs and \"recalculate with AI\" (no photo). " +
-                            "Leave blank to reuse the photo model. Gemma models are listed first."
+                            "Leave blank to reuse the photo model. Order follows the failover ladder."
                     )
                 }
 
@@ -539,9 +573,9 @@ fun SettingsScreen(
                     )
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Photo model (by intelligence)"
+                            "Photo model (vision)"
                         } else {
-                            "Photo model (free, by intelligence)"
+                            "Photo model (free + vision)"
                         },
                         noun = if (showPaidModels) "vision" else "free vision",
                         selectedModel = geminiModel,
@@ -554,17 +588,18 @@ fun SettingsScreen(
                         hintTitle = "Gemini",
                         hint = "Get a key from Google AI Studio (aistudio.google.com). " +
                             (if (showPaidModels) {
-                                "Free Flash plus paid Pro (smartest-first). "
+                                "Free Flash plus paid Pro. "
                             } else {
-                                "Free Flash models only (smartest-first). "
+                                "Free Flash models only. "
                             }) +
+                            "Dropdown order follows the approved failover ladder. " +
                             "With Auto failover on, failed keys then models rotate on Gemini only."
                     )
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Text model (by intelligence)"
+                            "Text model"
                         } else {
-                            "Text model (free, by intelligence)"
+                            "Text model (free)"
                         },
                         noun = if (showPaidModels) "chat" else "free",
                         selectedModel = geminiTextModel,
@@ -1247,221 +1282,234 @@ fun SettingsScreen(
         if (developerUnlocked) {
             SettingsCard(title = "Developer", initiallyExpanded = false) {
                 Text(
-                    text = "Niche debug / experimental tools. Tap Package 31 times again to hide.",
+                    text = "Debug tools. Tap Package 31 times again to hide this card.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Text(
-                    text = "Local backup (debug)",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Import a BackupData JSON file. Replaces all local data. " +
-                        "Export is under Backup → Local backups.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = onImport,
-                    modifier = Modifier.fillMaxWidth()
+                DeveloperSection(
+                    title = "Backup & identity",
+                    description = "Local import and Support ID. Export is under Backup → Local backups."
                 ) {
-                    Icon(Icons.Filled.FileDownload, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Import")
+                    OutlinedButton(
+                        onClick = onImport,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.FileDownload, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Import backup JSON")
+                    }
+                    OutlinedButton(
+                        onClick = onRegenerateSupportId,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Generate new Support ID")
+                    }
+                    Text(
+                        text = "New ID for crash reports and future cloud uploads. " +
+                            "Existing cloud docs stay under the old ID.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                OutlinedButton(
-                    onClick = onRegenerateSupportId,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Generate new Support ID")
-                }
-                Text(
-                    text = "Creates a new ID for crash reports and future cloud uploads. " +
-                        "Existing cloud docs stay under the old ID.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
-                Text(
-                    text = "Cloud backup (debug)",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Text(
-                    text = "Atlas db/collection overrides and restore by Support ID. " +
-                        "Defaults: db ${AppSettings.DEFAULT_MONGO_DB_NAME}, " +
-                        "collection ${AppSettings.DEFAULT_MONGO_COLLECTION}.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                var mongoDbNameDraft by remember(settings.mongoDbName) {
-                    mutableStateOf(
-                        settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
-                    )
-                }
-                var mongoCollectionDraft by remember(settings.mongoCollectionName) {
-                    mutableStateOf(
-                        settings.mongoCollectionName.ifBlank {
-                            AppSettings.DEFAULT_MONGO_COLLECTION
-                        }
-                    )
-                }
-                OutlinedTextField(
-                    value = mongoDbNameDraft,
-                    onValueChange = { mongoDbNameDraft = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Database name") },
-                    singleLine = true,
-                    placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
-                )
-                OutlinedTextField(
-                    value = mongoCollectionDraft,
-                    onValueChange = { mongoCollectionDraft = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Collection name") },
-                    singleLine = true,
-                    placeholder = { Text(AppSettings.DEFAULT_MONGO_COLLECTION) }
-                )
-                OutlinedButton(
-                    onClick = {
-                        onSaveQuiet(
-                            settings.copy(
-                                mongoDbName = mongoDbNameDraft.trim()
-                                    .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
-                                mongoCollectionName = mongoCollectionDraft.trim()
-                                    .ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
-                            )
+                DeveloperSection(
+                    title = "Cloud (Atlas)",
+                    description = "Device-local db/collection overrides. Defaults: " +
+                        "${AppSettings.DEFAULT_MONGO_DB_NAME} / " +
+                        AppSettings.DEFAULT_MONGO_COLLECTION
+                ) {
+                    var mongoDbNameDraft by remember(settings.mongoDbName) {
+                        mutableStateOf(
+                            settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
                         )
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save Atlas db / collection")
-                }
-                if (mongoBackupBusy) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                OutlinedButton(
-                    onClick = {
-                        mongoRestoreSupportIdDraft = settings.supportId
-                        showMongoRestoreConfirm = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = cloudVaultAvailable && !mongoBackupBusy
-                ) {
-                    Text("Download & restore from cloud")
-                }
-                OutlinedButton(
-                    onClick = onForceNewCloudChunk,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = cloudVaultAvailable &&
-                        settings.cloudBackupEnabled &&
-                        !mongoBackupBusy
-                ) {
-                    Text("Create new cloud chunk")
-                }
-                Text(
-                    text = "Freezes current tip log rows into the active chunk and appends a " +
-                        "new tip (same as size-based rollover). Needs at least one tip log row.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                SettingToggleRow(
-                    title = "Keep animations visible",
-                    checked = settings.forceShowLoadingAnimations,
-                    onCheckedChange = {
-                        onSaveQuiet(settings.copy(forceShowLoadingAnimations = it))
-                    },
-                    hintTitle = "Keep animations visible",
-                    hint = "Always show the analyzing banner and insight wait animations " +
-                        "so you can preview them without waiting on AI."
-                )
-
-                SettingToggleRow(
-                    title = "Force offline AI simulator",
-                    checked = settings.forceOfflineAiSimulator,
-                    onCheckedChange = {
-                        onSave(settings.copy(forceOfflineAiSimulator = it))
-                    },
-                    hintTitle = "Force offline AI",
-                    hint = "Bypass live API and use the bundled text simulator " +
-                        "(photos still need a real provider)."
-                )
-                SettingToggleRow(
-                    title = "Show raw AI JSON",
-                    checked = settings.showRawAiJson,
-                    onCheckedChange = {
-                        onSave(settings.copy(showRawAiJson = it))
-                    },
-                    hintTitle = "Raw AI JSON",
-                    hint = "After each analysis, show the last raw JSON response."
-                )
-                SettingToggleRow(
-                    title = "Strict clarification",
-                    checked = settings.strictClarification,
-                    onCheckedChange = {
-                        onSave(settings.copy(strictClarification = it))
-                    },
-                    hintTitle = "Strict clarification",
-                    hint = "Experimental: prefer asking for portions when counts are ambiguous."
-                )
-                SettingToggleRow(
-                    title = "Verbose HTTP logging",
-                    checked = settings.verboseHttpLogging,
-                    onCheckedChange = {
-                        onSave(settings.copy(verboseHttpLogging = it))
-                    },
-                    hintTitle = "Verbose HTTP",
-                    hint = "Log full OkHttp request/response bodies (including on release builds). " +
-                        "May include API keys in logcat — keep off unless debugging."
-                )
-                OutlinedButton(
-                    onClick = onClearModelCooldowns,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Clear model cooldowns")
-                }
-                OutlinedButton(
-                    onClick = onShowTestUpdatePrompt,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Show test update prompt")
-                }
-                Text(
-                    text = "Opens the update dialog with fake release info so you can " +
-                        "test backup-before-update. Download will fail on purpose.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = {
-                        if (
-                            needsNotificationPermission &&
-                            !notificationPermission.status.isGranted
-                        ) {
-                            pendingTestNotification = true
-                            notificationPermission.launchPermissionRequest()
-                            return@OutlinedButton
-                        }
-                        val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
-                        onTestNotificationSent(ok)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Send test notification")
-                }
-                OutlinedButton(
-                    onClick = {
-                        throw RuntimeException("FitBuddy Sentry test crash")
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Force test crash")
+                    }
+                    var mongoCollectionDraft by remember(settings.mongoCollectionName) {
+                        mutableStateOf(
+                            settings.mongoCollectionName.ifBlank {
+                                AppSettings.DEFAULT_MONGO_COLLECTION
+                            }
+                        )
+                    }
+                    OutlinedTextField(
+                        value = mongoDbNameDraft,
+                        onValueChange = { mongoDbNameDraft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Database name") },
+                        singleLine = true,
+                        placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
+                    )
+                    OutlinedTextField(
+                        value = mongoCollectionDraft,
+                        onValueChange = { mongoCollectionDraft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Collection name") },
+                        singleLine = true,
+                        placeholder = { Text(AppSettings.DEFAULT_MONGO_COLLECTION) }
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            onSaveQuiet(
+                                settings.copy(
+                                    mongoDbName = mongoDbNameDraft.trim()
+                                        .ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
+                                    mongoCollectionName = mongoCollectionDraft.trim()
+                                        .ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Atlas db / collection")
+                    }
+                    if (mongoBackupBusy) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            mongoRestoreSupportIdDraft = settings.supportId
+                            showMongoRestoreConfirm = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = cloudVaultAvailable && !mongoBackupBusy
+                    ) {
+                        Text("Download & restore from cloud")
+                    }
+                    OutlinedButton(
+                        onClick = onForceNewCloudChunk,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = cloudVaultAvailable &&
+                            settings.cloudBackupEnabled &&
+                            !mongoBackupBusy
+                    ) {
+                        Text("Create new cloud chunk")
+                    }
+                    Text(
+                        text = "Freezes tip log rows into the active chunk and appends a new tip " +
+                            "(same as size-based rollover). Needs at least one tip log row.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
+                DeveloperSection(
+                    title = "AI debugging",
+                    description = "Toggles and tools for the live AI path. Does not change ranking rules."
+                ) {
+                    SettingToggleRow(
+                        title = "Force offline AI simulator",
+                        checked = settings.forceOfflineAiSimulator,
+                        onCheckedChange = {
+                            onSave(settings.copy(forceOfflineAiSimulator = it))
+                        },
+                        hintTitle = "Force offline AI",
+                        hint = "Bypass live API and use the bundled text simulator " +
+                            "(photos still need a real provider)."
+                    )
+                    SettingToggleRow(
+                        title = "Show raw AI JSON",
+                        checked = settings.showRawAiJson,
+                        onCheckedChange = {
+                            onSave(settings.copy(showRawAiJson = it))
+                        },
+                        hintTitle = "Raw AI JSON",
+                        hint = "After each analysis, show the last raw JSON response."
+                    )
+                    SettingToggleRow(
+                        title = "Strict clarification",
+                        checked = settings.strictClarification,
+                        onCheckedChange = {
+                            onSave(settings.copy(strictClarification = it))
+                        },
+                        hintTitle = "Strict clarification",
+                        hint = "Experimental: prefer asking for portions when counts are ambiguous."
+                    )
+                    SettingToggleRow(
+                        title = "Verbose HTTP logging",
+                        checked = settings.verboseHttpLogging,
+                        onCheckedChange = {
+                            onSave(settings.copy(verboseHttpLogging = it))
+                        },
+                        hintTitle = "Verbose HTTP",
+                        hint = "Log full OkHttp request/response bodies (including on release builds). " +
+                            "May include API keys in logcat — keep off unless debugging."
+                    )
+                    OutlinedButton(
+                        onClick = onClearModelCooldowns,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Clear model cooldowns")
+                    }
+                    OutlinedButton(
+                        onClick = onApplyBuiltInModelDefaults,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Apply built-in model defaults")
+                    }
+                    Text(
+                        text = "Resets OpenRouter / Gemini / Ollama photo and text to app defaults " +
+                            "(not OpenAI). Save also clears cooldowns for the active provider’s picks.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                DeveloperSection(
+                    title = "UI preview",
+                    description = "Preview loading animations without waiting on AI."
+                ) {
+                    SettingToggleRow(
+                        title = "Keep animations visible",
+                        checked = settings.forceShowLoadingAnimations,
+                        onCheckedChange = {
+                            onSaveQuiet(settings.copy(forceShowLoadingAnimations = it))
+                        },
+                        hintTitle = "Keep animations visible",
+                        hint = "Always show the analyzing banner and insight wait animations."
+                    )
+                }
+
+                DeveloperSection(
+                    title = "Testing",
+                    description = "One-shot checks for update UI, notifications, and crash reporting."
+                ) {
+                    OutlinedButton(
+                        onClick = onShowTestUpdatePrompt,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Show test update prompt")
+                    }
+                    Text(
+                        text = "Fake release dialog for backup-before-update. Download fails on purpose.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            if (
+                                needsNotificationPermission &&
+                                !notificationPermission.status.isGranted
+                            ) {
+                                pendingTestNotification = true
+                                notificationPermission.launchPermissionRequest()
+                                return@OutlinedButton
+                            }
+                            val ok = ReminderReceiver.postReminderNotification(context, isTest = true)
+                            onTestNotificationSent(ok)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Send test notification")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            throw RuntimeException("FitBuddy Sentry test crash")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Force test crash")
+                    }
+                }
             }
         }
 
@@ -1903,6 +1951,33 @@ private fun AiStatusBanner(isConfigured: Boolean, provider: AiProvider) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DeveloperSection(
+    title: String,
+    description: String? = null,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (!description.isNullOrBlank()) {
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        content()
     }
 }
 

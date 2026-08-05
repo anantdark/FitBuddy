@@ -75,6 +75,12 @@ output.json
 .env.*
 !.env.example
 .signing-secrets/
+apis
+
+# Local CLI benchmark dumps (may include model replies) and review notes
+tools/benchmark_results/
+tools/benchmark/
+tools/__pycache__/
 
 # Vercel cloud-backup local link / env (also ignored under cloud-backup/)
 cloud-backup/.vercel/

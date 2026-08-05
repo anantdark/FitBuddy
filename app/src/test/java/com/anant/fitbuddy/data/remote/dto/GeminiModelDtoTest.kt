@@ -32,49 +32,6 @@ class GeminiModelDtoTest {
         assertFalse(dto("gemini-robotics-er-1.5-preview").supportsVision)
     }
 
-    @Test
-    fun `intelligence rank follows free-tier capability ladder`() {
-        val order = listOf(
-            "gemini-3.5-flash",
-            "gemini-3-flash-preview",
-            "gemini-2.5-flash",
-            "gemini-flash-latest",
-            "gemini-3.1-flash-lite",
-            "gemini-2.5-flash-lite",
-            "gemini-flash-lite-latest",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite"
-        )
-        val ranks = order.map { geminiIntelligenceRank(it) }
-        ranks.zipWithNext().forEach { (higher, lower) ->
-            assertTrue(higher >= lower)
-        }
-        assertTrue(geminiIntelligenceRank("gemini-3.5-flash") > geminiIntelligenceRank("gemini-3-flash-preview"))
-        assertTrue(geminiIntelligenceRank("gemini-2.5-flash") > geminiIntelligenceRank("gemini-2.5-flash-lite"))
-        assertTrue(geminiIntelligenceRank("gemini-2.0-flash") > geminiIntelligenceRank("gemini-2.0-flash-lite"))
-        assertTrue(geminiIntelligenceRank("gemini-2.5-pro") > geminiIntelligenceRank("gemini-2.5-flash"))
-        assertTrue(geminiIntelligenceRank("gemini-3.5-pro") > geminiIntelligenceRank("gemini-3.5-flash"))
-    }
-
-    @Test
-    fun `gemma first rank prefers gemma 4 then size then older gemma`() {
-        val order = listOf(
-            "google/gemma-4-31b-it:free",
-            "google/gemma-4-26b-a4b-it:free",
-            "google/gemma-3-27b-it:free",
-            "gemma-3-4b",
-            "meta-llama/llama-3.3-70b-instruct:free"
-        )
-        val ranks = order.map { gemmaFirstIntelligenceRank(it) }
-        ranks.zipWithNext().forEach { (higher, lower) ->
-            assertTrue(higher > lower)
-        }
-        assertTrue(
-            gemmaFirstIntelligenceRank("gemma4:31b") >
-                gemmaFirstIntelligenceRank("gemma-3-27b")
-        )
-    }
-
     private fun dto(id: String) = GeminiModelDto(
         name = "models/$id",
         displayName = id,

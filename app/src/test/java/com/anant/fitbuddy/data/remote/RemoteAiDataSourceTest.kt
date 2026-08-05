@@ -242,7 +242,7 @@ class RemoteAiDataSourceTest {
     }
 
     @Test
-    fun `fetchGeminiVisionModels keeps free flash only and sorts by intelligence`() = runTest {
+    fun `fetchGeminiVisionModels keeps free flash only and orders by FailoverLadders`() = runTest {
         val flash20 = GeminiModelDto(
             name = "models/gemini-2.0-flash",
             displayName = "Gemini 2.0 Flash",
@@ -282,6 +282,7 @@ class RemoteAiDataSourceTest {
 
         val result = source.fetchGeminiVisionModels("key")
 
+        // Ladder head among present ids, then leftovers A–Z (pro/omni filtered out).
         assertEquals(
             listOf(
                 "gemini-3.5-flash",
@@ -315,7 +316,7 @@ class RemoteAiDataSourceTest {
             source.fetchFreeVisionModels("key", includePaid = false).map { it.id }
         )
         assertEquals(
-            listOf("google/gemma-4-31b-it:free", "google/gemma-3-27b-it"),
+            listOf("google/gemma-3-27b-it", "google/gemma-4-31b-it:free"),
             source.fetchFreeVisionModels("key", includePaid = true).map { it.id }
         )
     }
@@ -337,7 +338,7 @@ class RemoteAiDataSourceTest {
 
         assertEquals(listOf("gemini-2.5-flash"), source.fetchGeminiVisionModels("key").map { it.id })
         assertEquals(
-            listOf("gemini-2.5-pro", "gemini-2.5-flash"),
+            listOf("gemini-2.5-flash", "gemini-2.5-pro"),
             source.fetchGeminiVisionModels("key", includePaid = true).map { it.id }
         )
     }

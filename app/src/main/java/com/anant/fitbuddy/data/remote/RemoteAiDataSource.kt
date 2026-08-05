@@ -20,11 +20,12 @@ import com.anant.fitbuddy.data.remote.dto.ChatRequestPlain
 import com.anant.fitbuddy.data.remote.dto.ChatResponse
 import com.anant.fitbuddy.data.remote.dto.ContentPart
 import com.anant.fitbuddy.data.remote.dto.ImageUrl
+import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.data.remote.dto.ModelDto
 import com.anant.fitbuddy.data.remote.dto.ResponseFormat
-import com.anant.fitbuddy.data.remote.dto.gemmaFirstIntelligenceRank
-import com.anant.fitbuddy.data.remote.dto.geminiIntelligenceRank
+import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.JsonEncodingException
@@ -401,8 +402,7 @@ class RemoteAiDataSource(
 
     /**
      * Fetches the OpenRouter model catalog and returns vision-capable models (free by default,
-     * or free+paid when [includePaid]), Gemma-first by generation then size. Auth is optional
-     * for this endpoint (used if a key is present).
+     * or free+paid when [includePaid]), ordered by [FailoverLadders] then A–Z.
      */
     suspend fun fetchFreeVisionModels(
         apiKey: String,
@@ -410,10 +410,10 @@ class RemoteAiDataSource(
     ): List<ModelOption> {
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels(OPENROUTER_MODELS_URL, auth)
-        return response.data
+        val mapped = response.data
             .filter { (includePaid || it.isFree) && it.supportsVision && !isUnsuitableModel(it) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
+        return orderByFailoverLadder(AiProvider.OPENROUTER, ModelCatalogModality.PHOTO, mapped)
     }
 
     /**
@@ -443,7 +443,7 @@ class RemoteAiDataSource(
 
     /**
      * Fetches the OpenRouter catalog and returns chat models (free by default, or free+paid when
-     * [includePaid]), Gemma-first by generation then size. Used for the text-query dropdown.
+     * [includePaid]), ordered by [FailoverLadders] then A–Z.
      */
     suspend fun fetchFreeModels(
         apiKey: String,
@@ -451,44 +451,45 @@ class RemoteAiDataSource(
     ): List<ModelOption> {
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels(OPENROUTER_MODELS_URL, auth)
-        return response.data
+        val mapped = response.data
             .filter { (includePaid || it.isFree) && !isUnsuitableModel(it) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
+        return orderByFailoverLadder(AiProvider.OPENROUTER, ModelCatalogModality.TEXT, mapped)
     }
 
     /**
-     * Gemini chat models for the text-query dropdown, ordered by estimated intelligence
-     * (smartest first). Free Flash by default; Pro/Ultra included when [includePaid].
-     * List API has no pricing field — see [GeminiModelDto.isFreeTier].
+     * Gemini chat models for the text-query dropdown.
+     * Free Flash tier by default; all vision-capable models when [includePaid].
+     * Ordered by [FailoverLadders]. List API has no pricing field — see [GeminiModelDto.isFreeTier].
      */
     suspend fun fetchGeminiTextModels(
         apiKey: String,
         includePaid: Boolean = false
     ): List<ModelOption> =
-        fetchGeminiModels(apiKey, includePaid)
+        fetchGeminiModels(apiKey, includePaid, ModelCatalogModality.TEXT)
 
     /**
-     * Vision Gemini models for the photo dropdown / in-request model failover,
-     * ordered by estimated intelligence (smartest first).
+     * Vision Gemini models for the photo dropdown / in-request model failover.
+     * Ordered by [FailoverLadders].
      */
     suspend fun fetchGeminiVisionModels(
         apiKey: String,
         includePaid: Boolean = false
     ): List<ModelOption> =
-        fetchGeminiModels(apiKey, includePaid)
+        fetchGeminiModels(apiKey, includePaid, ModelCatalogModality.PHOTO)
 
     private suspend fun fetchGeminiModels(
         apiKey: String,
-        includePaid: Boolean
+        includePaid: Boolean,
+        modality: ModelCatalogModality
     ): List<ModelOption> {
         require(apiKey.isNotBlank()) { "A Gemini API key is required to list models" }
         val url = "$GEMINI_MODELS_URL?key=$apiKey&pageSize=200"
         val response = api.listGeminiModels(url)
-        return response.models
+        val mapped = response.models
             .filter { it.supportsVision && (includePaid || it.isFreeTier) }
             .map { ModelOption(id = it.modelId, displayName = it.displayName ?: it.modelId) }
-            .sortedByDescending { geminiIntelligenceRank(it.id) }
+        return orderByFailoverLadder(AiProvider.GEMINI, modality, mapped)
     }
 
     /**
@@ -500,9 +501,9 @@ class RemoteAiDataSource(
         require(base.isNotBlank()) { "Ollama server URL is required to list models" }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels("$base/v1/models", auth)
-        return response.data
+        val mapped = response.data
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
+        return orderByFailoverLadder(AiProvider.OLLAMA, ModelCatalogModality.TEXT, mapped)
     }
 
     /**
@@ -516,10 +517,10 @@ class RemoteAiDataSource(
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels("$base/v1/models", auth)
         val visionIds = response.visionCapableIds
-        return response.data
+        val mapped = response.data
             .filter { it.id in visionIds || isLikelyOllamaVisionModel(it.id) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-            .sortedByDescending { gemmaFirstIntelligenceRank(it.id) }
+        return orderByFailoverLadder(AiProvider.OLLAMA, ModelCatalogModality.PHOTO, mapped)
     }
 
     /** Text/chat Ollama models (full catalog from the host). */
@@ -535,7 +536,11 @@ class RemoteAiDataSource(
         val live = runCatching { fetchOllamaModels(OpenAiCatalog.HOST_URL, apiKey) }
             .getOrDefault(emptyList())
             .filter { isLikelyOpenAiVisionModel(it.id) }
-        return mergeModels(OpenAiCatalog.VISION_MODELS, live)
+        return orderByFailoverLadder(
+            AiProvider.OPENAI,
+            ModelCatalogModality.PHOTO,
+            mergeModels(OpenAiCatalog.VISION_MODELS, live)
+        )
     }
 
     /**
@@ -547,7 +552,11 @@ class RemoteAiDataSource(
         val live = runCatching { fetchOllamaModels(OpenAiCatalog.HOST_URL, apiKey) }
             .getOrDefault(emptyList())
             .filter { isLikelyOpenAiChatModel(it.id) }
-        return mergeModels(OpenAiCatalog.TEXT_MODELS, live)
+        return orderByFailoverLadder(
+            AiProvider.OPENAI,
+            ModelCatalogModality.TEXT,
+            mergeModels(OpenAiCatalog.TEXT_MODELS, live)
+        )
     }
 
     /**
@@ -645,6 +654,18 @@ class RemoteAiDataSource(
         preferred: List<ModelOption>,
         extra: List<ModelOption>
     ): List<ModelOption> = (preferred + extra).distinctBy { it.id }
+
+    /** Ladder head first, then remaining catalog ids A–Z — never intelligence-rank. */
+    private fun orderByFailoverLadder(
+        provider: AiProvider,
+        modality: ModelCatalogModality,
+        models: List<ModelOption>
+    ): List<ModelOption> {
+        if (models.isEmpty()) return models
+        val byId = models.associateBy { it.id }
+        return FailoverLadders.orderCatalog(provider, modality, models.map { it.id })
+            .mapNotNull { byId[it] }
+    }
 
     /** Some models wrap JSON in ```json ... ``` fences; strip them before parsing. */
     private fun stripCodeFences(raw: String): String {
@@ -1024,7 +1045,7 @@ class RemoteAiDataSource(
               4×10 @ 20kg", "30 min run 5 km", bullet lists, or comma-separated items.
             - Map each exercise to the closest name from the known list below when possible (use the
               EXACT spelling from that list). Otherwise use a concise Title Case name.
-            - For strength/resistance: default to 3 sets × 10 reps when sets/reps aren't specified.
+            - For strength/resistance: default to 3 sets × 12 reps when sets/reps aren't specified.
             - For cardio (run, jog, bike, row, etc.): use equipment "Cardio", set sets/reps to 1,
               populate "duration_minutes" and "distance_km" when the user mentions time/distance.
             - "weight_kg": only when the user gives a load in kg (or lb converted to kg); else null.

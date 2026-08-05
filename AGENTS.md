@@ -59,7 +59,7 @@ progress charts, editable meal review, and reusable food presets.
     (OpenRouter), `listGeminiModels` (@Url with `?key=`).
   - `NetworkModule.kt` — Moshi (codegen + reflective fallback), OkHttp, Retrofit (placeholder base URL; calls use @Url).
   - `RemoteAiDataSource.kt` — prompt assembly, image attach, JSON parse, `fetchFreeVisionModels`
-    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free Flash, intelligence-sorted).
+    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free Flash, ladder-ordered).
   - `dto/` — `ChatDtos.kt`, `ModelsDtos.kt` (OpenRouter `ModelDto` + Gemini `GeminiModelDto`).
 - `data/repository/`
   - `FitnessRepository.kt` — single `analyze()` entry point; routes by response `status`
@@ -69,6 +69,8 @@ progress charts, editable meal review, and reusable food presets.
 - `data/settings/`
   - `AppSettings.kt` — `AiProvider { OPENROUTER, GEMINI, OLLAMA }`; Ollama Local/Cloud
     (`ollamaUseCloud` + `ollamaApiKey`); derives `model`/`chatUrl`/`authHeader`/`isConfigured`.
+  - `FailoverLadders.kt` — loads Auto-failover TEXT/PHOTO ladders from
+    `config/failover_ladders.json`; selected model stays first.
   - `SettingsRepository.kt` — DataStore-backed; first-run defaults seed from `BuildConfig`
     (which reads `local.properties`).
 - `ui/viewmodel/MainViewModel.kt` — all screen state; `settings`, `isAiOnline`, dashboard,
@@ -99,18 +101,22 @@ progress charts, editable meal review, and reusable food presets.
   Auto off: selected model only (no model/platform change); still rotates API keys on failure,
   Auto off: selected model only (no model/platform change); still rotates API keys on failure,
   then surfaces the error. Rate-limited models are skipped until the **next UTC midnight**
-  (persisted); then newer requests try the **preferred dropdown model** first again. Green
-  “active” lines show the last successful model without changing the dropdown. **Show paid
-  models** (off by default) lists paid OpenRouter/Gemini models too and disables Refresh
-  reachability probes. Auto failover is always on by default for all providers and is never
-  forced off automatically. While paid is on, the model dropdowns do **not** auto-refresh (the
-  list only loads on the Refresh button) to avoid hitting paid endpoints unprompted. Selecting
-  the OpenAI endpoint (OpenAI-compatible provider, Local mode, URL `https://api.openai.com`)
-  auto-enables paid mode, and the vision/text dropdowns fall back to curated OpenAI defaults
-  (`OpenAiCatalog`) so at least GPT-4o is always offered even before a Refresh. Gemini uses
-  free Flash intelligence ranking
-  (3.5 Flash first; Pro above Flash when paid is on); OpenRouter/Ollama prefer Gemma by generation
-  then size (Gemma 4 31b → 26b → Gemma 3…). Pills note model switches within the platform.
+  (persisted); then newer requests try the **preferred dropdown model** first again. Saving
+  AI Settings also clears cooldowns for the preferred photo/text models so an explicit
+  selection is retried immediately (green “active” lines are reset to those picks on save).
+  Green “active” lines show the last successful model without changing the dropdown. **Show paid
+  models** (off by default) lists paid OpenRouter/Gemini models too, turns **Auto failover off**
+  for that provider (manual pick), and disables Refresh reachability probes. Turning paid off
+  restores Auto on. OpenAI stays paid-only with its curated catalog. While paid is on, the model
+  dropdowns do **not** auto-refresh (the list only loads on the Refresh button) to avoid hitting
+  paid endpoints unprompted. Selecting the OpenAI endpoint auto-enables paid mode, and the
+  vision/text dropdowns fall back to curated OpenAI defaults (`OpenAiCatalog`) so at least GPT-4o
+  is always offered even before a Refresh. Auto failover uses
+  `config/failover_ladders.json` via [FailoverLadders]:
+  selected model first, then the approved free ladder filtered to the live catalog; other
+  catalog models last. Defaults are ladder heads. Re-benchmark via `skills/benchmark-free-models`
+  when free catalogs change — edit the JSON config only; never restore catalog “intelligence”
+  ranking.
 - If no provider is configured at all, text logs use the offline simulator (photos require a key).
 
 ## Key flows

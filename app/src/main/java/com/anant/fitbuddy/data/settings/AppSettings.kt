@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.settings
 
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
@@ -36,14 +37,14 @@ data class AppSettings(
      */
     val openRouterOAuthKey: String = "",
     val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
-    val openRouterTextModel: String = "",
+    val openRouterTextModel: String = DEFAULT_OPENROUTER_TEXT_MODEL,
     val geminiApiKeys: List<String> = emptyList(),
     val geminiApiKey: String = "",
     val geminiModel: String = DEFAULT_GEMINI_MODEL,
-    val geminiTextModel: String = "",
+    val geminiTextModel: String = DEFAULT_GEMINI_TEXT_MODEL,
     val ollamaBaseUrl: String = DEFAULT_OLLAMA_URL,
     val ollamaModel: String = DEFAULT_OLLAMA_MODEL,
-    val ollamaTextModel: String = "",
+    val ollamaTextModel: String = DEFAULT_OLLAMA_TEXT_MODEL,
     /** When true, talk to ollama.com Cloud instead of a local/LAN server. */
     val ollamaUseCloud: Boolean = false,
     val ollamaApiKeys: List<String> = emptyList(),
@@ -68,7 +69,8 @@ data class AppSettings(
      * Last photo / text models Auto successfully used (with [activeAiProvider]).
      * Shown in green in Settings when Auto is on; the preferred dropdown selection is left
      * unchanged so after rate-limit cooldowns expire Auto tries that model first again.
-     * Also reset to the preferred provider's models whenever Save AI Settings runs.
+     * Reset to the preferred provider's models whenever Save AI Settings runs (and that
+     * save clears those models' cooldowns so Auto retries the selection immediately).
      * Empty until the first success for that modality (or a settings save).
      */
     val activeAiProvider: AiProvider? = null,
@@ -414,12 +416,29 @@ data class AppSettings(
         const val LOADING_ANIM_OFF = "off"
         const val LOADING_ANIM_RANDOM = "random"
 
-        const val DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free"
-        const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+        /** Photo default — head of [FailoverLadders] PHOTO ladder for OpenRouter. */
+        val DEFAULT_OPENROUTER_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OPENROUTER, ModelCatalogModality.PHOTO)
+        /** Text default — head of OpenRouter TEXT ladder. */
+        val DEFAULT_OPENROUTER_TEXT_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OPENROUTER, ModelCatalogModality.TEXT)
+        /** Photo default — Gemini Flash ladder head. */
+        val DEFAULT_GEMINI_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.GEMINI, ModelCatalogModality.PHOTO)
+        /** Text default — Gemini TEXT ladder head. */
+        val DEFAULT_GEMINI_TEXT_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.GEMINI, ModelCatalogModality.TEXT)
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"
-        const val DEFAULT_OLLAMA_MODEL = "llava"
+        /** Photo default — Ollama PHOTO ladder head. */
+        val DEFAULT_OLLAMA_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OLLAMA, ModelCatalogModality.PHOTO)
+        /** Text default — Ollama TEXT ladder head. */
+        val DEFAULT_OLLAMA_TEXT_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OLLAMA, ModelCatalogModality.TEXT)
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
-        const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+        val DEFAULT_OPENAI_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OPENAI, ModelCatalogModality.TEXT)
+                .ifBlank { "gpt-4o-mini" }
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
         const val DEFAULT_DAY_CHANGE_HOUR = 0

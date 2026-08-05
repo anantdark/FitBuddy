@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -72,6 +72,74 @@ abstract class AppDatabase : RoomDatabase() {
             )
         }
 
+        /**
+         * Replaces manual [sortOrder] with [lastUsedAt] (seeded from createdAt).
+         * Must rebuild tables: Room rejects leftover columns and ALTER … DEFAULT 0
+         * (entity has no ColumnInfo defaultValue).
+         */
+        val MIGRATION_12_13 = migration(12, 13) { db ->
+            db.execSQL(
+                """
+                CREATE TABLE saved_foods_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG INTEGER NOT NULL,
+                    carbsG INTEGER NOT NULL,
+                    fatsG INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    barcode TEXT,
+                    ingredients TEXT,
+                    lastUsedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO saved_foods_new (
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, barcode, ingredients, lastUsedAt
+                )
+                SELECT
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, barcode, ingredients, createdAt
+                FROM saved_foods
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE saved_foods")
+            db.execSQL("ALTER TABLE saved_foods_new RENAME TO saved_foods")
+
+            db.execSQL(
+                """
+                CREATE TABLE meal_presets_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG INTEGER NOT NULL,
+                    carbsG INTEGER NOT NULL,
+                    fatsG INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    foods TEXT,
+                    lastUsedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO meal_presets_new (
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, foods, lastUsedAt
+                )
+                SELECT
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, foods, createdAt
+                FROM meal_presets
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE meal_presets")
+            db.execSQL("ALTER TABLE meal_presets_new RENAME TO meal_presets")
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -84,7 +152,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // Version 11 is the first production-shipped schema; any upgrade from v11+
                     // must provide an explicit Migration object so user data is never silently
                     // wiped on an app update.
-                    .addMigrations(MIGRATION_11_12)
+                    .addMigrations(MIGRATION_11_12, MIGRATION_12_13)
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
                 INSTANCE = instance
@@ -99,11 +167,11 @@ abstract class AppDatabase : RoomDatabase() {
          *
          * Example — adding a nullable column to food_logs:
          *
-         *   val MIGRATION_12_13 = migration(12, 13) {
+         *   val MIGRATION_13_14 = migration(13, 14) {
          *       it.execSQL("ALTER TABLE food_logs ADD COLUMN notes TEXT")
          *   }
          *
-         * Then in getDatabase: .addMigrations(MIGRATION_11_12, MIGRATION_12_13)
+         * Then in getDatabase: .addMigrations(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
          */
         fun migration(from: Int, to: Int, block: (SupportSQLiteDatabase) -> Unit): Migration =
             object : Migration(from, to) {

@@ -441,6 +441,7 @@ fun MainScreen(
                     }
                 },
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
+                onApplyBuiltInModelDefaults = viewModel::applyBuiltInModelDefaults,
                 onShowTestUpdatePrompt = viewModel::showTestUpdatePrompt,
                 onTestNotificationSent = { ok ->
                     scope.launch {
@@ -777,7 +778,6 @@ fun MainScreen(
                 showMealPresetSheet = false
             },
             onDelete = viewModel::deleteMealPreset,
-            onMove = viewModel::moveMealPreset,
             onDismiss = { showMealPresetSheet = false }
         )
     }
@@ -788,7 +788,10 @@ fun MainScreen(
             mode = savedFoodSheetMode,
             onPick = { food ->
                 when (savedFoodSheetMode) {
-                    SavedFoodSheetMode.PICK_FOR_MEAL -> mealItems.add(food.toFoodEntry())
+                    SavedFoodSheetMode.PICK_FOR_MEAL -> {
+                        mealItems.add(food.toFoodEntry())
+                        viewModel.touchSavedFood(food)
+                    }
                     SavedFoodSheetMode.LOG_TO_DAY -> viewModel.logSavedFood(food)
                     SavedFoodSheetMode.MANAGE_LIBRARY -> Unit
                 }
@@ -796,7 +799,6 @@ fun MainScreen(
             },
             onDelete = viewModel::deleteSavedFood,
             onEdit = viewModel::updateSavedFood,
-            onMove = viewModel::moveSavedFood,
             onDismiss = { showSavedFoodSheet = false }
         )
     }
@@ -807,7 +809,6 @@ fun MainScreen(
             mode = SavedFoodSheetMode.MANAGE_LIBRARY,
             onDelete = viewModel::deleteSavedFood,
             onEdit = viewModel::updateSavedFood,
-            onMove = viewModel::moveSavedFood,
             onDismiss = { showSavedFoodManageSheet = false }
         )
     }
