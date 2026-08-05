@@ -36,10 +36,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,7 @@ import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
+import kotlinx.coroutines.launch
 
 // Macro accent colors shared with the stacked bar chart legend.
 private val ProteinColor = MacroProteinColor
@@ -163,23 +166,15 @@ fun DashboardHomeScreen(
         LogActionSheet(
             item = item,
             showClone = true,
-            onEdit = {
-                item.foodLog?.let(onEditFood)
-                actionItem = null
-            },
-            onViewExercise = {
-                item.exerciseLog?.let(onViewExercise)
-                actionItem = null
-            },
+            onEdit = { item.foodLog?.let(onEditFood) },
+            onViewExercise = { item.exerciseLog?.let(onViewExercise) },
             onClone = {
                 if (item.isFood) item.foodLog?.let(onCloneFood)
                 else item.exerciseLog?.let(onCloneExercise)
-                actionItem = null
             },
             onDelete = {
                 if (item.isFood) item.foodLog?.let(onDeleteFood)
                 else item.exerciseLog?.let(onDeleteExercise)
-                actionItem = null
             },
             onDismiss = { actionItem = null }
         )
@@ -568,23 +563,15 @@ fun WeekHistoryScreen(
         LogActionSheet(
             item = item,
             showClone = true,
-            onEdit = {
-                item.foodLog?.let(onEditFood)
-                actionItem = null
-            },
-            onViewExercise = {
-                item.exerciseLog?.let(onViewExercise)
-                actionItem = null
-            },
+            onEdit = { item.foodLog?.let(onEditFood) },
+            onViewExercise = { item.exerciseLog?.let(onViewExercise) },
             onClone = {
                 if (item.isFood) item.foodLog?.let(onCloneFood)
                 else item.exerciseLog?.let(onCloneExercise)
-                actionItem = null
             },
             onDelete = {
                 if (item.isFood) item.foodLog?.let(onDeleteFood)
                 else item.exerciseLog?.let(onDeleteExercise)
-                actionItem = null
             },
             onDismiss = { actionItem = null }
         )
@@ -731,7 +718,24 @@ private fun LogActionSheet(
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+
+    // Finish the sheet exit animation before running the action. Opening a Dialog in the same
+    // frame the sheet is yanked from composition causes a first-tap flash / no-op glitch.
+    fun runAfterHide(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) {
+                onDismiss()
+                action()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Text(
                 text = item.title,
@@ -739,17 +743,25 @@ private fun LogActionSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             if (item.isFood) {
-                ActionRow(Icons.Filled.Edit, "Edit meal / foods", onEdit)
+                ActionRow(Icons.Filled.Edit, "Edit meal / foods", onClick = { runAfterHide(onEdit) })
             } else {
-                ActionRow(Icons.Filled.FitnessCenter, "View / edit exercises", onViewExercise)
+                ActionRow(
+                    Icons.Filled.FitnessCenter,
+                    "View / edit exercises",
+                    onClick = { runAfterHide(onViewExercise) }
+                )
             }
             if (showClone) {
-                ActionRow(Icons.Filled.ContentCopy, "Clone to today", onClone)
+                ActionRow(
+                    Icons.Filled.ContentCopy,
+                    "Clone to today",
+                    onClick = { runAfterHide(onClone) }
+                )
             }
             ActionRow(
                 icon = Icons.Filled.DeleteOutline,
                 label = "Remove from log",
-                onClick = onDelete,
+                onClick = { runAfterHide(onDelete) },
                 tint = MaterialTheme.colorScheme.error
             )
         }

@@ -1359,6 +1359,9 @@ class MainViewModel(
      */
     fun openWorkoutDetails(log: ExerciseLog) {
         viewModelScope.launch {
+            // Clear any leftover save flag from a prior log/edit — the edit dialog shares
+            // workoutLogState and would auto-dismiss on first open if savedSuccessfully is stale.
+            _workoutLog.value = WorkoutLogUiState()
             val details = repository.getWorkoutDetails(log.id)
             if (details != null) {
                 _editingWorkout.value = WorkoutEditUiState(
@@ -1438,7 +1441,9 @@ class MainViewModel(
                 )
             }
                 .onSuccess { result ->
-                    _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
+                    // Edit/clone closes by clearing editingWorkout (not via savedSuccessfully
+                    // LaunchedEffect). Leaving that flag set would auto-dismiss the next open.
+                    _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
                         it.copy(userMessage = "Cloned ${draft.name} · -${result.caloriesBurned} kcal")
@@ -1479,7 +1484,9 @@ class MainViewModel(
                 }
             }
                 .onSuccess { result ->
-                    _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
+                    // Edit/clone closes by clearing editingWorkout (not via savedSuccessfully
+                    // LaunchedEffect). Leaving that flag set would auto-dismiss the next open.
+                    _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
                         it.copy(userMessage = "Updated ${draft.name} · -${result.caloriesBurned} kcal")
@@ -2347,6 +2354,7 @@ class MainViewModel(
      */
     fun cloneWorkoutToToday(log: ExerciseLog) {
         viewModelScope.launch {
+            _workoutLog.value = WorkoutLogUiState()
             val details = repository.getWorkoutDetails(log.id)
             val draft = if (details != null) {
                 WorkoutDraft(
