@@ -99,8 +99,10 @@ progress charts, editable meal review, and reusable food presets.
   Auto off: selected model only (no model/platform change); still rotates API keys on failure,
   Auto off: selected model only (no model/platform change); still rotates API keys on failure,
   then surfaces the error. Rate-limited models are skipped until the **next UTC midnight**
-  (persisted); then newer requests try the **preferred dropdown model** first again. Green
-  “active” lines show the last successful model without changing the dropdown. **Show paid
+  (persisted); then newer requests try the **preferred dropdown model** first again. Saving
+  AI Settings also clears cooldowns for the preferred photo/text models so an explicit
+  selection is retried immediately (green “active” lines are reset to those picks on save).
+  Green “active” lines show the last successful model without changing the dropdown. **Show paid
   models** (off by default) lists paid OpenRouter/Gemini models too and disables Refresh
   reachability probes. Auto failover is always on by default for all providers and is never
   forced off automatically. While paid is on, the model dropdowns do **not** auto-refresh (the

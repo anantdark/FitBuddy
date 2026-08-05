@@ -313,9 +313,10 @@ class SettingsRepository(context: Context) {
             }
             prefs[KEY_FIRST_NAME] = settings.firstName.trim()
             prefs[KEY_LAST_NAME] = settings.lastName.trim()
-            // Cooldowns stay until UTC midnight; AI calls still update active after success.
-            // Save always resets Auto selection to the preferred provider's current models
-            // (covers platform change, Local↔Cloud, and dropdown edits).
+            // Save resets Auto "active" lines to the preferred models (platform change,
+            // Local↔Cloud, dropdown edits). Also clear those models' rate-limit cooldowns
+            // so Auto actually tries the selection the green lines now promise — otherwise
+            // Save could show 31B as active while photo analysis still skipped to 26B.
             prefs[KEY_ACTIVE_AI_PROVIDER] = settings.provider.name
             val photo = settings.model
             if (photo.isNotBlank() && isPlausibleModelIdFor(settings.provider, photo)) {
@@ -334,6 +335,20 @@ class SettingsRepository(context: Context) {
                 prefs[KEY_ACTIVE_TEXT_MODEL] = text
             } else {
                 prefs.remove(KEY_ACTIVE_TEXT_MODEL)
+            }
+            val cooled = decodeModelCooldowns(prefs[KEY_MODEL_COOLDOWNS]).toMutableMap()
+            var cooledChanged = false
+            for (id in setOf(photo, text).filter { it.isNotBlank() }) {
+                if (cooled.remove(ModelCooldown.keyOf(settings.provider, id)) != null) {
+                    cooledChanged = true
+                }
+            }
+            if (cooledChanged) {
+                if (cooled.isEmpty()) {
+                    prefs.remove(KEY_MODEL_COOLDOWNS)
+                } else {
+                    prefs[KEY_MODEL_COOLDOWNS] = encodeModelCooldowns(cooled)
+                }
             }
         }
     }

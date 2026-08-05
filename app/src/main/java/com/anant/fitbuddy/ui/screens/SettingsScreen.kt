@@ -451,9 +451,10 @@ fun SettingsScreen(
                     }
                     HintIconButton(
                         title = "Active models",
-                        message = "Green lines show the models last used successfully. Your " +
-                            "dropdown selection stays as the preferred model — Auto tries it " +
-                            "first again after rate-limit cooldowns end (next UTC midnight)."
+                        message = "Green lines show the models last used successfully (reset to " +
+                            "your dropdown picks when you Save AI Settings). Rate-limited models " +
+                            "are skipped until the next UTC midnight, unless you save that model " +
+                            "again — Save clears its cooldown so Auto retries your selection."
                     )
                 }
             }

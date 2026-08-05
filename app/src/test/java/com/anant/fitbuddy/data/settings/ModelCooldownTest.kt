@@ -54,4 +54,29 @@ class ModelCooldownTest {
         assertTrue(ModelCooldownPolicy.isRateLimitError(IllegalStateException("quota exceeded")))
         assertFalse(ModelCooldownPolicy.isRateLimitError(IllegalStateException("Network error")))
     }
+
+    @Test
+    fun `clearing preferred models from cooldown map leaves others`() {
+        val now = LocalDate.of(2026, 7, 19)
+            .atTime(LocalTime.of(12, 0))
+            .toInstant(ZoneOffset.UTC)
+            .toEpochMilli()
+        val until = now + 60_000L
+        val preferred = "google/gemma-4-31b-it:free"
+        val other = "google/gemma-4-26b-a4b-it:free"
+        val cooled = mutableMapOf(
+            ModelCooldown.keyOf(AiProvider.OPENROUTER, preferred) to until,
+            ModelCooldown.keyOf(AiProvider.OPENROUTER, other) to until,
+            ModelCooldown.keyOf(AiProvider.GEMINI, "gemini-2.5-flash") to until
+        )
+        // Mirrors SettingsRepository.save: drop cooldowns for the saved preferred ids.
+        for (id in setOf(preferred, preferred)) {
+            cooled.remove(ModelCooldown.keyOf(AiProvider.OPENROUTER, id))
+        }
+        assertFalse(cooled.containsKey(ModelCooldown.keyOf(AiProvider.OPENROUTER, preferred)))
+        assertTrue(cooled.containsKey(ModelCooldown.keyOf(AiProvider.OPENROUTER, other)))
+        assertTrue(cooled.containsKey(ModelCooldown.keyOf(AiProvider.GEMINI, "gemini-2.5-flash")))
+        val roundTrip = decodeModelCooldowns(encodeModelCooldowns(cooled), now)
+        assertEquals(cooled, roundTrip)
+    }
 }

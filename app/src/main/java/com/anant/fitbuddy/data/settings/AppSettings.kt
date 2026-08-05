@@ -68,7 +68,8 @@ data class AppSettings(
      * Last photo / text models Auto successfully used (with [activeAiProvider]).
      * Shown in green in Settings when Auto is on; the preferred dropdown selection is left
      * unchanged so after rate-limit cooldowns expire Auto tries that model first again.
-     * Also reset to the preferred provider's models whenever Save AI Settings runs.
+     * Reset to the preferred provider's models whenever Save AI Settings runs (and that
+     * save clears those models' cooldowns so Auto retries the selection immediately).
      * Empty until the first success for that modality (or a settings save).
      */
     val activeAiProvider: AiProvider? = null,
