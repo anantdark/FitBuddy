@@ -73,18 +73,71 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
-         * Adds [lastUsedAt] with ADD COLUMN only (no table rebuild, no row deletes).
-         * Seeds from createdAt. Legacy sortOrder column may remain in upgraded DBs unused.
+         * Replaces manual [sortOrder] with [lastUsedAt] (seeded from createdAt).
+         * Must rebuild tables: Room rejects leftover columns and ALTER … DEFAULT 0
+         * (entity has no ColumnInfo defaultValue).
          */
         val MIGRATION_12_13 = migration(12, 13) { db ->
             db.execSQL(
-                "ALTER TABLE saved_foods ADD COLUMN lastUsedAt INTEGER NOT NULL DEFAULT 0"
+                """
+                CREATE TABLE saved_foods_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG INTEGER NOT NULL,
+                    carbsG INTEGER NOT NULL,
+                    fatsG INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    barcode TEXT,
+                    ingredients TEXT,
+                    lastUsedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
             )
             db.execSQL(
-                "ALTER TABLE meal_presets ADD COLUMN lastUsedAt INTEGER NOT NULL DEFAULT 0"
+                """
+                INSERT INTO saved_foods_new (
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, barcode, ingredients, lastUsedAt
+                )
+                SELECT
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, barcode, ingredients, createdAt
+                FROM saved_foods
+                """.trimIndent()
             )
-            db.execSQL("UPDATE saved_foods SET lastUsedAt = createdAt")
-            db.execSQL("UPDATE meal_presets SET lastUsedAt = createdAt")
+            db.execSQL("DROP TABLE saved_foods")
+            db.execSQL("ALTER TABLE saved_foods_new RENAME TO saved_foods")
+
+            db.execSQL(
+                """
+                CREATE TABLE meal_presets_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG INTEGER NOT NULL,
+                    carbsG INTEGER NOT NULL,
+                    fatsG INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    foods TEXT,
+                    lastUsedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO meal_presets_new (
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, foods, lastUsedAt
+                )
+                SELECT
+                    id, name, calories, proteinG, carbsG, fatsG,
+                    createdAt, foods, createdAt
+                FROM meal_presets
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE meal_presets")
+            db.execSQL("ALTER TABLE meal_presets_new RENAME TO meal_presets")
         }
 
         fun getDatabase(context: Context): AppDatabase {
