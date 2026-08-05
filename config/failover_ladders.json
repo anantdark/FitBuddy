@@ -1,7 +1,7 @@
 {
-  "version": 2,
+  "version": 3,
   "updated": "2026-08-05",
-  "source": "tools/benchmark/CATALOG_REVIEW.md (photo: Gemma / flash-latest defaults)",
+  "source": "manual free-model review (Gemini text: flash-lite-latest default)",
   "text": {
     "OPENROUTER": [
       "inclusionai/ling-3.0-flash:free",
@@ -12,11 +12,11 @@
       "nvidia/nemotron-3-nano-30b-a3b:free"
     ],
     "GEMINI": [
+      "gemini-flash-lite-latest",
       "gemini-3.5-flash-lite",
       "gemini-3.1-flash-lite",
       "gemini-3.6-flash",
       "gemini-3-flash-preview",
-      "gemini-flash-lite-latest",
       "gemini-flash-latest",
       "gemini-2.5-flash"
     ],

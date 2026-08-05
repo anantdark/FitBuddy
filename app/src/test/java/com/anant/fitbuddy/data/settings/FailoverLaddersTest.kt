@@ -52,7 +52,7 @@ class FailoverLaddersTest {
             selected = "gemini-3.6-flash",
             catalogIds = listOf(
                 "gemini-2.5-flash",
-                "gemini-3.5-flash-lite",
+                "gemini-flash-lite-latest",
                 "gemini-aaa-extra",
                 "gemini-3.6-flash"
             )
@@ -60,7 +60,7 @@ class FailoverLaddersTest {
         assertEquals(
             listOf(
                 "gemini-3.6-flash",
-                "gemini-3.5-flash-lite",
+                "gemini-flash-lite-latest",
                 "gemini-2.5-flash",
                 "gemini-aaa-extra"
             ),
@@ -84,10 +84,10 @@ class FailoverLaddersTest {
         val next = FailoverLadders.nextBest(
             AiProvider.GEMINI,
             ModelCatalogModality.TEXT,
-            catalogIds = listOf("gemini-3.1-flash-lite", "gemini-3.5-flash-lite"),
+            catalogIds = listOf("gemini-3.1-flash-lite", "gemini-flash-lite-latest"),
             missingId = "gone-model"
         )
-        assertEquals("gemini-3.5-flash-lite", next)
+        assertEquals("gemini-flash-lite-latest", next)
     }
 
     @Test

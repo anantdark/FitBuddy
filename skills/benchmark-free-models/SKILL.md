@@ -2,10 +2,9 @@
 name: benchmark-free-models
 description: >-
   Benchmark FitBuddy free AI text models (Ollama Cloud, Gemini Flash, OpenRouter
-  :free), manually score outputs, update review docs, and propose updates to
+  :free), manually score outputs, and propose updates to
   config/failover_ladders.json. Use when free model catalogs change, user asks to
-  re-benchmark, refresh AI ladders, or update config/failover_ladders.json /
-  tools/benchmark/*.md.
+  re-benchmark, refresh AI ladders, or update config/failover_ladders.json.
 disable-model-invocation: true
 ---
 
@@ -20,8 +19,8 @@ via [`FailoverLadders`](../../app/src/main/java/com/anant/fitbuddy/data/settings
 
 - API keys in repo-root `./apis` (gitignored): `openrouter=…`, `ollama=…`, `gemini=…`
 - Collector: `tools/collect_model_outputs.py`
-- Committed reviews: `tools/benchmark/*_REVIEW.md` / `CATALOG_REVIEW.md`
-- Raw dumps (gitignored): `tools/benchmark_results/`
+- Local notes/dumps only (gitignored): `tools/benchmark/` · `tools/benchmark_results/`
+  — **do not commit** review markdown or raw model outputs
 
 ## Workflow
 
@@ -49,10 +48,7 @@ Same **6 probes** as the collector (egg, rice, banana, roti+dal, biryani, dosa).
 
 Open each raw JSON. Score probes yourself (0–10) against USDA/IFCT ballparks — **do not** treat any static point bands as ranking truth.
 
-Pick a **champion** per provider. Update committed reviews under `tools/benchmark/`:
-
-- `OLLAMA_REVIEW.md` / `GEMINI_REVIEW.md` / `OPENROUTER_REVIEW.md`
-- `CATALOG_REVIEW.md` (combined accuracy + speed + suggested Auto ladders)
+Pick a **champion** per provider. Keep review notes under gitignored `tools/benchmark/` if useful (never commit them).
 
 ### 3. Present for user approval
 
@@ -64,7 +60,7 @@ After approval — update **`config/failover_ladders.json`** (not Kotlin ranking
 2. Bump `updated` (and `source` if useful). Defaults (dropdown seeds) are ladder heads — no separate AppSettings constants to sync.
 3. Keep failover logic in `FailoverLadders.kt`: **selected model first**, then ladder ∩ catalog, then leftovers A–Z.
 4. Do **not** reintroduce catalog intelligence ranking or an in-app Settings benchmark UI.
-5. Run `FailoverLaddersTest`; update `tools/benchmark/*.md` and `AGENTS.md` if the story drifts.
+5. Run `FailoverLaddersTest`; update `AGENTS.md` if the story drifts.
 
 ## Output template
 
@@ -78,6 +74,6 @@ Approve to update config/failover_ladders.json?
 
 ## Constraints
 
-- Never commit `./apis` or raw dumps with secrets.
+- Never commit `./apis`, `tools/benchmark/`, or `tools/benchmark_results/`.
 - Never `adb uninstall` the release app; device tests use debug only.
-- Photo ladders may follow multimodal cousins of text champions when vision was not re-benchmarked — say so in the review.
+- Photo ladders may follow multimodal cousins of text champions when vision was not re-benchmarked — say so when proposing.

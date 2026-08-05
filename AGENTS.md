@@ -112,7 +112,7 @@ progress charts, editable meal review, and reusable food presets.
   paid endpoints unprompted. Selecting the OpenAI endpoint auto-enables paid mode, and the
   vision/text dropdowns fall back to curated OpenAI defaults (`OpenAiCatalog`) so at least GPT-4o
   is always offered even before a Refresh. Auto failover uses
-  `config/failover_ladders.json` via [FailoverLadders] (from `tools/benchmark/CATALOG_REVIEW.md`):
+  `config/failover_ladders.json` via [FailoverLadders]:
   selected model first, then the approved free ladder filtered to the live catalog; other
   catalog models last. Defaults are ladder heads. Re-benchmark via `skills/benchmark-free-models`
   when free catalogs change — edit the JSON config only; never restore catalog “intelligence”
