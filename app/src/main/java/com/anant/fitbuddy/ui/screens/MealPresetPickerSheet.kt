@@ -9,13 +9,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +41,6 @@ fun MealPresetPickerSheet(
     presets: List<MealPreset>,
     onPick: (MealPreset) -> Unit,
     onDelete: (MealPreset) -> Unit,
-    onMove: (MealPreset, direction: Int) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -52,7 +49,6 @@ fun MealPresetPickerSheet(
         if (q.isEmpty()) presets
         else presets.filter { it.name.contains(q, ignoreCase = true) }
     }
-    val canReorder = query.isBlank() && presets.size > 1
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
@@ -62,7 +58,7 @@ fun MealPresetPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = "Tap a meal to log it to the day you're viewing. Use the arrows to rearrange. Build a meal and choose Save as preset to add one here.",
+                text = "Tap a meal to log it to the day you're viewing. Recently used meals stay on top. Build a meal and choose Save as preset to add one here.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -100,16 +96,10 @@ fun MealPresetPickerSheet(
                 }
                 else -> {
                     LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                        itemsIndexed(filtered, key = { _, preset -> preset.id }) { _, preset ->
-                            val fullIndex =
-                                if (canReorder) presets.indexOfFirst { it.id == preset.id } else -1
+                        items(filtered, key = { it.id }) { preset ->
                             MealPresetRow(
                                 preset = preset,
-                                canMoveUp = canReorder && fullIndex > 0,
-                                canMoveDown = canReorder && fullIndex in 0 until presets.lastIndex,
                                 onPick = { onPick(preset) },
-                                onMoveUp = { onMove(preset, -1) },
-                                onMoveDown = { onMove(preset, 1) },
                                 onDelete = { onDelete(preset) }
                             )
                         }
@@ -123,11 +113,7 @@ fun MealPresetPickerSheet(
 @Composable
 private fun MealPresetRow(
     preset: MealPreset,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
     onPick: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
     onDelete: () -> Unit
 ) {
     val foodCount = preset.foods?.size ?: 0
@@ -167,24 +153,6 @@ private fun MealPresetRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        if (canMoveUp || canMoveDown) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconButton(
-                    onClick = onMoveUp,
-                    enabled = canMoveUp,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up")
-                }
-                IconButton(
-                    onClick = onMoveDown,
-                    enabled = canMoveDown,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down")
-                }
-            }
         }
         IconButton(onClick = onDelete) {
             Icon(

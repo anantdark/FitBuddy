@@ -1313,6 +1313,7 @@ class FitnessRepository(
 
     /** Saves a single food to the library (for meal building, not dashboard quick-log). */
     suspend fun saveDraftAsSavedFood(draft: FoodDraft) {
+        val now = System.currentTimeMillis()
         savedFoodDao.insert(
             SavedFood(
                 name = draft.dishName,
@@ -1320,15 +1321,16 @@ class FitnessRepository(
                 proteinG = draft.totalProtein,
                 carbsG = draft.totalCarbs,
                 fatsG = draft.totalFats,
-                createdAt = System.currentTimeMillis(),
+                createdAt = now,
                 ingredients = draft.ingredients.map { LoggedIngredient.fromIngredientDraft(it) },
-                sortOrder = savedFoodDao.maxSortOrder() + 1
+                lastUsedAt = now
             )
         )
     }
 
     /** Saves a full meal as a reusable preset for one-tap dashboard logging. */
     suspend fun saveMealDraftAsPreset(draft: MealDraft) {
+        val now = System.currentTimeMillis()
         mealPresetDao.insert(
             MealPreset(
                 name = draft.name,
@@ -1336,9 +1338,9 @@ class FitnessRepository(
                 proteinG = draft.totalProtein,
                 carbsG = draft.totalCarbs,
                 fatsG = draft.totalFats,
-                createdAt = System.currentTimeMillis(),
+                createdAt = now,
                 foods = draft.foods.map { it.toPresetMealFood() },
-                sortOrder = mealPresetDao.maxSortOrder() + 1
+                lastUsedAt = now
             )
         )
     }
@@ -1347,36 +1349,22 @@ class FitnessRepository(
 
     suspend fun deleteMealPreset(preset: MealPreset) = mealPresetDao.delete(preset)
 
-    /** Updates an existing saved food (same id), preserving [SavedFood.sortOrder] and barcode. */
+    /** Updates an existing saved food (same id), preserving [SavedFood.lastUsedAt] and barcode. */
     suspend fun updateSavedFood(food: SavedFood) {
         require(food.id > 0) { "Saved food id required for update" }
         savedFoodDao.insert(food)
     }
 
-    /** Moves [food] one step up or down in the library order. */
-    suspend fun moveSavedFood(food: SavedFood, direction: Int) {
-        val list = savedFoodDao.getAllOnce().toMutableList()
-        val index = list.indexOfFirst { it.id == food.id }
-        if (index < 0) return
-        val target = index + direction
-        if (target !in list.indices) return
-        val tmp = list[index]
-        list[index] = list[target]
-        list[target] = tmp
-        savedFoodDao.insertAll(list.mapIndexed { i, item -> item.copy(sortOrder = i) })
+    /** Bumps a saved food to the top of the library (after meal pick or standalone log). */
+    suspend fun touchSavedFood(food: SavedFood) {
+        if (food.id <= 0) return
+        savedFoodDao.touchLastUsed(food.id, System.currentTimeMillis())
     }
 
-    /** Moves [preset] one step up or down in the meal-preset order. */
-    suspend fun moveMealPreset(preset: MealPreset, direction: Int) {
-        val list = mealPresetDao.getAllOnce().toMutableList()
-        val index = list.indexOfFirst { it.id == preset.id }
-        if (index < 0) return
-        val target = index + direction
-        if (target !in list.indices) return
-        val tmp = list[index]
-        list[index] = list[target]
-        list[target] = tmp
-        mealPresetDao.insertAll(list.mapIndexed { i, item -> item.copy(sortOrder = i) })
+    /** Bumps a saved meal to the top of the library after it is logged. */
+    suspend fun touchMealPreset(preset: MealPreset) {
+        if (preset.id <= 0) return
+        mealPresetDao.touchLastUsed(preset.id, System.currentTimeMillis())
     }
 
     /** Looks up a packaged product by EAN/UPC barcode via Open Food Facts. */
@@ -1399,6 +1387,7 @@ class FitnessRepository(
     /** Saves a scanned product to the saved-food library. */
     suspend fun saveScannedProductAsSavedFood(product: ScannedProduct) {
         val entry = product.toFoodEntry()
+        val now = System.currentTimeMillis()
         savedFoodDao.insert(
             SavedFood(
                 name = product.name,
@@ -1406,10 +1395,10 @@ class FitnessRepository(
                 proteinG = product.proteinG,
                 carbsG = product.carbsG,
                 fatsG = product.fatsG,
-                createdAt = System.currentTimeMillis(),
+                createdAt = now,
                 barcode = product.barcode,
                 ingredients = entry.ingredients.map { LoggedIngredient.fromIngredientDraft(it) },
-                sortOrder = savedFoodDao.maxSortOrder() + 1
+                lastUsedAt = now
             )
         )
     }
@@ -1585,6 +1574,7 @@ class FitnessRepository(
         timestamp: Long = System.currentTimeMillis()
     ) {
         saveMealDraft(preset.toMealDraft().copy(timestamp = timestamp))
+        touchMealPreset(preset)
     }
 
     /** Quick-logs a single saved food as a one-food meal onto [timestamp]'s calendar day. */
@@ -1599,6 +1589,7 @@ class FitnessRepository(
                 foods = listOf(food.toFoodEntry())
             )
         )
+        touchSavedFood(food)
     }
 
     /** Heuristic used only by the offline simulator to pick a plausible response type. */

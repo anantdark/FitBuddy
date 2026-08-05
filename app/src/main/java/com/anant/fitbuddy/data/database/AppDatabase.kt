@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -72,6 +72,21 @@ abstract class AppDatabase : RoomDatabase() {
             )
         }
 
+        /**
+         * Adds [lastUsedAt] with ADD COLUMN only (no table rebuild, no row deletes).
+         * Seeds from createdAt. Legacy sortOrder column may remain in upgraded DBs unused.
+         */
+        val MIGRATION_12_13 = migration(12, 13) { db ->
+            db.execSQL(
+                "ALTER TABLE saved_foods ADD COLUMN lastUsedAt INTEGER NOT NULL DEFAULT 0"
+            )
+            db.execSQL(
+                "ALTER TABLE meal_presets ADD COLUMN lastUsedAt INTEGER NOT NULL DEFAULT 0"
+            )
+            db.execSQL("UPDATE saved_foods SET lastUsedAt = createdAt")
+            db.execSQL("UPDATE meal_presets SET lastUsedAt = createdAt")
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -84,7 +99,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // Version 11 is the first production-shipped schema; any upgrade from v11+
                     // must provide an explicit Migration object so user data is never silently
                     // wiped on an app update.
-                    .addMigrations(MIGRATION_11_12)
+                    .addMigrations(MIGRATION_11_12, MIGRATION_12_13)
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
                 INSTANCE = instance
@@ -99,11 +114,11 @@ abstract class AppDatabase : RoomDatabase() {
          *
          * Example — adding a nullable column to food_logs:
          *
-         *   val MIGRATION_12_13 = migration(12, 13) {
+         *   val MIGRATION_13_14 = migration(13, 14) {
          *       it.execSQL("ALTER TABLE food_logs ADD COLUMN notes TEXT")
          *   }
          *
-         * Then in getDatabase: .addMigrations(MIGRATION_11_12, MIGRATION_12_13)
+         * Then in getDatabase: .addMigrations(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
          */
         fun migration(from: Int, to: Int, block: (SupportSQLiteDatabase) -> Unit): Migration =
             object : Migration(from, to) {

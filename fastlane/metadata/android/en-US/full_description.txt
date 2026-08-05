@@ -6,7 +6,7 @@ Features:
 • Smart logging — photo or text; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc
 • Editable workouts — structured sessions, AI session names, upgrade simple logs
-• Presets — searchable saved foods and meals; edit foods, rearrange lists, one-tap log
+• Presets — searchable saved foods and meals; recently used on top; one-tap log
 • Barcode scan — look up packaged foods; save to library or log straight to today
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
 • Analytics — custom charts; rolling 30-day progress window

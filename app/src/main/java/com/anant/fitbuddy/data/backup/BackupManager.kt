@@ -6,6 +6,7 @@ import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseLogDao
 import com.anant.fitbuddy.data.database.ExercisePresetDao
 import com.anant.fitbuddy.data.database.FoodLogDao
+import com.anant.fitbuddy.data.database.LibraryRecency
 import com.anant.fitbuddy.data.database.MealFoodDao
 import com.anant.fitbuddy.data.database.MealPresetDao
 import com.anant.fitbuddy.data.database.SavedFoodDao
@@ -196,14 +197,18 @@ class BackupManager(
         data.profile?.let { userProfileDao.insertOrUpdateProfile(it.copy(id = 1)) }
         bodyMeasurementDao.insertAll(data.measurements.map { it.copy(id = 0) })
 
-        val legacyFoods = if (data.savedFoods.isNotEmpty()) data.savedFoods else data.presets
+        val legacyFoods = LibraryRecency.normalizeSavedFoods(
+            if (data.savedFoods.isNotEmpty()) data.savedFoods else data.presets
+        )
         val savedFoodIdMap = BackupIdRemapper.idMap(
             oldIds = legacyFoods.map { it.id },
             newIds = savedFoodDao.insertAll(legacyFoods.map { it.copy(id = 0) })
         )
 
         mealPresetDao.insertAll(
-            data.mealPresets.map { BackupIdRemapper.remapMealPreset(it, savedFoodIdMap) }
+            LibraryRecency.normalizeMealPresets(data.mealPresets).map {
+                BackupIdRemapper.remapMealPreset(it, savedFoodIdMap)
+            }
         )
         exercisePresetDao.insertAll(data.exercisePresets.map { it.copy(id = 0) })
 

@@ -1094,15 +1094,10 @@ class MainViewModel(
         }
     }
 
-    fun moveSavedFood(food: SavedFood, direction: Int) {
+    /** Marks a saved food as just used (meal builder pick) so it sorts to the top. */
+    fun touchSavedFood(food: SavedFood) {
         viewModelScope.launch {
-            repository.moveSavedFood(food, direction)
-        }
-    }
-
-    fun moveMealPreset(preset: MealPreset, direction: Int) {
-        viewModelScope.launch {
-            repository.moveMealPreset(preset, direction)
+            repository.touchSavedFood(food)
         }
     }
 
