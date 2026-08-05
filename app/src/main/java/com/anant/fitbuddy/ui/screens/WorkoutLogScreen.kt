@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,11 +37,15 @@ import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -57,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -69,6 +77,10 @@ import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.ui.components.pressable
 import com.anant.fitbuddy.ui.viewmodel.WorkoutLogUiState
+
+private val SET_PRESETS = listOf("1", "2", "3")
+private val REP_PRESETS = listOf("8", "12", "15")
+private val WEIGHT_PRESETS = listOf("5", "10", "15", "20")
 
 /**
  * Full-screen session builder: name + exercises (from the common library or custom) + duration.
@@ -435,17 +447,31 @@ private fun EditExerciseDialog(
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.weight(1f)) {
-                            DetailField("Sets", sets) { sets = it.filter { c -> c.isDigit() }.take(2) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = "Sets",
+                                value = sets,
+                                presets = SET_PRESETS,
+                                onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
+                            )
                         }
-                        Box(Modifier.weight(1f)) {
-                            DetailField("Reps", reps) { reps = it.filter { c -> c.isDigit() }.take(3) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = "Reps",
+                                value = reps,
+                                presets = REP_PRESETS,
+                                onValueChange = { reps = it.filter { c -> c.isDigit() }.take(3) }
+                            )
                         }
                     }
                     if (needsWeight) {
-                        DetailField("Weight (kg)", weight, decimal = true) {
-                            weight = it.filter { c -> c.isDigit() || c == '.' }
-                        }
+                        PresetNumberField(
+                            label = "Weight (kg)",
+                            value = weight,
+                            presets = WEIGHT_PRESETS,
+                            decimal = true,
+                            onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
+                        )
                     }
                 }
             }
@@ -512,6 +538,7 @@ private fun ExercisePickerSheet(
         filtered.none { it.name.equals(trimmedQuery, ignoreCase = true) }
     val showInferButton = trimmedQuery.isNotBlank()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -520,7 +547,7 @@ private fun ExercisePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                .then(if (imeVisible) Modifier.fillMaxHeight(0.92f) else Modifier)
                 .navigationBarsPadding()
                 .imePadding()
         ) {
@@ -598,8 +625,11 @@ private fun ExercisePickerSheet(
 
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .then(
+                        if (imeVisible) Modifier.weight(1f)
+                        else Modifier.heightIn(max = 360.dp)
+                    ),
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 16.dp)
             ) {
                 items(filtered, key = { it.name }) { exercise ->
@@ -699,17 +729,31 @@ private fun AddExerciseDetailsDialog(
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.weight(1f)) {
-                            DetailField("Sets", sets) { sets = it.filter { c -> c.isDigit() }.take(2) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = "Sets",
+                                value = sets,
+                                presets = SET_PRESETS,
+                                onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
+                            )
                         }
-                        Box(Modifier.weight(1f)) {
-                            DetailField("Reps", reps) { reps = it.filter { c -> c.isDigit() }.take(3) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = "Reps",
+                                value = reps,
+                                presets = REP_PRESETS,
+                                onValueChange = { reps = it.filter { c -> c.isDigit() }.take(3) }
+                            )
                         }
                     }
                     if (needsWeight) {
-                        DetailField("Weight (kg, optional)", weight, decimal = true) {
-                            weight = it.filter { c -> c.isDigit() || c == '.' }
-                        }
+                        PresetNumberField(
+                            label = "Weight (kg, optional)",
+                            value = weight,
+                            presets = WEIGHT_PRESETS,
+                            decimal = true,
+                            onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
+                        )
                     }
                 }
             }
@@ -784,4 +828,54 @@ private fun DetailField(
         ),
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+/**
+ * Number field: tap the field to type; tap the trailing arrow for quick presets.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PresetNumberField(
+    label: String,
+    value: String,
+    presets: List<String>,
+    decimal: Boolean = false,
+    onValueChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number
+            ),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryEditable)
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            presets.forEach { preset ->
+                DropdownMenuItem(
+                    text = { Text(if (decimal) "$preset kg" else preset) },
+                    onClick = {
+                        onValueChange(preset)
+                        expanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                )
+            }
+        }
+    }
 }
