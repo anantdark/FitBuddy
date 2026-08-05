@@ -69,8 +69,8 @@ progress charts, editable meal review, and reusable food presets.
 - `data/settings/`
   - `AppSettings.kt` — `AiProvider { OPENROUTER, GEMINI, OLLAMA }`; Ollama Local/Cloud
     (`ollamaUseCloud` + `ollamaApiKey`); derives `model`/`chatUrl`/`authHeader`/`isConfigured`.
-  - `FailoverLadders.kt` — hardcoded Auto-failover TEXT/PHOTO ladders from free-model
-    benchmark; selected model stays first.
+  - `FailoverLadders.kt` — loads Auto-failover TEXT/PHOTO ladders from
+    `config/failover_ladders.json`; selected model stays first.
   - `SettingsRepository.kt` — DataStore-backed; first-run defaults seed from `BuildConfig`
     (which reads `local.properties`).
 - `ui/viewmodel/MainViewModel.kt` — all screen state; `settings`, `isAiOnline`, dashboard,
@@ -111,13 +111,12 @@ progress charts, editable meal review, and reusable food presets.
   dropdowns do **not** auto-refresh (the list only loads on the Refresh button) to avoid hitting
   paid endpoints unprompted. Selecting the OpenAI endpoint auto-enables paid mode, and the
   vision/text dropdowns fall back to curated OpenAI defaults (`OpenAiCatalog`) so at least GPT-4o
-  is always offered even before a Refresh. Auto failover uses hardcoded
-  [FailoverLadders] (from `tools/benchmark/CATALOG_REVIEW.md`): selected model
-  first, then the approved free ladder filtered to the live catalog. Defaults:
-  OpenRouter text `inclusionai/ling-3.0-flash:free` / photo `google/gemma-4-26b-a4b-it:free`;
-  Gemini text `gemini-3.5-flash-lite` / photo `gemini-flash-latest`; Ollama Cloud text
-  `minimax-m3` / photo `gemma4:31b`. Re-benchmark via `skills/benchmark-free-models`
-  when free catalogs change — never restore catalog “intelligence” ranking.
+  is always offered even before a Refresh. Auto failover uses
+  `config/failover_ladders.json` via [FailoverLadders] (from `tools/benchmark/CATALOG_REVIEW.md`):
+  selected model first, then the approved free ladder filtered to the live catalog; other
+  catalog models last. Defaults are ladder heads. Re-benchmark via `skills/benchmark-free-models`
+  when free catalogs change — edit the JSON config only; never restore catalog “intelligence”
+  ranking.
 - If no provider is configured at all, text logs use the offline simulator (photos require a key).
 
 ## Key flows

@@ -2,9 +2,10 @@
 name: benchmark-free-models
 description: >-
   Benchmark FitBuddy free AI text models (Ollama Cloud, Gemini Flash, OpenRouter
-  :free), manually score outputs, update review docs, and propose FailoverLadders
-  defaults. Use when free model catalogs change, user asks to re-benchmark, refresh
-  AI ladders, or update FailoverLadders.kt / tools/benchmark/*.md.
+  :free), manually score outputs, update review docs, and propose updates to
+  config/failover_ladders.json. Use when free model catalogs change, user asks to
+  re-benchmark, refresh AI ladders, or update config/failover_ladders.json /
+  tools/benchmark/*.md.
 disable-model-invocation: true
 ---
 
@@ -12,8 +13,8 @@ disable-model-invocation: true
 
 Re-run when Ollama / Gemini / OpenRouter **free** catalogs change. Do **not** restore
 catalog “intelligence” ranking or an in-app developer benchmark UI — Auto failover
-keeps using hardcoded
-[`FailoverLadders`](../../app/src/main/java/com/anant/fitbuddy/data/settings/FailoverLadders.kt).
+loads order from [`config/failover_ladders.json`](../../config/failover_ladders.json)
+via [`FailoverLadders`](../../app/src/main/java/com/anant/fitbuddy/data/settings/FailoverLadders.kt).
 
 ## Prerequisites
 
@@ -57,13 +58,13 @@ Pick a **champion** per provider. Update committed reviews under `tools/benchmar
 
 Show champions + proposed ladders. **Wait for approval** before editing app code.
 
-### 4. After approval — update the app
+After approval — update **`config/failover_ladders.json`** (not Kotlin ranking code):
 
-1. Edit `FailoverLadders.kt` `TEXT` / `PHOTO` lists.
-2. Align `AppSettings.DEFAULT_*_MODEL` / `DEFAULT_*_TEXT_MODEL` with ladder heads.
-3. Keep failover: **selected model first**, then ladder ∩ live catalog, then leftover catalog A–Z.
-4. Do **not** reintroduce catalog intelligence ranking or Settings “Run text-model benchmark”.
-5. Update `FailoverLaddersTest.kt` and `AGENTS.md` if defaults drift.
+1. Edit `text` / `photo` arrays per provider (`OPENROUTER`, `GEMINI`, `OLLAMA`, `OPENAI`).
+2. Bump `updated` (and `source` if useful). Defaults (dropdown seeds) are ladder heads — no separate AppSettings constants to sync.
+3. Keep failover logic in `FailoverLadders.kt`: **selected model first**, then ladder ∩ catalog, then leftovers A–Z.
+4. Do **not** reintroduce catalog intelligence ranking or an in-app Settings benchmark UI.
+5. Run `FailoverLaddersTest`; update `tools/benchmark/*.md` and `AGENTS.md` if the story drifts.
 
 ## Output template
 
@@ -72,7 +73,7 @@ Champions: Ollama=… · Gemini=… · OpenRouter=…
 Accuracy ladders: …
 Speed ladders: …
 Suggested Auto (balanced): …
-Approve to update FailoverLadders.kt?
+Approve to update config/failover_ladders.json?
 ```
 
 ## Constraints

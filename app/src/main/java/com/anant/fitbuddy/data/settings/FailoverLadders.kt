@@ -1,99 +1,46 @@
 package com.anant.fitbuddy.data.settings
 
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 /**
- * Hardcoded Auto-failover ladders from the 2026-08 free-model benchmark
- * (`tools/benchmark/CATALOG_REVIEW.md`).
+ * Auto-failover ladders loaded from [CONFIG_RESOURCE] (`config/failover_ladders.json`).
  *
- * Failover order = user-selected model first, then this ladder (intersected with
- * the live catalog when available), then any remaining catalog ids. Catalog
- * “intelligence” ranking must not reorder this list.
- *
- * Re-run `skills/benchmark-free-models` when free catalogs change.
+ * Order: user-selected model first → config ladder ∩ live catalog → remaining catalog
+ * ids A–Z. Update the JSON (not this file) when free catalogs change; see
+ * `skills/benchmark-free-models`.
  */
 object FailoverLadders {
 
-    /** Source note for Settings / agents. */
-    const val BENCHMARK_DOC = "tools/benchmark/CATALOG_REVIEW.md"
+    const val CONFIG_RESOURCE = "/failover_ladders.json"
+    const val CONFIG_PATH = "config/failover_ladders.json"
 
-    /**
-     * Balanced text ladders (champion → fast/accurate backups).
-     * OpenRouter / Gemini / Ollama free tiers from the approved review.
-     */
-    val TEXT: Map<AiProvider, List<String>> = mapOf(
-        AiProvider.OPENROUTER to listOf(
-            "inclusionai/ling-3.0-flash:free",
-            "google/gemma-4-26b-a4b-it:free",
-            "nvidia/nemotron-3-super-120b-a12b:free",
-            "poolside/laguna-xs-2.1:free",
-            "nvidia/nemotron-3-ultra-550b-a55b:free",
-            "nvidia/nemotron-3-nano-30b-a3b:free"
-        ),
-        AiProvider.GEMINI to listOf(
-            "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite",
-            "gemini-3.6-flash",
-            "gemini-3-flash-preview",
-            "gemini-flash-lite-latest",
-            "gemini-flash-latest",
-            "gemini-2.5-flash"
-        ),
-        AiProvider.OLLAMA to listOf(
-            "minimax-m3",
-            "gemma4:31b",
-            "nemotron-3-nano:30b",
-            "gpt-oss:120b",
-            "nemotron-3-ultra",
-            "nemotron-3-super",
-            "gpt-oss:20b"
-        ),
-        // Paid curated — keep OpenAI catalog order as the ladder.
-        AiProvider.OPENAI to listOf(
-            "gpt-4o-mini",
-            "gpt-4o",
-            "gpt-4.1-mini",
-            "gpt-4.1"
-        )
+    @JsonClass(generateAdapter = true)
+    data class LadderFile(
+        @Json(name = "version") val version: Int = 1,
+        @Json(name = "updated") val updated: String? = null,
+        @Json(name = "source") val source: String? = null,
+        @Json(name = "text") val text: Map<String, List<String>> = emptyMap(),
+        @Json(name = "photo") val photo: Map<String, List<String>> = emptyMap()
     )
 
-    /**
-     * Photo / vision ladders: Flash (non-lite) first on Gemini; multimodal
-     * cousins of the text champions elsewhere. Not separately meal-benchmarked.
-     */
-    val PHOTO: Map<AiProvider, List<String>> = mapOf(
-        AiProvider.OPENROUTER to listOf(
-            "google/gemma-4-26b-a4b-it:free",
-            "nvidia/nemotron-3-super-120b-a12b:free",
-            "nvidia/nemotron-3-nano-30b-a3b:free",
-            "nvidia/nemotron-3-ultra-550b-a55b:free",
-            "inclusionai/ling-3.0-flash:free"
-        ),
-        AiProvider.GEMINI to listOf(
-            "gemini-flash-latest",
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-3-flash-preview",
-            "gemini-2.5-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-lite-latest"
-        ),
-        AiProvider.OLLAMA to listOf(
-            "gemma4:31b",
-            "minimax-m3",
-            "nemotron-3-nano:30b",
-            "gpt-oss:120b",
-            "nemotron-3-ultra",
-            "nemotron-3-super"
-        ),
-        AiProvider.OPENAI to listOf(
-            "gpt-4o-mini",
-            "gpt-4o",
-            "gpt-4.1-mini",
-            "gpt-4.1"
-        )
-    )
+    private val moshi: Moshi by lazy {
+        Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    }
+
+    private val fileAdapter by lazy { moshi.adapter(LadderFile::class.java) }
+
+    /** Parsed config (lazy; classpath resource from `config/`). */
+    val config: LadderFile by lazy { loadConfig() }
+
+    val TEXT: Map<AiProvider, List<String>>
+        get() = toProviderMap(config.text)
+
+    val PHOTO: Map<AiProvider, List<String>>
+        get() = toProviderMap(config.photo)
 
     fun ladder(provider: AiProvider, modality: ModelCatalogModality): List<String> =
         when (modality) {
@@ -107,9 +54,9 @@ object FailoverLadders {
 
     /**
      * Auto-failover attempt order:
-     * 1. [selected] (if non-blank)
-     * 2. Hardcoded ladder entries that appear in [catalogIds] (or full ladder if catalog empty)
-     * 3. Remaining catalog ids not already listed (stable alphabetical)
+     * 1. [selected] (if non-blank) — most preferred until the user picks something else
+     * 2. Config ladder entries present in [catalogIds] (or full ladder if catalog empty)
+     * 3. Remaining catalog ids not on the ladder (stable alphabetical) — end of ladder
      */
     fun buildAttemptOrder(
         provider: AiProvider,
@@ -141,7 +88,11 @@ object FailoverLadders {
      * Dropdown order: ladder models first (in ladder order), then the rest A–Z.
      * Only ids present in [catalogIds] are returned.
      */
-    fun orderCatalog(provider: AiProvider, modality: ModelCatalogModality, catalogIds: List<String>): List<String> {
+    fun orderCatalog(
+        provider: AiProvider,
+        modality: ModelCatalogModality,
+        catalogIds: List<String>
+    ): List<String> {
         if (catalogIds.isEmpty()) return emptyList()
         val ladder = ladder(provider, modality)
         val set = catalogIds.toSet()
@@ -159,5 +110,25 @@ object FailoverLadders {
     ): String? {
         val ordered = orderCatalog(provider, modality, catalogIds)
         return ordered.firstOrNull { it != missingId } ?: ordered.firstOrNull()
+    }
+
+    private fun toProviderMap(raw: Map<String, List<String>>): Map<AiProvider, List<String>> {
+        val out = linkedMapOf<AiProvider, List<String>>()
+        for (provider in AiProvider.entries) {
+            val ids = raw[provider.name].orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+            if (ids.isNotEmpty()) out[provider] = ids
+        }
+        return out
+    }
+
+    private fun loadConfig(): LadderFile {
+        val stream = FailoverLadders::class.java.getResourceAsStream(CONFIG_RESOURCE)
+            ?: error(
+                "Missing $CONFIG_RESOURCE on classpath. " +
+                    "Ensure config/failover_ladders.json is wired via app resources.srcDir."
+            )
+        val json = stream.bufferedReader().use { it.readText() }
+        return fileAdapter.fromJson(json)
+            ?: error("Could not parse $CONFIG_PATH")
     }
 }

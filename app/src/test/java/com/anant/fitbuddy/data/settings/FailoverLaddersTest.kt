@@ -33,7 +33,7 @@ class FailoverLaddersTest {
     }
 
     @Test
-    fun `empty catalog falls back to full hardcoded ladder after selected`() {
+    fun `empty catalog falls back to full config ladder after selected`() {
         val order = FailoverLadders.buildAttemptOrder(
             AiProvider.OLLAMA,
             ModelCatalogModality.TEXT,

@@ -561,7 +561,7 @@ fun SettingsScreen(
                         showPaidModels = showPaidModels,
                         hintTitle = "Text model",
                         hint = "Used for typed logs and \"recalculate with AI\" (no photo). " +
-                            "Leave blank to reuse the photo model. Gemma models are listed first."
+                            "Leave blank to reuse the photo model. Order follows the failover ladder."
                     )
                 }
 
@@ -573,9 +573,9 @@ fun SettingsScreen(
                     )
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Photo model (by intelligence)"
+                            "Photo model (vision)"
                         } else {
-                            "Photo model (free, by intelligence)"
+                            "Photo model (free + vision)"
                         },
                         noun = if (showPaidModels) "vision" else "free vision",
                         selectedModel = geminiModel,
@@ -588,17 +588,18 @@ fun SettingsScreen(
                         hintTitle = "Gemini",
                         hint = "Get a key from Google AI Studio (aistudio.google.com). " +
                             (if (showPaidModels) {
-                                "Free Flash plus paid Pro (smartest-first). "
+                                "Free Flash plus paid Pro. "
                             } else {
-                                "Free Flash models only (smartest-first). "
+                                "Free Flash models only. "
                             }) +
+                            "Dropdown order follows the approved failover ladder. " +
                             "With Auto failover on, failed keys then models rotate on Gemini only."
                     )
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Text model (by intelligence)"
+                            "Text model"
                         } else {
-                            "Text model (free, by intelligence)"
+                            "Text model (free)"
                         },
                         noun = if (showPaidModels) "chat" else "free",
                         selectedModel = geminiTextModel,

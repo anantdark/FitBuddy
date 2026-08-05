@@ -65,6 +65,11 @@ android {
         }
     }
 
+    // Platform failover ladders: edit config/failover_ladders.json (repo root).
+    sourceSets.getByName("main").resources.directories.add(
+        rootProject.file("config").absolutePath
+    )
+
     defaultConfig {
         applicationId = "com.anant.fitbuddy"
         minSdk = 29

@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.settings
 
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
@@ -415,21 +416,29 @@ data class AppSettings(
         const val LOADING_ANIM_OFF = "off"
         const val LOADING_ANIM_RANDOM = "random"
 
-        /** Photo default — see [FailoverLadders.PHOTO]. */
-        const val DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
-        /** Text default — OpenRouter free champion (2026-08 catalog review). */
-        const val DEFAULT_OPENROUTER_TEXT_MODEL = "inclusionai/ling-3.0-flash:free"
-        /** Photo default — Gemini Flash (non-lite) ladder head. */
-        const val DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
-        /** Text default — Gemini free champion. */
-        const val DEFAULT_GEMINI_TEXT_MODEL = "gemini-3.5-flash-lite"
+        /** Photo default — head of [FailoverLadders] PHOTO ladder for OpenRouter. */
+        val DEFAULT_OPENROUTER_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OPENROUTER, ModelCatalogModality.PHOTO)
+        /** Text default — head of OpenRouter TEXT ladder. */
+        val DEFAULT_OPENROUTER_TEXT_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OPENROUTER, ModelCatalogModality.TEXT)
+        /** Photo default — Gemini Flash ladder head. */
+        val DEFAULT_GEMINI_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.GEMINI, ModelCatalogModality.PHOTO)
+        /** Text default — Gemini TEXT ladder head. */
+        val DEFAULT_GEMINI_TEXT_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.GEMINI, ModelCatalogModality.TEXT)
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"
-        /** Photo default — Ollama Cloud vision-friendly head of [FailoverLadders.PHOTO]. */
-        const val DEFAULT_OLLAMA_MODEL = "gemma4:31b"
-        /** Text default — Ollama Cloud free champion. */
-        const val DEFAULT_OLLAMA_TEXT_MODEL = "minimax-m3"
+        /** Photo default — Ollama PHOTO ladder head. */
+        val DEFAULT_OLLAMA_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OLLAMA, ModelCatalogModality.PHOTO)
+        /** Text default — Ollama TEXT ladder head. */
+        val DEFAULT_OLLAMA_TEXT_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OLLAMA, ModelCatalogModality.TEXT)
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
-        const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+        val DEFAULT_OPENAI_MODEL: String
+            get() = FailoverLadders.preferredDefault(AiProvider.OPENAI, ModelCatalogModality.TEXT)
+                .ifBlank { "gpt-4o-mini" }
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
         const val DEFAULT_DAY_CHANGE_HOUR = 0

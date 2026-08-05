@@ -2059,7 +2059,7 @@ class FitnessRepository(
 
     /**
      * Auto-failover attempt order from [FailoverLadders]: selected model first, then the
-     * hardcoded free-model ladder (filtered to the live catalog), then leftover catalog ids.
+     * config ladder (filtered to the live catalog), then leftover catalog ids.
      * Selected is only leading when it is a plausible id for [platform].
      */
     private suspend fun modelLadder(

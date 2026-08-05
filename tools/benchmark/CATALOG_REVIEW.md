@@ -1,6 +1,6 @@
 # FitBuddy free-model catalog — combined review
 
-**Status:** ladders applied in app (`FailoverLadders.kt`) — 2026-08-05  
+**Status:** ladders applied via `config/failover_ladders.json` — 2026-08-05  
 **Date:** 2026-08-05  
 **Scoring:** manual review of stored API outputs — not the app’s static benchmark scorer.
 
@@ -85,9 +85,22 @@ Same 6 probes everywhere (egg, rice, banana, roti+dal, biryani, dosa). Champion 
 
 ## Suggested default Auto ladders (if you approve without edits)
 
+**Text (accuracy-leaning):**
+
 **Ollama:** `minimax-m3` → `gemma4:31b` → `nemotron-3-nano:30b` → `gpt-oss:120b`  
 **Gemini:** `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` → `gemini-3.6-flash` → `gemini-3-flash-preview`  
 **OpenRouter:** `inclusionai/ling-3.0-flash:free` → `google/gemma-4-26b-a4b-it:free` → `nvidia/nemotron-3-super-120b-a12b:free` → `poolside/laguna-xs-2.1:free`
+
+**Photo / vision (shipped in `config/failover_ladders.json`):**
+
+| Platform | Order (default first) |
+|----------|------------------------|
+| **OpenRouter** | `google/gemma-4-26b-a4b-it:free` → `ling-3.0-flash` → `nemotron-3-super` → `nemotron-3-nano` → `nemotron-3-ultra` |
+| **Gemini** | `gemini-flash-latest` → `3.6-flash` → `3.5-flash` → `3-flash-preview` → `2.5-flash` → then Flash-Lite aliases |
+| **Ollama** | `gemma4:31b` → `minimax-m3` → `nemotron-3-nano:30b` → `gpt-oss:120b` → `nemotron-3-super` → `nemotron-3-ultra` |
+| **OpenAI** | `gpt-4o` → `gpt-4o-mini` → `gpt-4.1` → `gpt-4.1-mini` |
+
+Photo defaults: Gemma on OpenRouter/Ollama; `gemini-flash-latest` on Gemini (full Flash before Lite).
 
 User-facing Settings toggle later: order preferred models **by accuracy** or **by speed** from the approved lists.
 

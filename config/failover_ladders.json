@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "updated": "2026-08-05",
+  "source": "tools/benchmark/CATALOG_REVIEW.md (photo: Gemma / flash-latest defaults)",
+  "text": {
+    "OPENROUTER": [
+      "inclusionai/ling-3.0-flash:free",
+      "google/gemma-4-26b-a4b-it:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "poolside/laguna-xs-2.1:free",
+      "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "nvidia/nemotron-3-nano-30b-a3b:free"
+    ],
+    "GEMINI": [
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
+      "gemini-flash-lite-latest",
+      "gemini-flash-latest",
+      "gemini-2.5-flash"
+    ],
+    "OLLAMA": [
+      "minimax-m3",
+      "gemma4:31b",
+      "nemotron-3-nano:30b",
+      "gpt-oss:120b",
+      "nemotron-3-ultra",
+      "nemotron-3-super",
+      "gpt-oss:20b"
+    ],
+    "OPENAI": [
+      "gpt-4o-mini",
+      "gpt-4o",
+      "gpt-4.1-mini",
+      "gpt-4.1"
+    ]
+  },
+  "photo": {
+    "OPENROUTER": [
+      "google/gemma-4-26b-a4b-it:free",
+      "inclusionai/ling-3.0-flash:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "nvidia/nemotron-3-nano-30b-a3b:free",
+      "nvidia/nemotron-3-ultra-550b-a55b:free"
+    ],
+    "GEMINI": [
+      "gemini-flash-latest",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3-flash-preview",
+      "gemini-2.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-lite-latest"
+    ],
+    "OLLAMA": [
+      "gemma4:31b",
+      "minimax-m3",
+      "nemotron-3-nano:30b",
+      "gpt-oss:120b",
+      "nemotron-3-super",
+      "nemotron-3-ultra"
+    ],
+    "OPENAI": [
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-4.1",
+      "gpt-4.1-mini"
+    ]
+  }
+}
