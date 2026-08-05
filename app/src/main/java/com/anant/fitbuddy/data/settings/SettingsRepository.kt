@@ -53,7 +53,8 @@ class SettingsRepository(context: Context) {
             ),
             openRouterTextModel = sanitizeModelIdFor(
                 AiProvider.OPENROUTER,
-                prefs[KEY_OR_TEXT_MODEL] ?: "",
+                prefs[KEY_OR_TEXT_MODEL]
+                    ?: if (prefs[KEY_PROVIDER] == null) AppSettings.DEFAULT_OPENROUTER_TEXT_MODEL else "",
                 ""
             ),
             geminiApiKeys = geminiKeys,
@@ -65,7 +66,8 @@ class SettingsRepository(context: Context) {
             ),
             geminiTextModel = sanitizeModelIdFor(
                 AiProvider.GEMINI,
-                prefs[KEY_GEMINI_TEXT_MODEL] ?: "",
+                prefs[KEY_GEMINI_TEXT_MODEL]
+                    ?: if (prefs[KEY_PROVIDER] == null) AppSettings.DEFAULT_GEMINI_TEXT_MODEL else "",
                 ""
             ),
             ollamaBaseUrl = prefs[KEY_OLLAMA_URL] ?: AppSettings.DEFAULT_OLLAMA_URL,
@@ -76,7 +78,8 @@ class SettingsRepository(context: Context) {
             ),
             ollamaTextModel = sanitizeModelIdFor(
                 AiProvider.OLLAMA,
-                prefs[KEY_OLLAMA_TEXT_MODEL] ?: "",
+                prefs[KEY_OLLAMA_TEXT_MODEL]
+                    ?: if (prefs[KEY_PROVIDER] == null) AppSettings.DEFAULT_OLLAMA_TEXT_MODEL else "",
                 ""
             ),
             ollamaUseCloud = prefs[KEY_OLLAMA_USE_CLOUD] ?: false,
@@ -391,6 +394,7 @@ class SettingsRepository(context: Context) {
             else prefs[KEY_FROZEN_BACKUP_INDEX] = trimmed
         }
     }
+
 
     /**
      * Marks a successful local (or other) backup. Returns the recorded epoch ms.

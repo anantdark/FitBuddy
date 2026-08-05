@@ -37,6 +37,7 @@ import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
+import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
@@ -46,11 +47,17 @@ import com.anant.fitbuddy.data.repository.AnalysisOutcome
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.data.settings.FailoverLadders
+import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.SettingsRepository
+import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +78,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
+
 
 /** Snapshot of everything the Dashboard needs, with derived net-balance/macros logic. */
 @Immutable
@@ -109,14 +117,6 @@ data class DashboardUiState(
     }
 }
 
-/** State of the free/vision model catalog used by the Settings dropdown. */
-@Immutable
-data class ModelsUiState(
-    val isLoading: Boolean = false,
-    val options: List<ModelOption> = emptyList(),
-    val error: String? = null,
-    val loaded: Boolean = false
-)
 
 /** Transient state for the AI analysis flow (loading, clarification prompt, review draft, snackbar). */
 @Immutable
@@ -139,6 +139,16 @@ data class AnalysisUiState(
     /** Developer: last raw AI JSON when "Show raw AI JSON" is on. */
     val rawAiJson: String? = null
 )
+
+/** State of the free/vision model catalog used by the Settings dropdown. */
+@Immutable
+data class ModelsUiState(
+    val isLoading: Boolean = false,
+    val options: List<ModelOption> = emptyList(),
+    val error: String? = null,
+    val loaded: Boolean = false
+)
+
 
 /** State of the AI target-recommendation flow shown in Profile. */
 @Immutable
@@ -621,6 +631,26 @@ class MainViewModel(
         }
     }
 
+    /** Developer: reset OpenRouter / Gemini / Ollama preferred models to built-in defaults. */
+    fun applyBuiltInModelDefaults() {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    openRouterModel = AppSettings.DEFAULT_OPENROUTER_MODEL,
+                    openRouterTextModel = AppSettings.DEFAULT_OPENROUTER_TEXT_MODEL,
+                    geminiModel = AppSettings.DEFAULT_GEMINI_MODEL,
+                    geminiTextModel = AppSettings.DEFAULT_GEMINI_TEXT_MODEL,
+                    ollamaModel = AppSettings.DEFAULT_OLLAMA_MODEL,
+                    ollamaTextModel = AppSettings.DEFAULT_OLLAMA_TEXT_MODEL
+                )
+            )
+            _analysisState.update {
+                it.copy(userMessage = "Built-in model defaults applied")
+            }
+        }
+    }
+
     fun setCrashReportingEnabled(enabled: Boolean) {
         viewModelScope.launch {
             val current = settings.value
@@ -740,6 +770,7 @@ class MainViewModel(
                     _models.update {
                         it.copy(isLoading = false, options = list, loaded = true, error = null)
                     }
+                    reconcilePreferredModelAfterCatalog(provider, list, forPhoto = true)
                 }
                 .onFailure { e ->
                     _models.update {
@@ -791,12 +822,82 @@ class MainViewModel(
                     _textModels.update {
                         it.copy(isLoading = false, options = list, loaded = true, error = null)
                     }
+                    reconcilePreferredModelAfterCatalog(provider, list, forPhoto = false)
                 }
                 .onFailure { e ->
                     _textModels.update {
                         it.copy(isLoading = false, error = e.message ?: "Could not load models")
                     }
                 }
+        }
+    }
+
+    /**
+     * If the preferred photo/text model for [provider] is missing from a freshly loaded
+     * catalog, switch to the next [FailoverLadders] pick and show a short pill.
+     * OpenAI is left alone (curated catalog). No-op when the list is empty.
+     */
+    private suspend fun reconcilePreferredModelAfterCatalog(
+        provider: AiProvider,
+        options: List<ModelOption>,
+        forPhoto: Boolean
+    ) {
+        if (provider == AiProvider.OPENAI || options.isEmpty()) return
+        val current = settings.value
+        val selected = when (provider) {
+            AiProvider.OPENROUTER -> if (forPhoto) {
+                current.openRouterModel
+            } else {
+                current.openRouterTextModel.ifBlank { current.openRouterModel }
+            }
+            AiProvider.GEMINI -> if (forPhoto) {
+                current.geminiModel
+            } else {
+                current.geminiTextModel.ifBlank { current.geminiModel }
+            }
+            AiProvider.OLLAMA -> if (forPhoto) {
+                current.ollamaModel
+            } else {
+                current.ollamaTextModel.ifBlank { current.ollamaModel }
+            }
+            AiProvider.OPENAI -> return
+        }
+        if (selected.isBlank() || options.any { it.id == selected }) return
+        val modality = if (forPhoto) ModelCatalogModality.PHOTO else ModelCatalogModality.TEXT
+        val next = FailoverLadders.nextBest(
+            provider,
+            modality,
+            options.map { it.id },
+            selected
+        ) ?: return
+        val updated = when (provider) {
+            AiProvider.OPENROUTER -> if (forPhoto) {
+                current.copy(openRouterModel = next)
+            } else if (current.openRouterTextModel.isNotBlank()) {
+                current.copy(openRouterTextModel = next)
+            } else {
+                current.copy(openRouterModel = next)
+            }
+            AiProvider.GEMINI -> if (forPhoto) {
+                current.copy(geminiModel = next)
+            } else if (current.geminiTextModel.isNotBlank()) {
+                current.copy(geminiTextModel = next)
+            } else {
+                current.copy(geminiModel = next)
+            }
+            AiProvider.OLLAMA -> if (forPhoto) {
+                current.copy(ollamaModel = next)
+            } else if (current.ollamaTextModel.isNotBlank()) {
+                current.copy(ollamaTextModel = next)
+            } else {
+                current.copy(ollamaModel = next)
+            }
+            AiProvider.OPENAI -> return
+        }
+        settingsRepository.save(updated)
+        val label = if (forPhoto) "Photo" else "Text"
+        _analysisState.update {
+            it.copy(userMessage = "$label model unavailable · switched to $next")
         }
     }
 

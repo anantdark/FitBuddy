@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val openRouterApiKey: String = localProperties.getProperty("OPENROUTER_API_KEY", "")
-val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemma-4-31b-it:free")
+val aiModel: String = localProperties.getProperty("AI_MODEL", "google/gemma-4-26b-a4b-it:free")
 
 // Sentry DSN and the cloud-backup proxy API key are committed here obfuscated (XOR + Base64)
 // rather than injected via CI secrets — DSNs are meant to be embeddable, and the proxy key

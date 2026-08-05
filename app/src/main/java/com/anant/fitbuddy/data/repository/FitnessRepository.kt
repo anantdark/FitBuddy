@@ -76,11 +76,13 @@ import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.util.DeviceIdentity
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
+import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.FoodQuantityParser
 import kotlinx.coroutines.flow.Flow
@@ -1179,6 +1181,7 @@ class FitnessRepository(
     suspend fun fetchOpenAiTextModels(apiKey: String): List<ModelOption> =
         remoteAiDataSource.fetchOpenAiTextModels(apiKey)
 
+
     /**
      * Drops models that do not answer chat with HTTP 200 or 429 (Refresh-models reachability).
      */
@@ -2055,9 +2058,9 @@ class FitnessRepository(
     }
 
     /**
-     * Catalog ordered by platform ranking (Gemini Flash ladder, OpenRouter/Ollama Gemma-first).
-     * Selected model is tried first only when it is a plausible id for [platform] — prevents
-     * Gemini Studio ids (e.g. gemini-3-flash-preview) from being sent to OpenRouter.
+     * Auto-failover attempt order from [FailoverLadders]: selected model first, then the
+     * hardcoded free-model ladder (filtered to the live catalog), then leftover catalog ids.
+     * Selected is only leading when it is a plausible id for [platform].
      */
     private suspend fun modelLadder(
         settings: AppSettings,
@@ -2099,12 +2102,13 @@ class FitnessRepository(
             .map { it.id }
             .filter { isPlausibleModelIdFor(platform, it) }
 
-        return buildList {
-            if (selected.isNotBlank()) add(selected)
-            catalog.filter { it != selected }.forEach { add(it) }
-        }.ifEmpty {
-            listOfNotNull(selected.takeIf { it.isNotBlank() })
+        val modality = if (preferVisionModels) {
+            ModelCatalogModality.PHOTO
+        } else {
+            ModelCatalogModality.TEXT
         }
+        return FailoverLadders.buildAttemptOrder(platform, modality, selected, catalog)
+            .ifEmpty { listOfNotNull(selected.takeIf { it.isNotBlank() }) }
     }
 
     private fun formatAiConnectionError(e: Throwable): String {

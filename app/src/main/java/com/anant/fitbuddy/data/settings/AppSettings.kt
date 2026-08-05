@@ -36,14 +36,14 @@ data class AppSettings(
      */
     val openRouterOAuthKey: String = "",
     val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
-    val openRouterTextModel: String = "",
+    val openRouterTextModel: String = DEFAULT_OPENROUTER_TEXT_MODEL,
     val geminiApiKeys: List<String> = emptyList(),
     val geminiApiKey: String = "",
     val geminiModel: String = DEFAULT_GEMINI_MODEL,
-    val geminiTextModel: String = "",
+    val geminiTextModel: String = DEFAULT_GEMINI_TEXT_MODEL,
     val ollamaBaseUrl: String = DEFAULT_OLLAMA_URL,
     val ollamaModel: String = DEFAULT_OLLAMA_MODEL,
-    val ollamaTextModel: String = "",
+    val ollamaTextModel: String = DEFAULT_OLLAMA_TEXT_MODEL,
     /** When true, talk to ollama.com Cloud instead of a local/LAN server. */
     val ollamaUseCloud: Boolean = false,
     val ollamaApiKeys: List<String> = emptyList(),
@@ -415,10 +415,19 @@ data class AppSettings(
         const val LOADING_ANIM_OFF = "off"
         const val LOADING_ANIM_RANDOM = "random"
 
-        const val DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free"
-        const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+        /** Photo default — see [FailoverLadders.PHOTO]. */
+        const val DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
+        /** Text default — OpenRouter free champion (2026-08 catalog review). */
+        const val DEFAULT_OPENROUTER_TEXT_MODEL = "inclusionai/ling-3.0-flash:free"
+        /** Photo default — Gemini Flash (non-lite) ladder head. */
+        const val DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
+        /** Text default — Gemini free champion. */
+        const val DEFAULT_GEMINI_TEXT_MODEL = "gemini-3.5-flash-lite"
         const val DEFAULT_OLLAMA_URL = "http://192.168.1.10:11434"
-        const val DEFAULT_OLLAMA_MODEL = "llava"
+        /** Photo default — Ollama Cloud vision-friendly head of [FailoverLadders.PHOTO]. */
+        const val DEFAULT_OLLAMA_MODEL = "gemma4:31b"
+        /** Text default — Ollama Cloud free champion. */
+        const val DEFAULT_OLLAMA_TEXT_MODEL = "minimax-m3"
         const val OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
         const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
         const val DEFAULT_REMINDER_HOUR = 20

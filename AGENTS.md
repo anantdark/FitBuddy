@@ -59,7 +59,7 @@ progress charts, editable meal review, and reusable food presets.
     (OpenRouter), `listGeminiModels` (@Url with `?key=`).
   - `NetworkModule.kt` — Moshi (codegen + reflective fallback), OkHttp, Retrofit (placeholder base URL; calls use @Url).
   - `RemoteAiDataSource.kt` — prompt assembly, image attach, JSON parse, `fetchFreeVisionModels`
-    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free Flash, intelligence-sorted).
+    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free Flash, ladder-ordered).
   - `dto/` — `ChatDtos.kt`, `ModelsDtos.kt` (OpenRouter `ModelDto` + Gemini `GeminiModelDto`).
 - `data/repository/`
   - `FitnessRepository.kt` — single `analyze()` entry point; routes by response `status`
@@ -69,6 +69,8 @@ progress charts, editable meal review, and reusable food presets.
 - `data/settings/`
   - `AppSettings.kt` — `AiProvider { OPENROUTER, GEMINI, OLLAMA }`; Ollama Local/Cloud
     (`ollamaUseCloud` + `ollamaApiKey`); derives `model`/`chatUrl`/`authHeader`/`isConfigured`.
+  - `FailoverLadders.kt` — hardcoded Auto-failover TEXT/PHOTO ladders from free-model
+    benchmark; selected model stays first.
   - `SettingsRepository.kt` — DataStore-backed; first-run defaults seed from `BuildConfig`
     (which reads `local.properties`).
 - `ui/viewmodel/MainViewModel.kt` — all screen state; `settings`, `isAiOnline`, dashboard,
@@ -103,16 +105,19 @@ progress charts, editable meal review, and reusable food presets.
   AI Settings also clears cooldowns for the preferred photo/text models so an explicit
   selection is retried immediately (green “active” lines are reset to those picks on save).
   Green “active” lines show the last successful model without changing the dropdown. **Show paid
-  models** (off by default) lists paid OpenRouter/Gemini models too and disables Refresh
-  reachability probes. Auto failover is always on by default for all providers and is never
-  forced off automatically. While paid is on, the model dropdowns do **not** auto-refresh (the
-  list only loads on the Refresh button) to avoid hitting paid endpoints unprompted. Selecting
-  the OpenAI endpoint (OpenAI-compatible provider, Local mode, URL `https://api.openai.com`)
-  auto-enables paid mode, and the vision/text dropdowns fall back to curated OpenAI defaults
-  (`OpenAiCatalog`) so at least GPT-4o is always offered even before a Refresh. Gemini uses
-  free Flash intelligence ranking
-  (3.5 Flash first; Pro above Flash when paid is on); OpenRouter/Ollama prefer Gemma by generation
-  then size (Gemma 4 31b → 26b → Gemma 3…). Pills note model switches within the platform.
+  models** (off by default) lists paid OpenRouter/Gemini models too, turns **Auto failover off**
+  for that provider (manual pick), and disables Refresh reachability probes. Turning paid off
+  restores Auto on. OpenAI stays paid-only with its curated catalog. While paid is on, the model
+  dropdowns do **not** auto-refresh (the list only loads on the Refresh button) to avoid hitting
+  paid endpoints unprompted. Selecting the OpenAI endpoint auto-enables paid mode, and the
+  vision/text dropdowns fall back to curated OpenAI defaults (`OpenAiCatalog`) so at least GPT-4o
+  is always offered even before a Refresh. Auto failover uses hardcoded
+  [FailoverLadders] (from `tools/benchmark/CATALOG_REVIEW.md`): selected model
+  first, then the approved free ladder filtered to the live catalog. Defaults:
+  OpenRouter text `inclusionai/ling-3.0-flash:free` / photo `google/gemma-4-26b-a4b-it:free`;
+  Gemini text `gemini-3.5-flash-lite` / photo `gemini-flash-latest`; Ollama Cloud text
+  `minimax-m3` / photo `gemma4:31b`. Re-benchmark via `skills/benchmark-free-models`
+  when free catalogs change — never restore catalog “intelligence” ranking.
 - If no provider is configured at all, text logs use the offline simulator (photos require a key).
 
 ## Key flows

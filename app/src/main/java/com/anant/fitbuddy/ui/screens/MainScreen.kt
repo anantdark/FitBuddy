@@ -441,6 +441,7 @@ fun MainScreen(
                     }
                 },
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
+                onApplyBuiltInModelDefaults = viewModel::applyBuiltInModelDefaults,
                 onShowTestUpdatePrompt = viewModel::showTestUpdatePrompt,
                 onTestNotificationSent = { ok ->
                     scope.launch {
