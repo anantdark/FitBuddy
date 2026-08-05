@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -507,9 +511,19 @@ private fun ExercisePickerSheet(
         !trimmedQuery.contains('\n') &&
         filtered.none { it.name.equals(trimmedQuery, ignoreCase = true) }
     val showInferButton = trimmedQuery.isNotBlank()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .navigationBarsPadding()
+                .imePadding()
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -583,7 +597,9 @@ private fun ExercisePickerSheet(
             }
 
             LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 16.dp)
             ) {
                 items(filtered, key = { it.name }) { exercise ->
@@ -657,7 +673,7 @@ private fun AddExerciseDetailsDialog(
 ) {
     val isCardio = equipment == Equipment.CARDIO
     var sets by remember { mutableStateOf("3") }
-    var reps by remember { mutableStateOf("10") }
+    var reps by remember { mutableStateOf("12") }
     var weight by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("30") }
     var distance by remember { mutableStateOf("") }

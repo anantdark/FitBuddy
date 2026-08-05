@@ -1045,7 +1045,7 @@ class RemoteAiDataSource(
               4×10 @ 20kg", "30 min run 5 km", bullet lists, or comma-separated items.
             - Map each exercise to the closest name from the known list below when possible (use the
               EXACT spelling from that list). Otherwise use a concise Title Case name.
-            - For strength/resistance: default to 3 sets × 10 reps when sets/reps aren't specified.
+            - For strength/resistance: default to 3 sets × 12 reps when sets/reps aren't specified.
             - For cardio (run, jog, bike, row, etc.): use equipment "Cardio", set sets/reps to 1,
               populate "duration_minutes" and "distance_km" when the user mentions time/distance.
             - "weight_kg": only when the user gives a load in kg (or lb converted to kg); else null.
