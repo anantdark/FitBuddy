@@ -234,7 +234,7 @@ dependencies {
     // Robolectric supplies real android.util.Base64 (and framework) impls on the JVM so
     // BackupCrypto's seal/open/classify can be exercised as plain unit tests. 4.16 supports
     // SDK 36 and requires JDK 21, matching this project's compileSdk/toolchain.
-    testImplementation("org.robolectric:robolectric:4.16")
+    testImplementation("org.robolectric:robolectric:4.16.1")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
