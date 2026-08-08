@@ -62,6 +62,8 @@ class BackupSettingsTest {
                 autoCheckUpdates = false,
                 supportId = "support-xyz",
                 crashReportingEnabled = false,
+                region = "US",
+                regionRequestSentAt = 1_700_000_100_000L,
                 easterEggDiscovered = true,
                 dailyLogReminderEnabled = false,
                 dailyLogReminderHour = 21,

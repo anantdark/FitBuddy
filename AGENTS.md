@@ -1,6 +1,6 @@
 # FitBuddy — Agent Context
 
-AI-powered health tracker (Android) optimised for Indian diets & lifestyles. Log meals and
+AI-powered health tracker (Android) with region-aware diets & lifestyles. Log meals and
 workouts via **photo or loose text**; an LLM estimates calories/macros. Also has dashboards,
 progress charts, editable meal review, and reusable food presets.
 

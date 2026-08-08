@@ -218,7 +218,8 @@ private fun MealFoodReviewCard(
                     food.servings.toString()
                 }
                 Text(
-                    text = "$servingLabel serving(s) · ${food.ingredients.size} ingredient(s)",
+                    text = "$servingLabel serving(s) · ${food.totalWeightG} g · " +
+                        "${food.ingredients.size} ingredient(s)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

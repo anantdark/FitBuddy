@@ -3,9 +3,10 @@ package com.anant.fitbuddy.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,12 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import com.anant.fitbuddy.BuildConfig
-import com.anant.fitbuddy.ui.components.Button
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,7 +37,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -54,23 +54,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.model.OpenAiCatalog
+import com.anant.fitbuddy.data.region.AppRegion
+import com.anant.fitbuddy.data.region.RegionDetector
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.ui.components.Button
 import com.anant.fitbuddy.ui.components.ConfettiOverlay
 import com.anant.fitbuddy.ui.components.CraftedWithLoveCredit
 import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
-import com.anant.fitbuddy.ui.components.showFitBuddyPill
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.TextButton
+import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
@@ -115,6 +124,10 @@ private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
 
 private val OLLAMA_CLOUD_KEYS_URL = "https://ollama.com/settings/keys"
 
+/** Beginner / first-run guide on the FitBuddy gh-pages site. */
+private const val ONBOARDING_GUIDE_URL =
+    "https://anantdark.github.io/FitBuddy/docs/#first"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
@@ -122,6 +135,16 @@ fun OnboardingScreen(
     isValidating: Boolean,
     isRestoring: Boolean = false,
     aiOnly: Boolean = false,
+    /**
+     * Build default for crash reporting. When this is false (F-Droid / debug), an opt-in
+     * page is inserted before the region step.
+     */
+    initialCrashReportingEnabled: Boolean = AppSettings().crashReportingEnabled,
+    /** Anonymous support id, forwarded to the region-request consent dialog. */
+    supportId: String = "",
+    /** One custom-region Sentry request allowed per install. */
+    regionRequestAlreadySent: Boolean = false,
+    onRegionRequestSent: () -> Unit = {},
     cloudRestoreAvailable: Boolean = false,
     openRouterOAuthBusy: Boolean = false,
     openRouterOAuthKey: String = "",
@@ -150,13 +173,22 @@ fun OnboardingScreen(
         sex: String?,
         goal: String,
         activityLevel: String,
-        aiSettings: AppSettings
+        aiSettings: AppSettings,
+        region: AppRegion,
+        crashReportingEnabled: Boolean
     ) -> Unit,
     onCompleteAiOnly: (AppSettings) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // -1 = path picker; 0..2 = AI / profile / lifestyle (or AI-only when [aiOnly]).
+    // -1 = path picker; 0..N = AI / profile / lifestyle [/ crash] / region (or AI-only).
     var step by remember(aiOnly) { mutableIntStateOf(if (aiOnly) 0 else -1) }
+    // Crash page only when the build defaults reporting off (F-Droid / debug).
+    val showCrashStep = !initialCrashReportingEnabled
+    var crashReportingChoice by remember(initialCrashReportingEnabled) {
+        mutableStateOf(initialCrashReportingEnabled)
+    }
+    val stepCrash = 3
+    val stepRegion = if (showCrashStep) 4 else 3
     var cloudSupportId by remember { mutableStateOf("") }
     var cloudError by remember { mutableStateOf<String?>(null) }
     // Password prompt for restoring a custom-password-protected cloud backup.
@@ -293,7 +325,7 @@ fun OnboardingScreen(
         }
     }
 
-    fun finishOnboarding() {
+    fun finishOnboarding(region: AppRegion, crashReportingEnabled: Boolean) {
         onComplete(
             firstName.trim(),
             lastName.trim(),
@@ -303,7 +335,9 @@ fun OnboardingScreen(
             sex.ifBlank { null },
             goal,
             activity,
-            buildAiSettings()
+            buildAiSettings(),
+            region,
+            crashReportingEnabled
         )
     }
 
@@ -349,7 +383,11 @@ fun OnboardingScreen(
 
     val busy = isSaving || isValidating || isRestoring
     val onPathPicker = step < 0 && !aiOnly
-    val totalSteps = if (aiOnly) 1 else 3
+    val totalSteps = when {
+        aiOnly -> 1
+        showCrashStep -> 5
+        else -> 4
+    }
     val progressStep = if (onPathPicker) 0 else (if (aiOnly) 0 else step)
 
     val showPathCredit = onPathPicker && step == -1
@@ -361,6 +399,48 @@ fun OnboardingScreen(
         showConfetti = true
         delay(4_000L)
         showConfetti = false
+    }
+
+    if (!aiOnly && showCrashStep && step == stepCrash) {
+        CrashReportingOptInScreen(
+            initialEnabled = crashReportingChoice,
+            onContinue = { enabled ->
+                crashReportingChoice = enabled
+                // Apply immediately so region-request send works before onboarding finishes.
+                CrashReporter.setReportingEnabled(enabled)
+                step = stepRegion
+            },
+            onBack = { step = 2 },
+            modifier = modifier.fillMaxSize()
+        )
+        return
+    }
+
+    // Region is the final onboarding step for the full path.
+    if (!aiOnly && step == stepRegion) {
+        val context = LocalContext.current
+        val detectedRegion = remember { RegionDetector.detectFromDevice(context) }
+        RegionSelectionScreen(
+            defaultRegion = detectedRegion,
+            crashReportingEnabled = crashReportingChoice,
+            supportId = supportId,
+            isSaving = isSaving,
+            regionRequestAlreadySent = regionRequestAlreadySent,
+            onFinished = { region ->
+                finishOnboarding(region, crashReportingChoice)
+            },
+            onBack = {
+                step = if (showCrashStep) stepCrash else 2
+            },
+            requestDisabledHint = if (showCrashStep) {
+                "Enable crash reporting on the previous page to request a custom region."
+            } else {
+                "Enable Send crash reports in Settings to request a custom region."
+            },
+            onRequestRegionSent = onRegionRequestSent,
+            modifier = modifier.fillMaxSize()
+        )
+        return
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -415,7 +495,7 @@ fun OnboardingScreen(
                     text = if (aiOnly) {
                         "AI setup"
                     } else {
-                        "Step ${step + 1} of 3"
+                        "Step ${step + 1} of $totalSteps"
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -467,6 +547,7 @@ fun OnboardingScreen(
                         }
 
                         onPathPicker -> {
+                            val uriHandler = LocalUriHandler.current
                             Text(
                                 text = "How do you want to start?",
                                 style = MaterialTheme.typography.titleMedium,
@@ -516,6 +597,11 @@ fun OnboardingScreen(
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OnboardingGuideCard(
+                                enabled = !busy,
+                                onClick = { uriHandler.openUri(ONBOARDING_GUIDE_URL) }
+                            )
                         }
 
                         step == 0 -> {
@@ -769,7 +855,7 @@ fun OnboardingScreen(
                                 when (step) {
                                     0 -> advanceFromAiStep()
                                     1 -> step = 2
-                                    else -> finishOnboarding()
+                                    else -> step = if (showCrashStep) stepCrash else stepRegion
                                 }
                             }
                         ) {
@@ -778,7 +864,6 @@ fun OnboardingScreen(
                                     isValidating -> "Validating…"
                                     isSaving -> "Setting up…"
                                     aiOnly -> "Save & continue"
-                                    step == 2 -> "Finish setup"
                                     else -> "Continue"
                                 }
                             )
@@ -946,6 +1031,112 @@ private fun OnboardingTextField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+/** Soft gradient help card — visually separate from Start Fresh / Restore actions. */
+@Composable
+private fun OnboardingGuideCard(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(18.dp)
+    val wash = remember(scheme.primaryContainer, scheme.secondaryContainer, scheme.tertiaryContainer) {
+        Brush.linearGradient(
+            colors = listOf(
+                scheme.primaryContainer.copy(alpha = 0.95f),
+                scheme.secondaryContainer.copy(alpha = 0.9f),
+                scheme.tertiaryContainer.copy(alpha = 0.75f)
+            )
+        )
+    }
+    Card(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth(),
+        shape = shape,
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.22f)),
+        colors = CardDefaults.cardColors(
+            containerColor = scheme.surface.copy(alpha = 0f),
+            contentColor = scheme.onPrimaryContainer,
+            disabledContainerColor = scheme.surface.copy(alpha = 0f),
+            disabledContentColor = scheme.onPrimaryContainer.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(wash)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(scheme.surface.copy(alpha = 0.72f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MenuBook,
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp),
+                        tint = scheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "NEED A HAND?",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = scheme.primary.copy(alpha = 0.9f),
+                        letterSpacing = 0.8.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Onboarding guide",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "Walk through first-run setup in your browser",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onPrimaryContainer.copy(alpha = 0.78f)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(scheme.primary.copy(alpha = 0.14f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Open",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.primary
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = scheme.primary
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** Tappable link to the provider's key-creation/setup docs, opened in the browser. */

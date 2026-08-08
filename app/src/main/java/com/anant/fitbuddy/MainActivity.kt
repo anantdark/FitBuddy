@@ -15,17 +15,23 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.region.RegionDetector
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
+import com.anant.fitbuddy.ui.screens.CrashReportingOptInScreen
 import com.anant.fitbuddy.ui.screens.MainScreen
 import com.anant.fitbuddy.ui.screens.OnboardingScreen
+import com.anant.fitbuddy.ui.screens.RegionSelectionScreen
 import com.anant.fitbuddy.ui.theme.FitBuddyTheme
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
@@ -51,6 +57,8 @@ class MainActivity : ComponentActivity() {
                         factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
                     )
                     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
+                    val needsRegionSelection by viewModel.needsRegionSelection.collectAsStateWithLifecycle()
+                    val regionSelectionSaving by viewModel.regionSelectionSaving.collectAsStateWithLifecycle()
                     val onboardingAiOnly by viewModel.onboardingAiOnly.collectAsStateWithLifecycle()
                     val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
                     val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
@@ -91,6 +99,10 @@ class MainActivity : ComponentActivity() {
                                 isValidating = onboardingValidating,
                                 isRestoring = onboardingRestoring,
                                 aiOnly = onboardingAiOnly,
+                                initialCrashReportingEnabled = settings.crashReportingEnabled,
+                                supportId = settings.supportId,
+                                regionRequestAlreadySent = settings.regionRequestSentAt > 0L,
+                                onRegionRequestSent = viewModel::markRegionRequestSent,
                                 cloudRestoreAvailable = MongoUriVault.isAvailable(),
                                 openRouterOAuthBusy = openRouterOAuthBusy,
                                 openRouterOAuthKey = settings.openRouterOAuthKey,
@@ -107,7 +119,59 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        false -> {
+                        false -> if (needsRegionSelection) {
+                            RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
+                            val context = LocalContext.current
+                            val detectedRegion = remember { RegionDetector.detectFromDevice(context) }
+                            // Same as onboarding: opt-in page only when the build defaults
+                            // crash reporting off (F-Droid / debug) and it is still off.
+                            val buildDefaultsCrashOff = !AppSettings().crashReportingEnabled
+                            var pendingCrashChoice by remember {
+                                mutableStateOf<Boolean?>(
+                                    if (buildDefaultsCrashOff && !settings.crashReportingEnabled) {
+                                        null
+                                    } else {
+                                        settings.crashReportingEnabled
+                                    }
+                                )
+                            }
+                            if (pendingCrashChoice == null) {
+                                CrashReportingOptInScreen(
+                                    initialEnabled = false,
+                                    onContinue = { enabled ->
+                                        pendingCrashChoice = enabled
+                                        // Apply immediately so region-request send works
+                                        // before completeRegionSelection persists settings.
+                                        CrashReporter.setReportingEnabled(enabled)
+                                    }
+                                )
+                            } else {
+                                RegionSelectionScreen(
+                                    defaultRegion = detectedRegion,
+                                    crashReportingEnabled = pendingCrashChoice == true,
+                                    supportId = settings.supportId,
+                                    isSaving = regionSelectionSaving,
+                                    regionRequestAlreadySent = settings.regionRequestSentAt > 0L,
+                                    onFinished = { region ->
+                                        viewModel.completeRegionSelection(
+                                            region,
+                                            crashReportingEnabled = pendingCrashChoice
+                                        )
+                                    },
+                                    onBack = if (buildDefaultsCrashOff) {
+                                        { pendingCrashChoice = null }
+                                    } else {
+                                        null
+                                    },
+                                    requestDisabledHint = if (buildDefaultsCrashOff) {
+                                        "Enable crash reporting on the previous page to request a custom region."
+                                    } else {
+                                        "Enable Send crash reports in Settings to request a custom region."
+                                    },
+                                    onRequestRegionSent = viewModel::markRegionRequestSent
+                                )
+                            }
+                        } else {
                             RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
                             MainScreen(
                                 viewModel = viewModel,

@@ -42,7 +42,7 @@ Writes `tools/benchmark_results/{provider}_raw_outputs.json`. Checkpoint after e
 | Gemini | `isFreeTier`: id contains `flash`, not pro/ultra/image |
 | OpenRouter | id ends with `:free`; exclude safety/guard/embed/media |
 
-Same **6 probes** as the collector (egg, rice, banana, roti+dal, biryani, dosa). Prompt = Indian-diet JSON nutrition estimate, `temperature=0`.
+Same **6 probes** as the collector (egg, rice, banana, roti+dal, biryani, dosa). Prompt = JSON nutrition estimate, `temperature=0`.
 
 ### 2. You score manually
 

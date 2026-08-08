@@ -71,6 +71,8 @@ import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.snapshot
 import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toFoodEntry
+import com.anant.fitbuddy.data.region.AppRegion
+import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
 import com.anant.fitbuddy.ui.components.FitBuddyLivePill
 import com.anant.fitbuddy.ui.components.FitBuddyPillConfig
@@ -131,6 +133,9 @@ fun MainScreen(
     val monthlyExercise by viewModel.monthlyExercise.collectAsStateWithLifecycle()
     val monthlyEndDate by viewModel.monthlyEndDate.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val regionPack = remember(settings.region) {
+        RegionPacks.packOrIndia(AppRegion.fromStored(settings.region))
+    }
     val hasSettingsSnapshot by viewModel.hasSettingsSnapshot.collectAsStateWithLifecycle()
     val modelsState by viewModel.models.collectAsStateWithLifecycle()
     val textModelsState by viewModel.textModels.collectAsStateWithLifecycle()
@@ -383,6 +388,7 @@ fun MainScreen(
                 onSave = { viewModel.saveSettings(it, announce = true) },
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
                 onSavePermanentProfile = viewModel::savePermanentProfile,
+                onRegionChange = viewModel::setRegion,
                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                 openRouterOAuthBusy = openRouterOAuthBusy,
@@ -443,6 +449,7 @@ fun MainScreen(
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
                 onApplyBuiltInModelDefaults = viewModel::applyBuiltInModelDefaults,
                 onShowTestUpdatePrompt = viewModel::showTestUpdatePrompt,
+                onRestartOnboarding = viewModel::restartOnboardingForTesting,
                 onTestNotificationSent = { ok ->
                     scope.launch {
                         snackbarHostState.showFitBuddyPill(
@@ -867,6 +874,7 @@ fun MainScreen(
     if (showBarcodeScan) {
         BarcodeScanDialog(
             isLookingUp = barcodeLookupLoading,
+            barcodeExample = regionPack.barcodeExample,
             onBarcode = { code ->
                 viewModel.lookupBarcode(code) { product ->
                     showBarcodeScan = false
@@ -954,6 +962,7 @@ fun MainScreen(
 
     if (showTextDialog) {
         TextLogDialog(
+            foodLogHint = regionPack.foodLogHint,
             onDismiss = { showTextDialog = false },
             onSubmit = { text ->
                 showTextDialog = false
@@ -1039,6 +1048,7 @@ fun MainScreen(
             onSaveAsPreset = viewModel::saveDraftAsSavedFood,
             onReanalyze = viewModel::reanalyzeFood,
             onAskForPortion = viewModel::askForPortion,
+            askPortionHint = regionPack.askPortionHint,
             onDismiss = {
                 mealFoodEditIndex = null
                 viewModel.dismissFoodDraft()
@@ -1382,6 +1392,7 @@ private fun AiErrorDialog(
 
 @Composable
 private fun TextLogDialog(
+    foodLogHint: String,
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit
 ) {
@@ -1392,7 +1403,7 @@ private fun TextLogDialog(
         text = {
             Column {
                 Text(
-                    "e.g. \"2 rotis with dal tadka\" or \"aloo paratha with curd\"",
+                    foodLogHint,
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.size(12.dp))

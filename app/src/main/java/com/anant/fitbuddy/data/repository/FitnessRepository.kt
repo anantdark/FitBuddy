@@ -55,8 +55,12 @@ import com.anant.fitbuddy.data.model.FoodAnalysis
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.MealDraft
-import com.anant.fitbuddy.data.model.NorthIndianStaples
 import com.anant.fitbuddy.data.model.toFoodDraft
+import com.anant.fitbuddy.data.region.AppRegion
+import com.anant.fitbuddy.data.region.IndiaRegionPack
+import com.anant.fitbuddy.data.region.RegionPack
+import com.anant.fitbuddy.data.region.RegionPacks
+import com.anant.fitbuddy.data.region.RegionalDish
 import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.model.toPresetMealFood
@@ -1032,8 +1036,9 @@ class FitnessRepository(
         }
 
         return try {
+            val region = AppRegion.fromStored(settings.region) ?: AppRegion.INDIA
             processResponse(
-                simulateAIService(userText, inferMode(userText, false)),
+                simulateAIService(userText, inferMode(userText, false), region),
                 customTimestamp = customTimestamp,
                 userText = userText
             )
@@ -1611,12 +1616,19 @@ class FitnessRepository(
      * Processes input string and produces simulated FitnessTrackerResponses
      * so that the user can immediately play with the AI functionality offline.
      */
-    fun simulateAIService(input: String, mode: String): FitnessTrackerResponse {
+    fun simulateAIService(
+        input: String,
+        mode: String,
+        region: AppRegion = AppRegion.INDIA
+    ): FitnessTrackerResponse {
         val query = input.lowercase().trim()
+        if (mode == "SUCCESS" && region != AppRegion.INDIA) {
+            return simulateFromRegionPack(input, query, RegionPacks.pack(region))
+        }
         return when (mode) {
             "SUCCESS" -> {
-                // Align totals with [NorthIndianStaples] mid-range priors where possible.
-                val s = NorthIndianStaples
+                // Align totals with India pack mid-range priors where possible.
+                val s = IndiaRegionPack
                 val (dish, c, p, cr, f) = when {
                     "chole" in query || "chana masala" in query || "chole bhature" in query ||
                         "bhature" in query || "bhatura" in query -> {
@@ -1760,7 +1772,7 @@ class FitnessRepository(
                         )
                     }
                     else -> Quintet(
-                        input.ifBlank { "North Indian Thali" }
+                        input.ifBlank { "Indian Thali" }
                             .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
                         350, 12, 45, 10
                     )
@@ -1821,6 +1833,46 @@ class FitnessRepository(
         }
     }
 
+    /** Keyword match against a non-India [RegionPack] staple table for the offline simulator. */
+    private fun simulateFromRegionPack(
+        input: String,
+        query: String,
+        pack: RegionPack
+    ): FitnessTrackerResponse {
+        val hit: RegionalDish? = pack.staples.firstOrNull { dish ->
+            dish.keywords.any { kw -> kw in query }
+        }
+        val dish = hit ?: RegionalDish(
+            name = input.ifBlank { "${pack.displayName} meal" }
+                .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
+            weightG = 300,
+            calories = 450,
+            proteinG = 20,
+            carbsG = 45,
+            fatsG = 18
+        )
+        return FitnessTrackerResponse(
+            status = "SUCCESS",
+            clarificationMessage = null,
+            foodAnalysis = FoodAnalysis(
+                dishName = dish.name,
+                macros = Macros(dish.calories, dish.proteinG, dish.carbsG, dish.fatsG),
+                ingredients = listOf(
+                    Ingredient(
+                        name = dish.name,
+                        quantity = 1,
+                        weightG = dish.weightG,
+                        calories = dish.calories,
+                        proteinG = dish.proteinG,
+                        carbsG = dish.carbsG,
+                        fatsG = dish.fatsG
+                    )
+                )
+            ),
+            exerciseAnalysis = null
+        )
+    }
+
     /**
      * Offline-only: splits a dish's total macros across a plausible ingredient list (name, weight,
      * fraction of macros). The last ingredient absorbs rounding remainder so per-ingredient sums
@@ -1837,25 +1889,25 @@ class FitnessRepository(
         // name to (weightG, fractionOfMacros)
         val parts: List<Pair<String, Pair<Int, Double>>> = when {
             "chole" in query || "bhature" in query || "bhatura" in query -> listOf(
-                "Chole" to (NorthIndianStaples.CHOLE_KATORI.weightG to 0.38),
-                "Bhatura" to (NorthIndianStaples.BHATURA.weightG to 0.52),
-                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.10)
+                "Chole" to (IndiaRegionPack.CHOLE_KATORI.weightG to 0.38),
+                "Bhatura" to (IndiaRegionPack.BHATURA.weightG to 0.52),
+                "Ghee/oil" to (IndiaRegionPack.GHEE_TSP.weightG to 0.10)
             )
             "rajma" in query -> listOf(
-                "Rajma" to (NorthIndianStaples.DAL_KATORI.weightG to 0.45),
-                "Cooked rice" to (NorthIndianStaples.RICE_BOWL.weightG to 0.55)
+                "Rajma" to (IndiaRegionPack.DAL_KATORI.weightG to 0.45),
+                "Cooked rice" to (IndiaRegionPack.RICE_BOWL.weightG to 0.55)
             )
             "paratha" in query || "parantha" in query -> listOf(
-                "Aloo paratha" to (NorthIndianStaples.PARATHA.weightG to 0.70),
-                "Curd" to (NorthIndianStaples.CURD_KATORI.weightG to 0.30)
+                "Aloo paratha" to (IndiaRegionPack.PARATHA.weightG to 0.70),
+                "Curd" to (IndiaRegionPack.CURD_KATORI.weightG to 0.30)
             )
             "kadhi" in query -> listOf(
                 "Kadhi pakora" to (200 to 0.55), "Cooked rice" to (150 to 0.45)
             )
             "dal makhani" in query -> listOf(
-                "Dal makhani" to (NorthIndianStaples.DAL_KATORI.weightG to 0.60),
-                "Wheat roti" to (NorthIndianStaples.ROTI.weightG to 0.28),
-                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.12)
+                "Dal makhani" to (IndiaRegionPack.DAL_KATORI.weightG to 0.60),
+                "Wheat roti" to (IndiaRegionPack.ROTI.weightG to 0.28),
+                "Ghee/oil" to (IndiaRegionPack.GHEE_TSP.weightG to 0.12)
             )
             "butter chicken" in query || "murgh makhani" in query -> listOf(
                 "Butter chicken" to (200 to 0.55), "Naan" to (100 to 0.45)
@@ -1864,7 +1916,7 @@ class FitnessRepository(
                 "Palak paneer" to (180 to 0.70), "Wheat roti" to (70 to 0.30)
             )
             "samosa" in query -> listOf(
-                "Samosa" to (NorthIndianStaples.SAMOSA.weightG to 1.0)
+                "Samosa" to (IndiaRegionPack.SAMOSA.weightG to 1.0)
             )
             "biryani" in query -> listOf(
                 "Basmati rice" to (180 to 0.45), "Chicken" to (90 to 0.40), "Oil & spices" to (20 to 0.15)
@@ -1879,25 +1931,25 @@ class FitnessRepository(
                 "Milk" to (100 to 0.60), "Sugar" to (10 to 0.30), "Tea decoction" to (90 to 0.10)
             )
             "sabzi" in query || "sabji" in query -> listOf(
-                "Wheat roti" to (NorthIndianStaples.ROTI.weightG * 2 to 0.40),
-                "Mixed sabzi" to (NorthIndianStaples.SABZI_DRY.weightG to 0.50),
-                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.10)
+                "Wheat roti" to (IndiaRegionPack.ROTI.weightG * 2 to 0.40),
+                "Mixed sabzi" to (IndiaRegionPack.SABZI_DRY.weightG to 0.50),
+                "Ghee/oil" to (IndiaRegionPack.GHEE_TSP.weightG to 0.10)
             )
             "dal" in query && "chawal" in query -> listOf(
-                "Dal tadka" to (NorthIndianStaples.DAL_KATORI.weightG to 0.40),
-                "Cooked rice" to (NorthIndianStaples.RICE_BOWL.weightG to 0.60)
+                "Dal tadka" to (IndiaRegionPack.DAL_KATORI.weightG to 0.40),
+                "Cooked rice" to (IndiaRegionPack.RICE_BOWL.weightG to 0.60)
             )
             "dal" in query -> listOf(
-                "Dal tadka" to (NorthIndianStaples.DAL_KATORI.weightG to 0.50),
-                "Wheat roti" to (NorthIndianStaples.ROTI.weightG to 0.38),
-                "Ghee/oil" to (NorthIndianStaples.GHEE_TSP.weightG to 0.12)
+                "Dal tadka" to (IndiaRegionPack.DAL_KATORI.weightG to 0.50),
+                "Wheat roti" to (IndiaRegionPack.ROTI.weightG to 0.38),
+                "Ghee/oil" to (IndiaRegionPack.GHEE_TSP.weightG to 0.12)
             )
             "dosa" in query -> listOf(
                 "Dosa crepe" to (90 to 0.45), "Potato masala" to (80 to 0.40), "Chutney" to (40 to 0.15)
             )
             "roti" in query || "chapati" in query || "phulka" in query -> listOf(
-                "Wheat roti" to (NorthIndianStaples.ROTI.weightG * 2 to 0.45),
-                "Dal" to (NorthIndianStaples.DAL_KATORI.weightG to 0.55)
+                "Wheat roti" to (IndiaRegionPack.ROTI.weightG * 2 to 0.45),
+                "Dal" to (IndiaRegionPack.DAL_KATORI.weightG to 0.55)
             )
             "idli" in query -> listOf(
                 "Idli" to (120 to 0.50), "Sambhar" to (150 to 0.50)

@@ -4,7 +4,6 @@ import com.anant.fitbuddy.data.model.FitnessTrackerResponse
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.model.CustomExerciseResponse
-import com.anant.fitbuddy.data.model.NorthIndianStaples
 import com.anant.fitbuddy.data.model.ParsedWorkoutResponse
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
@@ -12,6 +11,9 @@ import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutNameResponse
 import com.anant.fitbuddy.data.model.normalized
+import com.anant.fitbuddy.data.region.AppRegion
+import com.anant.fitbuddy.data.region.RegionPack
+import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.data.remote.dto.ChatErrorDto
 import com.anant.fitbuddy.data.remote.dto.ChatMessage
 import com.anant.fitbuddy.data.remote.dto.ChatMessagePlain
@@ -78,12 +80,14 @@ class RemoteAiDataSource(
         imageDataUrl: String?,
         forceEstimate: Boolean = false
     ): FitnessTrackerResponse {
+        val pack = regionPack(settings)
         val promptText = buildPrompt(
             userStateContextJson,
             userText,
             imageDataUrl != null,
             forceEstimate,
-            strictClarification = settings.developerModeUnlocked && settings.strictClarification
+            strictClarification = settings.developerModeUnlocked && settings.strictClarification,
+            pack = pack
         )
         val cleanJson = completeToJson(settings, promptText, imageDataUrl)
         return parseJson(responseAdapter, cleanJson)
@@ -100,7 +104,7 @@ class RemoteAiDataSource(
         // temperature=0: target math should be deterministic across identical inputs
         val json = completeToJson(
             settings,
-            buildTargetPrompt(contextJson),
+            buildTargetPrompt(contextJson, regionPack(settings)),
             imageDataUrl = null,
             temperature = 0.0
         )
@@ -112,7 +116,11 @@ class RemoteAiDataSource(
         settings: AppSettings,
         compressedMetrics: String
     ): ProgressInsightResponse {
-        val json = completeToJson(settings, buildProgressPrompt(compressedMetrics), null)
+        val json = completeToJson(
+            settings,
+            buildProgressPrompt(compressedMetrics, regionPack(settings)),
+            null
+        )
         return parseJson(progressInsightAdapter, json).normalized()
     }
 
@@ -126,7 +134,12 @@ class RemoteAiDataSource(
         history: List<ProgressChatTurn>
     ): String {
         val messages = buildList {
-            add(ChatMessagePlain(role = "system", content = buildProgressChatSystemPrompt(contextJson)))
+            add(
+                ChatMessagePlain(
+                    role = "system",
+                    content = buildProgressChatSystemPrompt(contextJson, regionPack(settings))
+                )
+            )
             history.forEach { add(ChatMessagePlain(role = it.role, content = it.content)) }
         }
         val request = ChatRequestPlain(
@@ -677,15 +690,18 @@ class RemoteAiDataSource(
         return text
     }
 
+    private fun regionPack(settings: AppSettings): RegionPack =
+        RegionPacks.packOrIndia(AppRegion.fromStored(settings.region))
+
     private fun buildPrompt(
         userStateContextJson: String,
         userText: String,
         hasImage: Boolean,
         forceEstimate: Boolean,
-        strictClarification: Boolean = false
+        strictClarification: Boolean = false,
+        pack: RegionPack
     ): String = """
-        You are FitBuddy, a nutrition and fitness analysis engine optimised for North Indian
-        (Hindi belt / Punjabi / Delhi-NCR / UP / Haryana / Rajasthan) home and street food.
+        ${pack.analyzeSystemIntro}
         Analyse the user's input and respond with a SINGLE JSON object and nothing else. Do not
         include markdown fences or commentary.
 
@@ -701,32 +717,13 @@ class RemoteAiDataSource(
           or the text is unrelated to food/exercise. Put a short reason in "clarification_message"
           (e.g. "No food detected in the image."). Do NOT guess or invent a dish in this case.
 
-        North Indian food priors (apply when identifying dishes from photos or Hinglish text):
-        - Default to North Indian names unless clear South/West/East markers are present
-          (idli, dosa, sambar, coconut chutney, medu vada, appam, fish curry Kerala-style,
-          misal, dhokla, momos with clear Tibetan plating, etc.).
-        - Flatbreads: chapati / phulka / roti, tawa/stuffed paratha (aloo, gobi, paneer, mooli),
-          laccha paratha, naan, kulcha, bhatura — NOT dosa/uttapam unless those are obvious.
-        - Dals & curries: dal tadka/fry, dal makhani, rajma, chole/chana masala, kadhi pakora,
-          paneer butter masala / palak paneer / kadhai paneer, butter chicken, egg bhurji,
-          keema — prefer these over generic "curry" or sambar when cues match.
-        - Sabzi / sides: aloo gobi, bhindi, baingan bharta, mixed veg, raita, salad, pickle, papad.
-        - Staples & combos users type loosely: "roti sabzi", "dal chawal", "2 parantha",
-          "chole bhature", "rajma chawal", "paneer bhurji", "aloo paratha with curd".
-        - Street / snack: samosa, pakora, aloo tikki, golgappe/pani puri, chaat, pav bhaji,
-          chole kulche, jalebi, lassi, chai.
-        - Cooking fats: when the dish is tadka, fried, buttery, or makhani and oil/ghee is not
-          stated, include "ghee" or "oil" as its OWN ingredient with a typical home amount
-          (often ~1 tsp / 5 g). Do not invent coconut oil unless the dish implies it.
-        - Naming: use familiar North Indian dish names in "dish_name" (Hinglish ok). Break
-          thalis and combos into named components (roti, dal, sabzi, rice, raita, bhatura)
-          rather than "mixed plate" — especially chole bhature, rajma chawal, dal chawal.
+        ${pack.analyzePromptPriors}
 
-        ${NorthIndianStaples.promptReferenceTable()}
+        ${pack.promptReferenceTable()}
 
         Clarification for countable staples (text only, no clear photo portions):
-        - If the user mentions roti/paratha/naan/bhatura/samosa/eggs without a count
-          (e.g. "roti sabzi", "paratha with curd"), return CLARIFICATION_REQUIRED asking how many,
+        - If the user mentions discrete countable items (breads, eggs, snacks, etc.) without a count,
+          return CLARIFICATION_REQUIRED asking how many,
           unless ${if (hasImage) "the attached photo makes portion size obvious" else "a count is stated"}.
         ${if (strictClarification) """
         STRICT CLARIFICATION MODE (on): when any portion is ambiguous, prefer
@@ -738,22 +735,19 @@ class RemoteAiDataSource(
           default to a generic "mixed plate" or invent items to fill the schema.
         - If unsure whether the image contains food, prefer "NOT_IDENTIFIED" over guessing.
         - Base portion sizes on visible cues; keep macros internally consistent.
-        - Still recognise non-North Indian food correctly when clearly present — priors only
-          break ties and guide ambiguous Indian plates.
+        - Still recognise food from other regions correctly when clearly present — priors only
+          break ties for ambiguous plates in this region.
 
         For food, break the dish into its component ingredients. For EACH ingredient, estimate its
         assumed weight in grams and its macros AT THAT WEIGHT. The dish-level "macros" MUST equal
         the sum of the ingredient macros.
 
         Ingredient quantity rules (critical for loose text):
-        - When the user states a count of discrete items ("4 almonds", "2 rotis", "3 eggs",
-          "do roti", "teen paratha"), set "quantity" to that count and "weight_g" to the TOTAL
-          grams for all units combined (not grams per unit). Example: "4 almonds" -> quantity 4,
-          weight_g ~5-6, macros for all 4 almonds combined.
-        - For bulk or continuous portions (rice, dal, sabzi, milk, curd), use quantity 1 and
-          weight_g as the portion weight in grams. "ek katori" / "1 bowl" → one katori/bowl prior.
-        - Never treat a leading count in the user's text as grams (e.g. "4 almonds" must NOT become
-          1 almond at 4 g).
+        - When the user states a count of discrete items, set "quantity" to that count and
+          "weight_g" to the TOTAL grams for all units combined (not grams per unit).
+          Example: "4 almonds" -> quantity 4, weight_g ~5-6, macros for all 4 combined.
+        - For bulk or continuous portions, use quantity 1 and weight_g as the portion weight.
+        ${pack.measurementPromptNotes}
 
         Respond using EXACTLY this schema. Set "food_analysis" to null OUTRIGHT (not an object with
         null fields inside) when status is not SUCCESS, and "exercise_analysis" to null OUTRIGHT
@@ -788,9 +782,8 @@ class RemoteAiDataSource(
         User input: "$userText"
     """.trimIndent()
 
-    private fun buildTargetPrompt(contextJson: String): String = """
-        You are FitBuddy, a nutrition and body-composition coach optimised for North Indian
-        diets and lifestyles. Compute daily targets from the user JSON using the FIXED formula
+    private fun buildTargetPrompt(contextJson: String, pack: RegionPack): String = """
+        ${pack.targetSystemIntro} Compute daily targets from the user JSON using the FIXED formula
         below. Do NOT freestyle calorie numbers — identical inputs must produce identical outputs.
 
         IMPORTANT — "daily_target_calories" is a REST-DAY baseline. The app tracks NET calories
@@ -829,7 +822,7 @@ class RemoteAiDataSource(
             Never invent 2.2+ g/kg. Never secretly switch to per-lean-mass on LOSE_WEIGHT.
         - Fats: round(0.9 * kg), at least ~20% of ideal_calories (9 kcal/g).
         - Carbs: fill remaining calories → carbs_g = round((ideal_calories − protein*4 − fats*9) / 4),
-          floored at 0. Keep splits practical for North Indian meals (roti/dal/sabzi, etc.).
+          floored at 0. ${pack.targetCoachNotes}
 
         STEP 4 — STABILITY / HYSTERESIS (mandatory; no soft judgment):
         Current targets are current_target_calories / current_target_protein_g /
@@ -866,12 +859,10 @@ class RemoteAiDataSource(
         $contextJson
     """.trimIndent()
 
-    private fun buildProgressPrompt(compressedMetrics: String): String = """
-        You are FitBuddy, a supportive but honest fitness coach optimised for North Indian
-        diets and lifestyles. Analyse the user's progress data below (body-composition trend over
+    private fun buildProgressPrompt(compressedMetrics: String, pack: RegionPack): String = """
+        ${pack.progressSystemIntro} Analyse the user's progress data below (body-composition trend over
         time, calories consumed vs. burned, macro adherence, and exercise) and produce a concise
-        report. When suggesting food swaps, prefer familiar North Indian options
-        (dal, roti, sabzi, dahi, paneer, chole, rajma) over unfamiliar Western substitutes.
+        report. ${pack.progressFoodGuidance}
 
         The data is a COMPRESSED snapshot (oldest→newest):
         - Header may include first name (profile name…), age, sex, height, weight, activity, goal,
@@ -926,11 +917,10 @@ class RemoteAiDataSource(
         $compressedMetrics
     """.trimIndent()
 
-    private fun buildProgressChatSystemPrompt(contextJson: String): String = """
-        You are FitBuddy, a supportive but honest fitness coach optimised for North Indian
-        diets and lifestyles. The user is on the Progress screen reviewing charts (weekly +
-        monthly calories, macros, exercise burn, and body-composition trends). Food advice should
-        default to North Indian staples (roti, dal, sabzi, dahi, rice, paneer) when relevant.
+    private fun buildProgressChatSystemPrompt(contextJson: String, pack: RegionPack): String = """
+        ${pack.progressSystemIntro} The user is on the Progress screen reviewing charts (weekly +
+        monthly calories, macros, exercise burn, and body-composition trends).
+        ${pack.progressFoodGuidance}
 
         Below is the FULL progress dataset (JSON). Treat it as authoritative — do not invent numbers
         not present here. Use profile fields (first_name, age, sex, height_cm, weight_kg,
