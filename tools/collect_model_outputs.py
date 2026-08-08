@@ -41,7 +41,7 @@ PROBES = [
 
 
 def prompt_for(probe: dict[str, Any]) -> str:
-    return f"""You are a nutrition estimator for a calorie-tracking app optimised for Indian diets.
+    return f"""You are a nutrition estimator for a calorie-tracking app with region-aware diets.
 Estimate macros for the food below. Be precise and realistic (use standard
 USDA / IFCT-style values). Reply with ONLY one JSON object —
 no markdown fences, no commentary:

@@ -1,9 +1,6 @@
 package com.anant.fitbuddy.data.region
 
-/**
- * Indian region pack. Content is still North-Indian-dish-heavy (that's the app's original,
- * best-tuned prior set) but copy is broadened from "North Indian" to "Indian" throughout.
- */
+/** India region pack: home and street-food priors, staples, and portion language. */
 object IndiaRegionPack : RegionPack {
 
     override val region: AppRegion = AppRegion.INDIA
@@ -42,8 +39,7 @@ object IndiaRegionPack : RegionPack {
 
     override val analyzeSystemIntro: String = """
         You are FitBuddy, a nutrition and fitness analysis engine optimised for Indian
-        (Hindi belt / Punjabi / Delhi-NCR / UP / Haryana / Rajasthan, plus common South/West/East
-        dishes) home and street food.
+        home and street food across the country.
     """.trimIndent()
 
     override val targetSystemIntro: String = """
@@ -58,11 +54,11 @@ object IndiaRegionPack : RegionPack {
 
     override val analyzePromptPriors: String = """
         Indian food priors (apply when identifying dishes from photos or Hinglish text):
-        - Default to North Indian names unless clear South/West/East markers are present
-          (idli, dosa, sambar, coconut chutney, medu vada, appam, fish curry Kerala-style,
-          misal, dhokla, momos with clear Tibetan plating, etc.).
+        - Prefer familiar Indian dish names that match the plate; use clear regional markers
+          when present (idli, dosa, sambar, coconut chutney, medu vada, appam, Kerala-style
+          fish curry, misal, dhokla, momos, etc.).
         - Flatbreads: chapati / phulka / roti, tawa/stuffed paratha (aloo, gobi, paneer, mooli),
-          laccha paratha, naan, kulcha, bhatura — NOT dosa/uttapam unless those are obvious.
+          laccha paratha, naan, kulcha, bhatura, dosa/uttapam when those are obvious.
         - Dals & curries: dal tadka/fry, dal makhani, rajma, chole/chana masala, kadhi pakora,
           paneer butter masala / palak paneer / kadhai paneer, butter chicken, egg bhurji,
           keema — prefer these over generic "curry" or sambar when cues match.

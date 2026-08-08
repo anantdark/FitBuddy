@@ -1,6 +1,6 @@
 # FitBuddy
 
-AI-powered health tracker for Android, tuned for Indian diets and daily routines. Log meals and workouts with a photo or loose text; an LLM estimates calories and macros. Includes dashboards, progress charts, editable meal review, and reusable food presets.
+AI-powered health tracker for Android with region-aware diets and daily routines. Log meals and workouts with a photo or loose text; an LLM estimates calories and macros. Includes dashboards, progress charts, editable meal review, and reusable food presets.
 
 [![CI](https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml)
 [![Release](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml)
@@ -14,6 +14,7 @@ AI-powered health tracker for Android, tuned for Indian diets and daily routines
 
 ## Features
 
+- **Region packs** — personalise AI prompts, staples, portion language, and log examples to your region
 - **Smart logging** — photo or text input; AI parses food and exercise
 - **Meal review** — edit dish name, tweak ingredient weights with live macro recalc
 - **Editable workouts** — structured sessions with AI-suggested names; upgrade simple logs

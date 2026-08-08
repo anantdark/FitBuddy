@@ -11,7 +11,7 @@ interface RegionPack {
     /** Typical staple dishes/portions for this region, with offline-sim match keywords. */
     val staples: List<RegionalDish>
 
-    /** North-Indian-priors-style food identification block for the analyze prompt. */
+    /** Region-specific food identification priors for the analyze prompt. */
     val analyzePromptPriors: String
 
     /** Short notes on meal-split / diet style conventions for the target-plan prompt. */

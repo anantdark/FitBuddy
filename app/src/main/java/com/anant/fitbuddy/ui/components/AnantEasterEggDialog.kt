@@ -88,7 +88,7 @@ fun AnantEasterEggDialog(onDismiss: () -> Unit) {
                     )
                     Text(
                         text = "FitBuddy was crafted by Anant — for home kitchens, gym floors, " +
-                            "and everyone who logs \"2 rotis and dal\" without guilt.",
+                            "and everyone who logs a home-cooked meal without guilt.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
