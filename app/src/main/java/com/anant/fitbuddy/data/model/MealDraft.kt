@@ -25,6 +25,7 @@ data class FoodEntryDraft(
     val totalProtein: Int get() = (baseProtein * servings).roundToInt()
     val totalCarbs: Int get() = (baseCarbs * servings).roundToInt()
     val totalFats: Int get() = (baseFats * servings).roundToInt()
+    val totalWeightG: Int get() = (baseWeightG * servings).roundToInt()
 }
 
 /** A logged (or in-progress) meal containing one or more [FoodEntryDraft] rows. */

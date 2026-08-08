@@ -226,7 +226,8 @@ private fun MealFoodCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(item.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Text(
-                        "${item.totalCalories} kcal · ${item.ingredients.size} ingredient(s)",
+                        "${item.totalCalories} kcal · ${item.totalWeightG} g · " +
+                            "${item.ingredients.size} ingredient(s)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
