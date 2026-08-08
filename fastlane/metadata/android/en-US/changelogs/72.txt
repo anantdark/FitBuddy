@@ -1,0 +1,9 @@
+• fix: expand saved foods search above the keyboard
+• feat: add set, rep, and weight presets on workout entry
+• fix: migrate saved foods without crashing on upgrade
+• fix: keep exercise search results above the keyboard
+• fix: open workout editor on the first tap
+• feat: sort saved foods and meals by last used
+• feat: load auto failover ladders from json config
+• feat: hardcode free-model auto failover ladders
+• fix: clear preferred model cooldown when saving AI settings
