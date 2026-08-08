@@ -1,8 +1,9 @@
-FitBuddy is a free, open-source health tracker for Android, built for Indian diets and daily routines.
+FitBuddy is a free, open-source health tracker for Android, with region packs for Indian, United States, and European diets and daily routines.
 
 Snap a photo or type what you ate — an LLM estimates calories and macros instantly. Review ingredients, tweak weights with live macro recalculation, and save. Bookmark favourite meals as presets for one-tap logging next time.
 
 Features:
+• Region packs — India, US, or Europe; personalises AI prompts, staples, portion language, and log examples
 • Smart logging — photo or text; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc
 • Editable workouts — structured sessions, AI session names, upgrade simple logs

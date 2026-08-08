@@ -111,6 +111,16 @@ data class AppSettings(
     val supportId: String = "",
     /** When false, Sentry does not send crash events (SDK may still be initialized). Off by default on F-Droid. */
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
+    /**
+     * Diet/region pack for AI prompts and offline staples: `INDIA`, `US`, or `EUROPE`.
+     * Empty until the user finishes the region selection page (or restores a backup that has it).
+     */
+    val region: String = "",
+    /**
+     * Epoch ms when this install last successfully sent a custom-region Sentry request.
+     * Non-zero means no further requests are allowed (one per [supportId] / install).
+     */
+    val regionRequestSentAt: Long = 0L,
     /** Set when the Settings "Created by" easter egg is unlocked. */
     val easterEggDiscovered: Boolean = false,
     /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */

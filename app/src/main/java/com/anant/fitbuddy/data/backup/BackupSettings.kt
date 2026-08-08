@@ -66,6 +66,10 @@ data class BackupSettings(
     val autoCheckUpdates: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     val supportId: String = "",
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
+    /** Empty on older backups — import leaves region unset so the region page can collect it. */
+    val region: String = "",
+    /** 0 on older backups — import allows one region request until a send is recorded. */
+    val regionRequestSentAt: Long = 0L,
     val easterEggDiscovered: Boolean = false,
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = AppSettings.DEFAULT_REMINDER_HOUR,
@@ -158,6 +162,8 @@ data class BackupSettings(
                 autoCheckUpdates = autoCheckUpdates && !BuildConfig.IS_FDROID,
                 supportId = supportId,
                 crashReportingEnabled = crashReportingEnabled,
+                region = region.trim(),
+                regionRequestSentAt = regionRequestSentAt,
                 easterEggDiscovered = easterEggDiscovered,
                 dailyLogReminderEnabled = dailyLogReminderEnabled,
                 dailyLogReminderHour = dailyLogReminderHour.coerceIn(0, 23),
@@ -216,6 +222,8 @@ data class BackupSettings(
             autoCheckUpdates = settings.autoCheckUpdates,
             supportId = settings.supportId,
             crashReportingEnabled = settings.crashReportingEnabled,
+            region = settings.region,
+            regionRequestSentAt = settings.regionRequestSentAt,
             easterEggDiscovered = settings.easterEggDiscovered,
             dailyLogReminderEnabled = settings.dailyLogReminderEnabled,
             dailyLogReminderHour = settings.dailyLogReminderHour,
