@@ -60,6 +60,9 @@ object CrashReporter {
     /** Fleet-level cron monitor: any install with reporting on may check in once per UTC day. */
     const val HEARTBEAT_MONITOR_SLUG = "fitbuddy-daily-heartbeat"
 
+    /** Groups all custom-region requests into one Issue in Sentry. */
+    const val REGION_REQUEST_FINGERPRINT = "fitbuddy-region-request"
+
     private val ready = AtomicBoolean(false)
     @Volatile
     private var reportingEnabled: Boolean = true
@@ -122,6 +125,72 @@ object CrashReporter {
                 level = SentryLevel.INFO
             }
         )
+    }
+
+    /** Outcome of [captureRegionRequest] for UI messaging. */
+    enum class RegionRequestResult {
+        Sent,
+        NotReady,
+        ReportingDisabled,
+        EmptyRequest,
+        Failed;
+
+        val userMessage: String
+            get() = when (this) {
+                Sent -> "Request sent — thanks!"
+                NotReady -> "Crash reporting isn't available in this build."
+                ReportingDisabled -> "Enable crash reporting to send a region request."
+                EmptyRequest -> "Enter a region name first."
+                Failed -> "Couldn't send request. Check your connection and try again."
+            }
+    }
+
+    /**
+     * User-requested region not in the pilot set. Creates a searchable Sentry Issue
+     * (INFO [captureMessage]) with fingerprint [REGION_REQUEST_FINGERPRINT].
+     * Call only after the in-app consent dialog; gated by crash-reporting opt-in.
+     */
+    fun captureRegionRequest(
+        requestedRegion: String,
+        currentRegion: String?,
+        supportId: String
+    ): RegionRequestResult {
+        if (!ready.get()) return RegionRequestResult.NotReady
+        if (!reportingEnabled) return RegionRequestResult.ReportingDisabled
+        val requested = requestedRegion.trim().take(120)
+        if (requested.isBlank()) return RegionRequestResult.EmptyRequest
+        return runCatching {
+            if (supportId.isNotBlank()) {
+                Sentry.setUser(User().apply { id = supportId })
+            }
+            val eventId = Sentry.captureMessage(
+                "Region request: $requested",
+                SentryLevel.INFO
+            ) { scope ->
+                scope.fingerprint = listOf(REGION_REQUEST_FINGERPRINT)
+                scope.setTag("fitbuddy.event", "region_request")
+                scope.setTag("requested_region", requested)
+                scope.setTag(
+                    "current_region",
+                    currentRegion?.trim()?.take(32)?.ifBlank { null } ?: "unset"
+                )
+                scope.setExtra("requested_region", requested)
+                scope.setExtra(
+                    "current_region",
+                    currentRegion?.trim()?.ifBlank { null } ?: "unset"
+                )
+                scope.setExtra("app_version", BuildConfig.VERSION_NAME)
+                scope.setExtra("app_build", BuildConfig.VERSION_CODE.toString())
+            }
+            Sentry.flush(5_000L)
+            if (eventId != SentryId.EMPTY_ID) {
+                RegionRequestResult.Sent
+            } else {
+                RegionRequestResult.Failed
+            }
+        }.onFailure { e ->
+            Log.e(TAG, "region request failed", e)
+        }.getOrDefault(RegionRequestResult.Failed)
     }
 
     /**

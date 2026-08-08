@@ -115,6 +115,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
+import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
@@ -172,6 +173,7 @@ fun SettingsScreen(
         heightCm: Double,
         sex: String?
     ) -> Unit = { _, _, _, _, _ -> },
+    onRegionChange: (AppRegion) -> Unit = {},
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
     openRouterOAuthBusy: Boolean = false,
@@ -194,6 +196,7 @@ fun SettingsScreen(
     onClearModelCooldowns: () -> Unit = {},
     onApplyBuiltInModelDefaults: () -> Unit = {},
     onShowTestUpdatePrompt: () -> Unit = {},
+    onRestartOnboarding: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     onPermissionDenied: (message: String) -> Unit = {},
     mongoBackupBusy: Boolean = false,
@@ -802,7 +805,7 @@ fun SettingsScreen(
             }
         }
 
-        // --- Preferences (reminders + appearance) ----------------------------------------
+        // --- Preferences (reminders + appearance + region) -------------------------------
         SettingsCard(title = "Preferences", initiallyExpanded = false) {
             SettingToggleRow(
                 title = "Daily log reminder",
@@ -965,6 +968,29 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            HorizontalDivider()
+            Text(
+                text = "Region",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Personalises food log examples, portion units, staples, and coaching.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val currentRegion = AppRegion.fromStored(settings.region) ?: AppRegion.INDIA
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                AppRegion.entries.forEachIndexed { index, region ->
+                    SegmentedButton(
+                        selected = currentRegion == region,
+                        onClick = { onRegionChange(region) },
+                        shape = SegmentedButtonDefaults.itemShape(index, AppRegion.entries.size)
+                    ) {
+                        Text(region.displayName())
+                    }
+                }
+            }
         }
 
         if (showReminderTimePicker) {
@@ -994,77 +1020,6 @@ fun SettingsScreen(
                 dismissButton = {
                     TextButton(onClick = { showReminderTimePicker = false }) { Text("Cancel") }
                 }
-            )
-        }
-
-        // --- Updates & support (updates + crash reports) ---------------------------------
-        SettingsCard(title = "Updates & support", initiallyExpanded = false) {
-            Text(
-                text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (BuildConfig.IS_FDROID) {
-                val uriHandler = LocalUriHandler.current
-                Text(
-                    text = "Updates are handled by F-Droid.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "To get in-app updates, install from GitHub releases",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    textDecoration = TextDecoration.Underline,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable {
-                        uriHandler.openUri("https://github.com/anantdark/FitBuddy/releases")
-                    }
-                )
-            } else {
-                SettingToggleRow(
-                    title = "Check for updates automatically",
-                    checked = settings.autoCheckUpdates,
-                    onCheckedChange = onAutoCheckUpdatesChange,
-                    hintTitle = "Automatic updates",
-                    hint = "Looks for a newer GitHub release shortly after startup."
-                )
-                OutlinedButton(
-                    onClick = onCheckForUpdates,
-                    enabled = !updateState.isChecking,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (updateState.isChecking) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Checking...")
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Check for Updates")
-                    }
-                }
-                updateState.statusMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (updateState.statusIsError) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
-            }
-            SettingToggleRow(
-                title = "Send crash reports",
-                checked = settings.crashReportingEnabled,
-                onCheckedChange = onCrashReportingChange,
-                hintTitle = "Crash reports",
-                hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
-                    "When on, the app may send one anonymous daily heartbeat " +
-                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
-                    "Your Support ID (under Backup) identifies reports without personal data."
             )
         }
 
@@ -1203,12 +1158,83 @@ fun SettingsScreen(
             }
         }
 
+        // --- Updates & support (updates + crash reports) ---------------------------------
+        SettingsCard(title = "Updates & support", initiallyExpanded = false) {
+            Text(
+                text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (BuildConfig.IS_FDROID) {
+                val uriHandler = LocalUriHandler.current
+                Text(
+                    text = "Updates are handled by F-Droid.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "To get in-app updates, install from GitHub releases",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.Underline,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        uriHandler.openUri("https://github.com/anantdark/FitBuddy/releases")
+                    }
+                )
+            } else {
+                SettingToggleRow(
+                    title = "Check for updates automatically",
+                    checked = settings.autoCheckUpdates,
+                    onCheckedChange = onAutoCheckUpdatesChange,
+                    hintTitle = "Automatic updates",
+                    hint = "Looks for a newer GitHub release shortly after startup."
+                )
+                OutlinedButton(
+                    onClick = onCheckForUpdates,
+                    enabled = !updateState.isChecking,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (updateState.isChecking) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Checking...")
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Check for Updates")
+                    }
+                }
+                updateState.statusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (updateState.statusIsError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+            SettingToggleRow(
+                title = "Send crash reports",
+                checked = settings.crashReportingEnabled,
+                onCheckedChange = onCrashReportingChange,
+                hintTitle = "Crash reports",
+                hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
+                    "When on, the app may send one anonymous daily heartbeat " +
+                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
+                    "Your Support ID (under Backup) identifies reports without personal data."
+            )
+        }
+
         // --- About -----------------------------------------------------------------------
         SettingsCard(
             title = "About",
             collapsible = false,
             hintTitle = "About FitBuddy",
-            hint = "AI-powered health tracker optimised for North Indian diets and lifestyles. " +
+            hint = "AI-powered health tracker with region-aware diets (India, US, Europe). " +
                 "Log meals and workouts via photo or loose text; the AI estimates calories " +
                 "and macros.\n\nBuilt with Kotlin, Jetpack Compose, MVVM + Room. Data stays " +
                 "on your device."
@@ -1471,7 +1497,7 @@ fun SettingsScreen(
 
                 DeveloperSection(
                     title = "Testing",
-                    description = "One-shot checks for update UI, notifications, and crash reporting."
+                    description = "One-shot checks for update UI, notifications, crash reporting, and onboarding."
                 ) {
                     OutlinedButton(
                         onClick = onShowTestUpdatePrompt,
@@ -1481,6 +1507,18 @@ fun SettingsScreen(
                     }
                     Text(
                         text = "Fake release dialog for backup-before-update. Download fails on purpose.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = onRestartOnboarding,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Restart onboarding flow")
+                    }
+                    Text(
+                        text = "Reopens the full first-run path (including region). Keeps logs; " +
+                            "clears region and resets crash reporting to this build's default.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -66,7 +66,8 @@ fun BarcodeScanDialog(
     onBarcode: (String) -> Unit,
     onDismiss: () -> Unit,
     isLookingUp: Boolean = false,
-    onCameraPermissionDenied: () -> Unit = {}
+    onCameraPermissionDenied: () -> Unit = {},
+    barcodeExample: String = "8901030865422"
 ) {
     var requestedCameraOnce by remember { mutableStateOf(false) }
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
@@ -120,6 +121,7 @@ fun BarcodeScanDialog(
                             onSubmit = ::submitManual,
                             onUseCamera = { manualEntry = false },
                             enabled = !isLookingUp,
+                            barcodeExample = barcodeExample,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp)
@@ -211,6 +213,7 @@ private fun ManualBarcodeEntry(
     onValueChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onUseCamera: () -> Unit,
+    barcodeExample: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
@@ -227,7 +230,7 @@ private fun ManualBarcodeEntry(
             value = value,
             onValueChange = onValueChange,
             label = { Text("Barcode") },
-            placeholder = { Text("e.g. 8901030865422") },
+            placeholder = { Text("e.g. $barcodeExample") },
             singleLine = true,
             enabled = enabled,
             keyboardOptions = KeyboardOptions(

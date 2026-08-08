@@ -43,6 +43,7 @@ import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuthCallbackServer
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterPkce
+import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.repository.AnalysisOutcome
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.AiProvider
@@ -651,6 +652,71 @@ class MainViewModel(
         }
     }
 
+    /** Settings region picker: updates the diet/region pack only (no other fields touched). */
+    fun setRegion(region: AppRegion) {
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.region != region.name) {
+                settingsRepository.save(current.copy(region = region.name))
+            }
+        }
+    }
+
+    /** Records a successful custom-region Sentry send (one allowed per install / supportId). */
+    fun markRegionRequestSent() {
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.regionRequestSentAt > 0L) return@launch
+            settingsRepository.save(
+                current.copy(regionRequestSentAt = System.currentTimeMillis())
+            )
+        }
+    }
+
+    /**
+     * Developer: reopen the full onboarding flow (path picker through region). Keeps food/workout
+     * logs and profile; clears region and resets crash-reporting to the build default so the
+     * crash opt-in step appears when this build defaults it off.
+     */
+    fun restartOnboardingForTesting() {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    region = "",
+                    crashReportingEnabled = AppSettings().crashReportingEnabled
+                )
+            )
+            CrashReporter.setReportingEnabled(AppSettings().crashReportingEnabled)
+            _forceAiSetup.value = false
+            _forceFullOnboarding.value = true
+            _analysisState.update {
+                it.copy(userMessage = "Onboarding restarted for testing")
+            }
+        }
+    }
+
+    /**
+     * Finishes the standalone region-selection page. Optionally updates crash reporting when
+     * the preceding opt-in page (F-Droid / debug) collected a choice.
+     */
+    fun completeRegionSelection(
+        region: AppRegion,
+        crashReportingEnabled: Boolean? = null
+    ) {
+        if (_regionSelectionSaving.value) return
+        _regionSelectionSaving.value = true
+        viewModelScope.launch {
+            val current = settings.value
+            val reporting = crashReportingEnabled ?: current.crashReportingEnabled
+            settingsRepository.save(
+                current.copy(region = region.name, crashReportingEnabled = reporting)
+            )
+            CrashReporter.setReportingEnabled(reporting)
+            _regionSelectionSaving.value = false
+        }
+    }
+
     fun setCrashReportingEnabled(enabled: Boolean) {
         viewModelScope.launch {
             val current = settings.value
@@ -986,9 +1052,18 @@ class MainViewModel(
      */
     private val _forceAiSetup = MutableStateFlow(false)
 
+    /** Developer: re-show the full onboarding path (path picker → … → region) without wiping logs. */
+    private val _forceFullOnboarding = MutableStateFlow(false)
+
     val needsOnboarding: StateFlow<Boolean?> =
-        combine(repository.activeProfile, settings, _forceAiSetup) { profile, appSettings, forceAi ->
+        combine(
+            repository.activeProfile,
+            settings,
+            _forceAiSetup,
+            _forceFullOnboarding
+        ) { profile, appSettings, forceAi, forceFull ->
             when {
+                forceFull -> true
                 // Room may emit null before first read settles; treat missing/incomplete as onboard.
                 profile == null || !profile.hasBasicsConfigured() -> true
                 forceAi || !appSettings.isConfigured -> true
@@ -998,10 +1073,29 @@ class MainViewModel(
 
     /** When true, onboarding shows only the AI credentials step (profile already restored). */
     val onboardingAiOnly: StateFlow<Boolean> =
-        combine(repository.activeProfile, settings, _forceAiSetup) { profile, appSettings, forceAi ->
+        combine(
+            repository.activeProfile,
+            settings,
+            _forceAiSetup,
+            _forceFullOnboarding
+        ) { profile, appSettings, forceAi, forceFull ->
+            if (forceFull) return@combine false
             val basicsOk = profile != null && profile.hasBasicsConfigured()
             basicsOk && (forceAi || !appSettings.isConfigured)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * True once onboarding is fully done (profile + AI configured) but no region has been
+     * chosen yet — gates a standalone [com.anant.fitbuddy.ui.screens.RegionSelectionScreen]
+     * page before the dashboard. False while [needsOnboarding] is still loading (null) or true.
+     */
+    val needsRegionSelection: StateFlow<Boolean> =
+        combine(needsOnboarding, settings) { needsOnboard, appSettings ->
+            needsOnboard == false && appSettings.region.isBlank()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private val _regionSelectionSaving = MutableStateFlow(false)
+    val regionSelectionSaving: StateFlow<Boolean> = _regionSelectionSaving.asStateFlow()
 
     private val _onboardingSaving = MutableStateFlow(false)
     val onboardingSaving: StateFlow<Boolean> = _onboardingSaving.asStateFlow()
@@ -2451,10 +2545,11 @@ class MainViewModel(
     fun askForPortion(dishName: String) {
         val name = dishName.trim()
         if (name.isBlank()) return
-        val prompt = "$name. Estimate a standard single home serving using typical North Indian " +
-            "portion sizes (roti counts, katori volumes, rice bowls). Break into named " +
-            "ingredients with weights in grams and consistent macros. Include cooking fat " +
-            "(ghee/oil) as its own ingredient when the dish is tadka, fried, or buttery."
+        val pack = com.anant.fitbuddy.data.region.RegionPacks.packOrIndia(
+            com.anant.fitbuddy.data.region.AppRegion.fromStored(settings.value.region)
+        )
+        val prompt = "$name. Estimate a standard single home serving ${pack.askPortionPromptNotes} " +
+            "Break into named ingredients with weights in grams and consistent macros."
         _analysisState.update { it.copy(isReanalyzing = true, reviewMessage = null) }
         viewModelScope.launch {
             val outcome = repository.analyze(
@@ -2675,7 +2770,9 @@ class MainViewModel(
         sex: String?,
         goal: String,
         activityLevel: String,
-        aiSettings: AppSettings
+        aiSettings: AppSettings,
+        region: AppRegion,
+        crashReportingEnabled: Boolean
     ) {
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
@@ -2686,6 +2783,8 @@ class MainViewModel(
                     current.copy(
                         firstName = firstName.trim(),
                         lastName = lastName.trim(),
+                        region = region.name,
+                        crashReportingEnabled = crashReportingEnabled,
                         provider = aiSettings.provider,
                         openRouterApiKeys = aiSettings.openRouterApiKeys,
                         openRouterApiKey = aiSettings.openRouterApiKey,
@@ -2739,6 +2838,9 @@ class MainViewModel(
                     )
                 )
                 pendingInitialTargetDesign = true
+                CrashReporter.setReportingEnabled(crashReportingEnabled)
+                _forceAiSetup.value = false
+                _forceFullOnboarding.value = false
             }.onFailure { e ->
                 _analysisState.update {
                     it.copy(userMessage = e.message ?: "Couldn't save your profile")

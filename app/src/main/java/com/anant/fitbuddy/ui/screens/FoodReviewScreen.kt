@@ -69,6 +69,8 @@ fun FoodReviewDialog(
     onSaveAsPreset: (FoodDraft) -> Unit,
     onReanalyze: (String) -> Unit,
     onAskForPortion: (String) -> Unit = {},
+    askPortionHint: String =
+        "Know the dish but not grams? Estimates a standard home serving.",
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -278,8 +280,7 @@ fun FoodReviewDialog(
                             Text("Ask for portion")
                         }
                         Text(
-                            text = "Know the dish but not grams? Estimates a standard home serving " +
-                                "(roti counts, katori volumes).",
+                            text = askPortionHint,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
