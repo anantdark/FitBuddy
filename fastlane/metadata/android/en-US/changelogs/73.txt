@@ -1,0 +1,5 @@
+• feat: show food weight with servings in meal edit
+• docs: describe FitBuddy as region-aware, not india-only
+• docs: keep region pack store copy generic
+• feat: choose region in onboarding and settings
+• feat: add india, us, and europe diet region packs
