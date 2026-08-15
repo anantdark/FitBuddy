@@ -72,6 +72,7 @@ import com.anant.fitbuddy.ui.components.MacroCarbsColor
 import com.anant.fitbuddy.ui.components.MacroFatsColor
 import com.anant.fitbuddy.ui.components.MacroProteinColor
 import com.anant.fitbuddy.ui.components.MetricLineChart
+import com.anant.fitbuddy.ui.components.calorieTargetPrefersSurplus
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.ProgressInsightUiState
@@ -88,26 +89,28 @@ private const val BODY_COMPOSITION_READING_LIMIT = 15
 private data class BodyMetric(
     val label: String,
     val unit: String,
-    val extractor: (BodyMeasurement) -> Double?
+    /** True when a lower value is healthier (fat, weight, etc.). */
+    val decreaseIsPositive: Boolean,
+    val extractor: (BodyMeasurement) -> Double?,
 )
 
 private val BODY_METRICS = listOf(
-    BodyMetric("Weight", " kg") { it.weightKg },
-    BodyMetric("BMI", "") { it.bmi },
-    BodyMetric("Body fat", "%") { it.bodyFatPct },
-    BodyMetric("Muscle rate", "%") { it.muscleRatePct },
-    BodyMetric("Body water", "%") { it.bodyWaterPct },
-    BodyMetric("Muscle mass", " kg") { it.muscleMassKg },
-    BodyMetric("Fat mass", " kg") { it.fatMassKg },
-    BodyMetric("Bone mass", " kg") { it.boneMassKg },
-    BodyMetric("BMR", " kcal") { it.bmr?.toDouble() },
-    BodyMetric("Metabolic age", " yrs") { it.metabolicAge?.toDouble() },
-    BodyMetric("Visceral fat", "%") { it.visceralFat },
-    BodyMetric("Subcutaneous fat", "%") { it.subcutaneousFatPct },
-    BodyMetric("Protein mass", " kg") { it.proteinMassKg },
-    BodyMetric("Weight without fat", " kg") { it.fatFreeMassKg },
-    BodyMetric("Skeletal muscle", " kg") { it.skeletalMuscleMassKg },
-    BodyMetric("Water weight", " kg") { it.waterWeightKg }
+    BodyMetric("Weight", " kg", decreaseIsPositive = true) { it.weightKg },
+    BodyMetric("BMI", "", decreaseIsPositive = true) { it.bmi },
+    BodyMetric("Body fat", "%", decreaseIsPositive = true) { it.bodyFatPct },
+    BodyMetric("Muscle rate", "%", decreaseIsPositive = false) { it.muscleRatePct },
+    BodyMetric("Body water", "%", decreaseIsPositive = false) { it.bodyWaterPct },
+    BodyMetric("Muscle mass", " kg", decreaseIsPositive = false) { it.muscleMassKg },
+    BodyMetric("Fat mass", " kg", decreaseIsPositive = true) { it.fatMassKg },
+    BodyMetric("Bone mass", " kg", decreaseIsPositive = false) { it.boneMassKg },
+    BodyMetric("BMR", " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
+    BodyMetric("Metabolic age", " yrs", decreaseIsPositive = true) { it.metabolicAge?.toDouble() },
+    BodyMetric("Visceral fat", "%", decreaseIsPositive = true) { it.visceralFat },
+    BodyMetric("Subcutaneous fat", "%", decreaseIsPositive = true) { it.subcutaneousFatPct },
+    BodyMetric("Protein mass", " kg", decreaseIsPositive = false) { it.proteinMassKg },
+    BodyMetric("Weight without fat", " kg", decreaseIsPositive = false) { it.fatFreeMassKg },
+    BodyMetric("Skeletal muscle", " kg", decreaseIsPositive = false) { it.skeletalMuscleMassKg },
+    BodyMetric("Water weight", " kg", decreaseIsPositive = false) { it.waterWeightKg },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,6 +122,8 @@ fun AnalyticsScreen(
     monthlyExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCalories: Int,
+    /** Profile goal: LOSE_WEIGHT | GAIN_MUSCLE | RECOMP | AUTO */
+    goal: String = "RECOMP",
     monthlyEndDate: String,
     realToday: String,
     progressInsightState: ProgressInsightUiState,
@@ -133,6 +138,7 @@ fun AnalyticsScreen(
 ) {
     var selectedRange by remember { mutableIntStateOf(0) } // 0 = Weekly, 1 = Monthly
     val options = listOf("Weekly", "Monthly")
+    val preferSurplus = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
     val exerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
@@ -197,10 +203,21 @@ fun AnalyticsScreen(
 
         item {
             ChartCard(title = "Net Calories vs Target") {
+                Text(
+                    text = if (preferSurplus) {
+                        "Green at/over target · red under · scrub for detail"
+                    } else {
+                        "Green under/on target · red over · scrub for detail"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
                 CustomLineChart(
                     foodSummaries = foodSummaries,
                     exerciseSummaries = exerciseSummaries,
                     targetCalories = targetCalories,
+                    preferSurplus = preferSurplus,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp)
@@ -330,7 +347,11 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
                 measurements
                     .take(BODY_COMPOSITION_READING_LIMIT)
                     .asReversed()
-                    .mapNotNull { m -> metric.extractor(m)?.let { m.dateString.substringAfter("-") to it } }
+                    .mapNotNull { m ->
+                        metric.extractor(m)?.let { value ->
+                            m.dateString to value
+                        }
+                    }
             }
 
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -357,6 +378,7 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
                 MetricLineChart(
                     points = points,
                     unit = metric.unit,
+                    decreaseIsPositive = metric.decreaseIsPositive,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp)

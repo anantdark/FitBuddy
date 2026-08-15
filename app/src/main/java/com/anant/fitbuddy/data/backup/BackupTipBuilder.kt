@@ -285,9 +285,18 @@ object BackupTipBuilder {
         row.id, row.activityName, row.timestamp, row.dateString, row.caloriesBurned, row.durationMinutes
     ).joinToString("|").let(BackupContentHasher::sha256Hex)
 
-    private fun hashMeasurement(row: BodyMeasurement) = listOf(
-        row.id, row.timestamp, row.dateString, row.weightKg, row.bmi, row.bodyFatPct
-    ).joinToString("|").let(BackupContentHasher::sha256Hex)
+    /**
+     * Tip hash for a measurement. FreeScale payload is included only when non-empty so
+     * pre-existing rows (null payload after MIGRATION_13_14) keep the same hash as before
+     * v14 and do not force a one-time full tip re-upload on upgrade.
+     */
+    private fun hashMeasurement(row: BodyMeasurement): String {
+        val parts = mutableListOf<Any?>(
+            row.id, row.timestamp, row.dateString, row.weightKg, row.bmi, row.bodyFatPct,
+        )
+        row.freescalePayloadJson?.takeIf { it.isNotEmpty() }?.let { parts += it }
+        return parts.joinToString("|").let(BackupContentHasher::sha256Hex)
+    }
 
     private fun hashSession(row: WorkoutSession) = listOf(
         row.id, row.name, row.timestamp, row.dateString, row.caloriesBurned, row.exerciseLogId

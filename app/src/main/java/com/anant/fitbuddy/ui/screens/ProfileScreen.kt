@@ -51,13 +51,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.bridge.FreeScaleBridge
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.TargetPlanResponse
@@ -66,6 +70,9 @@ import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.TargetPlanUiState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val GOAL_OPTIONS = listOf(
     "AUTO" to "Let AI decide",
@@ -601,9 +608,51 @@ private fun AddMeasurementSheet(
     onSave: (BodyMeasurement) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     var weight by remember { mutableStateOf("") }
     var showAdvanced by remember { mutableStateOf(false) }
     val optional = remember { mutableStateMapOf<String, String>() }
+    var pulledTimestamp by remember { mutableStateOf(0L) }
+    var pulledDateString by remember { mutableStateOf("") }
+    var pulledFreescalePayload by remember { mutableStateOf<String?>(null) }
+    var pullBusy by remember { mutableStateOf(false) }
+    var showInstallFreeScale by remember { mutableStateOf(false) }
+    var pullError by remember { mutableStateOf<String?>(null) }
+    var pullStatus by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun applyPulled(m: BodyMeasurement) {
+        pulledTimestamp = m.timestamp
+        pulledDateString = m.dateString
+        pulledFreescalePayload = m.freescalePayloadJson
+        weight = fmtOptional(m.weightKg) ?: ""
+        fun put(key: String, value: Double?) {
+            val s = fmtOptional(value)
+            if (s != null) optional[key] = s else optional.remove(key)
+        }
+        fun putInt(key: String, value: Int?) {
+            if (value != null) optional[key] = value.toString() else optional.remove(key)
+        }
+        put("bmi", m.bmi)
+        put("bodyFatPct", m.bodyFatPct)
+        put("muscleRatePct", m.muscleRatePct)
+        put("bodyWaterPct", m.bodyWaterPct)
+        put("boneMassKg", m.boneMassKg)
+        putInt("bmr", m.bmr)
+        putInt("metabolicAge", m.metabolicAge)
+        put("visceralFat", m.visceralFat)
+        put("subcutaneousFatPct", m.subcutaneousFatPct)
+        put("proteinMassKg", m.proteinMassKg)
+        put("muscleMassKg", m.muscleMassKg)
+        put("fatFreeMassKg", m.fatFreeMassKg)
+        put("skeletalMuscleMassKg", m.skeletalMuscleMassKg)
+        put("waterWeightKg", m.waterWeightKg)
+        put("fatMassKg", m.fatMassKg)
+        showAdvanced = optional.isNotEmpty()
+        pullStatus = "Loaded FreeScale reading — review and tap Save."
+        pullError = null
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -616,11 +665,53 @@ private fun AddMeasurementSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Add a reading", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !pullBusy,
+                onClick = {
+                    pullError = null
+                    pullStatus = null
+                    if (!FreeScaleBridge.isAvailable(context)) {
+                        showInstallFreeScale = true
+                        return@OutlinedButton
+                    }
+                    pullBusy = true
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            FreeScaleBridge.exportLatest(context)
+                        }
+                        pullBusy = false
+                        result.fold(
+                            onSuccess = { applyPulled(it) },
+                            onFailure = { e ->
+                                pullError = e.message ?: "Could not load FreeScale reading"
+                            },
+                        )
+                    }
+                },
+            ) {
+                Text(if (pullBusy) "Loading from FreeScale…" else "Pull latest from FreeScale")
+            }
+            pullStatus?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            pullError?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             NumberField("Weight (kg)", weight, decimal = true) { weight = it }
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -656,8 +747,8 @@ private fun AddMeasurementSheet(
                     fun i(key: String) = optional[key]?.toIntOrNull()
                     onSave(
                         BodyMeasurement(
-                            timestamp = 0L, // set in the ViewModel
-                            dateString = "",
+                            timestamp = pulledTimestamp,
+                            dateString = pulledDateString,
                             weightKg = weight.toDoubleOrNull() ?: 0.0,
                             bmi = d("bmi"),
                             bodyFatPct = d("bodyFatPct"),
@@ -673,17 +764,53 @@ private fun AddMeasurementSheet(
                             fatFreeMassKg = d("fatFreeMassKg"),
                             skeletalMuscleMassKg = d("skeletalMuscleMassKg"),
                             waterWeightKg = d("waterWeightKg"),
-                            fatMassKg = d("fatMassKg")
+                            fatMassKg = d("fatMassKg"),
+                            freescalePayloadJson = pulledFreescalePayload,
                         )
                     )
                 }
             ) {
                 Icon(Icons.Filled.Save, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text("Save reading")
             }
         }
     }
+
+    if (showInstallFreeScale) {
+        AlertDialog(
+            onDismissRequest = { showInstallFreeScale = false },
+            title = { Text("FreeScale not installed") },
+            text = {
+                Text(
+                    "Install FreeScale to pull the latest scale reading into this form. " +
+                        "Open the FreeScale page to download it, then come back and try again.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showInstallFreeScale = false
+                        uriHandler.openUri(FREESCALE_WEBSITE_URL)
+                    },
+                ) {
+                    Text("Get FreeScale")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInstallFreeScale = false }) {
+                    Text("Not now")
+                }
+            },
+        )
+    }
+}
+
+private const val FREESCALE_WEBSITE_URL = "https://github.com/anantdark/FreeScale"
+
+private fun fmtOptional(value: Double?): String? {
+    if (value == null) return null
+    return String.format(java.util.Locale.US, "%.2f", value)
 }
 
 @Composable
