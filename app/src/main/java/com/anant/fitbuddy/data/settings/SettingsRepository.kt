@@ -28,6 +28,7 @@ class SettingsRepository(context: Context) {
         val geminiKeys = parseApiKeys(prefs[KEY_GEMINI_KEY])
         val ollamaKeys = parseApiKeys(prefs[KEY_OLLAMA_API_KEY])
         val openAiKeys = parseApiKeys(prefs[KEY_OPENAI_API_KEY])
+        val customKeys = parseApiKeys(prefs[KEY_CUSTOM_API_KEY])
         val analyzingAnim = migrateSlotAnimationChoice(
             slotStored = prefs[KEY_ANALYZING_ANIMATION_CHOICE],
             legacyShared = prefs[KEY_LOADING_ANIMATION_CHOICE],
@@ -97,6 +98,19 @@ class SettingsRepository(context: Context) {
                 prefs[KEY_OPENAI_TEXT_MODEL] ?: "",
                 ""
             ),
+            customBaseUrl = prefs[KEY_CUSTOM_URL] ?: "",
+            customModel = sanitizeModelIdFor(
+                AiProvider.CUSTOM,
+                prefs[KEY_CUSTOM_MODEL] ?: "",
+                ""
+            ),
+            customTextModel = sanitizeModelIdFor(
+                AiProvider.CUSTOM,
+                prefs[KEY_CUSTOM_TEXT_MODEL] ?: "",
+                ""
+            ),
+            customApiKeys = customKeys,
+            customApiKey = customKeys.firstOrNull().orEmpty(),
             aiAutoFailoverByProvider = buildMap {
                 val legacyFailover = prefs[KEY_AI_AUTO_FAILOVER] ?: true
                 for (p in AiProvider.entries) {
@@ -165,7 +179,7 @@ class SettingsRepository(context: Context) {
             lastSuccessfulBackupAt = prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] ?: 0L,
             firstName = prefs[KEY_FIRST_NAME].orEmpty(),
             lastName = prefs[KEY_LAST_NAME].orEmpty()
-        )
+        ).migratedFromLegacyOpenAiProvider()
     }
 
     /** Ensures a stable anonymous support id exists; returns it. */
@@ -279,6 +293,10 @@ class SettingsRepository(context: Context) {
             prefs[KEY_OPENAI_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.OPENAI))
             prefs[KEY_OPENAI_MODEL] = settings.openAiModel
             prefs[KEY_OPENAI_TEXT_MODEL] = settings.openAiTextModel
+            prefs[KEY_CUSTOM_URL] = settings.customBaseUrl
+            prefs[KEY_CUSTOM_MODEL] = settings.customModel
+            prefs[KEY_CUSTOM_TEXT_MODEL] = settings.customTextModel
+            prefs[KEY_CUSTOM_API_KEY] = joinApiKeys(settings.keysFor(AiProvider.CUSTOM))
             prefs[KEY_AI_AUTO_FAILOVER] = settings.aiAutoFailover // legacy compat
             prefs[KEY_SHOW_PAID_MODELS] = settings.showPaidModels // legacy compat
             for (p in AiProvider.entries) {
@@ -336,6 +354,7 @@ class SettingsRepository(context: Context) {
                 AiProvider.GEMINI -> settings.geminiTextModel
                 AiProvider.OLLAMA -> settings.ollamaTextModel
                 AiProvider.OPENAI -> settings.openAiTextModel
+                AiProvider.CUSTOM -> settings.customTextModel
             }.trim()
             val text = textRaw.ifBlank { settings.textModel }
             if (text.isNotBlank() && isPlausibleModelIdFor(settings.provider, text)) {
@@ -475,6 +494,10 @@ class SettingsRepository(context: Context) {
         val KEY_OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val KEY_OPENAI_MODEL = stringPreferencesKey("openai_model")
         val KEY_OPENAI_TEXT_MODEL = stringPreferencesKey("openai_text_model")
+        val KEY_CUSTOM_URL = stringPreferencesKey("custom_base_url")
+        val KEY_CUSTOM_MODEL = stringPreferencesKey("custom_model")
+        val KEY_CUSTOM_TEXT_MODEL = stringPreferencesKey("custom_text_model")
+        val KEY_CUSTOM_API_KEY = stringPreferencesKey("custom_api_key")
         val KEY_AI_AUTO_FAILOVER = booleanPreferencesKey("ai_auto_failover") // legacy
         val KEY_SHOW_PAID_MODELS = booleanPreferencesKey("show_paid_models")  // legacy
         fun autoFailoverKey(p: AiProvider) =

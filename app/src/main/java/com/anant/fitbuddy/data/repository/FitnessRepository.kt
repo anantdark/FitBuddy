@@ -1208,13 +1208,21 @@ class FitnessRepository(
     ): List<ModelOption> =
         remoteAiDataSource.fetchGeminiTextModels(apiKey, includePaid)
 
-    /** Vision-capable Ollama models (local or Cloud). */
-    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
-        remoteAiDataSource.fetchOllamaVisionModels(baseUrl, apiKey)
+    /** Vision-capable models from an Ollama / OpenAI-compatible host. */
+    suspend fun fetchOllamaVisionModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchOllamaVisionModels(baseUrl, apiKey, ladderProvider)
 
-    /** All Ollama models on the host for the text-query dropdown. */
-    suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
-        remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey)
+    /** Text/chat models from an Ollama / OpenAI-compatible host. */
+    suspend fun fetchOllamaTextModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey, ladderProvider)
 
     /** Vision-capable OpenAI models for the Settings dropdown. */
     suspend fun fetchOpenAiVisionModels(apiKey: String): List<ModelOption> =
@@ -2171,6 +2179,19 @@ class FitnessRepository(
                         remoteAiDataSource.fetchOllamaVisionModels(base, key)
                     } else {
                         remoteAiDataSource.fetchOllamaTextModels(base, key)
+                    }
+                }
+                AiProvider.CUSTOM -> {
+                    val base = settings.customEffectiveBaseUrl
+                    val key = listKey
+                    if (preferVisionModels) {
+                        remoteAiDataSource.fetchOllamaVisionModels(
+                            base, key, ladderProvider = AiProvider.CUSTOM
+                        )
+                    } else {
+                        remoteAiDataSource.fetchOllamaTextModels(
+                            base, key, ladderProvider = AiProvider.CUSTOM
+                        )
                     }
                 }
                 AiProvider.OPENAI -> if (preferVisionModels) {

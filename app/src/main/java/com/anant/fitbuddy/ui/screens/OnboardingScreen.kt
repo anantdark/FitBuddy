@@ -115,8 +115,8 @@ private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
     AiProvider.OLLAMA to (
         "Ollama install & setup guide" to "https://docs.ollama.com/quickstart"
     ),
-    AiProvider.OPENAI to (
-        "How to create an OpenAI API key" to "https://platform.openai.com/api-keys"
+    AiProvider.CUSTOM to (
+        "OpenAI API keys & compatible APIs" to "https://platform.openai.com/api-keys"
     )
 )
 
@@ -251,7 +251,8 @@ fun OnboardingScreen(
     var ollamaUrl by remember { mutableStateOf(AppSettings.DEFAULT_OLLAMA_URL) }
     var ollamaUseCloud by remember { mutableStateOf(false) }
     var ollamaKeys by remember { mutableStateOf(emptyList<String>()) }
-    var openAiKeys by remember { mutableStateOf(emptyList<String>()) }
+    var customUrl by remember { mutableStateOf(AppSettings.DEFAULT_CUSTOM_BASE_URL) }
+    var customKeys by remember { mutableStateOf(emptyList<String>()) }
     var aiValidated by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
 
@@ -271,20 +272,31 @@ fun OnboardingScreen(
         } else {
             ollamaUrl.isNotBlank()
         }
-        AiProvider.OPENAI -> openAiKeys.isNotEmpty()
+        AiProvider.OPENAI -> customUrl.isNotBlank() && customKeys.isNotEmpty()
+        AiProvider.CUSTOM -> {
+            val url = customUrl.trim()
+            when {
+                url.isBlank() -> false
+                AppSettings.isOfficialOpenAiBaseUrl(url) -> customKeys.isNotEmpty()
+                else -> true
+            }
+        }
     }
 
     fun buildAiSettings(): AppSettings {
         val orKeys = if (aiProvider == AiProvider.OPENROUTER) apiKeys else emptyList()
         val gemKeys = if (aiProvider == AiProvider.GEMINI) apiKeys else emptyList()
         val olKeys = if (aiProvider == AiProvider.OLLAMA && ollamaUseCloud) ollamaKeys else emptyList()
-        val oaKeys = if (aiProvider == AiProvider.OPENAI) openAiKeys else emptyList()
-        // OpenAI is paid, no free tier: always show paid models and force-disable Auto
-        // failover so it never fans out across many billable models. Seed curated defaults
-        // so a fresh setup works without hunting for a model id.
-        val usingOpenAi = aiProvider == AiProvider.OPENAI
+        val cuKeys = if (aiProvider == AiProvider.CUSTOM || aiProvider == AiProvider.OPENAI) {
+            customKeys
+        } else {
+            emptyList()
+        }
+        // OpenAI-compatible (including official OpenAI): seed URL + a sensible default model.
+        val usingCustom = aiProvider == AiProvider.CUSTOM || aiProvider == AiProvider.OPENAI
+        val usingOfficialOpenAi = usingCustom && AppSettings.isOfficialOpenAiBaseUrl(customUrl)
         return AppSettings(
-            provider = aiProvider,
+            provider = if (usingCustom) AiProvider.CUSTOM else aiProvider,
             openRouterApiKeys = orKeys,
             openRouterApiKey = orKeys.firstOrNull().orEmpty(),
             openRouterOAuthKey = if (aiProvider == AiProvider.OPENROUTER) openRouterOAuthKey else "",
@@ -298,12 +310,25 @@ fun OnboardingScreen(
             ollamaUseCloud = aiProvider == AiProvider.OLLAMA && ollamaUseCloud,
             ollamaApiKeys = olKeys,
             ollamaApiKey = olKeys.firstOrNull().orEmpty(),
-            openAiApiKeys = oaKeys,
-            openAiApiKey = oaKeys.firstOrNull().orEmpty(),
-            openAiModel = if (usingOpenAi) OpenAiCatalog.VISION_MODELS.first().id else AppSettings.DEFAULT_OPENAI_MODEL,
-            openAiTextModel = if (usingOpenAi) OpenAiCatalog.TEXT_MODELS.first().id else "",
-            showPaidModelsByProvider = if (usingOpenAi) {
-                mapOf(AiProvider.OPENAI to true)
+            customBaseUrl = if (usingCustom) {
+                customUrl.trim().ifBlank { AppSettings.DEFAULT_CUSTOM_BASE_URL }
+            } else {
+                AppSettings.DEFAULT_CUSTOM_BASE_URL
+            },
+            customModel = if (usingCustom) {
+                AppSettings.DEFAULT_CUSTOM_MODEL
+            } else {
+                ""
+            },
+            customTextModel = if (usingCustom && usingOfficialOpenAi) {
+                OpenAiCatalog.TEXT_MODELS.first().id
+            } else {
+                ""
+            },
+            customApiKeys = cuKeys,
+            customApiKey = cuKeys.firstOrNull().orEmpty(),
+            showPaidModelsByProvider = if (usingOfficialOpenAi) {
+                mapOf(AiProvider.CUSTOM to true)
             } else {
                 emptyMap()
             },
@@ -618,7 +643,7 @@ fun OnboardingScreen(
                                 AiProvider.OPENROUTER to "OpenRouter",
                                 AiProvider.GEMINI to "Gemini",
                                 AiProvider.OLLAMA to "Ollama",
-                                AiProvider.OPENAI to "OpenAI"
+                                AiProvider.CUSTOM to "OpenAI-compatible"
                             )
                             ProviderSelectorGrid(
                                 options = providerOptions,
@@ -717,15 +742,34 @@ fun OnboardingScreen(
                                     }
                                 }
 
-                                AiProvider.OPENAI -> {
-                                    AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
+                                AiProvider.CUSTOM, AiProvider.OPENAI -> {
+                                    Text(
+                                        text = "Use OpenAI or any compatible server (LM Studio, vLLM, " +
+                                            "LocalAI, Together, Groq, …). The URL defaults to OpenAI; " +
+                                            "change it for other hosts. Local servers usually need no key.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    AI_SETUP_DOCS[AiProvider.CUSTOM]?.let { (label, url) ->
                                         OnboardingDocsLink(label = label, url = url)
                                     }
+                                    OnboardingTextField(
+                                        label = "Base URL",
+                                        value = customUrl,
+                                        keyboardType = KeyboardType.Uri
+                                    ) {
+                                        customUrl = it
+                                        invalidateAi()
+                                    }
                                     ApiKeyChipEditor(
-                                        label = "API keys",
-                                        keys = openAiKeys,
+                                        label = if (AppSettings.isOfficialOpenAiBaseUrl(customUrl)) {
+                                            "API keys"
+                                        } else {
+                                            "API keys (optional)"
+                                        },
+                                        keys = customKeys,
                                         onKeysChange = {
-                                            openAiKeys = it
+                                            customKeys = it
                                             invalidateAi()
                                         }
                                     )

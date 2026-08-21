@@ -19,6 +19,7 @@ fun isPlausibleModelIdFor(provider: AiProvider, modelId: String): Boolean {
             true
         }
         AiProvider.OLLAMA -> true
+        AiProvider.CUSTOM -> true
         AiProvider.OPENAI -> {
             // OpenAI ids (gpt-*, o1/o3/o4, chatgpt-*) are bare, not org/model like OpenRouter.
             if (lower.startsWith("gemini-") || lower == "gemini") return false

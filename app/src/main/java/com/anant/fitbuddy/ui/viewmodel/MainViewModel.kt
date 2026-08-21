@@ -826,6 +826,13 @@ class MainViewModel(
                             else -> repository.fetchOllamaVisionModels(url, apiKey)
                         }
                     }
+                    AiProvider.CUSTOM -> {
+                        val url = baseUrl.trim().trimEnd('/')
+                        if (url.isBlank()) emptyList()
+                        else repository.fetchOllamaVisionModels(
+                            url, apiKey, ladderProvider = AiProvider.CUSTOM
+                        )
+                    }
                     AiProvider.OPENAI -> repository.fetchOpenAiVisionModels(apiKey)
                 }
                 // Skip reachability probes when paid models are listed (never ping paid endpoints).
@@ -879,6 +886,13 @@ class MainViewModel(
                             else -> repository.fetchOllamaTextModels(url, apiKey)
                         }
                     }
+                    AiProvider.CUSTOM -> {
+                        val url = baseUrl.trim().trimEnd('/')
+                        if (url.isBlank()) emptyList()
+                        else repository.fetchOllamaTextModels(
+                            url, apiKey, ladderProvider = AiProvider.CUSTOM
+                        )
+                    }
                     AiProvider.OPENAI -> repository.fetchOpenAiTextModels(apiKey)
                 }
                 if (force && !includePaid) {
@@ -930,6 +944,11 @@ class MainViewModel(
             } else {
                 current.ollamaTextModel.ifBlank { current.ollamaModel }
             }
+            AiProvider.CUSTOM -> if (forPhoto) {
+                current.customModel
+            } else {
+                current.customTextModel.ifBlank { current.customModel }
+            }
             AiProvider.OPENAI -> return
         }
         if (selected.isBlank() || options.any { it.id == selected }) return
@@ -962,6 +981,13 @@ class MainViewModel(
             } else {
                 current.copy(ollamaModel = next)
             }
+            AiProvider.CUSTOM -> if (forPhoto) {
+                current.copy(customModel = next)
+            } else if (current.customTextModel.isNotBlank()) {
+                current.copy(customTextModel = next)
+            } else {
+                current.copy(customModel = next)
+            }
             AiProvider.OPENAI -> return
         }
         settingsRepository.save(updated)
@@ -985,14 +1011,17 @@ class MainViewModel(
         // (force && !includePaid is never true), but never probe it regardless: billed calls.
         if (provider == AiProvider.OPENAI) return catalog
         val trimmedUrl = baseUrl.trim().trimEnd('/')
-        val ollamaLocal = provider == AiProvider.OLLAMA &&
-            trimmedUrl != AppSettings.OLLAMA_CLOUD_BASE_URL
-        if (apiKey.isBlank() && !ollamaLocal) return catalog
+        val keylessLocal = (
+            provider == AiProvider.OLLAMA &&
+                trimmedUrl != AppSettings.OLLAMA_CLOUD_BASE_URL
+            ) || (provider == AiProvider.CUSTOM && trimmedUrl.isNotBlank())
+        if (apiKey.isBlank() && !keylessLocal) return catalog
         val chatUrl = when (provider) {
             AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
             AiProvider.GEMINI ->
                 "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
             AiProvider.OLLAMA -> baseUrl.trim().trimEnd('/') + "/v1/chat/completions"
+            AiProvider.CUSTOM -> baseUrl.trim().trimEnd('/') + "/v1/chat/completions"
             AiProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
         }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
@@ -2222,6 +2251,11 @@ class MainViewModel(
                     openAiApiKey = aiSettings.openAiApiKey,
                     openAiModel = aiSettings.openAiModel.ifBlank { settings.value.openAiModel },
                     openAiTextModel = aiSettings.openAiTextModel,
+                    customBaseUrl = aiSettings.customBaseUrl,
+                    customModel = aiSettings.customModel,
+                    customTextModel = aiSettings.customTextModel,
+                    customApiKeys = aiSettings.customApiKeys,
+                    customApiKey = aiSettings.customApiKey,
                     aiAutoFailoverByProvider = aiSettings.aiAutoFailoverByProvider,
                     showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                 )
@@ -2823,6 +2857,11 @@ class MainViewModel(
                         openAiApiKey = aiSettings.openAiApiKey,
                         openAiModel = aiSettings.openAiModel.ifBlank { current.openAiModel },
                         openAiTextModel = aiSettings.openAiTextModel,
+                        customBaseUrl = aiSettings.customBaseUrl,
+                        customModel = aiSettings.customModel,
+                        customTextModel = aiSettings.customTextModel,
+                        customApiKeys = aiSettings.customApiKeys,
+                        customApiKey = aiSettings.customApiKey,
                         aiAutoFailoverByProvider = aiSettings.aiAutoFailoverByProvider,
                         showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                     )
@@ -2994,6 +3033,14 @@ class MainViewModel(
                 } else {
                     repository.fetchOllamaVisionModels(base)
                 }
+            }
+            AiProvider.CUSTOM -> {
+                val base = settings.customEffectiveBaseUrl
+                check(base.isNotBlank()) { "Enter your custom server URL" }
+                val key = settings.activeKey(AiProvider.CUSTOM)
+                repository.fetchOllamaVisionModels(
+                    base, key, ladderProvider = AiProvider.CUSTOM
+                )
             }
             AiProvider.OPENAI -> {
                 val key = settings.activeKey(AiProvider.OPENAI)
