@@ -182,6 +182,17 @@ class SettingsRepository(context: Context) {
         ).migratedFromLegacyOpenAiProvider()
     }
 
+    /**
+     * One-shot DataStore rewrite: if the removed [AiProvider.OPENAI] is still stored,
+     * persist the in-memory [AppSettings.migratedFromLegacyOpenAiProvider] result so keys,
+     * models, and provider survive without the user opening Settings → Save.
+     */
+    suspend fun persistLegacyOpenAiMigrationIfNeeded() {
+        val rawProvider = dataStore.data.first()[KEY_PROVIDER] ?: return
+        if (rawProvider != AiProvider.OPENAI.name) return
+        save(settings.first())
+    }
+
     /** Ensures a stable anonymous support id exists; returns it. */
     suspend fun ensureSupportId(): String {
         val existing = dataStore.data.first()[KEY_SUPPORT_ID].orEmpty()

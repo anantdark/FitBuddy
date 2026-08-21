@@ -83,6 +83,8 @@ class FitBuddyApp : Application() {
         super.onCreate()
         val settings = runBlocking {
             settingsRepository.ensureSupportId()
+            // Fold legacy dedicated OpenAI → OpenAI-compatible before anything reads settings.
+            settingsRepository.persistLegacyOpenAiMigrationIfNeeded()
             settingsRepository.settings.first()
         }
         CrashReporter.init(
