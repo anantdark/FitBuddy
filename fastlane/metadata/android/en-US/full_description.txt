@@ -21,8 +21,8 @@ Features:
 AI providers (configured at runtime in Settings):
 • OpenRouter — free vision models, automatic model dropdown
 • Google Gemini — AI Studio key, OpenAI-compatible endpoint
-• OpenAI — direct API key with curated models
-• Ollama or any OpenAI-compatible server (LM Studio, vLLM, LocalAI) — local or cloud, optional API key
+• Ollama — local or cloud
+• OpenAI-compatible — OpenAI itself or LM Studio, vLLM, LocalAI, Together, Groq, etc. (URL prefilled for OpenAI)
 
 Without a configured provider, the app works offline using the built-in simulator. Photos require a configured AI provider.
 
