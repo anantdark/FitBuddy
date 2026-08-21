@@ -461,15 +461,18 @@ data class AppSettings(
     /**
      * Legacy installs used a dedicated OpenAI provider. Fold them into [AiProvider.CUSTOM]
      * with the official OpenAI base URL so Settings only shows one OpenAI-compatible option.
+     * Keys, photo/text models, Auto failover, and active-model markers are preserved.
      */
     fun migratedFromLegacyOpenAiProvider(): AppSettings {
         if (provider != AiProvider.OPENAI) return this
         val keys = keysFor(AiProvider.OPENAI).ifEmpty { customApiKeys }
+        val photo = customModel.ifBlank { openAiModel.ifBlank { DEFAULT_CUSTOM_MODEL } }
+        val text = customTextModel.ifBlank { openAiTextModel }
         return copy(
             provider = AiProvider.CUSTOM,
             customBaseUrl = customBaseUrl.ifBlank { DEFAULT_CUSTOM_BASE_URL },
-            customModel = customModel.ifBlank { openAiModel.ifBlank { DEFAULT_CUSTOM_MODEL } },
-            customTextModel = customTextModel.ifBlank { openAiTextModel },
+            customModel = photo,
+            customTextModel = text,
             customApiKeys = keys,
             customApiKey = keys.firstOrNull().orEmpty(),
             aiAutoFailoverByProvider = aiAutoFailoverByProvider +
@@ -480,7 +483,10 @@ data class AppSettings(
                 AiProvider.CUSTOM
             } else {
                 activeAiProvider
-            }
+            },
+            // Prefer already-migrated active ids; otherwise keep the OpenAI selections.
+            activePhotoModel = activePhotoModel.ifBlank { photo },
+            activeTextModel = activeTextModel.ifBlank { text.ifBlank { photo } }
         )
     }
 
