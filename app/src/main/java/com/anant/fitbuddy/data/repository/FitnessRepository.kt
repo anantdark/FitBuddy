@@ -140,6 +140,35 @@ class FitnessRepository(
         }
     }
 
+    /**
+     * Insert or replace by [BodyMeasurement.timestamp]. Returns true if a new row was inserted.
+     */
+    suspend fun upsertMeasurementByTimestamp(measurement: BodyMeasurement): Boolean {
+        val existing = bodyMeasurementDao.getByTimestamp(measurement.timestamp)
+        val toSave = if (existing != null) {
+            measurement.copy(
+                id = existing.id,
+                freescalePayloadJson = measurement.freescalePayloadJson
+                    ?: existing.freescalePayloadJson,
+            )
+        } else {
+            measurement.copy(id = 0)
+        }
+        bodyMeasurementDao.insert(toSave)
+        userProfileDao.getProfileOnce()?.let { profile ->
+            userProfileDao.insertOrUpdateProfile(
+                profile.copy(
+                    weightKg = toSave.weightKg,
+                    lastUpdatedTimestamp = toSave.timestamp
+                )
+            )
+        }
+        return existing == null
+    }
+
+    suspend fun getAllMeasurementsOnce(): List<BodyMeasurement> =
+        bodyMeasurementDao.getAllOnce()
+
     suspend fun deleteMeasurement(measurement: BodyMeasurement) =
         bodyMeasurementDao.delete(measurement)
 
@@ -197,6 +226,15 @@ class FitnessRepository(
         val count = backupManager.exportTo(uri, password)
         settingsRepository.recordSuccessfulBackup()
         return count
+    }
+
+    /**
+     * Writes a backup into app cache and returns the file + record count for a share sheet.
+     */
+    suspend fun exportDataToShareFile(password: CharArray? = null): Pair<java.io.File, Int> {
+        val result = backupManager.exportToShareCache(password)
+        settingsRepository.recordSuccessfulBackup()
+        return result
     }
 
     /**

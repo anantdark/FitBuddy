@@ -42,7 +42,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionDetector
@@ -75,11 +75,9 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.components.Button
 import com.anant.fitbuddy.ui.components.ConfettiOverlay
 import com.anant.fitbuddy.ui.components.CraftedWithLoveCredit
-import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.OpenRouterConnectSection
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.TextButton
-import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
@@ -238,11 +236,11 @@ fun OnboardingScreen(
     var goal by remember { mutableStateOf("RECOMP") }
     var activity by remember { mutableStateOf("MODERATE") }
     var aiProvider by remember { mutableStateOf(AiProvider.OPENROUTER) }
-    val snackbarHostState = remember { SnackbarHostState() }
 
+    val context = LocalContext.current
     LaunchedEffect(userMessage) {
         userMessage?.let { message ->
-            snackbarHostState.showFitBuddyPill(message, displayMillis = 3_000L)
+            SystemToast.show(context, message, long = true)
             onUserMessageConsumed()
         }
     }
@@ -446,7 +444,6 @@ fun OnboardingScreen(
     Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        snackbarHost = { FitBuddySnackbarHost(snackbarHostState, bottomPadding = 24.dp) }
     ) { innerPadding ->
         Column(
             modifier = Modifier

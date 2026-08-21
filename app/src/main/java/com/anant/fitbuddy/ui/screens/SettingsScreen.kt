@@ -1028,7 +1028,7 @@ fun SettingsScreen(
             title = "Backup",
             initiallyExpanded = false,
             hintTitle = "Backup",
-            hint = "Export a JSON file anytime. Cloud uploads use your Support ID as the " +
+            hint = "Share a JSON backup anytime. Cloud uploads use your Support ID as the " +
                 "document key — keep that ID safe to restore after reinstalling. Restore from " +
                 "cloud or local file is offered during onboarding (import also in Developer tools)."
         ) {
@@ -1073,7 +1073,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                text = "Save everything to a JSON file on this device.",
+                text = "Share a JSON backup (Drive, Files, email, etc.).",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1083,7 +1083,7 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Filled.FileUpload, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Export")
+                Text("Share")
             }
 
             Text(

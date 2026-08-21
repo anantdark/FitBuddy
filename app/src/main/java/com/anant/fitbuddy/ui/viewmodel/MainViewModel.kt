@@ -52,6 +52,7 @@ import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
+import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.Dispatchers
@@ -440,15 +441,15 @@ class MainViewModel(
         }
     }
 
-    /** Local SAF export is required when cloud backup is off. */
+    /** Local share export is required when cloud backup is off. */
     fun needsLocalUriForUpdateBackup(): Boolean = !settings.value.cloudBackupEnabled
 
     /**
-     * Start Export backup & update: remember [downloadUrl], then either await a local file
-     * pick or begin cloud/local export immediately.
-     * @return true if the UI should launch the SAF create-document picker.
+     * Start Export backup & update: remember [downloadUrl], then begin cloud upload or share-sheet
+     * export immediately.
+     * @return always false (no SAF picker); kept for call-site compatibility.
      */
-    fun beginExportBackupAndUpdate(downloadUrl: String): Boolean {
+    fun beginExportBackupAndUpdate(context: Context, downloadUrl: String): Boolean {
         if (_updateState.value.isExportingBackup) return false
         if (_updateState.value.backupCompleted) return false
         _updateState.update {
@@ -458,13 +459,8 @@ class MainViewModel(
                 backupStatusIsError = false
             )
         }
-        return if (needsLocalUriForUpdateBackup()) {
-            _updateState.update { it.copy(isAwaitingBackupFilePick = true) }
-            true
-        } else {
-            exportBackupForUpdate()
-            false
-        }
+        exportBackupForUpdate(context)
+        return false
     }
 
     fun cancelBackupFilePick() {
@@ -479,19 +475,19 @@ class MainViewModel(
     }
 
     /**
-     * Pre-update backup: cloud upload when enabled, otherwise local file via [uri].
+     * Pre-update backup: cloud upload when enabled, otherwise write + share a local JSON file.
      * On success sets [UpdateUiState.backupCompleted] so the APK URL can open in the browser.
      */
-    fun exportBackupForUpdate(uri: Uri? = null) {
+    fun exportBackupForUpdate(context: Context? = null) {
         if (_updateState.value.isExportingBackup) return
         if (_updateState.value.backupCompleted) return
         val useCloud = settings.value.cloudBackupEnabled
-        if (!useCloud && uri == null) {
+        if (!useCloud && context == null) {
             _updateState.update {
                 it.copy(
                     isAwaitingBackupFilePick = false,
                     pendingDownloadUrlAfterBackup = null,
-                    backupStatusMessage = "Choose a file to save the backup",
+                    backupStatusMessage = "Could not open share sheet",
                     backupStatusIsError = true
                 )
             }
@@ -509,7 +505,15 @@ class MainViewModel(
             val result = if (useCloud) {
                 runCatching { repository.uploadMongoBackup(force = true).recordCount }
             } else {
-                runCatching { repository.exportData(uri!!) }
+                runCatching {
+                    val (file, count) = repository.exportDataToShareFile(password = null)
+                    BackupShare.shareJsonFile(
+                        context!!.applicationContext,
+                        file,
+                        chooserTitle = "Share FitBuddy backup",
+                    )
+                    count
+                }
             }
             result
                 .onSuccess { count ->
@@ -529,7 +533,7 @@ class MainViewModel(
                     val message = if (useCloud) {
                         "Uploaded $count records to cloud backup"
                     } else {
-                        "Exported $count records"
+                        "Shared $count records"
                     }
                     _updateState.update {
                         it.copy(
@@ -1382,12 +1386,17 @@ class MainViewModel(
         repository.latestMeasurement
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Saves a new body reading (timestamped now) and mirrors weight onto the profile. */
+    /** Saves a new body reading. Keeps [BodyMeasurement.timestamp] when already set (e.g. FreeScale pull). */
     fun addMeasurement(measurement: BodyMeasurement) {
         viewModelScope.launch {
-            val ts = System.currentTimeMillis()
-            repository.addMeasurement(
-                measurement.copy(timestamp = ts, dateString = DateUtils.format(ts))
+            val ts = if (measurement.timestamp > 0L) {
+                measurement.timestamp
+            } else {
+                System.currentTimeMillis()
+            }
+            val dateString = measurement.dateString.ifBlank { DateUtils.format(ts) }
+            repository.upsertMeasurementByTimestamp(
+                measurement.copy(timestamp = ts, dateString = dateString)
             )
             _analysisState.update { it.copy(userMessage = "Reading saved") }
         }
@@ -1804,15 +1813,20 @@ class MainViewModel(
     // --- Backup (export / import) -----------------------------------------------------------
 
     /**
-     * Exports a local backup. When [password] is non-null, the backup is encrypted with that
-     * password (must be 8–128 chars; validation is done in the UI layer before calling this).
+     * Exports a local backup via the system share sheet. When [password] is non-null, the backup
+     * is encrypted with that password (must be 8–128 chars; validation is done in the UI layer).
      * The password CharArray is zeroed after use.
      */
-    fun exportData(uri: Uri, password: CharArray? = null) {
+    fun exportData(context: Context, password: CharArray? = null) {
         viewModelScope.launch {
             try {
-                val count = repository.exportData(uri, password)
-                _analysisState.update { it.copy(userMessage = "Exported $count records") }
+                val (file, count) = repository.exportDataToShareFile(password)
+                BackupShare.shareJsonFile(
+                    context.applicationContext,
+                    file,
+                    chooserTitle = "Share FitBuddy backup",
+                )
+                _analysisState.update { it.copy(userMessage = "Sharing $count records…") }
             } catch (e: Exception) {
                 val msg = if (password != null && password.isNotEmpty()) {
                     "Export failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
