@@ -96,21 +96,13 @@ private data class BodyMetric(
 
 private val BODY_METRICS = listOf(
     BodyMetric("Weight", " kg", decreaseIsPositive = true) { it.weightKg },
-    BodyMetric("BMI", "", decreaseIsPositive = true) { it.bmi },
     BodyMetric("Body fat", "%", decreaseIsPositive = true) { it.bodyFatPct },
-    BodyMetric("Muscle rate", "%", decreaseIsPositive = false) { it.muscleRatePct },
-    BodyMetric("Body water", "%", decreaseIsPositive = false) { it.bodyWaterPct },
     BodyMetric("Muscle mass", " kg", decreaseIsPositive = false) { it.muscleMassKg },
-    BodyMetric("Fat mass", " kg", decreaseIsPositive = true) { it.fatMassKg },
-    BodyMetric("Bone mass", " kg", decreaseIsPositive = false) { it.boneMassKg },
-    BodyMetric("BMR", " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
-    BodyMetric("Metabolic age", " yrs", decreaseIsPositive = true) { it.metabolicAge?.toDouble() },
     BodyMetric("Visceral fat", "%", decreaseIsPositive = true) { it.visceralFat },
-    BodyMetric("Subcutaneous fat", "%", decreaseIsPositive = true) { it.subcutaneousFatPct },
-    BodyMetric("Protein mass", " kg", decreaseIsPositive = false) { it.proteinMassKg },
-    BodyMetric("Weight without fat", " kg", decreaseIsPositive = false) { it.fatFreeMassKg },
-    BodyMetric("Skeletal muscle", " kg", decreaseIsPositive = false) { it.skeletalMuscleMassKg },
-    BodyMetric("Water weight", " kg", decreaseIsPositive = false) { it.waterWeightKg },
+    BodyMetric("BMI", "", decreaseIsPositive = true) { it.bmi },
+    BodyMetric("Body water", "%", decreaseIsPositive = false) { it.bodyWaterPct },
+    BodyMetric("Metabolic age", " yrs", decreaseIsPositive = true) { it.metabolicAge?.toDouble() },
+    BodyMetric("BMR", " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -314,31 +306,11 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
     val scope = rememberCoroutineScope()
 
     ChartCard(title = "Body Composition") {
-        // Tabs stay in sync with the pager: tap to jump straight to a metric, or swipe the chart
-        // below to move between metrics one at a time.
-        ScrollableTabRow(
-            selectedTabIndex = pagerState.currentPage,
-            edgePadding = 0.dp,
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.primary,
-            divider = {}
-        ) {
-            BODY_METRICS.forEachIndexed { index, metric ->
-                Tab(
-                    selected = pagerState.currentPage == index,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                    text = { Text(metric.label) }
-                )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(320.dp)
+                .height(260.dp)
         ) { page ->
             val metric = BODY_METRICS[page]
             // Last 15 readings (newest-first from Room), then oldest→newest for the chart.
@@ -354,34 +326,62 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
                     }
             }
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                if (points.isNotEmpty()) {
-                    val latest = points.last().second
-                    val first = points.first().second
-                    val delta = latest - first
-                    Text(
-                        text = "Latest ${trim(latest)}${metric.unit}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (points.size >= 2) {
-                        val sign = if (delta > 0) "+" else ""
-                        Text(
-                            text = "$sign${trim(delta)}${metric.unit} over last ${points.size} readings",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
+            MetricLineChart(
+                points = points,
+                unit = metric.unit,
+                decreaseIsPositive = metric.decreaseIsPositive,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+            )
+        }
 
-                MetricLineChart(
-                    points = points,
-                    unit = metric.unit,
-                    decreaseIsPositive = metric.decreaseIsPositive,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
+        val currentMetric = BODY_METRICS[pagerState.currentPage]
+        val currentPoints = remember(measurements, pagerState.currentPage) {
+            measurements
+                .take(BODY_COMPOSITION_READING_LIMIT)
+                .asReversed()
+                .mapNotNull { m ->
+                    currentMetric.extractor(m)?.let { value ->
+                        m.dateString to value
+                    }
+                }
+        }
+        if (currentPoints.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            val latest = currentPoints.last().second
+            val first = currentPoints.first().second
+            val delta = latest - first
+            Text(
+                text = "Latest ${trim(latest)}${currentMetric.unit}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (currentPoints.size >= 2) {
+                val sign = if (delta > 0) "+" else ""
+                Text(
+                    text = "$sign${trim(delta)}${currentMetric.unit} over last ${currentPoints.size} readings",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Metric switches under the graph (tap or swipe the chart above).
+        ScrollableTabRow(
+            selectedTabIndex = pagerState.currentPage,
+            edgePadding = 0.dp,
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.primary,
+            divider = {}
+        ) {
+            BODY_METRICS.forEachIndexed { index, metric ->
+                Tab(
+                    selected = pagerState.currentPage == index,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                    text = { Text(metric.label) }
                 )
             }
         }
