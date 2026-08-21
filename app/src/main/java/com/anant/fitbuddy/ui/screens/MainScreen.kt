@@ -1,8 +1,10 @@
 package com.anant.fitbuddy.ui.screens
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -272,12 +274,27 @@ fun MainScreen(
         }
     }
 
+    // Some devices (custom ROMs, no camera app) throw ActivityNotFoundException on
+    // IMAGE_CAPTURE. Resolve first; catch as a last resort so the app never crashes.
+    fun launchCameraPreview() {
+        val capture = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (capture.resolveActivity(context.packageManager) == null) {
+            SystemToast.show(context, "No camera app available. Use Gallery instead.")
+            return
+        }
+        try {
+            cameraLauncher.launch(null)
+        } catch (_: ActivityNotFoundException) {
+            SystemToast.show(context, "No camera app available. Use Gallery instead.")
+        }
+    }
+
     // TakePicturePreview starts IMAGE_CAPTURE, which requires CAMERA at runtime on
     // Android 6+. Launching without it crashes with SecurityException (permission denial).
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
         if (granted) {
             viewModel.notifyExternalMediaLaunch()
-            cameraLauncher.launch(null)
+            launchCameraPreview()
         } else {
             SystemToast.show(context, "Camera permission not allowed.")
         }
@@ -667,7 +684,7 @@ fun MainScreen(
                 showLogHub = false
                 viewModel.notifyExternalMediaLaunch()
                 if (cameraPermission.status.isGranted) {
-                    cameraLauncher.launch(null)
+                    launchCameraPreview()
                 } else {
                     cameraPermission.launchPermissionRequest()
                 }

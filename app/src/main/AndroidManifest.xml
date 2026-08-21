@@ -9,6 +9,10 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- CAMERA permission would otherwise imply camera is required for Play filtering. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <!-- Android 11+ package visibility: Custom Tabs + FreeScale measurement bridge. -->
     <queries>
         <intent>
@@ -18,6 +22,10 @@
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
+        </intent>
+        <!-- Needed so resolveActivity can see camera apps before TakePicturePreview. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
         <package android:name="com.anant.freescale" />
         <package android:name="com.anant.freescale.debug" />
