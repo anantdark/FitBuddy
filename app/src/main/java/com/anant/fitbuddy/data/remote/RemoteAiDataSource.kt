@@ -26,6 +26,7 @@ import com.anant.fitbuddy.data.remote.dto.ImageUrl
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.data.remote.dto.ModelDto
 import com.anant.fitbuddy.data.remote.dto.ResponseFormat
+import com.anant.fitbuddy.data.remote.dto.ResponseMessage
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.util.DiagnosticLogger
@@ -274,7 +275,8 @@ class RemoteAiDataSource(
             model = settings.modelFor(hasImage),
             messages = listOf(ChatMessage(role = "user", content = contentParts)),
             responseFormat = if (includeResponseFormat) ResponseFormat() else null,
-            temperature = temperature
+            temperature = temperature,
+            enableThinking = disableThinkingForModel(settings.modelFor(hasImage))
         )
         return chatWithRetry { api.chatCompletion(settings.chatUrl, settings.authHeader, request) }
     }
@@ -287,7 +289,8 @@ class RemoteAiDataSource(
         val request = ChatRequestPlain(
             model = settings.modelFor(false),
             messages = listOf(ChatMessagePlain(role = "user", content = promptText)),
-            temperature = temperature
+            temperature = temperature,
+            enableThinking = disableThinkingForModel(settings.modelFor(false))
         )
         return chatWithRetry { api.chatCompletionPlain(settings.chatUrl, settings.authHeader, request) }
     }
@@ -299,17 +302,15 @@ class RemoteAiDataSource(
      * message.content null).
      */
     private fun extractPlainContent(response: ChatResponse): String {
-        (response.error ?: response.choices.firstOrNull()?.error)?.let { throw upstreamError(it) }
-        return response.choices.firstOrNull()?.message?.content?.trim()
-            ?: throw IllegalStateException("Empty response from AI service")
+        gatewayError(response)?.let { throw it }
+        return effectiveMessageContent(response.choices.firstOrNull()?.message)?.trim()
+            ?: throw emptyResponseError()
     }
 
     private fun extractJson(response: ChatResponse): String {
-        (response.error ?: response.choices.firstOrNull()?.error)?.let { err ->
-            throw upstreamError(err)
-        }
-        val rawContent = response.choices.firstOrNull()?.message?.content
-            ?: throw IllegalStateException("Empty response from AI service")
+        gatewayError(response)?.let { throw it }
+        val rawContent = effectiveMessageContent(response.choices.firstOrNull()?.message)
+            ?: throw emptyResponseError()
 
         val cleanJson = stripCodeFences(rawContent)
         if (!looksLikeJson(cleanJson)) {
@@ -330,6 +331,46 @@ class RemoteAiDataSource(
 
     /** Marks an HTTP 400 specifically, so [completeToJson] knows it's worth a narrower retry. */
     private class AiBadRequestException(message: String, cause: Throwable) : Exception(message, cause)
+
+    private fun gatewayError(response: ChatResponse): IllegalStateException? {
+        (response.error ?: response.choices.firstOrNull()?.error)?.let { return upstreamError(it) }
+        if (response.choices.isEmpty() && !response.message.isNullOrBlank()) {
+            return IllegalStateException(
+                "AI provider error: ${response.message.trim()}. Check your API key, model id, and base URL in Settings."
+            )
+        }
+        return null
+    }
+
+    /** Prefer normal assistant text; fall back to Qwen/DeepSeek `reasoning_content` when `content` is blank. */
+    private fun effectiveMessageContent(message: ResponseMessage?): String? {
+        if (message == null) return null
+        return message.content?.takeIf { it.isNotBlank() }
+            ?: message.reasoningContent?.takeIf { it.isNotBlank() }
+    }
+
+    private fun emptyResponseError(): IllegalStateException = IllegalStateException(
+        "Empty response from AI service. If you're using a Qwen or DeepSeek thinking model on a " +
+            "custom gateway, try a non-thinking chat model or ask your host to disable thinking " +
+            "for non-streaming requests."
+    )
+
+    /**
+     * Thinking models on OpenAI-compatible gateways often return an empty `content` for
+     * FitBuddy's non-streaming JSON calls unless thinking is disabled.
+     */
+    private fun disableThinkingForModel(modelId: String): Boolean? {
+        if (!isLikelyThinkingModel(modelId)) return null
+        return false
+    }
+
+    private fun isLikelyThinkingModel(modelId: String): Boolean {
+        val id = modelId.lowercase()
+        return id.startsWith("qwen3") ||
+            id.contains("deepseek") ||
+            id.contains("-thinking") ||
+            id.contains("reasoner")
+    }
 
     private fun upstreamError(err: ChatErrorDto): IllegalStateException {
         val code = err.code?.let { " (HTTP $it)" } ?: ""
@@ -546,7 +587,7 @@ class RemoteAiDataSource(
         apiKey: String = "",
         ladderProvider: AiProvider = AiProvider.OLLAMA,
     ): List<ModelOption> {
-        val base = baseUrl.trim().trimEnd('/')
+        val base = AppSettings.normalizeOpenAiCompatBaseUrl(baseUrl)
         require(base.isNotBlank()) { "Server URL is required to list models" }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels("$base/v1/models", auth)
@@ -565,7 +606,7 @@ class RemoteAiDataSource(
         apiKey: String = "",
         ladderProvider: AiProvider = AiProvider.OLLAMA,
     ): List<ModelOption> {
-        val base = baseUrl.trim().trimEnd('/')
+        val base = AppSettings.normalizeOpenAiCompatBaseUrl(baseUrl)
         require(base.isNotBlank()) { "Server URL is required to list models" }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels("$base/v1/models", auth)

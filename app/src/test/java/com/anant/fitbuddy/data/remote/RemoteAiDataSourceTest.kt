@@ -81,10 +81,20 @@ class RemoteAiDataSourceTest {
 
     private fun chatResponse(
         content: String?,
+        reasoningContent: String? = null,
         choiceError: ChatErrorDto? = null,
         topLevelError: ChatErrorDto? = null
     ) = ChatResponse(
-        choices = listOf(Choice(message = ResponseMessage(role = "assistant", content = content), error = choiceError)),
+        choices = listOf(
+            Choice(
+                message = ResponseMessage(
+                    role = "assistant",
+                    content = content,
+                    reasoningContent = reasoningContent
+                ),
+                error = choiceError
+            )
+        ),
         error = topLevelError
     )
 
@@ -108,7 +118,30 @@ class RemoteAiDataSourceTest {
         val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
 
         assertTrue(error is IllegalStateException)
-        assertEquals("Empty response from AI service", error!!.message)
+        assertTrue(error!!.message!!.startsWith("Empty response from AI service"))
+    }
+
+    @Test
+    fun `analyze parses JSON from reasoning_content when content is empty`() = runTest {
+        val json = """{"status":"SUCCESS","clarification_message":null,"food_analysis":{"dish_name":"Idli","macros":{"calories":100,"protein_g":2,"carbs_g":20,"fats_g":1},"ingredients":null},"exercise_analysis":null}"""
+        val api = FakeAiApi(mutableListOf(chatResponse(content = null, reasoningContent = json)))
+        val source = RemoteAiDataSource(api, moshi)
+
+        val result = source.analyze(settings, "idli", "{}", null)
+
+        assertEquals("SUCCESS", result.status)
+        assertEquals("Idli", result.foodAnalysis?.dishName)
+    }
+
+    @Test
+    fun `analyze surfaces gateway message bodies without choices`() = runTest {
+        val api = FakeAiApi(mutableListOf(ChatResponse(message = "Model not found")))
+        val source = RemoteAiDataSource(api, moshi)
+
+        val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
+
+        assertTrue(error is IllegalStateException)
+        assertTrue(error!!.message!!.contains("Model not found"))
     }
 
     @Test
