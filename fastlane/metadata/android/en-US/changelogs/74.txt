@@ -1,0 +1,6 @@
+• feat: add start/stop diagnostic log export in Settings
+• fix: persist OpenAI to OpenAI-compatible migration on upgrade
+• feat: replace OpenAI with a clear OpenAI-compatible provider
+• feat: simplify body composition metrics and put tabs under the chart
+• fix: avoid crash when no camera app is installed
+• feat: FreeScale bridge, goal-aware calorie charts, and system toasts
