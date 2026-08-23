@@ -27,6 +27,7 @@ import com.anant.fitbuddy.data.remote.dto.ModelDto
 import com.anant.fitbuddy.data.remote.dto.ResponseFormat
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonDataException
@@ -371,15 +372,34 @@ class RemoteAiDataSource(
                 return response
             } catch (e: HttpException) {
                 if (e.code() == 429 && attempt < MAX_RETRIES) {
+                    DiagnosticLogger.log(
+                        "http",
+                        "retry_429",
+                        mapOf("attempt" to attempt.toString(), "code" to "429")
+                    )
                     delay(backoffFor(e, attempt))
                     attempt++
                     continue
                 }
                 val friendly = friendlyHttpMessage(e)
+                DiagnosticLogger.log(
+                    "http",
+                    "error",
+                    mapOf(
+                        "code" to e.code().toString(),
+                        "message" to friendly
+                    )
+                )
                 if (e.code() == 400) throw AiBadRequestException(friendly, e)
                 throw IllegalStateException(friendly, e)
             } catch (e: IOException) {
-                throw IllegalStateException("Network error: ${e.message ?: "check your connection"}", e)
+                val msg = "Network error: ${e.message ?: "check your connection"}"
+                DiagnosticLogger.log(
+                    "http",
+                    "network_error",
+                    mapOf("message" to msg, "cause" to e.javaClass.simpleName)
+                )
+                throw IllegalStateException(msg, e)
             }
         }
     }
@@ -509,14 +529,18 @@ class RemoteAiDataSource(
      * Lists models from an Ollama host (local/LAN or ollama.com Cloud) via OpenAI-compat
      * `GET /v1/models`. [apiKey] is required for Cloud; omit for local.
      */
-    suspend fun fetchOllamaModels(baseUrl: String, apiKey: String = ""): List<ModelOption> {
+    suspend fun fetchOllamaModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> {
         val base = baseUrl.trim().trimEnd('/')
-        require(base.isNotBlank()) { "Ollama server URL is required to list models" }
+        require(base.isNotBlank()) { "Server URL is required to list models" }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels("$base/v1/models", auth)
         val mapped = response.data
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-        return orderByFailoverLadder(AiProvider.OLLAMA, ModelCatalogModality.TEXT, mapped)
+        return orderByFailoverLadder(ladderProvider, ModelCatalogModality.TEXT, mapped)
     }
 
     /**
@@ -524,21 +548,29 @@ class RemoteAiDataSource(
      * `capabilities` (llama.cpp tags multimodal models in the `/v1/models` `models` array);
      * falls back to a name heuristic for hosts that expose no capability flags.
      */
-    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> {
+    suspend fun fetchOllamaVisionModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> {
         val base = baseUrl.trim().trimEnd('/')
-        require(base.isNotBlank()) { "Ollama server URL is required to list models" }
+        require(base.isNotBlank()) { "Server URL is required to list models" }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         val response = api.listModels("$base/v1/models", auth)
         val visionIds = response.visionCapableIds
         val mapped = response.data
             .filter { it.id in visionIds || isLikelyOllamaVisionModel(it.id) }
             .map { ModelOption(id = it.id, displayName = it.name ?: it.id) }
-        return orderByFailoverLadder(AiProvider.OLLAMA, ModelCatalogModality.PHOTO, mapped)
+        return orderByFailoverLadder(ladderProvider, ModelCatalogModality.PHOTO, mapped)
     }
 
-    /** Text/chat Ollama models (full catalog from the host). */
-    suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
-        fetchOllamaModels(baseUrl, apiKey)
+    /** Text/chat models from an OpenAI-compatible host (full catalog). */
+    suspend fun fetchOllamaTextModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> =
+        fetchOllamaModels(baseUrl, apiKey, ladderProvider)
 
     /**
      * Vision-capable models from the official OpenAI API. The account's live `/v1/models`

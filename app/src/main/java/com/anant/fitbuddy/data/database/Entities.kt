@@ -134,6 +134,9 @@ data class ExercisePreset(
  * A timestamped body-composition reading. Only [weightKg] is required; the remaining fields come
  * from a smart scale and are optional. Stored as a time series so trends can be charted and fed
  * to the AI for goal/target design and progress insight.
+ *
+ * [freescalePayloadJson] holds an opaque FreeScale measurement dump (Ω / BLE / segments / etc.)
+ * for round-trip restore into FreeScale. It is never shown in FitBuddy UI.
  */
 @JsonClass(generateAdapter = true)
 @Entity(tableName = "body_measurements")
@@ -156,7 +159,9 @@ data class BodyMeasurement(
     val fatFreeMassKg: Double? = null, // "weight without fat"
     val skeletalMuscleMassKg: Double? = null,
     val waterWeightKg: Double? = null,
-    val fatMassKg: Double? = null
+    val fatMassKg: Double? = null,
+    /** Opaque FreeScale reading JSON; null for manual FitBuddy entries. */
+    val freescalePayloadJson: String? = null,
 )
 
 /**

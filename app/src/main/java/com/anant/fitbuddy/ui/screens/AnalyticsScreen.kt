@@ -72,6 +72,7 @@ import com.anant.fitbuddy.ui.components.MacroCarbsColor
 import com.anant.fitbuddy.ui.components.MacroFatsColor
 import com.anant.fitbuddy.ui.components.MacroProteinColor
 import com.anant.fitbuddy.ui.components.MetricLineChart
+import com.anant.fitbuddy.ui.components.calorieTargetPrefersSurplus
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.ProgressInsightUiState
@@ -88,26 +89,20 @@ private const val BODY_COMPOSITION_READING_LIMIT = 15
 private data class BodyMetric(
     val label: String,
     val unit: String,
-    val extractor: (BodyMeasurement) -> Double?
+    /** True when a lower value is healthier (fat, weight, etc.). */
+    val decreaseIsPositive: Boolean,
+    val extractor: (BodyMeasurement) -> Double?,
 )
 
 private val BODY_METRICS = listOf(
-    BodyMetric("Weight", " kg") { it.weightKg },
-    BodyMetric("BMI", "") { it.bmi },
-    BodyMetric("Body fat", "%") { it.bodyFatPct },
-    BodyMetric("Muscle rate", "%") { it.muscleRatePct },
-    BodyMetric("Body water", "%") { it.bodyWaterPct },
-    BodyMetric("Muscle mass", " kg") { it.muscleMassKg },
-    BodyMetric("Fat mass", " kg") { it.fatMassKg },
-    BodyMetric("Bone mass", " kg") { it.boneMassKg },
-    BodyMetric("BMR", " kcal") { it.bmr?.toDouble() },
-    BodyMetric("Metabolic age", " yrs") { it.metabolicAge?.toDouble() },
-    BodyMetric("Visceral fat", "%") { it.visceralFat },
-    BodyMetric("Subcutaneous fat", "%") { it.subcutaneousFatPct },
-    BodyMetric("Protein mass", " kg") { it.proteinMassKg },
-    BodyMetric("Weight without fat", " kg") { it.fatFreeMassKg },
-    BodyMetric("Skeletal muscle", " kg") { it.skeletalMuscleMassKg },
-    BodyMetric("Water weight", " kg") { it.waterWeightKg }
+    BodyMetric("Weight", " kg", decreaseIsPositive = true) { it.weightKg },
+    BodyMetric("Body fat", "%", decreaseIsPositive = true) { it.bodyFatPct },
+    BodyMetric("Muscle mass", " kg", decreaseIsPositive = false) { it.muscleMassKg },
+    BodyMetric("Visceral fat", "%", decreaseIsPositive = true) { it.visceralFat },
+    BodyMetric("BMI", "", decreaseIsPositive = true) { it.bmi },
+    BodyMetric("Body water", "%", decreaseIsPositive = false) { it.bodyWaterPct },
+    BodyMetric("Metabolic age", " yrs", decreaseIsPositive = true) { it.metabolicAge?.toDouble() },
+    BodyMetric("BMR", " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,6 +114,8 @@ fun AnalyticsScreen(
     monthlyExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCalories: Int,
+    /** Profile goal: LOSE_WEIGHT | GAIN_MUSCLE | RECOMP | AUTO */
+    goal: String = "RECOMP",
     monthlyEndDate: String,
     realToday: String,
     progressInsightState: ProgressInsightUiState,
@@ -133,6 +130,7 @@ fun AnalyticsScreen(
 ) {
     var selectedRange by remember { mutableIntStateOf(0) } // 0 = Weekly, 1 = Monthly
     val options = listOf("Weekly", "Monthly")
+    val preferSurplus = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
     val exerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
@@ -197,10 +195,21 @@ fun AnalyticsScreen(
 
         item {
             ChartCard(title = "Net Calories vs Target") {
+                Text(
+                    text = if (preferSurplus) {
+                        "Green at/over target · red under · scrub for detail"
+                    } else {
+                        "Green under/on target · red over · scrub for detail"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
                 CustomLineChart(
                     foodSummaries = foodSummaries,
                     exerciseSummaries = exerciseSummaries,
                     targetCalories = targetCalories,
+                    preferSurplus = preferSurplus,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp)
@@ -297,8 +306,70 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
     val scope = rememberCoroutineScope()
 
     ChartCard(title = "Body Composition") {
-        // Tabs stay in sync with the pager: tap to jump straight to a metric, or swipe the chart
-        // below to move between metrics one at a time.
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+        ) { page ->
+            val metric = BODY_METRICS[page]
+            // Last 15 readings (newest-first from Room), then oldest→newest for the chart.
+            // Ignores the Weekly/Monthly toggle above.
+            val points = remember(measurements, page) {
+                measurements
+                    .take(BODY_COMPOSITION_READING_LIMIT)
+                    .asReversed()
+                    .mapNotNull { m ->
+                        metric.extractor(m)?.let { value ->
+                            m.dateString to value
+                        }
+                    }
+            }
+
+            MetricLineChart(
+                points = points,
+                unit = metric.unit,
+                decreaseIsPositive = metric.decreaseIsPositive,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+            )
+        }
+
+        val currentMetric = BODY_METRICS[pagerState.currentPage]
+        val currentPoints = remember(measurements, pagerState.currentPage) {
+            measurements
+                .take(BODY_COMPOSITION_READING_LIMIT)
+                .asReversed()
+                .mapNotNull { m ->
+                    currentMetric.extractor(m)?.let { value ->
+                        m.dateString to value
+                    }
+                }
+        }
+        if (currentPoints.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            val latest = currentPoints.last().second
+            val first = currentPoints.first().second
+            val delta = latest - first
+            Text(
+                text = "Latest ${trim(latest)}${currentMetric.unit}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (currentPoints.size >= 2) {
+                val sign = if (delta > 0) "+" else ""
+                Text(
+                    text = "$sign${trim(delta)}${currentMetric.unit} over last ${currentPoints.size} readings",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Metric switches under the graph (tap or swipe the chart above).
         ScrollableTabRow(
             selectedTabIndex = pagerState.currentPage,
             edgePadding = 0.dp,
@@ -311,55 +382,6 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
                     selected = pagerState.currentPage == index,
                     onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
                     text = { Text(metric.label) }
-                )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp)
-        ) { page ->
-            val metric = BODY_METRICS[page]
-            // Last 15 readings (newest-first from Room), then oldest→newest for the chart.
-            // Ignores the Weekly/Monthly toggle above.
-            val points = remember(measurements, page) {
-                measurements
-                    .take(BODY_COMPOSITION_READING_LIMIT)
-                    .asReversed()
-                    .mapNotNull { m -> metric.extractor(m)?.let { m.dateString.substringAfter("-") to it } }
-            }
-
-            Column(modifier = Modifier.fillMaxWidth()) {
-                if (points.isNotEmpty()) {
-                    val latest = points.last().second
-                    val first = points.first().second
-                    val delta = latest - first
-                    Text(
-                        text = "Latest ${trim(latest)}${metric.unit}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (points.size >= 2) {
-                        val sign = if (delta > 0) "+" else ""
-                        Text(
-                            text = "$sign${trim(delta)}${metric.unit} over last ${points.size} readings",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
-
-                MetricLineChart(
-                    points = points,
-                    unit = metric.unit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
                 )
             }
         }

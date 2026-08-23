@@ -26,22 +26,18 @@ import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.pressable
-import com.anant.fitbuddy.ui.components.showFitBuddyPill
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.MealDraft
+import com.anant.fitbuddy.util.SystemToast
 
 /**
  * Final review before persisting a meal (one or more foods).
@@ -60,17 +56,12 @@ fun MealReviewDialog(
     onEditFood: (Int, FoodEntryDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     fun savePreset() {
         onSaveAsPreset(draft)
         if (!saveAsPresetOnly) {
-            scope.launch {
-                snackbarHostState.showFitBuddyPill(
-                    "Saved \"${draft.name}\" as meal preset"
-                )
-            }
+            SystemToast.show(context, "Saved \"${draft.name}\" as meal preset")
         }
     }
 
@@ -80,7 +71,6 @@ fun MealReviewDialog(
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            snackbarHost = { FitBuddySnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = { Text(if (isEditing) "Edit meal" else "Review meal") },

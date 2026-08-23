@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -152,12 +152,22 @@ abstract class AppDatabase : RoomDatabase() {
                     // Version 11 is the first production-shipped schema; any upgrade from v11+
                     // must provide an explicit Migration object so user data is never silently
                     // wiped on an app update.
-                    .addMigrations(MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
                 INSTANCE = instance
                 instance
             }
+        }
+
+        /**
+         * Additive only: nullable FreeScale restore blob for full reading round-trip.
+         * Existing rows stay NULL; no rewrite of display fields. Never shown in FitBuddy UI.
+         */
+        val MIGRATION_13_14 = migration(13, 14) { db ->
+            db.execSQL(
+                "ALTER TABLE body_measurements ADD COLUMN freescalePayloadJson TEXT"
+            )
         }
 
         /**
@@ -167,11 +177,11 @@ abstract class AppDatabase : RoomDatabase() {
          *
          * Example — adding a nullable column to food_logs:
          *
-         *   val MIGRATION_13_14 = migration(13, 14) {
+         *   val MIGRATION_14_15 = migration(14, 15) {
          *       it.execSQL("ALTER TABLE food_logs ADD COLUMN notes TEXT")
          *   }
          *
-         * Then in getDatabase: .addMigrations(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+         * Then in getDatabase: .addMigrations(..., MIGRATION_13_14, MIGRATION_14_15)
          */
         fun migration(from: Int, to: Int, block: (SupportSQLiteDatabase) -> Unit): Migration =
             object : Migration(from, to) {

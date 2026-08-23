@@ -81,6 +81,28 @@ class BackupManager(
     }
 
     /**
+     * Writes a sealed backup into [file] (parent dirs created as needed) and returns the record count.
+     * Used for the system share sheet (cache file + FileProvider).
+     */
+    suspend fun exportToFile(file: java.io.File, password: CharArray? = null): Int =
+        withContext(Dispatchers.IO) {
+            val data = snapshot()
+            val json = encode(data)
+            val output = crypto.seal(json, password)
+            file.parentFile?.mkdirs()
+            file.writeText(output, Charsets.UTF_8)
+            countRecords(data)
+        }
+
+    /** Writes into `cache/share/FitBuddy-backup.json` for [android.content.Intent.ACTION_SEND]. */
+    suspend fun exportToShareCache(password: CharArray? = null): Pair<java.io.File, Int> {
+        val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+        val file = java.io.File(dir, "FitBuddy-backup.json")
+        val count = exportToFile(file, password)
+        return file to count
+    }
+
+    /**
      * Imports a backup from [uri]. The raw bytes are classified (within the 3s budget,
      * Requirement 2.1) before any data is touched:
      * - [BackupFormat.LEGACY_PLAIN]/[BackupFormat.PLAIN_WRAPPED] import directly with no prompt
