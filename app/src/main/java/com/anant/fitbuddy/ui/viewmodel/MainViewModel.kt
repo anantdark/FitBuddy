@@ -35,6 +35,8 @@ import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.util.BackupShare
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
@@ -440,15 +442,15 @@ class MainViewModel(
         }
     }
 
-    /** Local SAF export is required when cloud backup is off. */
+    /** Local share export is required when cloud backup is off. */
     fun needsLocalUriForUpdateBackup(): Boolean = !settings.value.cloudBackupEnabled
 
     /**
-     * Start Export backup & update: remember [downloadUrl], then either await a local file
-     * pick or begin cloud/local export immediately.
-     * @return true if the UI should launch the SAF create-document picker.
+     * Start Export backup & update: remember [downloadUrl], then begin cloud upload or share-sheet
+     * export immediately.
+     * @return always false (no SAF picker); kept for call-site compatibility.
      */
-    fun beginExportBackupAndUpdate(downloadUrl: String): Boolean {
+    fun beginExportBackupAndUpdate(context: Context, downloadUrl: String): Boolean {
         if (_updateState.value.isExportingBackup) return false
         if (_updateState.value.backupCompleted) return false
         _updateState.update {
@@ -458,13 +460,8 @@ class MainViewModel(
                 backupStatusIsError = false
             )
         }
-        return if (needsLocalUriForUpdateBackup()) {
-            _updateState.update { it.copy(isAwaitingBackupFilePick = true) }
-            true
-        } else {
-            exportBackupForUpdate()
-            false
-        }
+        exportBackupForUpdate(context)
+        return false
     }
 
     fun cancelBackupFilePick() {
@@ -479,19 +476,19 @@ class MainViewModel(
     }
 
     /**
-     * Pre-update backup: cloud upload when enabled, otherwise local file via [uri].
+     * Pre-update backup: cloud upload when enabled, otherwise write + share a local JSON file.
      * On success sets [UpdateUiState.backupCompleted] so the APK URL can open in the browser.
      */
-    fun exportBackupForUpdate(uri: Uri? = null) {
+    fun exportBackupForUpdate(context: Context? = null) {
         if (_updateState.value.isExportingBackup) return
         if (_updateState.value.backupCompleted) return
         val useCloud = settings.value.cloudBackupEnabled
-        if (!useCloud && uri == null) {
+        if (!useCloud && context == null) {
             _updateState.update {
                 it.copy(
                     isAwaitingBackupFilePick = false,
                     pendingDownloadUrlAfterBackup = null,
-                    backupStatusMessage = "Choose a file to save the backup",
+                    backupStatusMessage = "Could not open share sheet",
                     backupStatusIsError = true
                 )
             }
@@ -509,7 +506,15 @@ class MainViewModel(
             val result = if (useCloud) {
                 runCatching { repository.uploadMongoBackup(force = true).recordCount }
             } else {
-                runCatching { repository.exportData(uri!!) }
+                runCatching {
+                    val (file, count) = repository.exportDataToShareFile(password = null)
+                    BackupShare.shareJsonFile(
+                        context!!.applicationContext,
+                        file,
+                        chooserTitle = "Share FitBuddy backup",
+                    )
+                    count
+                }
             }
             result
                 .onSuccess { count ->
@@ -529,7 +534,7 @@ class MainViewModel(
                     val message = if (useCloud) {
                         "Uploaded $count records to cloud backup"
                     } else {
-                        "Exported $count records"
+                        "Shared $count records"
                     }
                     _updateState.update {
                         it.copy(
@@ -736,6 +741,41 @@ class MainViewModel(
         }
     }
 
+    fun setDiagnosticLoggingEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(current.copy(diagnosticLoggingEnabled = enabled))
+            DiagnosticLogger.setEnabled(enabled, current, restartSession = enabled)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (enabled) {
+                        "Diagnostic logging on — reproduce the issue, then stop & export"
+                    } else {
+                        "Diagnostic logging off"
+                    }
+                )
+            }
+        }
+    }
+
+    /** Stops recording (keeps the buffer) and opens the share sheet for the log file. */
+    fun stopDiagnosticLoggingAndExport(context: Context): Boolean {
+        DiagnosticLogger.setEnabled(false, restartSession = false)
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.diagnosticLoggingEnabled) {
+                settingsRepository.save(current.copy(diagnosticLoggingEnabled = false))
+            }
+            _analysisState.update { it.copy(userMessage = "Diagnostic logging stopped") }
+        }
+        val file = DiagnosticLogger.exportToShareFile(context) ?: return false
+        return runCatching {
+            BackupShare.shareTextFile(context, file, chooserTitle = "Share diagnostic log")
+            true
+        }.getOrDefault(false)
+    }
+
+
     /**
      * Easter egg: Settings “crafted with ♥” double-tap. Always tries a Sentry heartbeat
      * (even if crash reporting is off); ignores the once-per-day gate so the tap pulses.
@@ -822,6 +862,13 @@ class MainViewModel(
                             else -> repository.fetchOllamaVisionModels(url, apiKey)
                         }
                     }
+                    AiProvider.CUSTOM -> {
+                        val url = baseUrl.trim().trimEnd('/')
+                        if (url.isBlank()) emptyList()
+                        else repository.fetchOllamaVisionModels(
+                            url, apiKey, ladderProvider = AiProvider.CUSTOM
+                        )
+                    }
                     AiProvider.OPENAI -> repository.fetchOpenAiVisionModels(apiKey)
                 }
                 // Skip reachability probes when paid models are listed (never ping paid endpoints).
@@ -875,6 +922,13 @@ class MainViewModel(
                             else -> repository.fetchOllamaTextModels(url, apiKey)
                         }
                     }
+                    AiProvider.CUSTOM -> {
+                        val url = baseUrl.trim().trimEnd('/')
+                        if (url.isBlank()) emptyList()
+                        else repository.fetchOllamaTextModels(
+                            url, apiKey, ladderProvider = AiProvider.CUSTOM
+                        )
+                    }
                     AiProvider.OPENAI -> repository.fetchOpenAiTextModels(apiKey)
                 }
                 if (force && !includePaid) {
@@ -926,6 +980,11 @@ class MainViewModel(
             } else {
                 current.ollamaTextModel.ifBlank { current.ollamaModel }
             }
+            AiProvider.CUSTOM -> if (forPhoto) {
+                current.customModel
+            } else {
+                current.customTextModel.ifBlank { current.customModel }
+            }
             AiProvider.OPENAI -> return
         }
         if (selected.isBlank() || options.any { it.id == selected }) return
@@ -958,6 +1017,13 @@ class MainViewModel(
             } else {
                 current.copy(ollamaModel = next)
             }
+            AiProvider.CUSTOM -> if (forPhoto) {
+                current.copy(customModel = next)
+            } else if (current.customTextModel.isNotBlank()) {
+                current.copy(customTextModel = next)
+            } else {
+                current.copy(customModel = next)
+            }
             AiProvider.OPENAI -> return
         }
         settingsRepository.save(updated)
@@ -981,14 +1047,17 @@ class MainViewModel(
         // (force && !includePaid is never true), but never probe it regardless: billed calls.
         if (provider == AiProvider.OPENAI) return catalog
         val trimmedUrl = baseUrl.trim().trimEnd('/')
-        val ollamaLocal = provider == AiProvider.OLLAMA &&
-            trimmedUrl != AppSettings.OLLAMA_CLOUD_BASE_URL
-        if (apiKey.isBlank() && !ollamaLocal) return catalog
+        val keylessLocal = (
+            provider == AiProvider.OLLAMA &&
+                trimmedUrl != AppSettings.OLLAMA_CLOUD_BASE_URL
+            ) || (provider == AiProvider.CUSTOM && trimmedUrl.isNotBlank())
+        if (apiKey.isBlank() && !keylessLocal) return catalog
         val chatUrl = when (provider) {
             AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
             AiProvider.GEMINI ->
                 "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
             AiProvider.OLLAMA -> baseUrl.trim().trimEnd('/') + "/v1/chat/completions"
+            AiProvider.CUSTOM -> baseUrl.trim().trimEnd('/') + "/v1/chat/completions"
             AiProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
         }
         val auth = apiKey.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
@@ -1382,12 +1451,17 @@ class MainViewModel(
         repository.latestMeasurement
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Saves a new body reading (timestamped now) and mirrors weight onto the profile. */
+    /** Saves a new body reading. Keeps [BodyMeasurement.timestamp] when already set (e.g. FreeScale pull). */
     fun addMeasurement(measurement: BodyMeasurement) {
         viewModelScope.launch {
-            val ts = System.currentTimeMillis()
-            repository.addMeasurement(
-                measurement.copy(timestamp = ts, dateString = DateUtils.format(ts))
+            val ts = if (measurement.timestamp > 0L) {
+                measurement.timestamp
+            } else {
+                System.currentTimeMillis()
+            }
+            val dateString = measurement.dateString.ifBlank { DateUtils.format(ts) }
+            repository.upsertMeasurementByTimestamp(
+                measurement.copy(timestamp = ts, dateString = dateString)
             )
             _analysisState.update { it.copy(userMessage = "Reading saved") }
         }
@@ -1804,15 +1878,20 @@ class MainViewModel(
     // --- Backup (export / import) -----------------------------------------------------------
 
     /**
-     * Exports a local backup. When [password] is non-null, the backup is encrypted with that
-     * password (must be 8–128 chars; validation is done in the UI layer before calling this).
+     * Exports a local backup via the system share sheet. When [password] is non-null, the backup
+     * is encrypted with that password (must be 8–128 chars; validation is done in the UI layer).
      * The password CharArray is zeroed after use.
      */
-    fun exportData(uri: Uri, password: CharArray? = null) {
+    fun exportData(context: Context, password: CharArray? = null) {
         viewModelScope.launch {
             try {
-                val count = repository.exportData(uri, password)
-                _analysisState.update { it.copy(userMessage = "Exported $count records") }
+                val (file, count) = repository.exportDataToShareFile(password)
+                BackupShare.shareJsonFile(
+                    context.applicationContext,
+                    file,
+                    chooserTitle = "Share FitBuddy backup",
+                )
+                _analysisState.update { it.copy(userMessage = "Sharing $count records…") }
             } catch (e: Exception) {
                 val msg = if (password != null && password.isNotEmpty()) {
                     "Export failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
@@ -2208,6 +2287,11 @@ class MainViewModel(
                     openAiApiKey = aiSettings.openAiApiKey,
                     openAiModel = aiSettings.openAiModel.ifBlank { settings.value.openAiModel },
                     openAiTextModel = aiSettings.openAiTextModel,
+                    customBaseUrl = aiSettings.customBaseUrl,
+                    customModel = aiSettings.customModel,
+                    customTextModel = aiSettings.customTextModel,
+                    customApiKeys = aiSettings.customApiKeys,
+                    customApiKey = aiSettings.customApiKey,
                     aiAutoFailoverByProvider = aiSettings.aiAutoFailoverByProvider,
                     showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                 )
@@ -2809,6 +2893,11 @@ class MainViewModel(
                         openAiApiKey = aiSettings.openAiApiKey,
                         openAiModel = aiSettings.openAiModel.ifBlank { current.openAiModel },
                         openAiTextModel = aiSettings.openAiTextModel,
+                        customBaseUrl = aiSettings.customBaseUrl,
+                        customModel = aiSettings.customModel,
+                        customTextModel = aiSettings.customTextModel,
+                        customApiKeys = aiSettings.customApiKeys,
+                        customApiKey = aiSettings.customApiKey,
                         aiAutoFailoverByProvider = aiSettings.aiAutoFailoverByProvider,
                         showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                     )
@@ -2980,6 +3069,14 @@ class MainViewModel(
                 } else {
                     repository.fetchOllamaVisionModels(base)
                 }
+            }
+            AiProvider.CUSTOM -> {
+                val base = settings.customEffectiveBaseUrl
+                check(base.isNotBlank()) { "Enter your custom server URL" }
+                val key = settings.activeKey(AiProvider.CUSTOM)
+                repository.fetchOllamaVisionModels(
+                    base, key, ladderProvider = AiProvider.CUSTOM
+                )
             }
             AiProvider.OPENAI -> {
                 val key = settings.activeKey(AiProvider.OPENAI)

@@ -82,6 +82,7 @@ import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.util.DeviceIdentity
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
@@ -140,6 +141,35 @@ class FitnessRepository(
         }
     }
 
+    /**
+     * Insert or replace by [BodyMeasurement.timestamp]. Returns true if a new row was inserted.
+     */
+    suspend fun upsertMeasurementByTimestamp(measurement: BodyMeasurement): Boolean {
+        val existing = bodyMeasurementDao.getByTimestamp(measurement.timestamp)
+        val toSave = if (existing != null) {
+            measurement.copy(
+                id = existing.id,
+                freescalePayloadJson = measurement.freescalePayloadJson
+                    ?: existing.freescalePayloadJson,
+            )
+        } else {
+            measurement.copy(id = 0)
+        }
+        bodyMeasurementDao.insert(toSave)
+        userProfileDao.getProfileOnce()?.let { profile ->
+            userProfileDao.insertOrUpdateProfile(
+                profile.copy(
+                    weightKg = toSave.weightKg,
+                    lastUpdatedTimestamp = toSave.timestamp
+                )
+            )
+        }
+        return existing == null
+    }
+
+    suspend fun getAllMeasurementsOnce(): List<BodyMeasurement> =
+        bodyMeasurementDao.getAllOnce()
+
     suspend fun deleteMeasurement(measurement: BodyMeasurement) =
         bodyMeasurementDao.delete(measurement)
 
@@ -197,6 +227,15 @@ class FitnessRepository(
         val count = backupManager.exportTo(uri, password)
         settingsRepository.recordSuccessfulBackup()
         return count
+    }
+
+    /**
+     * Writes a backup into app cache and returns the file + record count for a share sheet.
+     */
+    suspend fun exportDataToShareFile(password: CharArray? = null): Pair<java.io.File, Int> {
+        val result = backupManager.exportToShareCache(password)
+        settingsRepository.recordSuccessfulBackup()
+        return result
     }
 
     /**
@@ -999,6 +1038,19 @@ class FitnessRepository(
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
         val forceOffline = settings.developerModeUnlocked && settings.forceOfflineAiSimulator
+        val modality = if (imageBytes != null) "photo" else "text"
+        DiagnosticLogger.log(
+            "analyze",
+            "start",
+            mapOf(
+                "modality" to modality,
+                "provider" to settings.provider.name,
+                "model" to settings.modelFor(imageBytes != null),
+                "host" to DiagnosticLogger.hostOf(settings.chatUrl),
+                "configured" to settings.isConfigured.toString(),
+                "force_offline" to forceOffline.toString()
+            )
+        )
 
         // Preferred provider configured: live AI with same-platform key/model failover.
         // Surface real failures instead of silently faking a result (silent offline fallback
@@ -1017,33 +1069,57 @@ class FitnessRepository(
                         active, userText, userStateContextJson, dataUrl, forceEstimate
                     )
                 }
-                processResponse(response, customTimestamp = customTimestamp, userText = userText)
+                val outcome = processResponse(response, customTimestamp = customTimestamp, userText = userText)
                     .withFailoverNote(failoverNote)
+                DiagnosticLogger.log(
+                    "analyze",
+                    "ok",
+                    mapOf(
+                        "modality" to modality,
+                        "status" to response.status,
+                        "failover" to (failoverNote ?: "none")
+                    )
+                )
+                outcome
             } catch (e: Exception) {
-                AnalysisOutcome.Error(formatAiConnectionError(e))
+                val message = formatAiConnectionError(e)
+                DiagnosticLogger.log(
+                    "analyze",
+                    "error",
+                    mapOf(
+                        "modality" to modality,
+                        "message" to message,
+                        "cause" to e.javaClass.simpleName
+                    )
+                )
+                AnalysisOutcome.Error(message)
             }
         }
 
         // Not configured / forced offline: the offline simulator cannot read images.
         if (imageBytes != null) {
-            return AnalysisOutcome.Error(
-                if (forceOffline) {
-                    "Force offline simulator can't analyse photos. Turn it off or use text."
-                } else {
-                    "Connect an AI provider in Settings to analyse food photos."
-                }
-            )
+            val message = if (forceOffline) {
+                "Force offline simulator can't analyse photos. Turn it off or use text."
+            } else {
+                "Connect an AI provider in Settings to analyse food photos."
+            }
+            DiagnosticLogger.log("analyze", "error", mapOf("modality" to modality, "message" to message))
+            return AnalysisOutcome.Error(message)
         }
 
         return try {
             val region = AppRegion.fromStored(settings.region) ?: AppRegion.INDIA
-            processResponse(
+            val outcome = processResponse(
                 simulateAIService(userText, inferMode(userText, false), region),
                 customTimestamp = customTimestamp,
                 userText = userText
             )
+            DiagnosticLogger.log("analyze", "ok", mapOf("modality" to modality, "mode" to "offline_sim"))
+            outcome
         } catch (e: Exception) {
-            AnalysisOutcome.Error(e.message ?: "Analysis failed")
+            val message = e.message ?: "Analysis failed"
+            DiagnosticLogger.log("analyze", "error", mapOf("modality" to modality, "message" to message))
+            AnalysisOutcome.Error(message)
         }
     }
 
@@ -1170,13 +1246,21 @@ class FitnessRepository(
     ): List<ModelOption> =
         remoteAiDataSource.fetchGeminiTextModels(apiKey, includePaid)
 
-    /** Vision-capable Ollama models (local or Cloud). */
-    suspend fun fetchOllamaVisionModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
-        remoteAiDataSource.fetchOllamaVisionModels(baseUrl, apiKey)
+    /** Vision-capable models from an Ollama / OpenAI-compatible host. */
+    suspend fun fetchOllamaVisionModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchOllamaVisionModels(baseUrl, apiKey, ladderProvider)
 
-    /** All Ollama models on the host for the text-query dropdown. */
-    suspend fun fetchOllamaTextModels(baseUrl: String, apiKey: String = ""): List<ModelOption> =
-        remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey)
+    /** Text/chat models from an Ollama / OpenAI-compatible host. */
+    suspend fun fetchOllamaTextModels(
+        baseUrl: String,
+        apiKey: String = "",
+        ladderProvider: AiProvider = AiProvider.OLLAMA,
+    ): List<ModelOption> =
+        remoteAiDataSource.fetchOllamaTextModels(baseUrl, apiKey, ladderProvider)
 
     /** Vision-capable OpenAI models for the Settings dropdown. */
     suspend fun fetchOpenAiVisionModels(apiKey: String): List<ModelOption> =
@@ -2023,9 +2107,10 @@ class FitnessRepository(
         if (!settings.aiAutoFailover) {
             var lastError: Exception? = null
             for (key in keys) {
+                var activeModel = preferredSelected
                 try {
                     val attempt = settings.withKey(platform, key)
-                    val activeModel = attempt.modelFor(preferVisionModels)
+                    activeModel = attempt.modelFor(preferVisionModels)
                     onModelActive?.invoke(activeModel)
                     val result = block(attempt)
                     settingsRepository.setActiveAiModel(
@@ -2036,6 +2121,15 @@ class FitnessRepository(
                     return result to null
                 } catch (e: Exception) {
                     lastError = e
+                    DiagnosticLogger.log(
+                        "failover",
+                        "key_failed",
+                        mapOf(
+                            "model" to activeModel,
+                            "cause" to e.javaClass.simpleName,
+                            "message" to (e.message ?: "")
+                        )
+                    )
                 }
             }
             throw lastError ?: IllegalStateException("Couldn't connect to AI")
@@ -2077,6 +2171,16 @@ class FitnessRepository(
                     lastError = e
                     lastModelError = e
                     if (ModelCooldownPolicy.isRateLimitError(e)) rateLimitedOnModel = true
+                    DiagnosticLogger.log(
+                        "failover",
+                        "attempt_failed",
+                        mapOf(
+                            "model" to modelId,
+                            "rate_limited" to rateLimitedOnModel.toString(),
+                            "cause" to e.javaClass.simpleName,
+                            "message" to (e.message ?: "")
+                        )
+                    )
                 }
             }
             if (rateLimitedOnModel && lastModelError != null) {
@@ -2133,6 +2237,19 @@ class FitnessRepository(
                         remoteAiDataSource.fetchOllamaVisionModels(base, key)
                     } else {
                         remoteAiDataSource.fetchOllamaTextModels(base, key)
+                    }
+                }
+                AiProvider.CUSTOM -> {
+                    val base = settings.customEffectiveBaseUrl
+                    val key = listKey
+                    if (preferVisionModels) {
+                        remoteAiDataSource.fetchOllamaVisionModels(
+                            base, key, ladderProvider = AiProvider.CUSTOM
+                        )
+                    } else {
+                        remoteAiDataSource.fetchOllamaTextModels(
+                            base, key, ladderProvider = AiProvider.CUSTOM
+                        )
                     }
                 }
                 AiProvider.OPENAI -> if (preferVisionModels) {

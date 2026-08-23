@@ -86,13 +86,14 @@ progress charts, editable meal review, and reusable food presets.
 - **Gemini**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`; Bearer key;
   model list via `.../v1beta/models?key=...`; dropdown = vision-capable Gemini models (heuristic,
   since the list API exposes no modality flag). Model ids strip the `models/` prefix.
-- **Ollama / OpenAI-compatible**: Local or Cloud (Settings toggle). Local = user-supplied base URL
-  pointing at **any** OpenAI-compatible host (Ollama, OpenAI `https://api.openai.com`, LM Studio,
-  vLLM, LocalAI) with an **optional** API key (Bearer, sent only when set — keyless local still
-  works), `GET {url}/v1/models` for dropdowns, cleartext LAN HTTP (`usesCleartextTraffic=true`).
-  Cloud = `https://ollama.com` + Bearer API key from ollama.com/settings/keys; same
-  `/v1/models` + `/v1/chat/completions`. Vision dropdown uses a name heuristic (llava, etc.);
-  models not matched (e.g. `gpt-4o`) can be typed in the Model id field manually.
+- **Ollama**: Local or Cloud (Settings toggle). Local = user-supplied base URL (typically a LAN
+  Ollama), optional API key (Bearer when set). Cloud = `https://ollama.com` + Bearer key from
+  ollama.com/settings/keys. Both use `/v1/models` + `/v1/chat/completions`.
+- **OpenAI-compatible** (`AiProvider.CUSTOM`): One option for official OpenAI **and** any
+  compatible host (LM Studio, vLLM, LocalAI, Together, Groq, gateways). Prefills
+  `https://api.openai.com`; change Base URL for other hosts. Optional API key (required for
+  official OpenAI; often empty for local). `GET {url}/v1/models` for dropdowns; cleartext LAN
+  HTTP allowed (`usesCleartextTraffic=true`). Legacy dedicated OpenAI provider migrates here on load.
 - Config is **runtime** via Settings screen (DataStore), not compile-time. `BuildConfig`
   (`OPENROUTER_API_KEY`, `AI_MODEL` from `local.properties`) only seeds first-run defaults.
 - Multiple API keys per provider (Settings chips). **Auto failover** (default on): same model →

@@ -1,8 +1,10 @@
 package com.anant.fitbuddy.ui.screens
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -36,7 +38,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
@@ -64,6 +65,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.MealDraft
@@ -74,10 +76,6 @@ import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
-import com.anant.fitbuddy.ui.components.FitBuddyLivePill
-import com.anant.fitbuddy.ui.components.FitBuddyPillConfig
-import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
-import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.util.ImageUtils
@@ -229,7 +227,6 @@ fun MainScreen(
     var cloudRestorePasswordContinuation by remember {
         mutableStateOf<CancellableContinuation<CharArray?>?>(null)
     }
-    var livePillMessage by remember { mutableStateOf<String?>(null) }
     var showAnantEasterEgg by remember { mutableStateOf(false) }
 
     LaunchedEffect(cloneMealRequest) {
@@ -261,7 +258,6 @@ fun MainScreen(
         }
     }
 
-    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -278,18 +274,29 @@ fun MainScreen(
         }
     }
 
+    // Some devices (custom ROMs, no camera app) throw ActivityNotFoundException on
+    // IMAGE_CAPTURE. Resolve first; catch as a last resort so the app never crashes.
+    fun launchCameraPreview() {
+        val capture = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (capture.resolveActivity(context.packageManager) == null) {
+            SystemToast.show(context, "No camera app available. Use Gallery instead.")
+            return
+        }
+        try {
+            cameraLauncher.launch(null)
+        } catch (_: ActivityNotFoundException) {
+            SystemToast.show(context, "No camera app available. Use Gallery instead.")
+        }
+    }
+
     // TakePicturePreview starts IMAGE_CAPTURE, which requires CAMERA at runtime on
     // Android 6+. Launching without it crashes with SecurityException (permission denial).
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
         if (granted) {
             viewModel.notifyExternalMediaLaunch()
-            cameraLauncher.launch(null)
+            launchCameraPreview()
         } else {
-            scope.launch {
-                snackbarHostState.showFitBuddyPill(
-                    "Camera permission not allowed."
-                )
-            }
+            SystemToast.show(context, "Camera permission not allowed.")
         }
     }
 
@@ -305,46 +312,15 @@ fun MainScreen(
         }
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            val pw = exportPassword
-            val password = if (pw.isNotEmpty()) pw.toCharArray() else null
-            viewModel.exportData(uri, password)
-            exportPassword = ""
-            exportConfirmPassword = ""
-        }
-        showExportDialog = false
-    }
-
-    val updateBackupExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            viewModel.exportBackupForUpdate(uri)
-        } else {
-            viewModel.cancelBackupFilePick()
-        }
-    }
-
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { pendingImportUri = it } }
 
-    // Surface transient outcomes (logged / errors) as a snackbar, then clear.
+    // Surface transient outcomes (logged / errors) via system Toast, then clear.
     LaunchedEffect(analysisState.userMessage) {
         analysisState.userMessage?.let { message ->
-            snackbarHostState.showFitBuddyPill(message)
+            SystemToast.show(context, message)
             viewModel.consumeUserMessage()
-        }
-    }
-
-    LaunchedEffect(livePillMessage) {
-        val message = livePillMessage ?: return@LaunchedEffect
-        delay(FitBuddyPillConfig.DISPLAY_MS)
-        if (livePillMessage == message) {
-            livePillMessage = null
         }
     }
 
@@ -372,7 +348,6 @@ fun MainScreen(
                     }
                 )
             },
-            snackbarHost = { FitBuddySnackbarHost(snackbarHostState, bottomPadding = 24.dp) }
         ) { innerPadding ->
             SettingsScreen(
                 settings = settings,
@@ -398,25 +373,19 @@ fun MainScreen(
                 onExport = { showExportDialog = true },
                 onImport = { importLauncher.launch(arrayOf("application/json")) },
                 onEasterEggTriggered = {
-                    livePillMessage = null
-                    snackbarHostState.currentSnackbarData?.dismiss()
                     showAnantEasterEgg = true
                     viewModel.markEasterEggDiscovered()
                 },
                 onAnantTapHint = { remaining ->
-                    livePillMessage = "$remaining taps to go"
+                    SystemToast.show(context, "$remaining taps to go")
                 },
-                onAnantTapHintDismiss = { livePillMessage = null },
+                onAnantTapHintDismiss = { },
                 onAnantTapWhenUnlocked = {
-                    scope.launch {
-                        snackbarHostState.showFitBuddyPill("Don't be greedy")
-                    }
+                    SystemToast.show(context, "Don't be greedy")
                 },
                 onResetEasterEggData = {
                     viewModel.resetEasterEggData()
-                    livePillMessage = null
                     showAnantEasterEgg = false
-                    snackbarHostState.currentSnackbarData?.dismiss()
                 },
                 updateState = updateState,
                 onCheckForUpdates = { viewModel.checkForUpdates(BuildConfig.VERSION_CODE) },
@@ -426,41 +395,44 @@ fun MainScreen(
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
                 },
+                onStartDiagnosticLogging = {
+                    viewModel.setDiagnosticLoggingEnabled(true)
+                },
+                onStopAndExportDiagnosticLog = {
+                    val ok = viewModel.stopDiagnosticLoggingAndExport(context)
+                    SystemToast.show(
+                        context,
+                        if (ok) "Choose an app to share the log" else "No diagnostic log yet",
+                    )
+                },
                 onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap,
                 onSupportIdCopied = {
-                    scope.launch {
-                        snackbarHostState.showFitBuddyPill("Support ID copied")
-                    }
+                    SystemToast.show(context, "Support ID copied")
                 },
                 onDeveloperUnlockHint = { remaining ->
-                    livePillMessage = "$remaining taps to go"
+                    SystemToast.show(context, "$remaining taps to go")
                 },
-                onDeveloperUnlockHintDismiss = { livePillMessage = null },
+                onDeveloperUnlockHintDismiss = { },
                 onDeveloperModeToggled = { unlocked ->
-                    livePillMessage = null
                     viewModel.setDeveloperModeUnlocked(unlocked)
-                    scope.launch {
-                        snackbarHostState.showFitBuddyPill(
-                            if (unlocked) "Developer settings unlocked"
-                            else "Developer settings hidden"
-                        )
-                    }
+                    SystemToast.show(
+                        context,
+                        if (unlocked) "Developer settings unlocked"
+                        else "Developer settings hidden",
+                    )
                 },
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
                 onApplyBuiltInModelDefaults = viewModel::applyBuiltInModelDefaults,
                 onShowTestUpdatePrompt = viewModel::showTestUpdatePrompt,
                 onRestartOnboarding = viewModel::restartOnboardingForTesting,
                 onTestNotificationSent = { ok ->
-                    scope.launch {
-                        snackbarHostState.showFitBuddyPill(
-                            if (ok) "Test notification sent" else "Couldn't send notification"
-                        )
-                    }
+                    SystemToast.show(
+                        context,
+                        if (ok) "Test notification sent" else "Couldn't send notification",
+                    )
                 },
                 onPermissionDenied = { message ->
-                    scope.launch {
-                        snackbarHostState.showFitBuddyPill(message)
-                    }
+                    SystemToast.show(context, message)
                 },
                 mongoBackupBusy = mongoBackupBusy,
                 onCloudBackupEnabledChange = viewModel::setCloudBackupEnabled,
@@ -488,11 +460,6 @@ fun MainScreen(
                 modifier = Modifier.padding(innerPadding)
             )
         }
-            FitBuddyLivePill(
-                message = if (showAnantEasterEgg) null else livePillMessage,
-                modifier = Modifier.fillMaxSize(),
-                bottomPadding = 24.dp
-            )
         }
     } else if (showProgressChat) {
         ProgressCoachChatScreen(
@@ -534,7 +501,6 @@ fun MainScreen(
                     )
                 }
             },
-            snackbarHost = { },
             bottomBar = {
                 NavigationBar {
                     Tab.entries.forEach { tab ->
@@ -604,6 +570,7 @@ fun MainScreen(
                                 monthlyExercise = monthlyExercise,
                                 measurements = measurements,
                                 targetCalories = dashboardState.targetCalories,
+                                goal = dashboardState.profile?.goal ?: "RECOMP",
                                 monthlyEndDate = monthlyEndDate,
                                 realToday = realToday,
                                 progressInsightState = progressInsightState,
@@ -708,18 +675,6 @@ fun MainScreen(
                 }
             }
 
-            FitBuddySnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(3f)
-            )
-            FitBuddyLivePill(
-                message = if (showAnantEasterEgg) null else livePillMessage,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(3f)
-            )
         }
     }
 
@@ -739,7 +694,7 @@ fun MainScreen(
                 showLogHub = false
                 viewModel.notifyExternalMediaLaunch()
                 if (cameraPermission.status.isGranted) {
-                    cameraLauncher.launch(null)
+                    launchCameraPreview()
                 } else {
                     cameraPermission.launchPermissionRequest()
                 }
@@ -886,9 +841,7 @@ fun MainScreen(
                 scanFlow = null
             },
             onCameraPermissionDenied = {
-                scope.launch {
-                    snackbarHostState.showFitBuddyPill("Camera permission not allowed.")
-                }
+                SystemToast.show(context, "Camera permission not allowed.")
             }
         )
     }
@@ -996,7 +949,7 @@ fun MainScreen(
             onSaveAsPreset = { mealDraft ->
                 viewModel.saveMealDraftAsPreset(mealDraft)
                 if (saveAsPresetOnly) {
-                    livePillMessage = "Saved \"${mealDraft.name}\" as meal preset"
+                    SystemToast.show(context, "Saved \"${mealDraft.name}\" as meal preset")
                     mealReviewDraft = null
                     mealReviewSavesAsPreset = false
                     viewModel.dismissMealDraft()
@@ -1078,9 +1031,7 @@ fun MainScreen(
                 TextButton(
                     onClick = {
                         clipboard.setText(AnnotatedString(json))
-                        scope.launch {
-                            snackbarHostState.showFitBuddyPill("Copied")
-                        }
+                        SystemToast.show(context, "Copied")
                     }
                 ) { Text("Copy") }
             }
@@ -1155,11 +1106,11 @@ fun MainScreen(
                 exportPassword = ""
                 exportConfirmPassword = ""
             },
-            title = { Text("Export backup") },
+            title = { Text("Share backup") },
             text = {
                 Column {
                     Text(
-                        "Optionally protect this backup with a password.",
+                        "Optionally protect this backup with a password, then choose where to send it.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.size(12.dp))
@@ -1194,9 +1145,16 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = { exportLauncher.launch("fitness-backup.json") },
+                    onClick = {
+                        val pw = exportPassword
+                        val password = if (pw.isNotEmpty()) pw.toCharArray() else null
+                        viewModel.exportData(context, password)
+                        exportPassword = ""
+                        exportConfirmPassword = ""
+                        showExportDialog = false
+                    },
                     enabled = canExport
-                ) { Text("Export") }
+                ) { Text("Share") }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -1365,9 +1323,7 @@ fun MainScreen(
         cloudBackupEnabled = settings.cloudBackupEnabled,
         onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
         onExportBackupAndUpdate = { downloadUrl ->
-            if (viewModel.beginExportBackupAndUpdate(downloadUrl)) {
-                updateBackupExportLauncher.launch("fitness-backup.json")
-            }
+            viewModel.beginExportBackupAndUpdate(context, downloadUrl)
         },
         onSkipBackupAndUpdate = ::startUpdateDownload
     )

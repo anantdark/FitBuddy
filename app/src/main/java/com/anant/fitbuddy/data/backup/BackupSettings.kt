@@ -41,16 +41,22 @@ data class BackupSettings(
     val openAiApiKeys: List<String> = emptyList(),
     val openAiModel: String = AppSettings.DEFAULT_OPENAI_MODEL,
     val openAiTextModel: String = "",
+    val customBaseUrl: String = "",
+    val customModel: String = "",
+    val customTextModel: String = "",
+    val customApiKeys: List<String> = emptyList(),
     // Per-provider auto-failover flags (default true).
     val aiAutoFailoverOpenRouter: Boolean = true,
     val aiAutoFailoverGemini: Boolean = true,
     val aiAutoFailoverOllama: Boolean = true,
     val aiAutoFailoverOpenAi: Boolean = true,
+    val aiAutoFailoverCustom: Boolean = true,
     // Per-provider show-paid-models flags (default false; OpenAI always treated as paid in-app).
     val showPaidModelsOpenRouter: Boolean = false,
     val showPaidModelsGemini: Boolean = false,
     val showPaidModelsOllama: Boolean = false,
     val showPaidModelsOpenAi: Boolean = true,
+    val showPaidModelsCustom: Boolean = false,
     val activeAiProvider: String? = null,
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
@@ -119,6 +125,7 @@ data class BackupSettings(
             geminiKeys = geminiApiKeys,
             ollamaKeys = ollamaApiKeys,
             openAiKeys = openAiApiKeys,
+            customKeys = customApiKeys,
             base = AppSettings(
                 provider = provider,
                 openRouterOAuthKey = openRouterOAuthKey,
@@ -132,17 +139,22 @@ data class BackupSettings(
                 ollamaUseCloud = ollamaUseCloud,
                 openAiModel = openAiModel,
                 openAiTextModel = openAiTextModel,
+                customBaseUrl = customBaseUrl,
+                customModel = customModel,
+                customTextModel = customTextModel,
                 aiAutoFailoverByProvider = mapOf(
                     AiProvider.OPENROUTER to aiAutoFailoverOpenRouter,
                     AiProvider.GEMINI to aiAutoFailoverGemini,
                     AiProvider.OLLAMA to aiAutoFailoverOllama,
                     AiProvider.OPENAI to aiAutoFailoverOpenAi,
+                    AiProvider.CUSTOM to aiAutoFailoverCustom,
                 ),
                 showPaidModelsByProvider = mapOf(
                     AiProvider.OPENROUTER to showPaidModelsOpenRouter,
                     AiProvider.GEMINI to showPaidModelsGemini,
                     AiProvider.OLLAMA to showPaidModelsOllama,
                     AiProvider.OPENAI to true, // OpenAI always treated as paid
+                    AiProvider.CUSTOM to showPaidModelsCustom,
                 ),
                 activeAiProvider = activeProvider,
                 activePhotoModel = activePhotoModel,
@@ -182,7 +194,7 @@ data class BackupSettings(
                     AppSettings.DEFAULT_MONGO_COLLECTION
                 }
             )
-        )
+        ).migratedFromLegacyOpenAiProvider()
     }
 
     companion object {
@@ -203,14 +215,20 @@ data class BackupSettings(
             openAiApiKeys = settings.keysFor(AiProvider.OPENAI),
             openAiModel = settings.openAiModel,
             openAiTextModel = settings.openAiTextModel,
+            customBaseUrl = settings.customBaseUrl,
+            customModel = settings.customModel,
+            customTextModel = settings.customTextModel,
+            customApiKeys = settings.keysFor(AiProvider.CUSTOM),
             aiAutoFailoverOpenRouter = settings.autoFailoverFor(AiProvider.OPENROUTER),
             aiAutoFailoverGemini = settings.autoFailoverFor(AiProvider.GEMINI),
             aiAutoFailoverOllama = settings.autoFailoverFor(AiProvider.OLLAMA),
             aiAutoFailoverOpenAi = settings.autoFailoverFor(AiProvider.OPENAI),
+            aiAutoFailoverCustom = settings.autoFailoverFor(AiProvider.CUSTOM),
             showPaidModelsOpenRouter = settings.showPaidFor(AiProvider.OPENROUTER),
             showPaidModelsGemini = settings.showPaidFor(AiProvider.GEMINI),
             showPaidModelsOllama = settings.showPaidFor(AiProvider.OLLAMA),
             showPaidModelsOpenAi = true, // OpenAI always treated as paid
+            showPaidModelsCustom = settings.showPaidFor(AiProvider.CUSTOM),
             activeAiProvider = settings.activeAiProvider?.name,
             activePhotoModel = settings.activePhotoModel,
             activeTextModel = settings.activeTextModel,

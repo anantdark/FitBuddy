@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
@@ -19,8 +20,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +43,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -51,6 +58,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -58,7 +66,6 @@ import com.anant.fitbuddy.data.database.FoodDailySummary
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-
 /** Soft Material palette accents for P/C/F (Red 200 / Teal 200 / Orange 200). */
 val MacroProteinColor = Color(0xFFEF9A9A)
 val MacroCarbsColor = Color(0xFF80CBC4)
@@ -141,28 +148,41 @@ fun CalorieRing(
 }
 
 /**
- * Net-calories line chart. Bottom date labels are omitted (dense months smush them);
- * scrub horizontally to highlight a point and show its tooltip.
+ * True when shortfall vs the calorie target is the bad side (GAIN_MUSCLE / RECOMP).
+ * LOSE_WEIGHT (and unknown) treat the target as a ceiling — surplus is bad.
+ */
+fun calorieTargetPrefersSurplus(goal: String): Boolean =
+    when (goal.trim().uppercase()) {
+        "GAIN_MUSCLE", "RECOMP" -> true
+        else -> false
+    }
+
+/**
+ * Net calories vs daily target. Equidistant points, no X labels; scrub for date + vs-target.
+ *
+ * Color is goal-aware via [preferSurplus]: bulk/recomp paints under-target red;
+ * lose-weight paints over-target red. On-target is always green.
  */
 @Composable
 fun CustomLineChart(
     foodSummaries: List<FoodDailySummary>,
     exerciseSummaries: List<ExerciseDailySummary>,
     targetCalories: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** True for GAIN_MUSCLE / RECOMP — shortfall is bad. False for LOSE_WEIGHT — surplus is bad. */
+    preferSurplus: Boolean = false,
 ) {
     val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
     var selectedIndex by remember(foodSummaries, exerciseSummaries) { mutableIntStateOf(-1) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
-    // Combine into dates and net calorie values: Food - Exercise
     val dataPoints = remember(foodSummaries, exerciseSummaries) {
         val exerciseMap = exerciseSummaries.associate { it.dateString to it.totalBurned }
         foodSummaries.map { f ->
             val burned = exerciseMap[f.dateString] ?: 0
-            val net = f.totalCalories - burned
-            val label = f.dateString.substringAfter("-") // e.g. "07-17"
-            Pair(label, net)
-        }.reversed() // chronological order
+            f.dateString to (f.totalCalories - burned)
+        }.asReversed()
     }
 
     if (dataPoints.isEmpty()) {
@@ -172,155 +192,237 @@ fun CustomLineChart(
         return
     }
 
-    val maxVal = max(targetCalories, dataPoints.maxOf { it.second }).toFloat() * 1.2f
+    val rawMax = max(targetCalories, dataPoints.maxOf { it.second.coerceAtLeast(0) })
+    val maxVal = (rawMax * 1.18f).coerceAtLeast(1f)
     val minVal = 0f
 
-    val gridLineColor = MaterialTheme.colorScheme.outlineVariant
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val targetLineColor = MaterialTheme.colorScheme.error
+    val gridLineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    // Hoisted out of the Canvas: MaterialTheme is composable-only and cannot be read
-    // inside the (non-composable) DrawScope lambda below.
-    val tooltipBgColor = MaterialTheme.colorScheme.primaryContainer
-    val tooltipTextColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val targetLineColor = MaterialTheme.colorScheme.outline
+    val markerCoreColor = MaterialTheme.colorScheme.surface
+    val goodColor = TrendGreen
+    val badColor = TrendRed
+    val fillTop = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+    val fillBottom = MaterialTheme.colorScheme.primary.copy(alpha = 0.02f)
 
-    Box(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(dataPoints) {
-                    val paddingLeft = 120f
-                    val paddingRight = 40f
-                    fun indexAt(x: Float): Int {
-                        val graphWidth = size.width - paddingLeft - paddingRight
-                        val stepX = graphWidth / (dataPoints.size - 1).coerceAtLeast(1)
-                        return ((x - paddingLeft) / stepX + 0.5f)
-                            .toInt()
-                            .coerceIn(0, dataPoints.lastIndex)
-                    }
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        selectedIndex = indexAt(down.position.x)
-                        drag(down.id) { change ->
-                            selectedIndex = indexAt(change.position.x)
-                            change.consume()
-                        }
-                    }
-                }
-        ) {
-            val paddingLeft = 120f
-            val paddingRight = 40f
-            val paddingTop = 60f
-            val paddingBottom = 28f
+    val leftPadPx = with(density) { 44.dp.toPx() }
+    val rightPadPx = with(density) { 8.dp.toPx() }
+    val topPadPx = with(density) { 16.dp.toPx() }
+    val bottomPadPx = with(density) { 8.dp.toPx() }
 
-            val graphWidth = size.width - paddingLeft - paddingRight
-            val graphHeight = size.height - paddingTop - paddingBottom
+    fun indexForX(x: Float): Int {
+        val count = dataPoints.size
+        if (count <= 1) return 0
+        val plotW = (canvasSize.width - leftPadPx - rightPadPx).coerceAtLeast(1f)
+        val t = ((x - leftPadPx) / plotW).coerceIn(0f, 1f)
+        return (t * (count - 1)).roundToInt().coerceIn(0, count - 1)
+    }
 
-            val stepX = graphWidth / (dataPoints.size - 1).coerceAtLeast(1)
+    fun pointOffset(index: Int): Offset {
+        val count = dataPoints.size
+        val plotW = (canvasSize.width - leftPadPx - rightPadPx).coerceAtLeast(1f)
+        val plotH = (canvasSize.height - topPadPx - bottomPadPx).coerceAtLeast(1f)
+        val range = (maxVal - minVal).coerceAtLeast(1f)
+        val value = dataPoints[index].second.coerceAtLeast(0).toFloat()
+        val x = if (count <= 1) {
+            leftPadPx + plotW / 2f
+        } else {
+            leftPadPx + plotW * (index.toFloat() / (count - 1).toFloat())
+        }
+        val y = topPadPx + plotH * (1f - ((value - minVal) / range)).coerceIn(0f, 1f)
+        return Offset(x, y)
+    }
 
-            // 1. Draw horizontal grid lines & Y-axis labels
+    fun dayColor(net: Int): Color {
+        val offTrack = if (preferSurplus) net < targetCalories else net > targetCalories
+        return if (offTrack) badColor else goodColor
+    }
+    Box(
+        modifier = modifier
+            .onSizeChanged { canvasSize = it }
+            .pointerInput(dataPoints) {
+                detectTapGestures { pos -> selectedIndex = indexForX(pos.x) }
+            }
+            .pointerInput(dataPoints) {
+                detectDragGestures(
+                    onDragStart = { pos -> selectedIndex = indexForX(pos.x) },
+                    onDrag = { change, _ ->
+                        selectedIndex = indexForX(change.position.x)
+                        change.consume()
+                    },
+                )
+            },
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val leftPad = leftPadPx
+            val rightPad = rightPadPx
+            val topPad = topPadPx
+            val bottomPad = bottomPadPx
+            val graphWidth = size.width - leftPad - rightPad
+            val graphHeight = size.height - topPad - bottomPad
+            if (graphWidth <= 0f || graphHeight <= 0f) return@Canvas
+
+            val range = (maxVal - minVal).coerceAtLeast(1f)
+            val stepX = if (dataPoints.size <= 1) 0f else graphWidth / (dataPoints.size - 1)
+
             val gridCount = 4
             for (i in 0..gridCount) {
                 val ratio = i.toFloat() / gridCount
-                val y = paddingTop + graphHeight * (1f - ratio)
-                val valueLabel = (minVal + (maxVal - minVal) * ratio).toInt().toString()
-
+                val y = topPad + graphHeight * (1f - ratio)
+                val valueLabel = (minVal + range * ratio).roundToInt().toString()
                 drawLine(
                     color = gridLineColor,
-                    start = Offset(paddingLeft, y),
-                    end = Offset(size.width - paddingRight, y),
+                    start = Offset(leftPad, y),
+                    end = Offset(size.width - rightPad, y),
                     strokeWidth = 2f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f),
                 )
-
                 drawText(
                     textMeasurer = textMeasurer,
                     text = valueLabel,
-                    topLeft = Offset(10f, y - 20f),
-                    style = TextStyle(color = textColor, fontSize = 10.sp)
+                    topLeft = Offset(8f, y - 14f),
+                    style = TextStyle(color = textColor, fontSize = 10.sp),
                 )
             }
 
-            // 2. Draw Target Calories baseline
-            val targetY = paddingTop + graphHeight * (1f - (targetCalories - minVal) / (maxVal - minVal))
+            val targetY = topPad + graphHeight *
+                (1f - ((targetCalories - minVal) / range)).coerceIn(0f, 1f)
             drawLine(
                 color = targetLineColor,
-                start = Offset(paddingLeft, targetY),
-                end = Offset(size.width - paddingRight, targetY),
+                start = Offset(leftPad, targetY),
+                end = Offset(size.width - rightPad, targetY),
                 strokeWidth = 3f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 10f), 0f)
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f),
             )
-
             drawText(
                 textMeasurer = textMeasurer,
-                text = "Target ($targetCalories)",
-                topLeft = Offset(paddingLeft + 10f, targetY - 35f),
-                style = TextStyle(color = targetLineColor, fontSize = 10.sp)
+                text = "Target · $targetCalories",
+                topLeft = Offset(leftPad + 6f, targetY - 28f),
+                style = TextStyle(
+                    color = targetLineColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
             )
 
-            // 3. Construct Path for values
-            val path = Path()
-            val points = dataPoints.mapIndexed { idx, pair ->
-                val x = paddingLeft + idx * stepX
-                val value = pair.second.coerceAtLeast(0)
-                val y = paddingTop + graphHeight * (1f - (value - minVal) / (maxVal - minVal))
+            val pts = dataPoints.mapIndexed { idx, pair ->
+                val x = if (dataPoints.size <= 1) {
+                    leftPad + graphWidth / 2f
+                } else {
+                    leftPad + idx * stepX
+                }
+                val value = pair.second.coerceAtLeast(0).toFloat()
+                val y = topPad + graphHeight * (1f - ((value - minVal) / range)).coerceIn(0f, 1f)
                 Offset(x, y)
             }
 
-            if (points.isNotEmpty()) {
-                path.moveTo(points[0].x, points[0].y)
-                for (i in 1 until points.size) {
-                    val pPrev = points[i - 1]
-                    val pCurr = points[i]
-                    val controlX1 = pPrev.x + (pCurr.x - pPrev.x) / 2
-                    val controlY1 = pPrev.y
-                    val controlX2 = pPrev.x + (pCurr.x - pPrev.x) / 2
-                    val controlY2 = pCurr.y
-
-                    path.cubicTo(controlX1, controlY1, controlX2, controlY2, pCurr.x, pCurr.y)
+            if (pts.isNotEmpty()) {
+                val curve = Path().apply {
+                    moveTo(pts[0].x, pts[0].y)
+                    for (i in 1 until pts.size) {
+                        val pPrev = pts[i - 1]
+                        val pCurr = pts[i]
+                        val midX = (pPrev.x + pCurr.x) / 2f
+                        cubicTo(midX, pPrev.y, midX, pCurr.y, pCurr.x, pCurr.y)
+                    }
                 }
-
+                val fillPath = Path().apply {
+                    addPath(curve)
+                    lineTo(pts.last().x, topPad + graphHeight)
+                    lineTo(pts.first().x, topPad + graphHeight)
+                    close()
+                }
                 drawPath(
-                    path = path,
-                    color = primaryColor,
-                    style = Stroke(width = 8f, cap = StrokeCap.Round)
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(fillTop, fillBottom),
+                        startY = topPad,
+                        endY = topPad + graphHeight,
+                    ),
                 )
+
+                // Colored straight segments (good/bad vs target); curve fill keeps the soft look.
+                for (i in 1 until pts.size) {
+                    val endNet = dataPoints[i].second
+                    drawLine(
+                        color = dayColor(endNet),
+                        start = pts[i - 1],
+                        end = pts[i],
+                        strokeWidth = 7f,
+                        cap = StrokeCap.Round,
+                    )
+                }
             }
 
-            // 4. Draw node points (no bottom date labels — tooltip carries the date)
-            points.forEachIndexed { idx, point ->
+            pts.forEachIndexed { idx, point ->
+                val net = dataPoints[idx].second
+                val color = dayColor(net)
                 val isSelected = idx == selectedIndex
+                if (isSelected) {
+                    drawLine(
+                        color = color.copy(alpha = 0.35f),
+                        start = Offset(point.x, topPad),
+                        end = Offset(point.x, topPad + graphHeight),
+                        strokeWidth = 3f,
+                    )
+                }
+                drawCircle(color = color, radius = if (isSelected) 14f else 8f, center = point)
                 drawCircle(
-                    color = if (isSelected) targetLineColor else primaryColor,
-                    radius = if (isSelected) 14f else 8f,
-                    center = point
+                    color = markerCoreColor,
+                    radius = if (isSelected) 5f else 3f,
+                    center = point,
                 )
             }
+        }
 
-            // 5. Draw overlay tooltip
-            if (selectedIndex in dataPoints.indices) {
-                val point = points[selectedIndex]
-                val pair = dataPoints[selectedIndex]
-                val tooltipText = "${pair.first}: ${pair.second} kcal"
-                val textLayoutResult = textMeasurer.measure(tooltipText)
-                val textWidth = textLayoutResult.size.width
-                val tooltipX = (point.x - textWidth / 2).coerceIn(
-                    paddingLeft,
-                    size.width - paddingRight - textWidth
-                )
+        if (selectedIndex in dataPoints.indices && canvasSize.width > 0) {
+            val pair = dataPoints[selectedIndex]
+            val pos = pointOffset(selectedIndex)
+            val net = pair.second
+            val vsTarget = net - targetCalories
+            val statusColor = dayColor(net)
+            val statusText = when {
+                vsTarget > 0 -> "Over by $vsTarget kcal"
+                vsTarget < 0 -> "Under by ${-vsTarget} kcal"
+                else -> "On target"
+            }
+            val bubbleMaxWidth = with(density) { 220.dp.toPx() }
+            val bubbleApproxHeight = with(density) { 78.dp.toPx() }
+            val x = (pos.x - bubbleMaxWidth / 2f)
+                .coerceIn(0f, (canvasSize.width - bubbleMaxWidth).coerceAtLeast(0f))
+            val y = (pos.y - bubbleApproxHeight - with(density) { 10.dp.toPx() })
+                .coerceAtLeast(0f)
 
-                drawRect(
-                    color = tooltipBgColor,
-                    topLeft = Offset(tooltipX - 10f, point.y - 70f),
-                    size = Size(textWidth + 20f, 50f)
-                )
-
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = tooltipText,
-                    topLeft = Offset(tooltipX, point.y - 62f),
-                    style = TextStyle(color = tooltipTextColor, fontSize = 11.sp)
-                )
+            Surface(
+                modifier = Modifier
+                    .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
+                    .padding(horizontal = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                tonalElevation = 3.dp,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        pair.first,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "$net kcal net",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        statusText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = statusColor,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
         }
     }
@@ -666,26 +768,30 @@ private fun MacroSwatch(color: Color, value: String) {
 }
 
 /**
- * Generic single-series line chart for a body metric over time (weight, body fat %, muscle mass,
- * etc.). Y-axis auto-scales to the data range. Callers pass only non-null readings as
- * (dateLabel, value) pairs in chronological order.
+ * Generic single-series line chart for a body metric over time.
+ * Points are spaced evenly; X labels are omitted. Scrub to see date + trend.
+ * Line segments are green/red for improvement vs decline vs the previous reading.
+ *
+ * @param points chronological (dateLabel, value) pairs
+ * @param decreaseIsPositive true when a drop is healthier (e.g. fat); false when a rise is
+ *   healthier (e.g. muscle)
  */
 @Composable
 fun MetricLineChart(
     points: List<Pair<String, Double>>,
     unit: String,
     modifier: Modifier = Modifier,
-    lineColor: Color = MaterialTheme.colorScheme.primary
+    decreaseIsPositive: Boolean = true,
+    lineColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    var selectedIndex by remember(points) { mutableStateOf(-1) }
+    val density = LocalDensity.current
+    var selectedIndex by remember(points) { mutableIntStateOf(-1) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
-    if (points.size < 2) {
+    if (points.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text(
-                if (points.isEmpty()) "No readings yet" else "Add another reading to see a trend",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("No readings yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -693,115 +799,240 @@ fun MetricLineChart(
     val values = points.map { it.second }
     val rawMin = values.min()
     val rawMax = values.max()
-    // Pad the range by 10% (or a flat amount when all values are equal) so the line isn't clipped.
     val span = (rawMax - rawMin).takeIf { it > 0.0 } ?: (if (rawMax != 0.0) rawMax * 0.1 else 1.0)
     val minVal = rawMin - span * 0.15
     val maxVal = rawMax + span * 0.15
 
     val gridLineColor = MaterialTheme.colorScheme.outlineVariant
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val tooltipBgColor = MaterialTheme.colorScheme.primaryContainer
-    val tooltipTextColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val markerCoreColor = MaterialTheme.colorScheme.surface
 
-    Box(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(points) {
-                    detectTapGestures { offset ->
-                        val paddingLeft = 120f
-                        val paddingRight = 40f
-                        val graphWidth = size.width - paddingLeft - paddingRight
-                        val stepX = graphWidth / (points.size - 1).coerceAtLeast(1)
-                        val index = ((offset.x - paddingLeft) / stepX + 0.5f).toInt()
-                        if (index in points.indices) selectedIndex = index
-                    }
-                }
-        ) {
-            val paddingLeft = 120f
-            val paddingRight = 40f
-            val paddingTop = 40f
-            val paddingBottom = 80f
-            val graphWidth = size.width - paddingLeft - paddingRight
-            val graphHeight = size.height - paddingTop - paddingBottom
-            val stepX = graphWidth / (points.size - 1).coerceAtLeast(1)
+    val leftPadPx = with(density) { 44.dp.toPx() }
+    val rightPadPx = with(density) { 8.dp.toPx() }
+    val topPadPx = with(density) { 12.dp.toPx() }
+    val bottomPadPx = with(density) { 8.dp.toPx() }
+
+    fun indexForX(x: Float): Int {
+        val count = points.size
+        if (count <= 1) return 0
+        val plotW = (canvasSize.width - leftPadPx - rightPadPx).coerceAtLeast(1f)
+        val t = ((x - leftPadPx) / plotW).coerceIn(0f, 1f)
+        return (t * (count - 1)).roundToInt().coerceIn(0, count - 1)
+    }
+
+    fun pointOffset(index: Int): Offset {
+        val count = points.size
+        val plotW = (canvasSize.width - leftPadPx - rightPadPx).coerceAtLeast(1f)
+        val plotH = (canvasSize.height - topPadPx - bottomPadPx).coerceAtLeast(1f)
+        val range = (maxVal - minVal).coerceAtLeast(0.0001)
+        val x = if (count <= 1) {
+            leftPadPx + plotW / 2f
+        } else {
+            leftPadPx + plotW * (index.toFloat() / (count - 1).toFloat())
+        }
+        val y = topPadPx + plotH *
+            (1f - ((points[index].second - minVal) / range).toFloat()).coerceIn(0f, 1f)
+        return Offset(x, y)
+    }
+
+    Box(
+        modifier = modifier
+            .onSizeChanged { canvasSize = it }
+            .pointerInput(points) {
+                detectTapGestures { pos -> selectedIndex = indexForX(pos.x) }
+            }
+            .pointerInput(points) {
+                detectDragGestures(
+                    onDragStart = { pos -> selectedIndex = indexForX(pos.x) },
+                    onDrag = { change, _ ->
+                        selectedIndex = indexForX(change.position.x)
+                        change.consume()
+                    },
+                )
+            },
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val leftPad = leftPadPx
+            val rightPad = rightPadPx
+            val topPad = topPadPx
+            val bottomPad = bottomPadPx
+            val graphWidth = size.width - leftPad - rightPad
+            val graphHeight = size.height - topPad - bottomPad
+            if (graphWidth <= 0f || graphHeight <= 0f) return@Canvas
+
             val range = (maxVal - minVal).coerceAtLeast(0.0001)
+            val stepX = if (points.size <= 1) 0f else graphWidth / (points.size - 1)
 
             val gridCount = 4
             for (i in 0..gridCount) {
                 val ratio = i.toFloat() / gridCount
-                val y = paddingTop + graphHeight * (1f - ratio)
+                val y = topPad + graphHeight * (1f - ratio)
                 val valueLabel = formatMetric(minVal + range * ratio)
                 drawLine(
                     color = gridLineColor,
-                    start = Offset(paddingLeft, y),
-                    end = Offset(size.width - paddingRight, y),
+                    start = Offset(leftPad, y),
+                    end = Offset(size.width - rightPad, y),
                     strokeWidth = 2f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f),
                 )
                 drawText(
                     textMeasurer = textMeasurer,
                     text = valueLabel,
                     topLeft = Offset(10f, y - 20f),
-                    style = TextStyle(color = textColor, fontSize = 10.sp)
+                    style = TextStyle(color = textColor, fontSize = 10.sp),
                 )
             }
 
             val pts = points.mapIndexed { idx, pair ->
-                val x = paddingLeft + idx * stepX
-                val y = paddingTop + graphHeight * (1f - ((pair.second - minVal) / range).toFloat())
+                val x = if (points.size <= 1) leftPad + graphWidth / 2f else leftPad + idx * stepX
+                val y = topPad + graphHeight *
+                    (1f - ((pair.second - minVal) / range).toFloat()).coerceIn(0f, 1f)
                 Offset(x, y)
             }
 
-            val path = Path().apply {
+            val fillPath = Path().apply {
                 moveTo(pts[0].x, pts[0].y)
-                for (i in 1 until pts.size) {
-                    val prev = pts[i - 1]
-                    val curr = pts[i]
-                    val midX = prev.x + (curr.x - prev.x) / 2
-                    cubicTo(midX, prev.y, midX, curr.y, curr.x, curr.y)
-                }
+                for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
+                lineTo(pts.last().x, topPad + graphHeight)
+                lineTo(pts.first().x, topPad + graphHeight)
+                close()
             }
-            drawPath(path = path, color = lineColor, style = Stroke(width = 8f, cap = StrokeCap.Round))
+            drawPath(
+                path = fillPath,
+                color = lineColor.copy(alpha = 0.14f),
+            )
+
+            val strokeWidth = 8f
+            for (i in 1 until pts.size) {
+                val trend = metricStepTrend(
+                    points[i - 1].second,
+                    points[i].second,
+                    decreaseIsPositive,
+                )
+                drawLine(
+                    color = trend?.color() ?: lineColor,
+                    start = pts[i - 1],
+                    end = pts[i],
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
 
             pts.forEachIndexed { idx, point ->
                 val isSelected = idx == selectedIndex
+                if (isSelected) {
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.35f),
+                        start = Offset(point.x, topPad),
+                        end = Offset(point.x, topPad + graphHeight),
+                        strokeWidth = 3f,
+                    )
+                }
+                drawCircle(color = lineColor, radius = if (isSelected) 14f else 8f, center = point)
                 drawCircle(
-                    color = lineColor,
-                    radius = if (isSelected) 14f else 8f,
-                    center = point
-                )
-                val dateLabel = points[idx].first
-                val labelWidth = textMeasurer.measure(dateLabel).size.width
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = dateLabel,
-                    topLeft = Offset(point.x - labelWidth / 2, size.height - paddingBottom + 15f),
-                    style = TextStyle(color = textColor, fontSize = 10.sp)
-                )
-            }
-
-            if (selectedIndex in points.indices) {
-                val point = pts[selectedIndex]
-                val tooltipText = "${points[selectedIndex].first}: ${formatMetric(points[selectedIndex].second)}$unit"
-                val layout = textMeasurer.measure(tooltipText)
-                val textWidth = layout.size.width
-                val tooltipX = (point.x - textWidth / 2)
-                    .coerceIn(paddingLeft, size.width - paddingRight - textWidth)
-                drawRect(
-                    color = tooltipBgColor,
-                    topLeft = Offset(tooltipX - 10f, point.y - 70f),
-                    size = Size(textWidth + 20f, 50f)
-                )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = tooltipText,
-                    topLeft = Offset(tooltipX, point.y - 62f),
-                    style = TextStyle(color = tooltipTextColor, fontSize = 11.sp)
+                    color = markerCoreColor,
+                    radius = if (isSelected) 5f else 3f,
+                    center = point,
                 )
             }
         }
+
+        if (selectedIndex in points.indices && canvasSize.width > 0) {
+            val pair = points[selectedIndex]
+            val pos = pointOffset(selectedIndex)
+            val prev = points.getOrNull(selectedIndex - 1)
+            val delta = prev?.let { pair.second - it.second }
+            val trend = prev?.let {
+                metricStepTrend(it.second, pair.second, decreaseIsPositive)
+            }
+            val valueText = "${formatMetric(pair.second)}$unit"
+            val bubbleMaxWidth = with(density) { 220.dp.toPx() }
+            val bubbleApproxHeight = with(density) { 72.dp.toPx() }
+            val x = (pos.x - bubbleMaxWidth / 2f)
+                .coerceIn(0f, (canvasSize.width - bubbleMaxWidth).coerceAtLeast(0f))
+            val y = (pos.y - bubbleApproxHeight - with(density) { 10.dp.toPx() })
+                .coerceAtLeast(0f)
+
+            Surface(
+                modifier = Modifier
+                    .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
+                    .padding(horizontal = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                tonalElevation = 3.dp,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        pair.first,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        valueText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (delta != null && trend != null) {
+                        val rose = delta > 0.0
+                        // Direction of change (not health judgment — color carries that).
+                        val hint = if (rose) "Increased" else "Decreased"
+                        val sign = if (delta > 0) "+" else ""
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (rose) {
+                                    Icons.Filled.ArrowDropUp
+                                } else {
+                                    Icons.Filled.ArrowDropDown
+                                },
+                                contentDescription = null,
+                                tint = trend.color(),
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                "$hint · $sign${formatMetric(delta)}$unit",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = trend.color(),
+                            )
+                        }
+                    } else if (selectedIndex == 0) {
+                        Text(
+                            "First reading in range",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
+}
+
+private val TrendGreen = Color(0xFF22C55E)
+private val TrendRed = Color(0xFFEF4444)
+
+private enum class MetricStepTrend { Improved, Worsened }
+
+private fun MetricStepTrend.color(): Color = when (this) {
+    MetricStepTrend.Improved -> TrendGreen
+    MetricStepTrend.Worsened -> TrendRed
+}
+
+private fun metricStepTrend(
+    prev: Double,
+    curr: Double,
+    decreaseIsPositive: Boolean,
+): MetricStepTrend? {
+    val delta = curr - prev
+    if (kotlin.math.abs(delta) < 1e-4) return null
+    val improved = if (delta < 0.0) decreaseIsPositive else !decreaseIsPositive
+    return if (improved) MetricStepTrend.Improved else MetricStepTrend.Worsened
 }
 
 /** Trims trailing ".0" so whole numbers read cleanly while decimals keep one place. */
