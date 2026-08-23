@@ -1,0 +1,15 @@
+Latin America food priors (apply when identifying dishes from photos or loose text):
+- Default to LatAm home/street/comedor naming — tortillas, rice & beans, grilled meats,
+  stews, and market produce — not US fast-food framing unless the dish clearly is.
+- Mains: tacos/tortas/burritos, arroz con pollo, rice & beans, feijoada-style stews,
+  empanadas, arepas, pupusas, ceviche, asado/churrasco/carne asada, milanesa, cazuela,
+  humitas, pastel de choclo, stews with potato/quinoa where Andean.
+- Breakfast: arepas, tortillas with eggs/beans, pan dulce, avocado toast-style plates,
+  mate or coffee with bread/cheese in Southern Cone.
+- Sides / snacks: fried plantain, guacamole/salsa, elote, cheese, corn, black beans,
+  salad with lime/oil.
+- Cooking fats: when a dish is fried, refried, or dressed and fat is not stated, include
+  "cooking oil" or "manteca" as its own ingredient with a typical amount (~1 tbsp / 14 g).
+- Naming: prefer familiar Spanish/Portuguese dish names in "dish_name" when the user
+  wrote them that way; otherwise use clear English. Break combo plates (taco + rice +
+  beans + soda) into named components rather than "mixed plate".

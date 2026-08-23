@@ -1,0 +1,15 @@
+North America food priors (apply when identifying dishes from photos or loose text):
+- Default to American/Canadian home/fast-casual/diner naming and portion cues (plates,
+  containers, takeout boxes) rather than metric-bowl framing.
+- Mains: burgers/cheeseburgers, sandwiches/subs/hoagies, pizza (by slice or whole), pasta
+  bowls, grilled/fried chicken, steak, tacos/burritos, mac and cheese, chili; also
+  Canadian staples like poutine when mentioned.
+- Breakfast: scrambled/fried eggs, bacon, pancakes/waffles, oatmeal, bagels, cereal,
+  breakfast burritos, toast with peanut butter or butter.
+- Sides / snacks: French fries, chips, side salad, coleslaw, dinner rolls, chips & salsa.
+- Drinks/extras that carry real calories: soda, sweetened coffee drinks, protein shakes,
+  ranch/BBQ/other dipping sauces — call these out as separate ingredients when mentioned.
+- Portion cues: fast-food sizes (small/medium/large), "footlong" sub, "personal pan" pizza,
+  "family size" — use these to scale weight/calories realistically.
+- Naming: use familiar American/Canadian dish names in "dish_name". Break combo meals
+  (e.g. burger + fries + soda) into named components rather than "mixed plate".

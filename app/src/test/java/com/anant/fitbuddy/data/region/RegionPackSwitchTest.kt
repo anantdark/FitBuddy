@@ -20,10 +20,12 @@ class RegionPackSwitchTest {
         assertEquals(IndiaRegionPack, RegionPacks.pack(AppRegion.INDIA))
         assertEquals(UsRegionPack, RegionPacks.pack(AppRegion.US))
         assertEquals(EuropeRegionPack, RegionPacks.pack(AppRegion.EUROPE))
+        assertEquals(LatinAmericaRegionPack, RegionPacks.pack(AppRegion.LATIN_AMERICA))
 
         assertEquals(IndiaRegionPack, packForStored("INDIA"))
         assertEquals(UsRegionPack, packForStored("US"))
         assertEquals(EuropeRegionPack, packForStored("europe")) // case-insensitive
+        assertEquals(LatinAmericaRegionPack, packForStored("latin_america"))
         // Unset / invalid → India fallback (same as RemoteAiDataSource.regionPack)
         assertEquals(IndiaRegionPack, packForStored(""))
         assertEquals(IndiaRegionPack, packForStored(null))
@@ -56,12 +58,18 @@ class RegionPackSwitchTest {
         }
 
         assertTrue(IndiaRegionPack.analyzeSystemIntro.contains("Indian", ignoreCase = true))
-        assertTrue(UsRegionPack.analyzeSystemIntro.contains("United States", ignoreCase = true))
+        assertTrue(UsRegionPack.analyzeSystemIntro.contains("North American", ignoreCase = true))
         assertTrue(EuropeRegionPack.analyzeSystemIntro.contains("European", ignoreCase = true))
+        assertTrue(
+            LatinAmericaRegionPack.analyzeSystemIntro.contains("Latin American", ignoreCase = true)
+        )
 
         assertTrue(IndiaRegionPack.measurementPromptNotes.contains("katori", ignoreCase = true))
         assertTrue(UsRegionPack.measurementPromptNotes.contains("cup", ignoreCase = true))
         assertTrue(EuropeRegionPack.measurementPromptNotes.contains("gram", ignoreCase = true))
+        assertTrue(
+            LatinAmericaRegionPack.measurementPromptNotes.contains("taco", ignoreCase = true)
+        )
     }
 
     @Test
@@ -69,16 +77,22 @@ class RegionPackSwitchTest {
         val indiaNames = IndiaRegionPack.staples.map { it.name }.toSet()
         val usNames = UsRegionPack.staples.map { it.name }.toSet()
         val euNames = EuropeRegionPack.staples.map { it.name }.toSet()
+        val latAmNames = LatinAmericaRegionPack.staples.map { it.name }.toSet()
 
         assertTrue(indiaNames.any { it.contains("roti", ignoreCase = true) })
         assertFalse(usNames.any { it.contains("roti", ignoreCase = true) })
         assertFalse(euNames.any { it.contains("roti", ignoreCase = true) })
+        assertFalse(latAmNames.any { it.contains("roti", ignoreCase = true) })
 
         assertTrue(usNames.any { it.contains("burger", ignoreCase = true) })
         assertFalse(indiaNames.any { it.contains("burger", ignoreCase = true) })
 
         assertTrue(euNames.any { it.contains("croissant", ignoreCase = true) })
         assertFalse(indiaNames.any { it.contains("croissant", ignoreCase = true) })
+
+        assertTrue(latAmNames.any { it.contains("taco", ignoreCase = true) })
+        assertFalse(indiaNames.any { it.contains("taco", ignoreCase = true) })
+        assertFalse(euNames.any { it.contains("taco", ignoreCase = true) })
     }
 
     @Test
@@ -102,6 +116,7 @@ class RegionPackSwitchTest {
         assertEquals(UsRegionPack.BURGER, stapleHit("cheeseburger with fries", AppRegion.US))
         assertEquals(EuropeRegionPack.CROISSANT, stapleHit("croissant", AppRegion.EUROPE))
         assertEquals(IndiaRegionPack.ROTI, stapleHit("2 rotis with dal", AppRegion.INDIA))
+        assertEquals(LatinAmericaRegionPack.TACO, stapleHit("2 tacos al pastor", AppRegion.LATIN_AMERICA))
 
         // Same word resolves from the active pack — no global merge.
         val usSalad = stapleHit("salad", AppRegion.US)
@@ -113,6 +128,7 @@ class RegionPackSwitchTest {
         // India staples must not win while US is active.
         assertEquals(null, stapleHit("roti sabzi", AppRegion.US))
         assertEquals(null, stapleHit("cheeseburger", AppRegion.INDIA))
+        assertEquals(null, stapleHit("croissant", AppRegion.LATIN_AMERICA))
     }
 
     private fun stapleHit(input: String, region: AppRegion): RegionalDish? {

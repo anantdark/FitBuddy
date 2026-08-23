@@ -1,0 +1,1 @@
+An image is attached. First check whether it actually contains food; if it does not, return NOT_IDENTIFIED.

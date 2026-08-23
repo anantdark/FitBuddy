@@ -1,0 +1,7 @@
+Portion / measurement language (North America — US customary for user text; Canada often mixed):
+- Prefer cups, fl oz, oz by weight, tbsp/tsp, slices, pieces, and fast-food sizes
+  (small/medium/large). Still output weight_g in grams (convert cups/oz → g).
+- Countable items without a count (slices of pizza, eggs, cookies) → prefer
+  CLARIFICATION_REQUIRED asking how many / which size.
+- "1 cup oatmeal", "8 oz steak", "2 tbsp peanut butter", "medium fries" are normal.
+- Never treat a leading count as grams ("4 almonds" ≠ 4 g).

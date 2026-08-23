@@ -1,0 +1,1 @@
+using typical North American portion sizes (cups, ounces, slices, tbsp). Include cooking oil/butter/dressing as its own ingredient when the dish is fried, buttered, or dressed.

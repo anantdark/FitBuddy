@@ -44,6 +44,7 @@ import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.ui.components.Button
 import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.region.RegionFlagCanvas
+import com.anant.fitbuddy.ui.region.RegionFlagThumbnail
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -112,15 +113,22 @@ fun RegionSelectionScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(16.dp))
-            ) {
-                RegionFlagCanvas(region = selectedRegion, modifier = Modifier.fillMaxSize())
+            when {
+                selectedRegion.hasOfficialFlag() || selectedRegion.cyclesMemberFlags() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        RegionFlagCanvas(
+                            region = selectedRegion,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
             }
-            Spacer(modifier = Modifier.height(20.dp))
 
             AppRegion.entries.forEach { region ->
                 RegionOptionCard(
@@ -304,14 +312,16 @@ private fun RegionOptionCard(region: AppRegion, selected: Boolean, onClick: () -
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-            ) {
-                RegionFlagCanvas(region = region, modifier = Modifier.fillMaxSize())
+            if (region.hasOfficialFlag() || region.cyclesMemberFlags()) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    RegionFlagThumbnail(region = region, modifier = Modifier.fillMaxSize())
+                }
+                Spacer(modifier = Modifier.width(16.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = region.displayName(),
                 style = MaterialTheme.typography.bodyLarge,

@@ -1030,7 +1030,7 @@ fun SettingsScreen(
                         onClick = { onRegionChange(region) },
                         shape = SegmentedButtonDefaults.itemShape(index, AppRegion.entries.size)
                     ) {
-                        Text(region.displayName())
+                        Text(region.shortDisplayName())
                     }
                 }
             }

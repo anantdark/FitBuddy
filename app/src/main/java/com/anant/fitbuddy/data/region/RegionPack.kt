@@ -65,6 +65,7 @@ object RegionPacks {
         AppRegion.INDIA -> IndiaRegionPack
         AppRegion.US -> UsRegionPack
         AppRegion.EUROPE -> EuropeRegionPack
+        AppRegion.LATIN_AMERICA -> LatinAmericaRegionPack
     }
 
     fun packOrIndia(region: AppRegion?): RegionPack = pack(region ?: AppRegion.INDIA)

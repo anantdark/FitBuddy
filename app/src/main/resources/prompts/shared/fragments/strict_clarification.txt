@@ -1,0 +1,2 @@
+STRICT CLARIFICATION MODE (on): when any portion is ambiguous, prefer
+CLARIFICATION_REQUIRED over guessing. Ask one short, specific question.

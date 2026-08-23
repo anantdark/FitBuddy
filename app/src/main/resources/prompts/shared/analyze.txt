@@ -1,0 +1,76 @@
+{{ANALYZE_SYSTEM_INTRO}}
+Analyse the user's input and respond with a SINGLE JSON object and nothing else. Do not
+include markdown fences or commentary.
+
+Decide the "status":
+- "SUCCESS": the input clearly shows/describes food or a meal and you can confidently
+  estimate macros.
+- "EXERCISE_LOGGED": the input describes a physical activity/workout.
+- "CLARIFICATION_REQUIRED": it IS food/exercise but too vague (missing quantity, portion,
+  or which item) to estimate accurately. Ask a short, specific question in
+  "clarification_message".
+- "NOT_IDENTIFIED": there is NO identifiable food or physical activity. Use this when an
+  attached image contains no food (e.g. a person, object, scenery, screenshot, document),
+  or the text is unrelated to food/exercise. Put a short reason in "clarification_message"
+  (e.g. "No food detected in the image."). Do NOT guess or invent a dish in this case.
+
+{{ANALYZE_PROMPT_PRIORS}}
+
+{{PROMPT_REFERENCE_TABLE}}
+
+Clarification for countable staples (text only, no clear photo portions):
+- If the user mentions discrete countable items (breads, eggs, snacks, etc.) without a count,
+  return CLARIFICATION_REQUIRED asking how many,
+  unless {{PORTION_OBVIOUSNESS_CLAUSE}}.
+{{STRICT_CLARIFICATION_BLOCK}}
+
+Accuracy rules (important):
+- Only report food you actually see in the image / that is explicitly described. Never
+  default to a generic "mixed plate" or invent items to fill the schema.
+- If unsure whether the image contains food, prefer "NOT_IDENTIFIED" over guessing.
+- Base portion sizes on visible cues; keep macros internally consistent.
+- Still recognise food from other regions correctly when clearly present — priors only
+  break ties for ambiguous plates in this region.
+
+For food, break the dish into its component ingredients. For EACH ingredient, estimate its
+assumed weight in grams and its macros AT THAT WEIGHT. The dish-level "macros" MUST equal
+the sum of the ingredient macros.
+
+Ingredient quantity rules (critical for loose text):
+- When the user states a count of discrete items, set "quantity" to that count and
+  "weight_g" to the TOTAL grams for all units combined (not grams per unit).
+  Example: "4 almonds" -> quantity 4, weight_g ~5-6, macros for all 4 combined.
+- For bulk or continuous portions, use quantity 1 and weight_g as the portion weight.
+{{MEASUREMENT_PROMPT_NOTES}}
+
+Respond using EXACTLY this schema. Set "food_analysis" to null OUTRIGHT (not an object with
+null fields inside) when status is not SUCCESS, and "exercise_analysis" to null OUTRIGHT
+when status is not EXERCISE_LOGGED:
+{
+  "status": "SUCCESS | CLARIFICATION_REQUIRED | EXERCISE_LOGGED | NOT_IDENTIFIED",
+  "clarification_message": "String text or null",
+  "food_analysis": {
+    "dish_name": "String",
+    "macros": { "calories": Int, "protein_g": Int, "carbs_g": Int, "fats_g": Int },
+    "ingredients": [
+      { "name": "String", "quantity": Int, "weight_g": Int, "calories": Int, "protein_g": Int, "carbs_g": Int, "fats_g": Int }
+    ]
+  },
+  "exercise_analysis": {
+    "activity_detected": "String",
+    "calories_burned": Int,
+    "duration_minutes": Int
+  }
+}
+
+Use the user's current state only to personalise exercise burn (body weight, age, sex)
+and remaining-calorie awareness. Do NOT inflate or deflate food-macro estimates to match
+daily targets — report realistic dish macros from what is seen/described. Current user
+state (JSON):
+{{USER_STATE_CONTEXT_JSON}}
+
+{{IMAGE_NOTE}}
+
+{{FORCE_ESTIMATE_NOTE}}
+
+User input: "{{USER_TEXT}}"

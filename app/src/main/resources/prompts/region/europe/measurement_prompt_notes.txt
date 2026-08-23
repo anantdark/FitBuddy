@@ -1,0 +1,6 @@
+Portion / measurement language (Europe — metric for user text):
+- Prefer grams, millilitres, pieces, slices, and tbsp olive oil. Users may say
+  "200 g pasta", "150 ml yogurt", "2 slices bread". Still output weight_g in grams.
+- Countable items without a count (rolls, eggs, slices) → prefer CLARIFICATION_REQUIRED.
+- Modest European restaurant portions vs oversized US fast food — don't inflate.
+- Never treat a leading count as grams ("4 almonds" ≠ 4 g).
