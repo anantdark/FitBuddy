@@ -82,6 +82,7 @@ import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.util.DeviceIdentity
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
@@ -1037,6 +1038,19 @@ class FitnessRepository(
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
         val forceOffline = settings.developerModeUnlocked && settings.forceOfflineAiSimulator
+        val modality = if (imageBytes != null) "photo" else "text"
+        DiagnosticLogger.log(
+            "analyze",
+            "start",
+            mapOf(
+                "modality" to modality,
+                "provider" to settings.provider.name,
+                "model" to settings.modelFor(imageBytes != null),
+                "host" to DiagnosticLogger.hostOf(settings.chatUrl),
+                "configured" to settings.isConfigured.toString(),
+                "force_offline" to forceOffline.toString()
+            )
+        )
 
         // Preferred provider configured: live AI with same-platform key/model failover.
         // Surface real failures instead of silently faking a result (silent offline fallback
@@ -1055,33 +1069,57 @@ class FitnessRepository(
                         active, userText, userStateContextJson, dataUrl, forceEstimate
                     )
                 }
-                processResponse(response, customTimestamp = customTimestamp, userText = userText)
+                val outcome = processResponse(response, customTimestamp = customTimestamp, userText = userText)
                     .withFailoverNote(failoverNote)
+                DiagnosticLogger.log(
+                    "analyze",
+                    "ok",
+                    mapOf(
+                        "modality" to modality,
+                        "status" to response.status,
+                        "failover" to (failoverNote ?: "none")
+                    )
+                )
+                outcome
             } catch (e: Exception) {
-                AnalysisOutcome.Error(formatAiConnectionError(e))
+                val message = formatAiConnectionError(e)
+                DiagnosticLogger.log(
+                    "analyze",
+                    "error",
+                    mapOf(
+                        "modality" to modality,
+                        "message" to message,
+                        "cause" to e.javaClass.simpleName
+                    )
+                )
+                AnalysisOutcome.Error(message)
             }
         }
 
         // Not configured / forced offline: the offline simulator cannot read images.
         if (imageBytes != null) {
-            return AnalysisOutcome.Error(
-                if (forceOffline) {
-                    "Force offline simulator can't analyse photos. Turn it off or use text."
-                } else {
-                    "Connect an AI provider in Settings to analyse food photos."
-                }
-            )
+            val message = if (forceOffline) {
+                "Force offline simulator can't analyse photos. Turn it off or use text."
+            } else {
+                "Connect an AI provider in Settings to analyse food photos."
+            }
+            DiagnosticLogger.log("analyze", "error", mapOf("modality" to modality, "message" to message))
+            return AnalysisOutcome.Error(message)
         }
 
         return try {
             val region = AppRegion.fromStored(settings.region) ?: AppRegion.INDIA
-            processResponse(
+            val outcome = processResponse(
                 simulateAIService(userText, inferMode(userText, false), region),
                 customTimestamp = customTimestamp,
                 userText = userText
             )
+            DiagnosticLogger.log("analyze", "ok", mapOf("modality" to modality, "mode" to "offline_sim"))
+            outcome
         } catch (e: Exception) {
-            AnalysisOutcome.Error(e.message ?: "Analysis failed")
+            val message = e.message ?: "Analysis failed"
+            DiagnosticLogger.log("analyze", "error", mapOf("modality" to modality, "message" to message))
+            AnalysisOutcome.Error(message)
         }
     }
 
@@ -2069,9 +2107,10 @@ class FitnessRepository(
         if (!settings.aiAutoFailover) {
             var lastError: Exception? = null
             for (key in keys) {
+                var activeModel = preferredSelected
                 try {
                     val attempt = settings.withKey(platform, key)
-                    val activeModel = attempt.modelFor(preferVisionModels)
+                    activeModel = attempt.modelFor(preferVisionModels)
                     onModelActive?.invoke(activeModel)
                     val result = block(attempt)
                     settingsRepository.setActiveAiModel(
@@ -2082,6 +2121,15 @@ class FitnessRepository(
                     return result to null
                 } catch (e: Exception) {
                     lastError = e
+                    DiagnosticLogger.log(
+                        "failover",
+                        "key_failed",
+                        mapOf(
+                            "model" to activeModel,
+                            "cause" to e.javaClass.simpleName,
+                            "message" to (e.message ?: "")
+                        )
+                    )
                 }
             }
             throw lastError ?: IllegalStateException("Couldn't connect to AI")
@@ -2123,6 +2171,16 @@ class FitnessRepository(
                     lastError = e
                     lastModelError = e
                     if (ModelCooldownPolicy.isRateLimitError(e)) rateLimitedOnModel = true
+                    DiagnosticLogger.log(
+                        "failover",
+                        "attempt_failed",
+                        mapOf(
+                            "model" to modelId,
+                            "rate_limited" to rateLimitedOnModel.toString(),
+                            "cause" to e.javaClass.simpleName,
+                            "message" to (e.message ?: "")
+                        )
+                    )
                 }
             }
             if (rateLimitedOnModel && lastModelError != null) {

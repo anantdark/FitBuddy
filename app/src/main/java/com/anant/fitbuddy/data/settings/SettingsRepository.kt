@@ -150,6 +150,7 @@ class SettingsRepository(context: Context) {
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
+            diagnosticLoggingEnabled = prefs[KEY_DIAGNOSTIC_LOGGING] ?: false,
             region = prefs[KEY_REGION].orEmpty(),
             regionRequestSentAt = prefs[KEY_REGION_REQUEST_SENT_AT] ?: 0L,
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
@@ -322,6 +323,7 @@ class SettingsRepository(context: Context) {
                     settings.insightAnimationChoice != AppSettings.LOADING_ANIM_OFF
             prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
             prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
+            prefs[KEY_DIAGNOSTIC_LOGGING] = settings.diagnosticLoggingEnabled
             prefs[KEY_REGION] = settings.region.trim()
             prefs[KEY_REGION_REQUEST_SENT_AT] = settings.regionRequestSentAt
             if (settings.supportId.isNotBlank()) {
@@ -558,6 +560,7 @@ class SettingsRepository(context: Context) {
         }
         val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
+        val KEY_DIAGNOSTIC_LOGGING = booleanPreferencesKey("diagnostic_logging_enabled")
         val KEY_REGION = stringPreferencesKey("app_region")
         val KEY_REGION_REQUEST_SENT_AT = longPreferencesKey("region_request_sent_at")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")

@@ -82,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -112,6 +113,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
@@ -189,6 +191,8 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit,
     onAutoCheckUpdatesChange: (Boolean) -> Unit,
     onCrashReportingChange: (Boolean) -> Unit,
+    onStartDiagnosticLogging: () -> Unit = {},
+    onStopAndExportDiagnosticLog: () -> Unit = {},
     onSupportIdCopied: () -> Unit = {},
     onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
     onDeveloperUnlockHintDismiss: () -> Unit = {},
@@ -1266,6 +1270,55 @@ fun SettingsScreen(
                     "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
                     "Your Support ID (under Backup) identifies reports without personal data."
             )
+            val diagnosticEntries by DiagnosticLogger.entryCount.collectAsState()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Diagnostic log",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                HintIconButton(
+                    title = "Diagnostic log",
+                    message = "Captures AI connection steps (provider, model, HTTP status) so you can " +
+                        "share them when something fails. No meals, photos, or API keys. " +
+                        "Start logging, reproduce the issue, then stop & export."
+                )
+            }
+            Text(
+                text = when {
+                    settings.diagnosticLoggingEnabled && diagnosticEntries > 0 ->
+                        "Logging… $diagnosticEntries lines — stop & export when done"
+                    settings.diagnosticLoggingEnabled ->
+                        "Logging… reproduce the issue, then stop & export"
+                    diagnosticEntries > 0 ->
+                        "$diagnosticEntries lines from last session"
+                    else ->
+                        "Off until you start logging"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = {
+                    if (settings.diagnosticLoggingEnabled) {
+                        onStopAndExportDiagnosticLog()
+                    } else {
+                        onStartDiagnosticLogging()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (settings.diagnosticLoggingEnabled) {
+                    Icon(Icons.Filled.FileUpload, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Stop logging & export")
+                } else {
+                    Text("Start logging")
+                }
+            }
         }
 
         // --- About -----------------------------------------------------------------------

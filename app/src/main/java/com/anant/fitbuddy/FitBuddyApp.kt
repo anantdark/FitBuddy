@@ -17,6 +17,7 @@ import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
+import com.anant.fitbuddy.util.DiagnosticLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,6 +93,12 @@ class FitBuddyApp : Application() {
             enabled = settings.crashReportingEnabled,
             supportId = settings.supportId
         )
+        DiagnosticLogger.init(this)
+        DiagnosticLogger.setEnabled(
+            settings.diagnosticLoggingEnabled,
+            settings,
+            restartSession = false
+        )
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         ReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)
@@ -114,6 +121,20 @@ class FitBuddyApp : Application() {
                         ReminderScheduler.scheduleNext(this@FitBuddyApp, hour, minute)
                     } else {
                         ReminderScheduler.cancel(this@FitBuddyApp)
+                    }
+                }
+        }
+        appScope.launch {
+            settingsRepository.settings
+                .map { it.diagnosticLoggingEnabled }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    // User toggles restart via ViewModel; here only sync off / resume-on.
+                    if (!enabled) {
+                        DiagnosticLogger.setEnabled(false, restartSession = false)
+                    } else if (!DiagnosticLogger.isEnabled()) {
+                        val s = settingsRepository.settings.first()
+                        DiagnosticLogger.setEnabled(true, s, restartSession = false)
                     }
                 }
         }

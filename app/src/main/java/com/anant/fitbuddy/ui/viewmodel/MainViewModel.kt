@@ -35,6 +35,8 @@ import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.util.BackupShare
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
@@ -52,7 +54,6 @@ import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
-import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.Dispatchers
@@ -739,6 +740,41 @@ class MainViewModel(
             }
         }
     }
+
+    fun setDiagnosticLoggingEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(current.copy(diagnosticLoggingEnabled = enabled))
+            DiagnosticLogger.setEnabled(enabled, current, restartSession = enabled)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (enabled) {
+                        "Diagnostic logging on — reproduce the issue, then stop & export"
+                    } else {
+                        "Diagnostic logging off"
+                    }
+                )
+            }
+        }
+    }
+
+    /** Stops recording (keeps the buffer) and opens the share sheet for the log file. */
+    fun stopDiagnosticLoggingAndExport(context: Context): Boolean {
+        DiagnosticLogger.setEnabled(false, restartSession = false)
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.diagnosticLoggingEnabled) {
+                settingsRepository.save(current.copy(diagnosticLoggingEnabled = false))
+            }
+            _analysisState.update { it.copy(userMessage = "Diagnostic logging stopped") }
+        }
+        val file = DiagnosticLogger.exportToShareFile(context) ?: return false
+        return runCatching {
+            BackupShare.shareTextFile(context, file, chooserTitle = "Share diagnostic log")
+            true
+        }.getOrDefault(false)
+    }
+
 
     /**
      * Easter egg: Settings “crafted with ♥” double-tap. Always tries a Sentry heartbeat

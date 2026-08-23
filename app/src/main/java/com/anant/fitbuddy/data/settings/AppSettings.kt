@@ -124,6 +124,11 @@ data class AppSettings(
     /** When false, Sentry does not send crash events (SDK may still be initialized). Off by default on F-Droid. */
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /**
+     * When true, AI connection steps are written to a local diagnostic log the user can export
+     * from Settings (no meals, photos, or API keys). Off by default.
+     */
+    val diagnosticLoggingEnabled: Boolean = false,
+    /**
      * Diet/region pack for AI prompts and offline staples: `INDIA`, `US`, or `EUROPE`.
      * Empty until the user finishes the region selection page (or restores a backup that has it).
      */

@@ -395,6 +395,16 @@ fun MainScreen(
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
                 },
+                onStartDiagnosticLogging = {
+                    viewModel.setDiagnosticLoggingEnabled(true)
+                },
+                onStopAndExportDiagnosticLog = {
+                    val ok = viewModel.stopDiagnosticLoggingAndExport(context)
+                    SystemToast.show(
+                        context,
+                        if (ok) "Choose an app to share the log" else "No diagnostic log yet",
+                    )
+                },
                 onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap,
                 onSupportIdCopied = {
                     SystemToast.show(context, "Support ID copied")
