@@ -41,7 +41,7 @@ moshiKotlin = "1.15.2"
 moshiKotlinCodegen = "1.15.2"
 datastorePreferences = "1.1.7"
 material = "1.4.+"
-zxingCpp = "3.1.0"
+zxingCpp = "3.1.1"
 sentryAndroid = "8.52.0"
 browser = "1.10.0"
 
