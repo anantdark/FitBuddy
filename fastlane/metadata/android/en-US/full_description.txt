@@ -17,6 +17,7 @@ Features:
 • Offline fallback — works without an AI key via built-in simulator
 • Material You — dynamic color theming on Android 12+
 • Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
+• Diagnostic log — optional AI connection log you can export from Settings for support (no meals, photos, or keys)
 
 AI providers (configured at runtime in Settings):
 • OpenRouter — free vision models, automatic model dropdown

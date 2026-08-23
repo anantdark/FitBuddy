@@ -27,6 +27,7 @@ import com.anant.fitbuddy.data.remote.dto.ModelDto
 import com.anant.fitbuddy.data.remote.dto.ResponseFormat
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonDataException
@@ -371,15 +372,34 @@ class RemoteAiDataSource(
                 return response
             } catch (e: HttpException) {
                 if (e.code() == 429 && attempt < MAX_RETRIES) {
+                    DiagnosticLogger.log(
+                        "http",
+                        "retry_429",
+                        mapOf("attempt" to attempt.toString(), "code" to "429")
+                    )
                     delay(backoffFor(e, attempt))
                     attempt++
                     continue
                 }
                 val friendly = friendlyHttpMessage(e)
+                DiagnosticLogger.log(
+                    "http",
+                    "error",
+                    mapOf(
+                        "code" to e.code().toString(),
+                        "message" to friendly
+                    )
+                )
                 if (e.code() == 400) throw AiBadRequestException(friendly, e)
                 throw IllegalStateException(friendly, e)
             } catch (e: IOException) {
-                throw IllegalStateException("Network error: ${e.message ?: "check your connection"}", e)
+                val msg = "Network error: ${e.message ?: "check your connection"}"
+                DiagnosticLogger.log(
+                    "http",
+                    "network_error",
+                    mapOf("message" to msg, "cause" to e.javaClass.simpleName)
+                )
+                throw IllegalStateException(msg, e)
             }
         }
     }
