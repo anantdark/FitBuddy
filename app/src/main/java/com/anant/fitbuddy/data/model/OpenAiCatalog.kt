@@ -1,13 +1,12 @@
 package com.anant.fitbuddy.data.model
 
 /**
- * Curated OpenAI model metadata for the dedicated [com.anant.fitbuddy.data.settings.AiProvider.OPENAI]
- * provider. Shared by the network layer (merged with the account's live `/v1/models` list) and
- * Settings (shown as a client-side fallback so the dropdown is never empty when automatic
- * model-list refresh is off for paid endpoints).
+ * Curated OpenAI model metadata used when [com.anant.fitbuddy.data.settings.AiProvider.CUSTOM]
+ * points at the official OpenAI API. Merged with the account's live `/v1/models` list and shown
+ * as a client-side fallback so the dropdown is never empty before Refresh.
  */
 object OpenAiCatalog {
-    /** Official OpenAI API base URL (fixed — the provider is no longer detected via URL sniffing). */
+    /** Official OpenAI API base URL (same default as [com.anant.fitbuddy.data.settings.AppSettings.DEFAULT_CUSTOM_BASE_URL]). */
     const val HOST_URL = "https://api.openai.com"
 
     /** Vision-capable defaults (photo analysis). */

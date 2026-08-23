@@ -9,13 +9,16 @@ enum class AiProvider {
     OPENROUTER,
     GEMINI,
     OLLAMA,
-    OPENAI;
+    OPENAI,
+    /** Any OpenAI-compatible host (LM Studio, vLLM, LocalAI, custom gateways). */
+    CUSTOM;
 
     fun displayName(): String = when (this) {
         OPENROUTER -> "OpenRouter"
         GEMINI -> "Gemini"
         OLLAMA -> "Ollama"
-        OPENAI -> "OpenAI"
+        OPENAI -> "OpenAI" // legacy; migrated to CUSTOM on load
+        CUSTOM -> "OpenAI-compatible"
     }
 }
 
@@ -53,6 +56,15 @@ data class AppSettings(
     val openAiApiKey: String = "",
     val openAiModel: String = DEFAULT_OPENAI_MODEL,
     val openAiTextModel: String = "",
+    /**
+     * Base URL for [AiProvider.CUSTOM] (OpenAI-compatible `/v1` host).
+     * Defaults to the official OpenAI API; change it for LM Studio, vLLM, Groq, etc.
+     */
+    val customBaseUrl: String = DEFAULT_CUSTOM_BASE_URL,
+    val customModel: String = "",
+    val customTextModel: String = "",
+    val customApiKeys: List<String> = emptyList(),
+    val customApiKey: String = "",
     /**
      * Per-provider flag: when true, failed requests rotate API keys then other models on the
      * same platform. When false, only the selected model is used; API keys still rotate on
@@ -111,6 +123,11 @@ data class AppSettings(
     val supportId: String = "",
     /** When false, Sentry does not send crash events (SDK may still be initialized). Off by default on F-Droid. */
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
+    /**
+     * When true, AI connection steps are written to a local diagnostic log the user can export
+     * from Settings (no meals, photos, or API keys). Off by default.
+     */
+    val diagnosticLoggingEnabled: Boolean = false,
     /**
      * Diet/region pack for AI prompts and offline staples: `INDIA`, `US`, or `EUROPE`.
      * Empty until the user finishes the region selection page (or restores a backup that has it).
@@ -236,6 +253,7 @@ data class AppSettings(
             AiProvider.GEMINI -> geminiModel
             AiProvider.OLLAMA -> ollamaModel
             AiProvider.OPENAI -> openAiModel
+            AiProvider.CUSTOM -> customModel
         }
 
     /**
@@ -248,6 +266,7 @@ data class AppSettings(
             AiProvider.GEMINI -> geminiTextModel.ifBlank { geminiModel }
             AiProvider.OLLAMA -> ollamaTextModel.ifBlank { ollamaModel }
             AiProvider.OPENAI -> openAiTextModel.ifBlank { openAiModel }
+            AiProvider.CUSTOM -> customTextModel.ifBlank { customModel }
         }
 
     /** Picks the vision model when an image is attached, else the (cheaper) text model. */
@@ -261,6 +280,10 @@ data class AppSettings(
             ollamaBaseUrl.trim().trimEnd('/')
         }
 
+    /** Effective Custom host (user-supplied OpenAI-compatible base URL). */
+    val customEffectiveBaseUrl: String
+        get() = customBaseUrl.trim().trimEnd('/')
+
     /** Absolute chat-completions URL for the active provider (used with Retrofit @Url). */
     val chatUrl: String
         get() = when (provider) {
@@ -268,19 +291,20 @@ data class AppSettings(
             AiProvider.GEMINI -> "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
             AiProvider.OLLAMA -> ollamaEffectiveBaseUrl + "/v1/chat/completions"
             AiProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
+            AiProvider.CUSTOM -> customEffectiveBaseUrl + "/v1/chat/completions"
         }
 
-    /** Authorization header value, or null when the provider needs none (local Ollama). */
+    /**
+     * Authorization header value, or null when the provider needs none.
+     * Custom and local Ollama send Bearer only when a key is set (keyless local still works).
+     */
     val authHeader: String?
         get() = when (provider) {
             AiProvider.OPENROUTER -> activeKey(AiProvider.OPENROUTER).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
             AiProvider.GEMINI -> activeKey(AiProvider.GEMINI).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
-            AiProvider.OLLAMA -> if (ollamaUseCloud) {
-                activeKey(AiProvider.OLLAMA).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
-            } else {
-                null
-            }
+            AiProvider.OLLAMA -> activeKey(AiProvider.OLLAMA).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
             AiProvider.OPENAI -> activeKey(AiProvider.OPENAI).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
+            AiProvider.CUSTOM -> activeKey(AiProvider.CUSTOM).takeIf { it.isNotBlank() }?.let { "Bearer $it" }
         }
 
     /** Manual (pasted) keys only — never includes [openRouterOAuthKey]. */
@@ -296,6 +320,9 @@ data class AppSettings(
         }
         AiProvider.OPENAI -> openAiApiKeys.ifEmpty {
             listOfNotNull(openAiApiKey.takeIf { it.isNotBlank() })
+        }
+        AiProvider.CUSTOM -> customApiKeys.ifEmpty {
+            listOfNotNull(customApiKey.takeIf { it.isNotBlank() })
         }
     }
 
@@ -316,6 +343,7 @@ data class AppSettings(
         AiProvider.GEMINI -> geminiApiKey.ifBlank { geminiApiKeys.firstOrNull().orEmpty() }
         AiProvider.OLLAMA -> ollamaApiKey.ifBlank { ollamaApiKeys.firstOrNull().orEmpty() }
         AiProvider.OPENAI -> openAiApiKey.ifBlank { openAiApiKeys.firstOrNull().orEmpty() }
+        AiProvider.CUSTOM -> customApiKey.ifBlank { customApiKeys.firstOrNull().orEmpty() }
     }
 
     /** In-memory copy with [key] as the active credential for [p] (failover attempt). */
@@ -324,6 +352,7 @@ data class AppSettings(
         AiProvider.GEMINI -> copy(provider = p, geminiApiKey = key)
         AiProvider.OLLAMA -> copy(provider = p, ollamaApiKey = key)
         AiProvider.OPENAI -> copy(provider = p, openAiApiKey = key)
+        AiProvider.CUSTOM -> copy(provider = p, customApiKey = key)
     }
 
     /** In-memory copy targeting [p] with both vision and text model ids set to [modelId]. */
@@ -348,6 +377,11 @@ data class AppSettings(
             openAiModel = modelId,
             openAiTextModel = modelId
         )
+        AiProvider.CUSTOM -> copy(
+            provider = p,
+            customModel = modelId,
+            customTextModel = modelId
+        )
     }
 
     /** True when [p] has enough config to attempt a live call. */
@@ -361,6 +395,12 @@ data class AppSettings(
             ollamaBaseUrl.isNotBlank() && ollamaModel.isNotBlank()
         }
         AiProvider.OPENAI -> keysFor(p).isNotEmpty() && openAiModel.isNotBlank()
+        AiProvider.CUSTOM -> {
+            val url = customEffectiveBaseUrl
+            if (url.isBlank() || customModel.isBlank()) return false
+            // Official OpenAI requires a key; local/compatible hosts may be keyless.
+            if (isOfficialOpenAiBaseUrl(url)) keysFor(p).isNotEmpty() else true
+        }
     }
 
     /** True when the preferred [provider] has enough config to attempt a live call. */
@@ -422,6 +462,39 @@ data class AppSettings(
             )
         }
 
+
+    /**
+     * Legacy installs used a dedicated OpenAI provider. Fold them into [AiProvider.CUSTOM]
+     * with the official OpenAI base URL so Settings only shows one OpenAI-compatible option.
+     * Keys, photo/text models, Auto failover, and active-model markers are preserved.
+     */
+    fun migratedFromLegacyOpenAiProvider(): AppSettings {
+        if (provider != AiProvider.OPENAI) return this
+        val keys = keysFor(AiProvider.OPENAI).ifEmpty { customApiKeys }
+        val photo = customModel.ifBlank { openAiModel.ifBlank { DEFAULT_CUSTOM_MODEL } }
+        val text = customTextModel.ifBlank { openAiTextModel }
+        return copy(
+            provider = AiProvider.CUSTOM,
+            customBaseUrl = customBaseUrl.ifBlank { DEFAULT_CUSTOM_BASE_URL },
+            customModel = photo,
+            customTextModel = text,
+            customApiKeys = keys,
+            customApiKey = keys.firstOrNull().orEmpty(),
+            aiAutoFailoverByProvider = aiAutoFailoverByProvider +
+                (AiProvider.CUSTOM to autoFailoverFor(AiProvider.OPENAI)),
+            showPaidModelsByProvider = showPaidModelsByProvider +
+                (AiProvider.CUSTOM to true),
+            activeAiProvider = if (activeAiProvider == AiProvider.OPENAI) {
+                AiProvider.CUSTOM
+            } else {
+                activeAiProvider
+            },
+            // Prefer already-migrated active ids; otherwise keep the OpenAI selections.
+            activePhotoModel = activePhotoModel.ifBlank { photo },
+            activeTextModel = activeTextModel.ifBlank { text.ifBlank { photo } }
+        )
+    }
+
     companion object {
         const val LOADING_ANIM_OFF = "off"
         const val LOADING_ANIM_RANDOM = "random"
@@ -449,6 +522,19 @@ data class AppSettings(
         val DEFAULT_OPENAI_MODEL: String
             get() = FailoverLadders.preferredDefault(AiProvider.OPENAI, ModelCatalogModality.TEXT)
                 .ifBlank { "gpt-4o-mini" }
+
+        /** Prefill for [AiProvider.CUSTOM] — official OpenAI; change for other compatible hosts. */
+        const val DEFAULT_CUSTOM_BASE_URL = "https://api.openai.com"
+
+        /** Default vision model id suggested when pointing Custom at official OpenAI. */
+        const val DEFAULT_CUSTOM_MODEL = "gpt-4o"
+
+        fun isOfficialOpenAiBaseUrl(url: String): Boolean {
+            val host = url.trim().trimEnd('/').lowercase()
+                .removePrefix("https://")
+                .removePrefix("http://")
+            return host == "api.openai.com" || host.startsWith("api.openai.com/")
+        }
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
         const val DEFAULT_DAY_CHANGE_HOUR = 0
@@ -465,6 +551,7 @@ data class AppSettings(
             geminiKeys: List<String> = emptyList(),
             ollamaKeys: List<String> = emptyList(),
             openAiKeys: List<String> = emptyList(),
+            customKeys: List<String> = emptyList(),
             base: AppSettings = AppSettings()
         ): AppSettings = base.copy(
             openRouterApiKeys = openRouterKeys,
@@ -474,7 +561,9 @@ data class AppSettings(
             ollamaApiKeys = ollamaKeys,
             ollamaApiKey = ollamaKeys.firstOrNull().orEmpty(),
             openAiApiKeys = openAiKeys,
-            openAiApiKey = openAiKeys.firstOrNull().orEmpty()
+            openAiApiKey = openAiKeys.firstOrNull().orEmpty(),
+            customApiKeys = customKeys,
+            customApiKey = customKeys.firstOrNull().orEmpty()
         )
     }
 }
