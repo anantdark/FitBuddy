@@ -710,8 +710,8 @@ fun SettingsScreen(
                         trailingHintTitle = "Base URL",
                         trailingHint = "Official OpenAI is https://api.openai.com. For a local " +
                             "server try http://192.168.x.x:1234 (LM Studio) or :11434 (Ollama’s " +
-                            "OpenAI layer). FitBuddy calls {base}/v1/chat/completions and " +
-                            "{base}/v1/models."
+                            "OpenAI layer). Enter the host only — no /v1 suffix. FitBuddy calls " +
+                            "{base}/v1/chat/completions and {base}/v1/models."
                     )
                     ApiKeyChipEditor(
                         label = if (AppSettings.isOfficialOpenAiBaseUrl(customUrl)) {

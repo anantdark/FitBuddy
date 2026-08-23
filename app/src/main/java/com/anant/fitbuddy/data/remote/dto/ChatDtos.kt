@@ -16,7 +16,13 @@ data class ChatRequest(
     @Json(name = "model") val model: String,
     @Json(name = "messages") val messages: List<ChatMessage>,
     @Json(name = "response_format") val responseFormat: ResponseFormat? = ResponseFormat(),
-    @Json(name = "temperature") val temperature: Double = 0.2
+    @Json(name = "temperature") val temperature: Double = 0.2,
+    /**
+     * Qwen / DeepSeek thinking models on some OpenAI-compatible gateways return an empty
+     * `content` when thinking is left on for non-streaming JSON calls. Gateways that don't
+     * recognise the field ignore it.
+     */
+    @Json(name = "enable_thinking") val enableThinking: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -54,7 +60,8 @@ data class ChatRequestPlain(
     @Json(name = "messages") val messages: List<ChatMessagePlain>,
     @Json(name = "temperature") val temperature: Double = 0.2,
     /** Optional; used for cheap reachability probes (Refresh models). */
-    @Json(name = "max_tokens") val maxTokens: Int? = null
+    @Json(name = "max_tokens") val maxTokens: Int? = null,
+    @Json(name = "enable_thinking") val enableThinking: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -70,7 +77,9 @@ data class ChatMessagePlain(
 @JsonClass(generateAdapter = true)
 data class ChatResponse(
     @Json(name = "choices") val choices: List<Choice> = emptyList(),
-    @Json(name = "error") val error: ChatErrorDto? = null
+    @Json(name = "error") val error: ChatErrorDto? = null,
+    /** Some gateways (e.g. Kong) return `{"message":"..."}` instead of OpenAI's `error` object. */
+    @Json(name = "message") val message: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -92,5 +101,7 @@ data class Choice(
 @JsonClass(generateAdapter = true)
 data class ResponseMessage(
     @Json(name = "role") val role: String?,
-    @Json(name = "content") val content: String?
+    @Json(name = "content") val content: String?,
+    /** Qwen / DeepSeek thinking models may put chain-of-thought here when `content` is empty. */
+    @Json(name = "reasoning_content") val reasoningContent: String? = null
 )

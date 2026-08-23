@@ -283,7 +283,7 @@ data class AppSettings(
 
     /** Effective Custom host (user-supplied OpenAI-compatible base URL). */
     val customEffectiveBaseUrl: String
-        get() = customBaseUrl.trim().trimEnd('/')
+        get() = normalizeOpenAiCompatBaseUrl(customBaseUrl)
 
     /** Absolute chat-completions URL for the active provider (used with Retrofit @Url). */
     val chatUrl: String
@@ -526,6 +526,10 @@ data class AppSettings(
 
         /** Prefill for [AiProvider.CUSTOM] — official OpenAI; change for other compatible hosts. */
         const val DEFAULT_CUSTOM_BASE_URL = "https://api.openai.com"
+
+        /** Strips whitespace/trailing slashes and a mistaken `/v1` suffix from OpenAI-compat hosts. */
+        fun normalizeOpenAiCompatBaseUrl(raw: String): String =
+            raw.trim().trimEnd('/').removeSuffix("/v1")
 
         /** Default vision model id suggested when pointing Custom at official OpenAI. */
         const val DEFAULT_CUSTOM_MODEL = "gpt-4o"

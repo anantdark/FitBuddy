@@ -168,6 +168,21 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `custom base url strips trailing v1 suffix`() {
+        val settings = AppSettings(
+            provider = AiProvider.CUSTOM,
+            customBaseUrl = "https://chat-ai.academiccloud.de/v1",
+            customApiKey = "k",
+            customModel = "m"
+        )
+        assertEquals("https://chat-ai.academiccloud.de", settings.customEffectiveBaseUrl)
+        assertEquals(
+            "https://chat-ai.academiccloud.de/v1/chat/completions",
+            settings.chatUrl
+        )
+    }
+
+    @Test
     fun `parseApiKeys splits commas newlines and dedupes`() {
         assertEquals(
             listOf("k1", "k2", "k3"),
