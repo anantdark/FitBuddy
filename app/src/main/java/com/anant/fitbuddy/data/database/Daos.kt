@@ -350,6 +350,9 @@ interface BodyMeasurementDao {
     @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC")
     suspend fun getAllOnce(): List<BodyMeasurement>
 
+    @Query("SELECT * FROM body_measurements WHERE timestamp = :timestamp LIMIT 1")
+    suspend fun getByTimestamp(timestamp: Long): BodyMeasurement?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(measurement: BodyMeasurement)
 

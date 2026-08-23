@@ -9,7 +9,11 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Android 11+ package visibility: required to resolve Custom Tabs providers. -->
+    <!-- CAMERA permission would otherwise imply camera is required for Play filtering. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!-- Android 11+ package visibility: Custom Tabs + FreeScale measurement bridge. -->
     <queries>
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
@@ -19,6 +23,14 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
         </intent>
+        <!-- Needed so resolveActivity can see camera apps before TakePicturePreview. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <package android:name="com.anant.freescale" />
+        <package android:name="com.anant.freescale.debug" />
+        <provider android:authorities="com.anant.freescale.bridge.measurements" />
+        <provider android:authorities="com.anant.freescale.debug.bridge.measurements" />
     </queries>
 
     <application
@@ -81,6 +93,22 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <provider
+            android:name=".bridge.MeasurementBridgeProvider"
+            android:authorities="${applicationId}.bridge.measurements"
+            android:exported="true"
+            android:grantUriPermissions="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

@@ -60,6 +60,42 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `legacy OpenAI provider migrates to OpenAI-compatible with keys and models`() {
+        val legacy = AppSettings(
+            provider = AiProvider.OPENAI,
+            openAiApiKeys = listOf("sk-legacy", "sk-2"),
+            openAiApiKey = "sk-legacy",
+            openAiModel = "gpt-4o",
+            openAiTextModel = "gpt-4o-mini",
+            aiAutoFailoverByProvider = mapOf(AiProvider.OPENAI to false),
+            activeAiProvider = AiProvider.OPENAI,
+            activePhotoModel = "gpt-4o",
+            activeTextModel = "gpt-4o-mini"
+        )
+        val migrated = legacy.migratedFromLegacyOpenAiProvider()
+        assertEquals(AiProvider.CUSTOM, migrated.provider)
+        assertEquals(AppSettings.DEFAULT_CUSTOM_BASE_URL, migrated.customBaseUrl)
+        assertEquals(listOf("sk-legacy", "sk-2"), migrated.customApiKeys)
+        assertEquals("sk-legacy", migrated.customApiKey)
+        assertEquals("gpt-4o", migrated.customModel)
+        assertEquals("gpt-4o-mini", migrated.customTextModel)
+        assertFalse(migrated.autoFailoverFor(AiProvider.CUSTOM))
+        assertTrue(migrated.showPaidFor(AiProvider.CUSTOM))
+        assertEquals(AiProvider.CUSTOM, migrated.activeAiProvider)
+        assertEquals("gpt-4o", migrated.activePhotoModel)
+        assertEquals("gpt-4o-mini", migrated.activeTextModel)
+        assertEquals("Bearer sk-legacy", migrated.authHeader)
+        assertTrue(migrated.chatUrl.startsWith("https://api.openai.com/"))
+        assertTrue(migrated.isConfigured)
+    }
+
+    @Test
+    fun `non-OpenAI provider is unchanged by OpenAI migration`() {
+        val settings = AppSettings(provider = AiProvider.GEMINI, geminiApiKey = "g")
+        assertEquals(settings, settings.migratedFromLegacyOpenAiProvider())
+    }
+
+    @Test
     fun `openrouter auth header only present when key set`() {
         val noKey = AppSettings(provider = AiProvider.OPENROUTER, openRouterApiKey = "")
         assertNull(noKey.authHeader)

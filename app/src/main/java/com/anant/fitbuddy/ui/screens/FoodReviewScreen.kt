@@ -31,22 +31,19 @@ import androidx.compose.material3.MaterialTheme
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
-import com.anant.fitbuddy.ui.components.showFitBuddyPill
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
+import com.anant.fitbuddy.util.SystemToast
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -82,14 +79,12 @@ fun FoodReviewDialog(
         val ingredients = remember(draft) { draft.ingredients.toMutableStateList() }
         var showAddDialog by remember { mutableStateOf(false) }
 
-        // Local snackbar: the app-level one is hidden behind this full-screen dialog.
-        val snackbarHostState = remember { SnackbarHostState() }
-        val scope = rememberCoroutineScope()
+        val context = LocalContext.current
 
-        // Surface reanalyze feedback (clarification/error) here, then clear it.
+        // Surface reanalyze feedback (clarification/error) via system Toast, then clear it.
         androidx.compose.runtime.LaunchedEffect(reviewMessage) {
             reviewMessage?.let {
-                snackbarHostState.showFitBuddyPill(it)
+                SystemToast.show(context, it)
                 onReviewMessageShown()
             }
         }
@@ -112,7 +107,6 @@ fun FoodReviewDialog(
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            snackbarHost = { FitBuddySnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = { Text("Review food") },
@@ -142,9 +136,7 @@ fun FoodReviewDialog(
                                     ingredients = ingredients.toList()
                                 )
                             )
-                            scope.launch {
-                                snackbarHostState.showFitBuddyPill("Saved \"$name\" to food library")
-                            }
+                            SystemToast.show(context, "Saved \"$name\" to food library")
                         }
                     ) {
                         Icon(Icons.Filled.BookmarkAdd, contentDescription = null)

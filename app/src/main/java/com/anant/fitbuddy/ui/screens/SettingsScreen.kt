@@ -82,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -112,6 +113,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
@@ -189,6 +191,8 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit,
     onAutoCheckUpdatesChange: (Boolean) -> Unit,
     onCrashReportingChange: (Boolean) -> Unit,
+    onStartDiagnosticLogging: () -> Unit = {},
+    onStopAndExportDiagnosticLog: () -> Unit = {},
     onSupportIdCopied: () -> Unit = {},
     onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
     onDeveloperUnlockHintDismiss: () -> Unit = {},
@@ -239,6 +243,12 @@ fun SettingsScreen(
     }
     var openAiModel by remember(settings) { mutableStateOf(settings.openAiModel) }
     var openAiTextModel by remember(settings) { mutableStateOf(settings.openAiTextModel) }
+    var customUrl by remember(settings) { mutableStateOf(settings.customBaseUrl) }
+    var customModel by remember(settings) { mutableStateOf(settings.customModel) }
+    var customTextModel by remember(settings) { mutableStateOf(settings.customTextModel) }
+    var customKeys by remember(settings) {
+        mutableStateOf(settings.keysFor(AiProvider.CUSTOM))
+    }
     var aiAutoFailover by remember(settings, provider) { mutableStateOf(settings.autoFailoverFor(provider)) }
     var showPaidModels by remember(settings, provider) { mutableStateOf(settings.showPaidFor(provider)) }
 
@@ -310,13 +320,12 @@ fun SettingsScreen(
     val geminiKey = geminiKeys.firstOrNull().orEmpty()
     val ollamaApiKey = ollamaKeys.firstOrNull().orEmpty()
     val openAiKey = openAiKeys.firstOrNull().orEmpty()
+    val customApiKey = customKeys.firstOrNull().orEmpty()
 
-    // OpenAI has no free tier: force "Show paid models" on whenever it's the selected
-    // provider — the toggle is also locked (disabled) while selected.
+    // Prefill official OpenAI URL when opening OpenAI-compatible with an empty base URL.
     LaunchedEffect(provider) {
-        if (provider == AiProvider.OPENAI && !showPaidModels) {
-            showPaidModels = true
-            onSaveQuiet(settings.withShowPaid(AiProvider.OPENAI, true))
+        if (provider == AiProvider.CUSTOM && customUrl.isBlank()) {
+            customUrl = AppSettings.DEFAULT_CUSTOM_BASE_URL
         }
     }
 
@@ -429,16 +438,14 @@ fun SettingsScreen(
                 }
             )
 
-            if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI || provider == AiProvider.OPENAI) {
+            if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI) {
                 SettingToggleRow(
                     title = "Show paid models",
                     checked = showPaidModels,
-                    enabled = provider != AiProvider.OPENAI,
+                    enabled = true,
                     onCheckedChange = { enabled ->
                         showPaidModels = enabled
-                        if (provider == AiProvider.OPENAI) {
-                            onSaveQuiet(settings.withShowPaid(provider, enabled))
-                        } else if (enabled) {
+                        if (enabled) {
                             // Paid catalogs are manual pick only — turn Auto off for this provider.
                             aiAutoFailover = false
                             onSaveQuiet(
@@ -456,13 +463,9 @@ fun SettingsScreen(
                         }
                     },
                     hintTitle = "Paid models",
-                    hint = if (provider == AiProvider.OPENAI) {
-                        "OpenAI has no free tier, so paid models always stay on for this provider."
-                    } else {
-                        "Off (default): free models only. On: also list paid models and turn " +
-                            "Auto failover off so you pick one model yourself. Refresh skips " +
-                            "reachability checks while paid models are shown."
-                    }
+                    hint = "Off (default): free models only. On: also list paid models and turn " +
+                        "Auto failover off so you pick one model yourself. Refresh skips " +
+                        "reachability checks while paid models are shown."
                 )
             }
 
@@ -499,12 +502,20 @@ fun SettingsScreen(
                 AiProvider.OPENROUTER to "OpenRouter",
                 AiProvider.GEMINI to "Gemini",
                 AiProvider.OLLAMA to "Ollama",
-                AiProvider.OPENAI to "OpenAI"
+                AiProvider.CUSTOM to "OpenAI-compatible"
             )
             ProviderSelectorGrid(
                 options = options,
-                selected = provider,
-                onSelect = { provider = it }
+                selected = if (provider == AiProvider.OPENAI) AiProvider.CUSTOM else provider,
+                onSelect = { selected ->
+                    provider = selected
+                    if (selected == AiProvider.CUSTOM && customUrl.isBlank()) {
+                        customUrl = AppSettings.DEFAULT_CUSTOM_BASE_URL
+                    }
+                    if (selected == AiProvider.CUSTOM && customModel.isBlank()) {
+                        customModel = AppSettings.DEFAULT_CUSTOM_MODEL
+                    }
+                }
             )
 
             // One-shot cleanup if a bad Gemini Studio id was previously saved under OpenRouter.
@@ -666,7 +677,8 @@ fun SettingsScreen(
                                 "Gemma models are preferred. Leave text model blank to reuse the photo model."
                         } else {
                             "Use a vision model (llava/gemma) for food photos. Leave text model " +
-                                "blank to reuse the photo model."
+                                "blank to reuse the photo model. For LM Studio / vLLM / other " +
+                                "OpenAI-compatible hosts, prefer the Custom provider."
                         }
                     )
                     ModelDropdown(
@@ -682,38 +694,64 @@ fun SettingsScreen(
                     )
                 }
 
-                AiProvider.OPENAI -> {
-                    ApiKeyChipEditor(
-                        label = "API keys",
-                        keys = openAiKeys,
-                        onKeysChange = { openAiKeys = it }
+                AiProvider.CUSTOM, AiProvider.OPENAI -> {
+                    Text(
+                        text = "Works with OpenAI and any OpenAI-compatible API — LM Studio, " +
+                            "vLLM, LocalAI, Together, Groq, Azure OpenAI-compatible gateways, and more. " +
+                            "Defaults to OpenAI’s official URL; change the Base URL for other hosts.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    SettingField(
+                        label = "Base URL",
+                        value = customUrl,
+                        onValueChange = { customUrl = it },
+                        keyboardType = KeyboardType.Uri,
+                        trailingHintTitle = "Base URL",
+                        trailingHint = "Official OpenAI is https://api.openai.com. For a local " +
+                            "server try http://192.168.x.x:1234 (LM Studio) or :11434 (Ollama’s " +
+                            "OpenAI layer). FitBuddy calls {base}/v1/chat/completions and " +
+                            "{base}/v1/models."
+                    )
+                    ApiKeyChipEditor(
+                        label = if (AppSettings.isOfficialOpenAiBaseUrl(customUrl)) {
+                            "API keys"
+                        } else {
+                            "API keys (optional for local servers)"
+                        },
+                        keys = customKeys,
+                        onKeysChange = { customKeys = it }
+                    )
+                    val openAiFallbacks = AppSettings.isOfficialOpenAiBaseUrl(customUrl)
                     ModelDropdown(
                         label = "Photo model (vision)",
                         noun = "vision",
-                        selectedModel = openAiModel,
-                        onModelChange = { openAiModel = it },
+                        selectedModel = customModel,
+                        onModelChange = { customModel = it },
                         modelsState = modelsState,
-                        provider = AiProvider.OPENAI,
-                        apiKey = openAiKey,
+                        provider = AiProvider.CUSTOM,
+                        apiKey = customApiKey,
+                        baseUrl = customUrl,
                         onLoad = onLoadModels,
-                        showPaidModels = true,
-                        fallbackOptions = OpenAiCatalog.VISION_MODELS,
-                        hintTitle = "OpenAI",
-                        hint = "Get a key at platform.openai.com/api-keys. OpenAI is paid — " +
-                            "there is no free tier, so paid models are always shown."
+                        showPaidModels = showPaidModels,
+                        fallbackOptions = if (openAiFallbacks) OpenAiCatalog.VISION_MODELS else emptyList(),
+                        hintTitle = "OpenAI-compatible",
+                        hint = "Paste an OpenAI key for api.openai.com (paid). Local servers often " +
+                            "need no key — leave keys empty. Leave text model blank to reuse the " +
+                            "photo model."
                     )
                     ModelDropdown(
                         label = "Text model",
                         noun = "chat",
-                        selectedModel = openAiTextModel,
-                        onModelChange = { openAiTextModel = it },
+                        selectedModel = customTextModel,
+                        onModelChange = { customTextModel = it },
                         modelsState = textModelsState,
-                        provider = AiProvider.OPENAI,
-                        apiKey = openAiKey,
+                        provider = AiProvider.CUSTOM,
+                        apiKey = customApiKey,
+                        baseUrl = customUrl,
                         onLoad = onLoadTextModels,
-                        showPaidModels = true,
-                        fallbackOptions = OpenAiCatalog.TEXT_MODELS
+                        showPaidModels = showPaidModels,
+                        fallbackOptions = if (openAiFallbacks) OpenAiCatalog.TEXT_MODELS else emptyList()
                     )
                 }
             }
@@ -723,7 +761,7 @@ fun SettingsScreen(
                 onClick = {
                     onSave(
                         settings.copy(
-                            provider = provider,
+                            provider = if (provider == AiProvider.OPENAI) AiProvider.CUSTOM else provider,
                             openRouterApiKeys = openRouterKeys,
                             openRouterApiKey = openRouterKey,
                             openRouterModel = openRouterModel.trim(),
@@ -742,6 +780,11 @@ fun SettingsScreen(
                             openAiApiKey = openAiKey,
                             openAiModel = openAiModel.trim(),
                             openAiTextModel = openAiTextModel.trim(),
+                            customBaseUrl = customUrl.trim(),
+                            customModel = customModel.trim(),
+                            customTextModel = customTextModel.trim(),
+                            customApiKeys = customKeys,
+                            customApiKey = customApiKey,
                             aiAutoFailoverByProvider = settings.aiAutoFailoverByProvider
                                 + (provider to aiAutoFailover),
                             showPaidModelsByProvider = settings.showPaidModelsByProvider
@@ -1028,7 +1071,7 @@ fun SettingsScreen(
             title = "Backup",
             initiallyExpanded = false,
             hintTitle = "Backup",
-            hint = "Export a JSON file anytime. Cloud uploads use your Support ID as the " +
+            hint = "Share a JSON backup anytime. Cloud uploads use your Support ID as the " +
                 "document key — keep that ID safe to restore after reinstalling. Restore from " +
                 "cloud or local file is offered during onboarding (import also in Developer tools)."
         ) {
@@ -1073,7 +1116,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                text = "Save everything to a JSON file on this device.",
+                text = "Share a JSON backup (Drive, Files, email, etc.).",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1083,7 +1126,7 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Filled.FileUpload, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Export")
+                Text("Share")
             }
 
             Text(
@@ -1227,6 +1270,55 @@ fun SettingsScreen(
                     "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
                     "Your Support ID (under Backup) identifies reports without personal data."
             )
+            val diagnosticEntries by DiagnosticLogger.entryCount.collectAsState()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Diagnostic log",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                HintIconButton(
+                    title = "Diagnostic log",
+                    message = "Captures AI connection steps (provider, model, HTTP status) so you can " +
+                        "share them when something fails. No meals, photos, or API keys. " +
+                        "Start logging, reproduce the issue, then stop & export."
+                )
+            }
+            Text(
+                text = when {
+                    settings.diagnosticLoggingEnabled && diagnosticEntries > 0 ->
+                        "Logging… $diagnosticEntries lines — stop & export when done"
+                    settings.diagnosticLoggingEnabled ->
+                        "Logging… reproduce the issue, then stop & export"
+                    diagnosticEntries > 0 ->
+                        "$diagnosticEntries lines from last session"
+                    else ->
+                        "Off until you start logging"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = {
+                    if (settings.diagnosticLoggingEnabled) {
+                        onStopAndExportDiagnosticLog()
+                    } else {
+                        onStartDiagnosticLogging()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (settings.diagnosticLoggingEnabled) {
+                    Icon(Icons.Filled.FileUpload, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Stop logging & export")
+                } else {
+                    Text("Start logging")
+                }
+            }
         }
 
         // --- About -----------------------------------------------------------------------
@@ -1839,6 +1931,7 @@ private fun ModelDropdown(
     val ollamaNeedsKey = provider == AiProvider.OLLAMA &&
         baseUrl == AppSettings.OLLAMA_CLOUD_BASE_URL &&
         apiKey.isBlank()
+    val customNeedsUrl = provider == AiProvider.CUSTOM && baseUrl.isBlank()
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -1878,6 +1971,7 @@ private fun ModelDropdown(
                                     "Enter your API key first"
                                 ollamaNeedsKey -> "Enter your Ollama Cloud API key first"
                                 ollamaNeedsUrl -> "Enter your Ollama server URL first"
+                                customNeedsUrl -> "Enter your custom base URL first"
                                 modelsState.error != null -> "Couldn't load models"
                                 else -> "No $noun models found"
                             }

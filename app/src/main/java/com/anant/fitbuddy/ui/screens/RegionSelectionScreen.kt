@@ -23,7 +23,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,17 +32,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.ui.components.Button
-import com.anant.fitbuddy.ui.components.FitBuddySnackbarHost
 import com.anant.fitbuddy.ui.components.TextButton
-import com.anant.fitbuddy.ui.components.showFitBuddyPill
 import com.anant.fitbuddy.ui.region.RegionFlagCanvas
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 import kotlinx.coroutines.Dispatchers
@@ -84,12 +83,11 @@ fun RegionSelectionScreen(
         alreadySent -> "You've already sent a region request from this install."
         else -> null
     }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        snackbarHost = { FitBuddySnackbarHost(snackbarHostState, bottomPadding = 24.dp) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -248,8 +246,9 @@ fun RegionSelectionScreen(
                             if (alreadySent) {
                                 sendingRequest = false
                                 showConsentDialog = false
-                                snackbarHostState.showFitBuddyPill(
-                                    "You've already sent a region request from this install."
+                                SystemToast.show(
+                                    context,
+                                    "You've already sent a region request from this install.",
                                 )
                                 return@launch
                             }
@@ -266,7 +265,7 @@ fun RegionSelectionScreen(
                                 alreadySent = true
                                 onRequestRegionSent?.invoke()
                             }
-                            snackbarHostState.showFitBuddyPill(result.userMessage)
+                            SystemToast.show(context, result.userMessage)
                         }
                     },
                     enabled = !sendingRequest
