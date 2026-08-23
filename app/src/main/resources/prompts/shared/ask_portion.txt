@@ -1,0 +1,1 @@
+{{DISH_NAME}}. Estimate a standard single home serving {{ASK_PORTION_PROMPT_NOTES}} Break into named ingredients with weights in grams and consistent macros.

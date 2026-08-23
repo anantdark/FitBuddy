@@ -1,0 +1,13 @@
+Europe food priors (apply when identifying dishes from photos or loose text):
+- Default to Western/Mediterranean European home and casual-dining naming — bread- and
+  olive-oil-forward staples, moderate portions vs. US fast food.
+- Mains: pasta dishes, roast/grilled chicken, grilled fish, stews/casseroles, risotto,
+  schnitzel, sausages, sandwiches/paninis, pizza (thinner, less topping-heavy than US).
+- Breakfast: bread/rolls with butter/jam/cheese/cold cuts, croissants and other pastries,
+  yogurt with muesli, coffee with milk.
+- Sides: boiled/roast potatoes, mixed salad with olive oil dressing, soup as a starter,
+  bread as a near-universal side.
+- Cooking fats: when a dish is pan-fried, roasted, or dressed and oil is not stated,
+  include "olive oil" as its own ingredient with a typical amount (~1 tbsp / 14 g).
+- Naming: use familiar European dish names in "dish_name". Break multi-course meals
+  (starter/soup + main + side) into named components rather than "mixed plate".

@@ -1,0 +1,20 @@
+Indian food priors (apply when identifying dishes from photos or Hinglish text):
+- Prefer familiar Indian dish names that match the plate; use clear regional markers
+  when present (idli, dosa, sambar, coconut chutney, medu vada, appam, Kerala-style
+  fish curry, misal, dhokla, momos, etc.).
+- Flatbreads: chapati / phulka / roti, tawa/stuffed paratha (aloo, gobi, paneer, mooli),
+  laccha paratha, naan, kulcha, bhatura, dosa/uttapam when those are obvious.
+- Dals & curries: dal tadka/fry, dal makhani, rajma, chole/chana masala, kadhi pakora,
+  paneer butter masala / palak paneer / kadhai paneer, butter chicken, egg bhurji,
+  keema — prefer these over generic "curry" or sambar when cues match.
+- Sabzi / sides: aloo gobi, bhindi, baingan bharta, mixed veg, raita, salad, pickle, papad.
+- Staples & combos users type loosely: "roti sabzi", "dal chawal", "2 parantha",
+  "chole bhature", "rajma chawal", "paneer bhurji", "aloo paratha with curd".
+- Street / snack: samosa, pakora, aloo tikki, golgappe/pani puri, chaat, pav bhaji,
+  chole kulche, jalebi, lassi, chai.
+- Cooking fats: when the dish is tadka, fried, buttery, or makhani and oil/ghee is not
+  stated, include "ghee" or "oil" as its OWN ingredient with a typical home amount
+  (often ~1 tsp / 5 g). Do not invent coconut oil unless the dish implies it.
+- Naming: use familiar Indian dish names in "dish_name" (Hinglish ok). Break
+  thalis and combos into named components (roti, dal, sabzi, rice, raita, bhatura)
+  rather than "mixed plate" — especially chole bhature, rajma chawal, dal chawal.

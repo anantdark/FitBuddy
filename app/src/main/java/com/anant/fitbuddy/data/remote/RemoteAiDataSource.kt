@@ -11,6 +11,7 @@ import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutNameResponse
 import com.anant.fitbuddy.data.model.normalized
+import com.anant.fitbuddy.data.prompts.PromptCatalog
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionPack
 import com.anant.fitbuddy.data.region.RegionPacks
@@ -82,11 +83,11 @@ class RemoteAiDataSource(
         forceEstimate: Boolean = false
     ): FitnessTrackerResponse {
         val pack = regionPack(settings)
-        val promptText = buildPrompt(
-            userStateContextJson,
-            userText,
-            imageDataUrl != null,
-            forceEstimate,
+        val promptText = PromptCatalog.analyzePrompt(
+            userStateContextJson = userStateContextJson,
+            userText = userText,
+            hasImage = imageDataUrl != null,
+            forceEstimate = forceEstimate,
             strictClarification = settings.developerModeUnlocked && settings.strictClarification,
             pack = pack
         )
@@ -105,7 +106,7 @@ class RemoteAiDataSource(
         // temperature=0: target math should be deterministic across identical inputs
         val json = completeToJson(
             settings,
-            buildTargetPrompt(contextJson, regionPack(settings)),
+            PromptCatalog.targetPrompt(contextJson, regionPack(settings)),
             imageDataUrl = null,
             temperature = 0.0
         )
@@ -119,7 +120,7 @@ class RemoteAiDataSource(
     ): ProgressInsightResponse {
         val json = completeToJson(
             settings,
-            buildProgressPrompt(compressedMetrics, regionPack(settings)),
+            PromptCatalog.progressPrompt(compressedMetrics, regionPack(settings)),
             null
         )
         return parseJson(progressInsightAdapter, json).normalized()
@@ -138,7 +139,10 @@ class RemoteAiDataSource(
             add(
                 ChatMessagePlain(
                     role = "system",
-                    content = buildProgressChatSystemPrompt(contextJson, regionPack(settings))
+                    content = PromptCatalog.progressChatSystemPrompt(
+                        contextJson,
+                        regionPack(settings)
+                    )
                 )
             )
             history.forEach { add(ChatMessagePlain(role = it.role, content = it.content)) }
@@ -161,7 +165,7 @@ class RemoteAiDataSource(
         settings: AppSettings,
         contextJson: String
     ): WorkoutCaloriesResponse {
-        val json = completeToJson(settings, buildWorkoutCaloriesPrompt(contextJson), null)
+        val json = completeToJson(settings, PromptCatalog.workoutCaloriesPrompt(contextJson), null)
         return parseJson(workoutCaloriesAdapter, json)
     }
 
@@ -174,7 +178,11 @@ class RemoteAiDataSource(
         rawName: String,
         knownExerciseNames: List<String>
     ): CustomExerciseResponse {
-        val json = completeToJson(settings, buildClassifyExercisePrompt(rawName, knownExerciseNames), null)
+        val json = completeToJson(
+            settings,
+            PromptCatalog.classifyExercisePrompt(rawName, knownExerciseNames),
+            null
+        )
         return parseJson(customExerciseAdapter, json)
     }
 
@@ -184,7 +192,11 @@ class RemoteAiDataSource(
         description: String,
         knownExerciseNames: List<String>
     ): ParsedWorkoutResponse {
-        val json = completeToJson(settings, buildParseWorkoutPrompt(description, knownExerciseNames), null)
+        val json = completeToJson(
+            settings,
+            PromptCatalog.parseWorkoutPrompt(description, knownExerciseNames),
+            null
+        )
         return parseJson(parsedWorkoutAdapter, json)
     }
 
@@ -193,7 +205,7 @@ class RemoteAiDataSource(
         settings: AppSettings,
         exerciseNames: List<String>
     ): WorkoutNameResponse {
-        val json = completeToJson(settings, buildWorkoutNamePrompt(exerciseNames), null)
+        val json = completeToJson(settings, PromptCatalog.workoutNamePrompt(exerciseNames), null)
         return parseJson(workoutNameAdapter, json)
     }
 
@@ -724,396 +736,4 @@ class RemoteAiDataSource(
 
     private fun regionPack(settings: AppSettings): RegionPack =
         RegionPacks.packOrIndia(AppRegion.fromStored(settings.region))
-
-    private fun buildPrompt(
-        userStateContextJson: String,
-        userText: String,
-        hasImage: Boolean,
-        forceEstimate: Boolean,
-        strictClarification: Boolean = false,
-        pack: RegionPack
-    ): String = """
-        ${pack.analyzeSystemIntro}
-        Analyse the user's input and respond with a SINGLE JSON object and nothing else. Do not
-        include markdown fences or commentary.
-
-        Decide the "status":
-        - "SUCCESS": the input clearly shows/describes food or a meal and you can confidently
-          estimate macros.
-        - "EXERCISE_LOGGED": the input describes a physical activity/workout.
-        - "CLARIFICATION_REQUIRED": it IS food/exercise but too vague (missing quantity, portion,
-          or which item) to estimate accurately. Ask a short, specific question in
-          "clarification_message".
-        - "NOT_IDENTIFIED": there is NO identifiable food or physical activity. Use this when an
-          attached image contains no food (e.g. a person, object, scenery, screenshot, document),
-          or the text is unrelated to food/exercise. Put a short reason in "clarification_message"
-          (e.g. "No food detected in the image."). Do NOT guess or invent a dish in this case.
-
-        ${pack.analyzePromptPriors}
-
-        ${pack.promptReferenceTable()}
-
-        Clarification for countable staples (text only, no clear photo portions):
-        - If the user mentions discrete countable items (breads, eggs, snacks, etc.) without a count,
-          return CLARIFICATION_REQUIRED asking how many,
-          unless ${if (hasImage) "the attached photo makes portion size obvious" else "a count is stated"}.
-        ${if (strictClarification) """
-        STRICT CLARIFICATION MODE (on): when any portion is ambiguous, prefer
-        CLARIFICATION_REQUIRED over guessing. Ask one short, specific question.
-        """.trimIndent() else ""}
-
-        Accuracy rules (important):
-        - Only report food you actually see in the image / that is explicitly described. Never
-          default to a generic "mixed plate" or invent items to fill the schema.
-        - If unsure whether the image contains food, prefer "NOT_IDENTIFIED" over guessing.
-        - Base portion sizes on visible cues; keep macros internally consistent.
-        - Still recognise food from other regions correctly when clearly present — priors only
-          break ties for ambiguous plates in this region.
-
-        For food, break the dish into its component ingredients. For EACH ingredient, estimate its
-        assumed weight in grams and its macros AT THAT WEIGHT. The dish-level "macros" MUST equal
-        the sum of the ingredient macros.
-
-        Ingredient quantity rules (critical for loose text):
-        - When the user states a count of discrete items, set "quantity" to that count and
-          "weight_g" to the TOTAL grams for all units combined (not grams per unit).
-          Example: "4 almonds" -> quantity 4, weight_g ~5-6, macros for all 4 combined.
-        - For bulk or continuous portions, use quantity 1 and weight_g as the portion weight.
-        ${pack.measurementPromptNotes}
-
-        Respond using EXACTLY this schema. Set "food_analysis" to null OUTRIGHT (not an object with
-        null fields inside) when status is not SUCCESS, and "exercise_analysis" to null OUTRIGHT
-        when status is not EXERCISE_LOGGED:
-        {
-          "status": "SUCCESS | CLARIFICATION_REQUIRED | EXERCISE_LOGGED | NOT_IDENTIFIED",
-          "clarification_message": "String text or null",
-          "food_analysis": {
-            "dish_name": "String",
-            "macros": { "calories": Int, "protein_g": Int, "carbs_g": Int, "fats_g": Int },
-            "ingredients": [
-              { "name": "String", "quantity": Int, "weight_g": Int, "calories": Int, "protein_g": Int, "carbs_g": Int, "fats_g": Int }
-            ]
-          },
-          "exercise_analysis": {
-            "activity_detected": "String",
-            "calories_burned": Int,
-            "duration_minutes": Int
-          }
-        }
-
-        Use the user's current state only to personalise exercise burn (body weight, age, sex)
-        and remaining-calorie awareness. Do NOT inflate or deflate food-macro estimates to match
-        daily targets — report realistic dish macros from what is seen/described. Current user
-        state (JSON):
-        $userStateContextJson
-
-        ${if (hasImage) "An image is attached. First check whether it actually contains food; if it does not, return NOT_IDENTIFIED." else ""}
-
-        ${if (forceEstimate) "The user is correcting a previously analysed meal by renaming the dish. Treat the input as the definitive dish name and ALWAYS return status \"SUCCESS\" with your best-effort estimate for a standard single serving, recomputing the full ingredient breakdown and macros. Do NOT return CLARIFICATION_REQUIRED or NOT_IDENTIFIED for this correction." else ""}
-
-        User input: "$userText"
-    """.trimIndent()
-
-    private fun buildTargetPrompt(contextJson: String, pack: RegionPack): String = """
-        ${pack.targetSystemIntro} Compute daily targets from the user JSON using the FIXED formula
-        below. Do NOT freestyle calorie numbers — identical inputs must produce identical outputs.
-
-        IMPORTANT — "daily_target_calories" is a REST-DAY baseline. The app tracks NET calories
-        as (eaten − exercise burned) and credits exercise back 1:1 onto the day's allowance.
-        Do NOT inflate the baseline to pre-account for exercise. Mention eat-back briefly in
-        rationale only when avg_daily_calories_burned_recent is meaningfully > 0.
-
-        Personalise from ACTUAL JSON fields only — never invent missing demographics or scale
-        metrics. Prefer latest_measurement.bmr / body_fat_pct / muscle fields when present.
-
-        STEP 1 — recommended_goal (exactly one of LOSE_WEIGHT | GAIN_MUSCLE | RECOMP):
-        - If stated_goal is not "AUTO", use stated_goal unless clearly unsafe.
-        - Else: high body fat → LOSE_WEIGHT; lean / under-muscled → GAIN_MUSCLE;
-          moderate body fat → RECOMP.
-
-        STEP 2 — compute ideal_calories with this exact formula (no ranges):
-        a) BMR = latest_measurement.bmr if present and > 0; else Mifflin–St Jeor:
-           men: 10*kg + 6.25*cm − 5*age + 5; women: 10*kg + 6.25*cm − 5*age − 161.
-           If sex unknown, use the women formula.
-        b) Activity multiplier (activity_level → factor):
-           SEDENTARY=1.2, LIGHT=1.375, MODERATE=1.55, ACTIVE=1.725, VERY_ACTIVE=1.9.
-           Unknown/blank → 1.55.
-        c) TDEE = round(BMR * multiplier).
-        d) Goal adjustment (fixed deltas, not ranges):
-           LOSE_WEIGHT: TDEE − 400; if age≥50 OR (sex FEMALE/female and kg<60) use TDEE − 300.
-           RECOMP: TDEE (maintenance).
-           GAIN_MUSCLE: TDEE + 250.
-        e) Floors: women ≥1200, men ≥1500 (skip floor only if notably small / missing sex).
-        f) Round the result to the NEAREST 50 kcal → ideal_calories.
-
-        STEP 3 — compute ideal macros (whole grams; per CURRENT bodyweight kg):
-        - Protein:
-            LOSE_WEIGHT: round(1.0 * kg). Do NOT push 1.5–2 g/kg on a cut.
-            RECOMP / GAIN_MUSCLE: 1.6 g/kg default; use 1.5 if heavier/older/female/high BF
-            or calorie budget tight; use 1.8 only if lean + younger/mid-adult. Cap 2.0 g/kg.
-            Never invent 2.2+ g/kg. Never secretly switch to per-lean-mass on LOSE_WEIGHT.
-        - Fats: round(0.9 * kg), at least ~20% of ideal_calories (9 kcal/g).
-        - Carbs: fill remaining calories → carbs_g = round((ideal_calories − protein*4 − fats*9) / 4),
-          floored at 0. ${pack.targetCoachNotes}
-
-        STEP 4 — STABILITY / HYSTERESIS (mandatory; no soft judgment):
-        Current targets are current_target_calories / current_target_protein_g /
-        current_target_carbs_g / current_target_fats_g.
-        Let cal_delta = abs(ideal_calories − current_target_calories).
-        Let protein_delta = abs(ideal_protein_g − current_target_protein_g).
-        Change targets (targets_changed=true) ONLY if ANY of these hold:
-          (A) current_target_calories is missing or ≤0, OR
-          (B) cal_delta ≥ 150, OR
-          (C) protein_delta ≥ 20.
-        Do NOT invent other reasons to change. Soft vibes ("could be a bit higher") are forbidden.
-        Otherwise targets_changed=false: echo ALL four current target values EXACTLY
-        (do not "nudge" them), keep recommended_goal as decided in STEP 1, and write a short
-        encouraging rationale that current targets are already appropriate.
-
-        When targets_changed=true, output the ideal_* values from STEPs 2–3 and justify WHY
-        in rationale (cite age, sex, weight/height, goal, BMR/TDEE, and the cal_delta).
-
-        rationale: 2–4 sentences in either case.
-
-        Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-        EXACTLY this schema:
-        {
-          "recommended_goal": "LOSE_WEIGHT | GAIN_MUSCLE | RECOMP",
-          "daily_target_calories": Int,
-          "target_protein_g": Int,
-          "target_carbs_g": Int,
-          "target_fats_g": Int,
-          "rationale": "String",
-          "targets_changed": Boolean
-        }
-
-        User data (JSON):
-        $contextJson
-    """.trimIndent()
-
-    private fun buildProgressPrompt(compressedMetrics: String, pack: RegionPack): String = """
-        ${pack.progressSystemIntro} Analyse the user's progress data below (body-composition trend over
-        time, calories consumed vs. burned, macro adherence, and exercise) and produce a concise
-        report. ${pack.progressFoodGuidance}
-
-        The data is a COMPRESSED snapshot (oldest→newest):
-        - Header may include first name (profile name…), age, sex, height, weight, activity, goal,
-          and macro targets
-        - BODY30: past-month day-level scale readings (date|kg|bf%|muscle_kg|visceral|bmr|bmi)
-        - BODY_PRIOR: older months as concise averages (month|n|avg_kg|start/end weights + end comps)
-        - NUT30: past-month daily nutrition (date|calories_in|calories_burned|net|protein|carbs|fats)
-        - NUT_PRIOR: older months as averages (month|days|avg_in|avg_burn|avg_net|macros|ex_days)
-        - EX30 / EX_PRIOR: past-month daily burn vs older month averages/totals
-        - "targets" kcal is a REST-DAY baseline compared against NET calories (in - burn) each day.
-
-        Addressing the user (critical):
-        - If the profile header includes a token starting with "name" (right after "profile="),
-          that token's value is the user's configured FIRST name. When you address them by name,
-          use ONLY that exact first name.
-        - Never invent, guess, or substitute any other personal name.
-        - Never use a last name or full name.
-        - If no name appears in the profile header, address them only as "you" — never invent one.
-
-        IMPORTANT — this app credits exercise calories back onto the day's eating allowance
-        (NET calories = consumed - burned is compared against the rest-day target). On exercise
-        days, check whether intake rose to match burn. If the user regularly eats back most/all of
-        their exercise calories while the weight trend isn't matching their stated goal (e.g. still
-        gaining despite a LOSE_WEIGHT goal), call this out explicitly — exercise-burn estimates
-        usually run high, so recommend eating back only part of it rather than the full amount.
-        Don't assume this is happening if the data doesn't support it.
-
-        Focus on: direction of weight/body-fat/muscle trends, whether intake and training align with
-        their goal, and 2-4 specific, actionable recommendations grounded in THEIR age, sex, and
-        body-comp data when present. Be encouraging and realistic; do NOT invent data that isn't
-        present. If there is too little data, say so and suggest logging more consistently.
-        Protein advice: ~1 g/kg bodyweight is enough for LOSE_WEIGHT / maintenance (especially
-        older adults and many women — do not tell them to "stuff protein"); reserve 1.5–2 g/kg
-        only for RECOMP or GAIN_MUSCLE. Never push 2+ g/kg as a default.
-
-        Also compute "body_score": an integer 0-100 holistic body-composition score (higher is
-        better) reflecting how well the user's CURRENT body composition and its recent trend align
-        with their stated goal. Weigh body fat %, muscle mass, visceral fat, and trend direction
-        relative to age/sex norms when those fields exist. Set "body_score" to null (not a guess)
-        if BODY30 / body_measurements has fewer than 2 readings or lacks enough fields to judge.
-
-        Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-        EXACTLY this schema (double quotes only; never embed recommendations inside summary):
-        {
-          "summary": "String (2-4 sentences)",
-          "recommendations": ["String", "String"],
-          "body_score": Int or null
-        }
-        "summary" must be plain prose only. Put each tip as its own string in "recommendations".
-
-        User progress data (compressed):
-        $compressedMetrics
-    """.trimIndent()
-
-    private fun buildProgressChatSystemPrompt(contextJson: String, pack: RegionPack): String = """
-        ${pack.progressSystemIntro} The user is on the Progress screen reviewing charts (weekly +
-        monthly calories, macros, exercise burn, and body-composition trends).
-        ${pack.progressFoodGuidance}
-
-        Below is the FULL progress dataset (JSON). Treat it as authoritative — do not invent numbers
-        not present here. Use profile fields (first_name, age, sex, height_cm, weight_kg,
-        activity_level, goal) plus day-level "body_measurements", "nutrition_daily", and
-        "exercise_daily" for the past ~30 days, and concise calendar-month averages in
-        "body_prior_months", "nutrition_prior_months", and "exercise_prior_months" for older
-        history. When scale metrics exist (bmi, body_fat_pct, muscle_mass_kg, bmr, visceral_fat,
-        etc.), use them to personalise advice.
-
-        Addressing the user (critical):
-        - "first_name" is the user's configured first name. When addressing them by name, use
-          ONLY that exact value.
-        - Never invent, guess, or substitute any other name. Never use a last name.
-        - If first_name is null/missing/blank, address them only as "you" — never invent a name.
-
-        --- DATA START ---
-        $contextJson
-        --- DATA END ---
-
-        App calorie model (critical):
-        - "target_calories_rest_day_baseline" is compared against NET calories each day.
-        - NET = calories eaten minus calories burned via logged exercise.
-        - Exercise automatically credits back onto that day's eating allowance (1:1 eat-back).
-        - On exercise days, check whether intake rose to match burn; exercise estimates often run
-          high, so eating back all of it can stall fat loss.
-
-        Macro guidance if asked: personalise to age, sex, goal, and body composition. ~1 g/kg
-        protein is enough for fat loss / maintenance (do not push high protein on older women
-        cutting weight); 1.5–2 g/kg only for recomp / muscle-gain goals. Never default to 2+ g/kg.
-
-        You already opened the conversation with an initial progress insight (in chat history).
-        Continue naturally: answer follow-ups about trends, graphs, body composition, macros,
-        training, and goal alignment. Reference specific dates/values from the data when useful.
-        Keep replies concise (2-5 sentences) unless the user asks for detail. Be encouraging and
-        realistic. If data is sparse, say so and suggest consistent logging.
-    """.trimIndent()
-
-    private fun buildWorkoutCaloriesPrompt(contextJson: String): String = """
-        You are FitBuddy, an exercise-physiology estimator. Estimate the energy expenditure
-        of the logged workout session below, personalised to the user's body factors (weight_kg,
-        age, sex, activity_level) using standard MET (metabolic equivalent) methodology. Prefer
-        measured fields from the JSON when present; do not invent missing demographics.
-
-        Guidance:
-        - Use each exercise's equipment/type, sets, reps and weight to judge intensity (heavier
-          load and lower reps generally means more MET for the working sets, but rest between sets
-          lowers the SESSION-average MET compared to continuous cardio).
-        - Resistance-training sessions (dumbbell/barbell/bench/machine) typically average
-          MET 3-6 across the whole session once rest is included; bodyweight circuits and cardio
-          machines can run higher.
-        - "duration_minutes": if the user already provided one in the data, use it unless it's
-          clearly unrealistic for the number of exercises/sets logged; otherwise estimate a
-          realistic total including rest between sets.
-        - "calories_burned": kcal = MET * weight_kg * (duration_minutes / 60), personalised to the
-          provided body weight (heavier users burn more for the same activity). Sex/age mainly
-          inform intensity judgement when the session description is ambiguous — do not invent
-          a different formula.
-        - "intensity_note": ONE short phrase (e.g. "Moderate strength session").
-        - Be conservative: exercise calorie estimates often run high; prefer the lower plausible
-          MET when uncertain.
-
-        Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-        EXACTLY this schema:
-        {
-          "calories_burned": Int,
-          "duration_minutes": Int,
-          "intensity_note": "String"
-        }
-
-        Workout + user data (JSON):
-        $contextJson
-    """.trimIndent()
-
-    private fun buildClassifyExercisePrompt(rawName: String, knownExerciseNames: List<String>): String {
-        val knownList = knownExerciseNames.joinToString("\n") { "- $it" }
-        return """
-            You are FitBuddy, a gym-exercise normaliser. The user typed a custom exercise
-            name. Map it to a clean canonical exercise name and the best equipment tag.
-
-            Rules:
-            - If the typed name clearly matches (or is a synonym/abbreviation of) an exercise in
-              the known list below, use that EXACT canonical name from the list.
-            - Otherwise invent a concise Title Case name (no equipment prefix unless it disambiguates).
-            - Do NOT create near-duplicates of the known list (e.g. "Dumbbell Bench Press" when
-              "Bench Press" already exists — use "Bench Press").
-            - "equipment" must be EXACTLY one of:
-              Dumbbell, Bench, Barbell, Bodyweight, Machine, Cardio, Other
-
-            Known exercises:
-            $knownList
-
-            Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-            EXACTLY this schema:
-            {
-              "canonical_name": "String",
-              "equipment": "Dumbbell | Bench | Barbell | Bodyweight | Machine | Cardio | Other"
-            }
-
-            User typed: "$rawName"
-        """.trimIndent()
-    }
-
-    private fun buildParseWorkoutPrompt(description: String, knownExerciseNames: List<String>): String {
-        val knownList = knownExerciseNames.joinToString("\n") { "- $it" }
-        return """
-            You are FitBuddy, a workout-log parser. The user describes one or more exercises
-            in natural language (possibly including sets, reps, and weight). Extract EVERY exercise
-            mentioned and return them as structured rows.
-
-            Parsing rules:
-            - Accept formats like "4x8 bench press", "3 sets of 12 lateral raises", "goblet squat
-              4×10 @ 20kg", "30 min run 5 km", bullet lists, or comma-separated items.
-            - Map each exercise to the closest name from the known list below when possible (use the
-              EXACT spelling from that list). Otherwise use a concise Title Case name.
-            - For strength/resistance: default to 3 sets × 12 reps when sets/reps aren't specified.
-            - For cardio (run, jog, bike, row, etc.): use equipment "Cardio", set sets/reps to 1,
-              populate "duration_minutes" and "distance_km" when the user mentions time/distance.
-            - "weight_kg": only when the user gives a load in kg (or lb converted to kg); else null.
-            - "equipment" must be EXACTLY one of:
-              Dumbbell, Bench, Barbell, Bodyweight, Machine, Cardio, Other
-            - Do NOT duplicate the same exercise twice unless the user explicitly logged it twice.
-
-            Known exercises:
-            $knownList
-
-            Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-            EXACTLY this schema:
-            {
-              "exercises": [
-                {
-                  "name": "String",
-                  "equipment": "Dumbbell | Bench | Barbell | Bodyweight | Machine | Cardio | Other",
-                  "sets": Int,
-                  "reps": Int,
-                  "weight_kg": Double or null,
-                  "duration_minutes": Int or null,
-                  "distance_km": Double or null
-                }
-              ]
-            }
-
-            User description:
-            $description
-        """.trimIndent()
-    }
-
-    private fun buildWorkoutNamePrompt(exerciseNames: List<String>): String {
-        val list = exerciseNames.joinToString("\n") { "- $it" }
-        return """
-            You are FitBuddy. Given the list of exercises in a workout session, suggest a short,
-            descriptive name for the session (2-4 words max). Examples: "Chest & Triceps",
-            "Back Day", "Leg Workout", "Full Body", "Push Day", "Cardio Session", "Upper Body".
-
-            Pick the most accurate label based on the muscle groups or style of training. Do NOT
-            include a number of exercises or duration. Just a clean, gym-standard session label.
-
-            Respond with a SINGLE JSON object and nothing else:
-            { "name": "String" }
-
-            Exercises in this session:
-            $list
-        """.trimIndent()
-    }
 }

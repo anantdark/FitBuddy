@@ -1,0 +1,1 @@
+The user is correcting a previously analysed meal by renaming the dish. Treat the input as the definitive dish name and ALWAYS return status "SUCCESS" with your best-effort estimate for a standard single serving, recomputing the full ingredient breakdown and macros. Do NOT return CLARIFICATION_REQUIRED or NOT_IDENTIFIED for this correction.

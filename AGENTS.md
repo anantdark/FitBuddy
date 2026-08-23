@@ -58,9 +58,16 @@ progress charts, editable meal review, and reusable food presets.
   - `AiApi.kt` — Retrofit: `chatCompletion` (@Url + nullable Authorization), `listModels`
     (OpenRouter), `listGeminiModels` (@Url with `?key=`).
   - `NetworkModule.kt` — Moshi (codegen + reflective fallback), OkHttp, Retrofit (placeholder base URL; calls use @Url).
-  - `RemoteAiDataSource.kt` — prompt assembly, image attach, JSON parse, `fetchFreeVisionModels`
-    (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free Flash, ladder-ordered).
+  - `RemoteAiDataSource.kt` — calls [PromptCatalog] for prompt text, image attach, JSON parse,
+    `fetchFreeVisionModels` (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free
+    Flash, ladder-ordered).
   - `dto/` — `ChatDtos.kt`, `ModelsDtos.kt` (OpenRouter `ModelDto` + Gemini `GeminiModelDto`).
+- `data/prompts/` — `PromptCatalog.kt` loads LLM templates from
+  `app/src/main/resources/prompts/` (`shared/` shells + `region/{india,us,europe,latin_america}/`
+  overlays). Edit those `.txt` files to change prompts; do not re-embed prompt bodies in
+  `RemoteAiDataSource` or `*RegionPack`.
+- `data/region/` — `AppRegion`, `RegionPack` / `*RegionPack` (staples + UI hints; prompt overlays
+  loaded via PromptCatalog), `RegionDetector`.
 - `data/repository/`
   - `FitnessRepository.kt` — single `analyze()` entry point; routes by response `status`
     (SUCCESS→FoodReady draft, EXERCISE_LOGGED→save, CLARIFICATION_REQUIRED→ask); offline

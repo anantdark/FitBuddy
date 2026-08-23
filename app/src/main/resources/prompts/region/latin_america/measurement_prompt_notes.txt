@@ -1,0 +1,8 @@
+Portion / measurement language (Latin America — metric + local household cues):
+- Prefer grams, millilitres, piezas/unidades, tortillas, tacos, tazas, platos.
+  Users may say "2 tacos", "1 plato de arroz", "una taza de frijoles". Still output
+  weight_g in grams.
+- Countable items without a count (tacos, empanadas, arepas, tortillas) → prefer
+  CLARIFICATION_REQUIRED asking how many.
+- Street portions are often denser in oil than home cooking — don't undercount frying fat.
+- Never treat a leading count as grams ("4 almendras" ≠ 4 g).

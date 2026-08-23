@@ -2632,8 +2632,10 @@ class MainViewModel(
         val pack = com.anant.fitbuddy.data.region.RegionPacks.packOrIndia(
             com.anant.fitbuddy.data.region.AppRegion.fromStored(settings.value.region)
         )
-        val prompt = "$name. Estimate a standard single home serving ${pack.askPortionPromptNotes} " +
-            "Break into named ingredients with weights in grams and consistent macros."
+        val prompt = com.anant.fitbuddy.data.prompts.PromptCatalog.askPortionUserPrompt(
+            name,
+            pack.askPortionPromptNotes
+        )
         _analysisState.update { it.copy(isReanalyzing = true, reviewMessage = null) }
         viewModelScope.launch {
             val outcome = repository.analyze(

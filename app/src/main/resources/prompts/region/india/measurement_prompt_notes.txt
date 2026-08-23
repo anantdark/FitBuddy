@@ -1,0 +1,6 @@
+Portion / measurement language (India):
+- Prefer household units users type: roti/paratha/naan counts, katori/bowl for dal/sabzi/
+  curd/rice, "ek plate", tsp/tbsp ghee or oil. Still output weight_g in grams.
+- Countable staples without a count → CLARIFICATION_REQUIRED (how many rotis/parathas/…).
+- "ek katori" / "1 bowl" / "do roti" / Hinglish counts (ek, do, teen…) map to one unit prior.
+- Never treat a leading count as grams ("4 almonds" ≠ 4 g).

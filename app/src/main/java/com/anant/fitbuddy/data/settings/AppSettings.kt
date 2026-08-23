@@ -129,7 +129,8 @@ data class AppSettings(
      */
     val diagnosticLoggingEnabled: Boolean = false,
     /**
-     * Diet/region pack for AI prompts and offline staples: `INDIA`, `US`, or `EUROPE`.
+     * Diet/region pack for AI prompts and offline staples: `INDIA`, `US` (North America:
+     * US + Canada), `EUROPE`, or `LATIN_AMERICA`.
      * Empty until the user finishes the region selection page (or restores a backup that has it).
      */
     val region: String = "",
