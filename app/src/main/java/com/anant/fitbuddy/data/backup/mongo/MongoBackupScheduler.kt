@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import com.anant.fitbuddy.data.settings.AppSettings
 
 /**
@@ -37,12 +36,7 @@ object MongoBackupScheduler {
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val triggerAt = nextTriggerMillis(lastUploadAt, nowMillis)
         val pending = pendingIntent(app)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-        } else {
-            @Suppress("DEPRECATION")
-            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-        }
+        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
     }
 
     fun nextTriggerMillis(lastUploadAt: Long, nowMillis: Long = System.currentTimeMillis()): Long {
