@@ -1,5 +1,6 @@
 package com.anant.fitbuddy
 
+import android.content.res.Resources
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -46,7 +47,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         openLogHubRequest = intent.consumeOpenLogHub()
         openRouterOAuthUri = intent.data.takeIf { OpenRouterOAuth.isCallback(it) }
-        enableEdgeToEdge()
+        try {
+            enableEdgeToEdge()
+        } catch (_: Resources.NotFoundException) {
+            // Defensive: on some API levels the platform may lack resources that the
+            // AndroidX edge-to-edge impl references when compiled against SDK 36.
+            // The app is still usable without edge-to-edge styling.
+        }
         val app = application as FitBuddyApp
         setContent {
             // Read dynamic-color preference before theming so Material You toggles live.
