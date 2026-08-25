@@ -758,6 +758,28 @@ class MainViewModel(
         }
     }
 
+    /** Developer: route all Sentry traffic through the Vercel proxy until the next daily check. */
+    fun setForceSentryProxyMode(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(current.copy(forceSentryProxyMode = enabled))
+            CrashReporter.setProxyModeActive(enabled)
+            // Keep the per-day marker in sync so the choice survives process death and the
+            // startup seed matches (cleared when turning off).
+            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+            settingsRepository.setSentryProxyModeDay(if (enabled) today else null)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (enabled) {
+                        "Sentry proxy on"
+                    } else {
+                        "Sentry proxy off (automatic)"
+                    }
+                )
+            }
+        }
+    }
+
     /** Stops recording (keeps the buffer) and opens the share sheet for the log file. */
     fun stopDiagnosticLoggingAndExport(context: Context): Boolean {
         DiagnosticLogger.setEnabled(false, restartSession = false)
@@ -799,6 +821,15 @@ class MainViewModel(
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
         val sent = withContext(Dispatchers.IO) {
             CrashReporter.sendHeartbeat(info, kind)
+        }
+        if (kind == HeartbeatKind.DAILY) {
+            // Persist today's proxy decision (survives process death) and sync the developer
+            // toggle to the actual state — the daily auto-check may have flipped it.
+            val proxied = CrashReporter.isProxyModeActive()
+            settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
+            if (s.forceSentryProxyMode != proxied) {
+                settingsRepository.save(s.copy(forceSentryProxyMode = proxied))
+            }
         }
         if (sent) {
             settingsRepository.markHeartbeatSent(today)

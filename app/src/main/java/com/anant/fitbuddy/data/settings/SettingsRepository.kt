@@ -166,6 +166,7 @@ class SettingsRepository(context: Context) {
             showRawAiJson = prefs[KEY_SHOW_RAW_AI_JSON] ?: false,
             strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
+            forceSentryProxyMode = prefs[KEY_FORCE_SENTRY_PROXY] ?: false,
             forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
             cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false,
             cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
@@ -223,6 +224,22 @@ class SettingsRepository(context: Context) {
 
     suspend fun markHeartbeatSent(utcDay: String) {
         dataStore.edit { prefs -> prefs[KEY_LAST_HEARTBEAT_DAY] = utcDay }
+    }
+
+    /**
+     * UTC day `yyyy-MM-dd` for which Sentry-proxy mode is active, or null. When this equals
+     * today, the daily heartbeat found Sentry blocked, so all Sentry traffic that day is
+     * routed through the Vercel proxy. Set/cleared by the daily heartbeat.
+     */
+    suspend fun sentryProxyModeDay(): String? =
+        dataStore.data.first()[KEY_SENTRY_PROXY_DAY]
+
+    /** Enable proxy mode for [utcDay] (null clears it). */
+    suspend fun setSentryProxyModeDay(utcDay: String?) {
+        dataStore.edit { prefs ->
+            if (utcDay.isNullOrBlank()) prefs.remove(KEY_SENTRY_PROXY_DAY)
+            else prefs[KEY_SENTRY_PROXY_DAY] = utcDay
+        }
     }
 
     /**
@@ -339,6 +356,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_SHOW_RAW_AI_JSON] = settings.showRawAiJson
             prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
+            prefs[KEY_FORCE_SENTRY_PROXY] = settings.forceSentryProxyMode
             prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
             prefs[KEY_CLOUD_BACKUP_ENABLED] = settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = settings.cloudAutoUploadEnabled
@@ -564,6 +582,7 @@ class SettingsRepository(context: Context) {
         val KEY_REGION = stringPreferencesKey("app_region")
         val KEY_REGION_REQUEST_SENT_AT = longPreferencesKey("region_request_sent_at")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
+        val KEY_SENTRY_PROXY_DAY = stringPreferencesKey("sentry_proxy_mode_utc_day")
         val KEY_LAST_KNOWN_VERSION_CODE = intPreferencesKey("last_known_version_code")
         val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
         val KEY_MODEL_COOLDOWNS = stringPreferencesKey("ai_model_cooldowns")
@@ -576,6 +595,7 @@ class SettingsRepository(context: Context) {
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
         val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
+        val KEY_FORCE_SENTRY_PROXY = booleanPreferencesKey("force_sentry_proxy_mode")
         val KEY_FORCE_SHOW_LOADING_ANIMS = booleanPreferencesKey("force_show_loading_animations")
         val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
         val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")

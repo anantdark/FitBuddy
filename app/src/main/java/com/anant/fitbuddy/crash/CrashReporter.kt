@@ -49,6 +49,9 @@ enum class HeartbeatKind {
             CONFETTI -> "FitBuddy confetti heartbeat"
             UPDATE -> "FitBuddy update heartbeat"
         }
+
+    /** Same as [logMessage] but marked as proxied, e.g. "FitBuddy daily heartbeat (proxy)". */
+    val proxyLogMessage: String get() = "$logMessage (proxy)"
 }
 
 /**
@@ -67,13 +70,44 @@ object CrashReporter {
     @Volatile
     private var reportingEnabled: Boolean = true
 
-    fun init(app: Application, enabled: Boolean, supportId: String) {
+    /**
+     * When true, all Sentry traffic is routed through the Vercel proxy (read on the transport's
+     * hot path). Set by the daily heartbeat for the rest of a UTC day when Sentry's ingest host
+     * is blocked; seeded at init from the persisted per-day flag.
+     */
+    private val proxyModeActive = AtomicBoolean(false)
+
+    /**
+     * True when the developer toggle forced proxy mode on. The daily/auto reachability probe
+     * must not override this, so [sendHeartbeat] skips the probe while forced.
+     */
+    private val forcedProxyMode = AtomicBoolean(false)
+
+    fun init(
+        app: Application,
+        enabled: Boolean,
+        supportId: String,
+        proxyModeSeed: Boolean = false,
+        forceProxy: Boolean = false
+    ) {
         if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) return
         val dsn = MongoUriVault.decode(BuildConfig.SENTRY_DSN_BLOB, BuildConfig.SENTRY_DSN_MASK).trim()
         if (dsn.isEmpty()) return
         reportingEnabled = enabled
+        forcedProxyMode.set(forceProxy)
+        proxyModeActive.set(forceProxy || proxyModeSeed)
         SentryAndroid.init(app) { options ->
             options.dsn = dsn
+            // Route envelopes through the Vercel proxy when proxy mode is active (Sentry ingest
+            // blocked for the day); otherwise use the SDK's normal HTTP transport.
+            val defaultFactory = io.sentry.AsyncHttpTransportFactory()
+            options.setTransportFactory { transportOptions, requestDetails ->
+                SentryProxyTransport(
+                    options = transportOptions,
+                    delegate = defaultFactory.create(transportOptions, requestDetails),
+                    proxyModeActive = { proxyModeActive.get() }
+                )
+            }
             options.isSendDefaultPii = false
             options.tracesSampleRate = 0.0
             options.isEnableUserInteractionTracing = false
@@ -93,7 +127,7 @@ object CrashReporter {
                 // Heartbeats use Logs/Metrics only — never promote them to Issues.
                 val msg = event.message?.formatted
                 if (event.fingerprints?.contains(HEARTBEAT_MONITOR_SLUG) == true ||
-                    HeartbeatKind.entries.any { it.logMessage == msg }
+                    HeartbeatKind.entries.any { it.logMessage == msg || it.proxyLogMessage == msg }
                 ) {
                     return@BeforeSendCallback null
                 }
@@ -108,6 +142,15 @@ object CrashReporter {
 
     fun setReportingEnabled(enabled: Boolean) {
         reportingEnabled = enabled
+    }
+
+    /**
+     * Developer toggle: force all Sentry traffic through the proxy (true) or return to
+     * automatic (false). While forced on, the reachability probe won't override it.
+     */
+    fun setProxyModeActive(active: Boolean) {
+        forcedProxyMode.set(active)
+        proxyModeActive.set(active)
     }
 
     fun setSupportId(supportId: String) {
@@ -202,7 +245,29 @@ object CrashReporter {
      */
     fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
         if (!ready.get()) return false
-        return runCatching {
+
+        // Automatic proxy fallback: probe the direct route and, if Sentry's ingest host is
+        // blocked, latch proxyModeActive so the custom transport diverts the SDK's *real*
+        // envelope through the proxy (same path the developer toggle uses; no hand-built
+        // envelope). The developer toggle takes precedence — when it forces proxy mode on,
+        // we must NOT run the probe, or a reachable host would flip it back off.
+        if (!forcedProxyMode.get() && SentryHeartbeatProxy.isAvailable()) {
+            val reachable = SentryHeartbeatProxy.isDirectIngestReachable()
+            proxyModeActive.set(!reachable)
+            Log.i(TAG, "heartbeat $kind: direct ingest ${if (reachable) "reachable" else "blocked → proxy"}")
+        }
+
+        // Send via the SDK. When proxyModeActive is on, SentryProxyTransport forwards the
+        // serialized envelope through the Vercel proxy; otherwise it goes direct.
+        return sendHeartbeatDirect(info, kind)
+    }
+
+    /** True when Sentry traffic is currently being routed through the proxy. */
+    fun isProxyModeActive(): Boolean = proxyModeActive.get()
+
+    /** Direct SDK send: Crons check-in + fleet pulse, flushed. True if the check-in was queued. */
+    private fun sendHeartbeatDirect(info: HeartbeatInfo, kind: HeartbeatKind): Boolean =
+        runCatching {
             val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
                 release =
                     "${BuildConfig.APPLICATION_ID}@${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}"
@@ -218,14 +283,16 @@ object CrashReporter {
                 }
             }
             val checkInId = Sentry.captureCheckIn(checkIn)
-            emitFleetPulse(info, message = kind.logMessage)
+            // If proxy mode is on, this envelope is diverted through the proxy by the custom
+            // transport — mark the message so proxied heartbeats read "... (proxy)".
+            val message = if (proxyModeActive.get()) kind.proxyLogMessage else kind.logMessage
+            emitFleetPulse(info, message = message)
             // Flush so cold-start pulse isn't lost if the process is killed early.
             Sentry.flush(5_000L)
             checkInId != SentryId.EMPTY_ID
         }.onFailure { e ->
             Log.e(TAG, "heartbeat failed", e)
         }.getOrDefault(false)
-    }
 
     /** @see sendHeartbeat */
     fun sendDailyHeartbeat(info: HeartbeatInfo, force: Boolean = false): Boolean =

@@ -162,6 +162,11 @@ data class AppSettings(
     /** Developer: OkHttp BODY logs even on release builds. */
     val verboseHttpLogging: Boolean = false,
     /**
+     * Developer: force all Sentry traffic through the Vercel proxy, overriding the automatic
+     * daily connectivity check. Off = automatic (direct when reachable, proxy when blocked).
+     */
+    val forceSentryProxyMode: Boolean = false,
+    /**
      * Developer: keep analyzing-banner and insight wait animations visible even when
      * nothing is loading, so they can be previewed without waiting on AI.
      */

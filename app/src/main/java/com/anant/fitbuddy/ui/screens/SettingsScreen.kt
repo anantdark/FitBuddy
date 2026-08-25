@@ -191,6 +191,7 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit,
     onAutoCheckUpdatesChange: (Boolean) -> Unit,
     onCrashReportingChange: (Boolean) -> Unit,
+    onForceSentryProxyToggled: (Boolean) -> Unit = {},
     onStartDiagnosticLogging: () -> Unit = {},
     onStopAndExportDiagnosticLog: () -> Unit = {},
     onSupportIdCopied: () -> Unit = {},
@@ -1551,6 +1552,15 @@ fun SettingsScreen(
                         hintTitle = "Verbose HTTP",
                         hint = "Log full OkHttp request/response bodies (including on release builds). " +
                             "May include API keys in logcat — keep off unless debugging."
+                    )
+                    SettingToggleRow(
+                        title = "Force Sentry proxy",
+                        checked = settings.forceSentryProxyMode,
+                        onCheckedChange = onForceSentryProxyToggled,
+                        hintTitle = "Force Sentry proxy",
+                        hint = "Route all Sentry traffic through the FitBuddy cloud proxy instead " +
+                            "of contacting Sentry directly. Off = automatic (direct when reachable, " +
+                            "proxy only when the daily check finds Sentry blocked)."
                     )
                     OutlinedButton(
                         onClick = onClearModelCooldowns,
