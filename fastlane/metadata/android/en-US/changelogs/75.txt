@@ -1,0 +1,5 @@
+• docs: tighten store listing short description wording
+• fix: avoid crash when wallpaper color palette is incomplete
+• fix: resolve Resources$NotFoundException crash on Android 14
+• fix: support qwen thinking models on custom ai gateways
+• feat: add latin america pack and centralize ai prompts
