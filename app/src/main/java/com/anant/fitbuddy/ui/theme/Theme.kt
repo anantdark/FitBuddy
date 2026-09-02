@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.theme
 
+import android.content.res.Resources
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.crash.CrashReporter
 
 private val DarkColorScheme = darkColorScheme(
     primary = GreenPrimaryDark,
@@ -64,14 +66,21 @@ fun FitBuddyTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
+    val context = LocalContext.current
+    val brandScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val colorScheme = remember(useDynamic, darkTheme, context) {
+        if (!useDynamic) return@remember brandScheme
+        // Some device/OS builds fail to resolve the framework system_* accent palette
+        // (android res package 0x0106xxxx) and throw NotFoundException from getColor,
+        // crashing at startup. Fall back to the brand scheme and leave a breadcrumb so
+        // the failure is observable without swallowing unrelated errors.
+        try {
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } catch (e: Resources.NotFoundException) {
+            CrashReporter.breadcrumb("theme", "dynamic color unavailable, using brand scheme")
+            brandScheme
         }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
     }
 
     // Tint Material sparkle ripples with dynamic primary (wallpaper green when

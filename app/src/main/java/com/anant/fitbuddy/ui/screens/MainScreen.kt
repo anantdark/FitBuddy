@@ -395,6 +395,9 @@ fun MainScreen(
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
                 },
+                onForceSentryProxyToggled = { enabled ->
+                    viewModel.setForceSentryProxyMode(enabled)
+                },
                 onStartDiagnosticLogging = {
                     viewModel.setDiagnosticLoggingEnabled(true)
                 },

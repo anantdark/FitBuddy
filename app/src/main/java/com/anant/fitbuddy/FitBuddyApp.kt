@@ -88,10 +88,18 @@ class FitBuddyApp : Application() {
             settingsRepository.persistLegacyOpenAiMigrationIfNeeded()
             settingsRepository.settings.first()
         }
+        val proxyModeSeed = runBlocking {
+            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+            // Auto proxy mode is on at startup if today's automatic daily check already
+            // switched to the proxy.
+            settingsRepository.sentryProxyModeDay() == today
+        }
         CrashReporter.init(
             app = this,
             enabled = settings.crashReportingEnabled,
-            supportId = settings.supportId
+            supportId = settings.supportId,
+            proxyModeSeed = proxyModeSeed,
+            forceProxy = settings.forceSentryProxyMode
         )
         DiagnosticLogger.init(this)
         DiagnosticLogger.setEnabled(
