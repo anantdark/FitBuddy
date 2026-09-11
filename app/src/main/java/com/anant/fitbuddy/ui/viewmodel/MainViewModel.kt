@@ -171,22 +171,6 @@ private fun targetWeightMatchesGoal(
     else -> true
 }
 
-private fun normalizeAiTargetWeight(
-    proposedTargetWeightKg: Double?,
-    currentWeightKg: Double,
-    goal: String
-): Double? {
-    val proposed = proposedTargetWeightKg?.takeIf { it.isFinite() && it > 0.0 } ?: return null
-    if (currentWeightKg <= 0.0) return proposed
-
-    val normalized = when (goal.trim().uppercase()) {
-        "GAIN_MUSCLE" -> if (proposed >= currentWeightKg) proposed else currentWeightKg * 1.05
-        "LOSE_WEIGHT" -> if (proposed <= currentWeightKg) proposed else currentWeightKg * 0.95
-        else -> proposed
-    }
-    return kotlin.math.round(normalized * 10.0) / 10.0
-}
-
 /** One message in the progress-coach follow-up chat. */
 @Immutable
 data class ProgressChatMessage(
@@ -1789,15 +1773,7 @@ class MainViewModel(
             val context = buildTargetContext(age, heightCm, weightKg, sex, activityLevel, goal)
             runCatching { repository.designTargets(context) }
                 .onSuccess { plan ->
-                    val planGoal = plan.recommendedGoal.ifBlank { goal }
-                    val normalizedPlan = plan.copy(
-                        targetWeightKg = normalizeAiTargetWeight(
-                            proposedTargetWeightKg = plan.targetWeightKg,
-                            currentWeightKg = weightKg,
-                            goal = planGoal
-                        )
-                    )
-                    _targetPlan.update { it.copy(isLoading = false, plan = normalizedPlan) }
+                    _targetPlan.update { it.copy(isLoading = false, plan = plan) }
                 }
                 .onFailure { e ->
                     _targetPlan.update {
@@ -1822,13 +1798,11 @@ class MainViewModel(
         activityLevel: String
     ) {
         val planGoal = plan.recommendedGoal.ifBlank { "RECOMP" }
-        val proposedTargetWeight = normalizeAiTargetWeight(
-            proposedTargetWeightKg = plan.targetWeightKg,
-            currentWeightKg = weightKg,
-            goal = planGoal
-        ) ?: targetWeightKg
+        val proposedTargetWeight = plan.targetWeightKg
             ?.takeIf { it.isFinite() && it > 0.0 }
-            ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
+            ?: targetWeightKg
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
         viewModelScope.launch {
             val existing = dashboardState.value.profile
             val applyNutritionTargets = plan.targetsChanged
@@ -3145,18 +3119,16 @@ class MainViewModel(
                             targetFatsG = plan.targetFatsG,
                             goal = plan.recommendedGoal.ifBlank { profile.goal },
                             goalRationale = plan.rationale,
-                            targetWeightKg = normalizeAiTargetWeight(
-                                proposedTargetWeightKg = plan.targetWeightKg,
-                                currentWeightKg = profile.weightKg,
-                                goal = plan.recommendedGoal.ifBlank { profile.goal }
-                            ) ?: profile.targetWeightKg
-                                ?.takeIf {
-                                    targetWeightMatchesGoal(
-                                        it,
-                                        profile.weightKg,
-                                        plan.recommendedGoal.ifBlank { profile.goal }
-                                    )
-                                },
+                            targetWeightKg = plan.targetWeightKg
+                                ?.takeIf { it.isFinite() && it > 0.0 }
+                                ?: profile.targetWeightKg
+                                    ?.takeIf {
+                                        targetWeightMatchesGoal(
+                                            it,
+                                            profile.weightKg,
+                                            plan.recommendedGoal.ifBlank { profile.goal }
+                                        )
+                                    },
                             lastUpdatedTimestamp = System.currentTimeMillis()
                         )
                     )
