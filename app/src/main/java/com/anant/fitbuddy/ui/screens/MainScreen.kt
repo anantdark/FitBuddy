@@ -154,6 +154,16 @@ fun MainScreen(
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
 
+    val keepScreenAwake = analysisState.isLoading ||
+        analysisState.isReanalyzing ||
+        targetPlanState.isLoading ||
+        progressInsightState.isLoading
+    val rootView = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(rootView, keepScreenAwake) {
+        rootView.keepScreenOn = keepScreenAwake
+        onDispose { rootView.keepScreenOn = false }
+    }
+
     var donationColorIndex by rememberSaveable {
         mutableStateOf(initialDonationHeartColorIndex())
     }
