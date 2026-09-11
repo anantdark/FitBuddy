@@ -128,6 +128,7 @@ fun MainScreen(
     val monthlyFood by viewModel.monthlyFood.collectAsStateWithLifecycle()
     val weeklyExercise by viewModel.weeklyExercise.collectAsStateWithLifecycle()
     val monthlyExercise by viewModel.monthlyExercise.collectAsStateWithLifecycle()
+    val sixMonthExercise by viewModel.sixMonthExercise.collectAsStateWithLifecycle()
     val monthlyEndDate by viewModel.monthlyEndDate.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val regionPack = remember(settings.region) {
@@ -600,8 +601,10 @@ fun MainScreen(
                                 monthlyFood = monthlyFood,
                                 weeklyExercise = weeklyExercise,
                                 monthlyExercise = monthlyExercise,
+                                sixMonthExercise = sixMonthExercise,
                                 measurements = measurements,
                                 targetCalories = dashboardState.targetCalories,
+                                targetWeightKg = dashboardState.profile?.targetWeightKg,
                                 goal = dashboardState.profile?.goal ?: "RECOMP",
                                 monthlyEndDate = monthlyEndDate,
                                 realToday = realToday,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -33,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -795,6 +798,8 @@ fun MetricLineChart(
     unit: String,
     modifier: Modifier = Modifier,
     decreaseIsPositive: Boolean = true,
+    targetValue: Double? = null,
+    targetPreferHigher: Boolean = false,
     lineColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -809,9 +814,11 @@ fun MetricLineChart(
         return
     }
 
+    val chartTarget = targetValue?.takeIf { it.isFinite() && it > 0.0 }
     val values = points.map { it.second }
-    val rawMin = values.min()
-    val rawMax = values.max()
+    val boundsValues = chartTarget?.let { values + it } ?: values
+    val rawMin = boundsValues.min()
+    val rawMax = boundsValues.max()
     val span = (rawMax - rawMin).takeIf { it > 0.0 } ?: (if (rawMax != 0.0) rawMax * 0.1 else 1.0)
     val minVal = rawMin - span * 0.15
     val maxVal = rawMax + span * 0.15
@@ -819,6 +826,18 @@ fun MetricLineChart(
     val gridLineColor = MaterialTheme.colorScheme.outlineVariant
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val markerCoreColor = MaterialTheme.colorScheme.surface
+    val targetLineColor = MaterialTheme.colorScheme.outline
+    val cautionColor = Color(0xFFF59E0B)
+
+    fun targetColor(value: Double): Color {
+        val difference = value - (chartTarget ?: return lineColor)
+        return when {
+            kotlin.math.abs(difference) <= 1.0 -> TrendGreen
+            targetPreferHigher && difference > 1.0 -> cautionColor
+            !targetPreferHigher && difference < -1.0 -> cautionColor
+            else -> TrendRed
+        }
+    }
 
     val leftPadPx = with(density) { 44.dp.toPx() }
     val rightPadPx = with(density) { 8.dp.toPx() }
@@ -896,6 +915,28 @@ fun MetricLineChart(
                 )
             }
 
+            chartTarget?.let { target ->
+                val targetY = topPad + graphHeight *
+                    (1f - ((target - minVal) / range).toFloat()).coerceIn(0f, 1f)
+                drawLine(
+                    color = targetLineColor,
+                    start = Offset(leftPad, targetY),
+                    end = Offset(size.width - rightPad, targetY),
+                    strokeWidth = 3f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f),
+                )
+                drawText(
+                    textMeasurer = textMeasurer,
+                    text = "Target · ${formatMetric(target)} kg",
+                    topLeft = Offset(leftPad + 6f, targetY - 28f),
+                    style = TextStyle(
+                        color = targetLineColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+            }
+
             val pts = points.mapIndexed { idx, pair ->
                 val x = if (points.size <= 1) leftPad + graphWidth / 2f else leftPad + idx * stepX
                 val y = topPad + graphHeight *
@@ -917,13 +958,17 @@ fun MetricLineChart(
 
             val strokeWidth = 8f
             for (i in 1 until pts.size) {
-                val trend = metricStepTrend(
-                    points[i - 1].second,
-                    points[i].second,
-                    decreaseIsPositive,
-                )
+                val segmentColor = if (chartTarget != null) {
+                    targetColor(points[i].second)
+                } else {
+                    metricStepTrend(
+                        points[i - 1].second,
+                        points[i].second,
+                        decreaseIsPositive,
+                    )?.color() ?: lineColor
+                }
                 drawLine(
-                    color = trend?.color() ?: lineColor,
+                    color = segmentColor,
                     start = pts[i - 1],
                     end = pts[i],
                     strokeWidth = strokeWidth,
@@ -933,15 +978,24 @@ fun MetricLineChart(
 
             pts.forEachIndexed { idx, point ->
                 val isSelected = idx == selectedIndex
+                val pointColor = if (chartTarget != null) {
+                    targetColor(points[idx].second)
+                } else {
+                    lineColor
+                }
                 if (isSelected) {
                     drawLine(
-                        color = lineColor.copy(alpha = 0.35f),
+                        color = pointColor.copy(alpha = 0.35f),
                         start = Offset(point.x, topPad),
                         end = Offset(point.x, topPad + graphHeight),
                         strokeWidth = 3f,
                     )
                 }
-                drawCircle(color = lineColor, radius = if (isSelected) 14f else 8f, center = point)
+                drawCircle(
+                    color = pointColor,
+                    radius = if (isSelected) 14f else 8f,
+                    center = point
+                )
                 drawCircle(
                     color = markerCoreColor,
                     radius = if (isSelected) 5f else 3f,
@@ -958,9 +1012,18 @@ fun MetricLineChart(
             val trend = prev?.let {
                 metricStepTrend(it.second, pair.second, decreaseIsPositive)
             }
+            val targetDifference = chartTarget?.let { pair.second - it }
+            val targetStatusColor = chartTarget?.let { targetColor(pair.second) }
+            val targetStatusText = targetDifference?.let { difference ->
+                when {
+                    kotlin.math.abs(difference) < 0.05 -> "On target"
+                    difference > 0.0 -> "Above target by ${formatMetric(difference)} kg"
+                    else -> "Below target by ${formatMetric(-difference)} kg"
+                }
+            }
             val valueText = "${formatMetric(pair.second)}$unit"
             val bubbleMaxWidth = with(density) { 220.dp.toPx() }
-            val bubbleApproxHeight = with(density) { 72.dp.toPx() }
+            val bubbleApproxHeight = with(density) { 78.dp.toPx() }
             val x = (pos.x - bubbleMaxWidth / 2f)
                 .coerceIn(0f, (canvasSize.width - bubbleMaxWidth).coerceAtLeast(0f))
             val y = (pos.y - bubbleApproxHeight - with(density) { 10.dp.toPx() })
@@ -989,7 +1052,14 @@ fun MetricLineChart(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (delta != null && trend != null) {
+                    if (targetStatusText != null && targetStatusColor != null) {
+                        Text(
+                            targetStatusText,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = targetStatusColor,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    } else if (delta != null && trend != null) {
                         val rose = delta > 0.0
                         // Direction of change (not health judgment — color carries that).
                         val hint = if (rose) "Increased" else "Decreased"
@@ -1113,23 +1183,33 @@ fun CaloriesBurnedHeatmap(
         MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f),
         MaterialTheme.colorScheme.tertiary
     )
-    val cellSize = 26.dp
-    val cellGap = 4.dp
+    val visualCellSize = 26.dp
+    val cellSlotSize = 40.dp
     val weekdayLabelWidth = 32.dp
     val labelGap = 6.dp
+    val monthLabelHeight = 24.dp
     val tooltipWidth = 164.dp
     val density = LocalDensity.current
-    val gridWidth = weekdayLabelWidth + labelGap +
-        cellSize * weeks.size + cellGap * (weeks.size - 1).coerceAtLeast(0)
+    val scrollState = rememberScrollState()
+    val weekGridWidth = cellSlotSize * weeks.size
+    val monthLabels = remember(weeks) {
+        weeks.mapIndexed { index, week ->
+            val monthStart = week.firstOrNull { it?.date?.endsWith("-01") == true }
+            val labelDay = monthStart ?: if (index == 0) week.filterNotNull().firstOrNull() else null
+            labelDay?.let { DateUtils.monthLabel(it.date.take(7)).substringBefore(" ") }
+        }
+    }
+    LaunchedEffect(scrollState.maxValue, rangeEnd) {
+        if (scrollState.maxValue > 0) scrollState.scrollTo(scrollState.maxValue)
+    }
     val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
     val selectedWeekIndex = selectedDate?.let { date ->
         weeks.indexOfFirst { week -> week.any { it?.date == date } }
     } ?: -1
     val tooltipOffsetX = with(density) {
-        val gridStart = ((containerWidth - gridWidth.toPx()) / 2f).coerceAtLeast(0f)
-        val cellCenter = gridStart + weekdayLabelWidth.toPx() + labelGap.toPx() +
-            selectedWeekIndex.coerceAtLeast(0) * (cellSize + cellGap).toPx() +
-            cellSize.toPx() / 2f
+        val cellCenter = weekdayLabelWidth.toPx() + labelGap.toPx() +
+            selectedWeekIndex.coerceAtLeast(0) * cellSlotSize.toPx() +
+            cellSlotSize.toPx() / 2f - scrollState.value
         (cellCenter - tooltipWidth.toPx() / 2f)
             .coerceIn(0f, (containerWidth - tooltipWidth.toPx()).coerceAtLeast(0f))
             .roundToInt()
@@ -1142,19 +1222,14 @@ fun CaloriesBurnedHeatmap(
             modifier = Modifier.align(Alignment.BottomCenter),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.width(gridWidth),
-                horizontalArrangement = Arrangement.spacedBy(labelGap)
-            ) {
-                Column(
-                    modifier = Modifier.width(weekdayLabelWidth),
-                    verticalArrangement = Arrangement.spacedBy(cellGap)
-                ) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.width(weekdayLabelWidth)) {
+                    Spacer(Modifier.height(monthLabelHeight))
                     listOf("", "Mon", "", "Wed", "", "Fri", "").forEach { label ->
                         Box(
                             modifier = Modifier
                                 .width(weekdayLabelWidth)
-                                .height(cellSize),
+                                .height(cellSlotSize),
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             if (label.isNotEmpty()) {
@@ -1168,45 +1243,80 @@ fun CaloriesBurnedHeatmap(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(cellGap)) {
-                    weeks.forEach { week ->
-                        Column(verticalArrangement = Arrangement.spacedBy(cellGap)) {
-                            week.forEach { day ->
-                                if (day == null) {
-                                    Spacer(Modifier.size(cellSize))
-                                } else {
-                                    val level = when {
-                                        day.calories <= 0 -> 0
-                                        day.calories * 4 <= maxCalories -> 1
-                                        day.calories * 2 <= maxCalories -> 2
-                                        day.calories * 4 <= maxCalories * 3 -> 3
-                                        else -> 4
-                                    }
-                                    val isSelected = day.date == selectedDate
-                                    val dateLabel = DateUtils.displayDateSubtitle(day.date)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(cellSize)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(heatColors[level])
-                                            .border(
-                                                width = if (isSelected) 2.dp else 1.dp,
-                                                color = if (isSelected) {
-                                                    MaterialTheme.colorScheme.onSurface
-                                                } else {
-                                                    MaterialTheme.colorScheme.outlineVariant
-                                                },
-                                                shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .clickable {
-                                                selectedDate = if (isSelected) null else day.date
-                                            }
-                                            .semantics {
-                                                contentDescription =
-                                                    "$dateLabel, ${day.calories} calories burned"
-                                                selected = isSelected
-                                            }
+                Spacer(Modifier.width(labelGap))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(scrollState)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .width(weekGridWidth)
+                            .height(monthLabelHeight)
+                    ) {
+                        monthLabels.forEach { label ->
+                            Box(
+                                modifier = Modifier.width(cellSlotSize),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                label?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(modifier = Modifier.width(weekGridWidth)) {
+                        weeks.forEach { week ->
+                            Column {
+                                week.forEach { day ->
+                                    if (day == null) {
+                                        Spacer(Modifier.size(cellSlotSize))
+                                    } else {
+                                        val level = when {
+                                            day.calories <= 0 -> 0
+                                            day.calories * 4 <= maxCalories -> 1
+                                            day.calories * 2 <= maxCalories -> 2
+                                            day.calories * 4 <= maxCalories * 3 -> 3
+                                            else -> 4
+                                        }
+                                        val isSelected = day.date == selectedDate
+                                        val dateLabel = DateUtils.displayDateSubtitle(day.date)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(cellSlotSize)
+                                                .clickable {
+                                                    selectedDate = if (isSelected) null else day.date
+                                                }
+                                                .semantics {
+                                                    contentDescription =
+                                                        "$dateLabel, ${day.calories} calories burned"
+                                                    selected = isSelected
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(visualCellSize)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(heatColors[level])
+                                                    .border(
+                                                        width = if (isSelected) 2.dp else 1.dp,
+                                                        color = if (isSelected) {
+                                                            MaterialTheme.colorScheme.onSurface
+                                                        } else {
+                                                            MaterialTheme.colorScheme.outlineVariant
+                                                        },
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    )
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -24,7 +24,9 @@ data class UserProfile(
     val goal: String = "RECOMP", // "LOSE_WEIGHT" | "GAIN_MUSCLE" | "RECOMP" | "AUTO"
     val activityLevel: String = "MODERATE", // "SEDENTARY" | "LIGHT" | "MODERATE" | "ACTIVE" | "VERY_ACTIVE"
     // Latest AI rationale for the recommended goal/targets (shown in Profile).
-    val goalRationale: String? = null
+    val goalRationale: String? = null,
+    // Optional AI-recommended or manually entered body-weight target.
+    val targetWeightKg: Double? = null
 ) {
     /** True once the user has completed first-run onboarding (age, height, weight). */
     fun hasBasicsConfigured(): Boolean = age > 0 && weightKg > 0 && heightCm > 0

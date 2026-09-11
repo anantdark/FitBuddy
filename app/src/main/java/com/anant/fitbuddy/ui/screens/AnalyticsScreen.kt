@@ -67,10 +67,6 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.components.CalorieRing
 import com.anant.fitbuddy.ui.components.CaloriesBurnedHeatmap
 import com.anant.fitbuddy.ui.components.CustomLineChart
-import com.anant.fitbuddy.ui.components.CustomStackedBarChart
-import com.anant.fitbuddy.ui.components.MacroCarbsColor
-import com.anant.fitbuddy.ui.components.MacroFatsColor
-import com.anant.fitbuddy.ui.components.MacroProteinColor
 import com.anant.fitbuddy.ui.components.MetricLineChart
 import com.anant.fitbuddy.ui.components.calorieTargetPrefersSurplus
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
@@ -78,10 +74,6 @@ import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.ProgressInsightUiState
 import com.anant.fitbuddy.util.DateUtils
 import kotlinx.coroutines.launch
-
-private val ProteinColor = MacroProteinColor
-private val CarbsColor = MacroCarbsColor
-private val FatsColor = MacroFatsColor
 
 /** Body composition charts always use this many newest readings (not week/month range). */
 private const val BODY_COMPOSITION_READING_LIMIT = 15
@@ -112,8 +104,10 @@ fun AnalyticsScreen(
     monthlyFood: List<FoodDailySummary>,
     weeklyExercise: List<ExerciseDailySummary>,
     monthlyExercise: List<ExerciseDailySummary>,
+    sixMonthExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCalories: Int,
+    targetWeightKg: Double? = null,
     /** Profile goal: LOSE_WEIGHT | GAIN_MUSCLE | RECOMP | AUTO */
     goal: String = "RECOMP",
     monthlyEndDate: String,
@@ -133,7 +127,7 @@ fun AnalyticsScreen(
     val preferSurplus = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
-    val exerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
+    val netExerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
     val isLatestWindow = monthlyEndDate == realToday
     val rangeLabel = remember(monthlyEndDate, isLatestWindow) {
         if (isLatestWindow) "Last 30 days" else DateUtils.rolling30DayLabel(monthlyEndDate)
@@ -207,7 +201,7 @@ fun AnalyticsScreen(
                 Spacer(Modifier.height(8.dp))
                 CustomLineChart(
                     foodSummaries = foodSummaries,
-                    exerciseSummaries = exerciseSummaries,
+                    exerciseSummaries = netExerciseSummaries,
                     targetCalories = targetCalories,
                     preferSurplus = preferSurplus,
                     modifier = Modifier
@@ -218,39 +212,23 @@ fun AnalyticsScreen(
         }
 
         item {
-            val (exerciseRangeStart, exerciseRangeEnd) = if (selectedRange == 0) {
-                DateUtils.rollingWeekDates(realToday).let { it.first() to it.last() }
-            } else {
-                DateUtils.rolling30DayBounds(monthlyEndDate)
-            }
+            val (exerciseRangeStart, exerciseRangeEnd) =
+                DateUtils.rollingSixMonthBounds(realToday)
             ExerciseCard(
-                exerciseSummaries = exerciseSummaries,
+                exerciseSummaries = sixMonthExercise,
                 rangeStart = exerciseRangeStart,
                 rangeEnd = exerciseRangeEnd
             )
         }
 
-        item {
-            ChartCard(title = "Macronutrient Trend") {
-                MacroLegend()
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Bar height = calories · color share = P/C/F · scrub to inspect",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                CustomStackedBarChart(
-                    foodSummaries = foodSummaries,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                )
-            }
-        }
-
         // Independent of Weekly/Monthly: always the most recent scale readings.
-        item { BodyMetricCard(measurements = measurements) }
+        item {
+            BodyMetricCard(
+                measurements = measurements,
+                targetWeightKg = targetWeightKg,
+                goal = goal
+            )
+        }
     }
 }
 
@@ -312,9 +290,15 @@ private fun MonthRangeNavigator(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
+private fun BodyMetricCard(
+    measurements: List<BodyMeasurement>,
+    targetWeightKg: Double?,
+    goal: String
+) {
     val pagerState = rememberPagerState(pageCount = { BODY_METRICS.size })
     val scope = rememberCoroutineScope()
+    val weightTarget = targetWeightKg?.takeIf { it.isFinite() && it > 0.0 }
+    val preferHigherWeight = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     ChartCard(title = "Body Composition") {
         HorizontalPager(
@@ -341,6 +325,8 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
                 points = points,
                 unit = metric.unit,
                 decreaseIsPositive = metric.decreaseIsPositive,
+                targetValue = if (metric.label == "Weight") weightTarget else null,
+                targetPreferHigher = preferHigherWeight,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp)
@@ -378,6 +364,19 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
             }
         }
 
+        if (currentMetric.label == "Weight" && weightTarget != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (preferHigherWeight) {
+                    "Within ±1 kg green · above by >1 kg yellow · below by >1 kg red"
+                } else {
+                    "Within ±1 kg green · below by >1 kg yellow · above by >1 kg red"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         Spacer(Modifier.height(12.dp))
 
         // Metric switches under the graph (tap or swipe the chart above).
@@ -411,7 +410,7 @@ private fun ExerciseCard(
     val totalBurned = visibleSummaries.sumOf { it.totalBurned }
     val activeDays = visibleSummaries.count { it.totalBurned > 0 }
 
-    ChartCard(title = "Calories Burned") {
+    ChartCard(title = "Calories Burned · Last 6 months") {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             SummaryStat("Total", "$totalBurned")
             SummaryStat("Active days", "$activeDays")
@@ -424,7 +423,7 @@ private fun ExerciseCard(
             rangeEnd = rangeEnd,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(270.dp)
+                .height(400.dp)
         )
     }
 }
@@ -604,33 +603,6 @@ private fun ChartCard(title: String, content: @Composable () -> Unit) {
             Spacer(Modifier.height(12.dp))
             content()
         }
-    }
-}
-
-@Composable
-private fun MacroLegend() {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendDot("Protein", ProteinColor)
-        LegendDot("Carbs", CarbsColor)
-        LegendDot("Fats", FatsColor)
-    }
-}
-
-@Composable
-private fun LegendDot(label: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(12.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Spacer(Modifier.size(6.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

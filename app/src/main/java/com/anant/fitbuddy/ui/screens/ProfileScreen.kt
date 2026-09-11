@@ -100,6 +100,7 @@ fun BodyScreen(
     forceShowAnimation: Boolean = false,
     onSave: (
         weightKg: Double,
+        targetWeightKg: Double?,
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
@@ -122,6 +123,7 @@ fun BodyScreen(
         age: Int,
         heightCm: Double,
         weightKg: Double,
+        targetWeightKg: Double?,
         sex: String?,
         activityLevel: String
     ) -> Unit,
@@ -131,7 +133,29 @@ fun BodyScreen(
     modifier: Modifier = Modifier
 ) {
     val weight = remember(profile) { mutableStateOf(profile?.weightKg?.toString() ?: "") }
+    val targetWeight = remember(profile) {
+        mutableStateOf(profile?.targetWeightKg?.toString() ?: "")
+    }
     val goal = remember(profile) { mutableStateOf(profile?.goal ?: "RECOMP") }
+    val parsedTargetWeight = targetWeight.value.toDoubleOrNull()
+        ?.takeIf { it.isFinite() && it > 0.0 }
+    val currentWeight = weight.value.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+    val targetWeightError = when {
+        targetWeight.value.isBlank() -> null
+        parsedTargetWeight == null -> "Enter a valid target weight"
+        currentWeight == null -> null
+        goal.value == "GAIN_MUSCLE" && parsedTargetWeight < currentWeight ->
+            "A muscle-gain target cannot be below your current weight"
+        goal.value == "LOSE_WEIGHT" && parsedTargetWeight > currentWeight ->
+            "A weight-loss target cannot be above your current weight"
+        else -> null
+    }
+    val targetWeightInputValid = targetWeightError == null
+    val targetWeightForPlan = when {
+        targetWeight.value.isBlank() -> null
+        parsedTargetWeight != null -> parsedTargetWeight
+        else -> profile?.targetWeightKg
+    }
     val activity = remember(profile) { mutableStateOf(profile?.activityLevel ?: "MODERATE") }
 
     val targetCalories = remember(profile) {
@@ -209,15 +233,27 @@ fun BodyScreen(
 
         SectionCard(title = "Body basics") {
             NumberField("Current weight (kg)", weight.value, decimal = true) { weight.value = it }
+            NumberField("Target weight (kg, optional)", targetWeight.value, decimal = true) {
+                targetWeight.value = it
+            }
             LabeledDropdown("Activity level", activity.value, ACTIVITY_OPTIONS) { activity.value = it }
             LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
+            targetWeightError?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
 
         Button(
             modifier = Modifier.fillMaxWidth(),
+            enabled = targetWeightInputValid,
             onClick = {
                 onSave(
                     weight.value.toDoubleOrNull() ?: 0.0,
+                    parsedTargetWeight,
                     targetCalories.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_CALORIES,
                     targetProtein.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_PROTEIN,
                     targetCarbs.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_CARBS,
@@ -256,6 +292,7 @@ fun BodyScreen(
                     profile?.age ?: 0,
                     profile?.heightCm ?: 0.0,
                     weight.value.toDoubleOrNull() ?: 0.0,
+                    targetWeightForPlan,
                     profile?.sex,
                     activity.value
                 )
@@ -546,18 +583,32 @@ private fun TargetProposalDialog(
 ) {
     val goalLabel = GOAL_OPTIONS.firstOrNull { it.first == plan.recommendedGoal }?.second
         ?: plan.recommendedGoal
+    val proposedTargetWeight = plan.targetWeightKg
+        ?.takeIf { it.isFinite() && it > 0.0 }
+    val canApply = plan.targetsChanged || proposedTargetWeight != null
+    val title = when {
+        plan.targetsChanged -> "AI recommendation"
+        proposedTargetWeight != null -> "Target weight recommendation"
+        else -> "You're on track"
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-        title = { Text(if (plan.targetsChanged) "AI recommendation" else "You're on track") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (plan.targetsChanged) {
                     Text("Suggested goal: $goalLabel", fontWeight = FontWeight.SemiBold)
                     Text("${plan.dailyTargetCalories} kcal / day")
                     Text("Protein ${plan.targetProteinG}g · Carbs ${plan.targetCarbsG}g · Fats ${plan.targetFatsG}g")
-                    HorizontalDivider()
                 }
+                proposedTargetWeight?.let {
+                    Text(
+                        "Target weight: ${String.format(java.util.Locale.US, "%.1f", it)} kg",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                if (canApply) HorizontalDivider()
                 Text(
                     plan.rationale,
                     style = MaterialTheme.typography.bodySmall,
@@ -566,14 +617,16 @@ private fun TargetProposalDialog(
             }
         },
         confirmButton = {
-            if (plan.targetsChanged) {
-                TextButton(onClick = onApply) { Text("Apply") }
+            if (canApply) {
+                TextButton(onClick = onApply) {
+                    Text(if (plan.targetsChanged) "Apply" else "Save target weight")
+                }
             } else {
                 TextButton(onClick = onDismiss) { Text("OK") }
             }
         },
         dismissButton = {
-            if (plan.targetsChanged) {
+            if (canApply) {
                 TextButton(onClick = onDismiss) { Text("Discard") }
             }
         }
@@ -846,7 +899,14 @@ private fun NumberField(
     OutlinedTextField(
         value = value,
         onValueChange = { input ->
-            val filtered = input.filter { it.isDigit() || (decimal && it == '.') }
+            val filtered = buildString {
+                input.forEach { char ->
+                    when {
+                        char.isDigit() -> append(char)
+                        decimal && char == '.' && '.' !in this -> append(char)
+                    }
+                }
+            }
             onValueChange(filtered)
         },
         label = { Text(label) },

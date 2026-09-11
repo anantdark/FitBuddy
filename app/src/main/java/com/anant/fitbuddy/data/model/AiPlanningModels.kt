@@ -15,7 +15,8 @@ data class TargetPlanResponse(
     @Json(name = "target_carbs_g") val targetCarbsG: Int,
     @Json(name = "target_fats_g") val targetFatsG: Int,
     @Json(name = "rationale") val rationale: String,
-    @Json(name = "targets_changed") val targetsChanged: Boolean = true
+    @Json(name = "targets_changed") val targetsChanged: Boolean = true,
+    @Json(name = "target_weight_kg") val targetWeightKg: Double? = null
 )
 
 /**

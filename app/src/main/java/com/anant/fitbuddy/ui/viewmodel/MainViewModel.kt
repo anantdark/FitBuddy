@@ -161,6 +161,32 @@ data class TargetPlanUiState(
     val error: String? = null
 )
 
+private fun targetWeightMatchesGoal(
+    targetWeightKg: Double,
+    currentWeightKg: Double,
+    goal: String
+): Boolean = when (goal.trim().uppercase()) {
+    "GAIN_MUSCLE" -> currentWeightKg <= 0.0 || targetWeightKg >= currentWeightKg
+    "LOSE_WEIGHT" -> currentWeightKg <= 0.0 || targetWeightKg <= currentWeightKg
+    else -> true
+}
+
+private fun normalizeAiTargetWeight(
+    proposedTargetWeightKg: Double?,
+    currentWeightKg: Double,
+    goal: String
+): Double? {
+    val proposed = proposedTargetWeightKg?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    if (currentWeightKg <= 0.0) return proposed
+
+    val normalized = when (goal.trim().uppercase()) {
+        "GAIN_MUSCLE" -> if (proposed >= currentWeightKg) proposed else currentWeightKg * 1.05
+        "LOSE_WEIGHT" -> if (proposed <= currentWeightKg) proposed else currentWeightKg * 0.95
+        else -> proposed
+    }
+    return kotlin.math.round(normalized * 10.0) / 10.0
+}
+
 /** One message in the progress-coach follow-up chat. */
 @Immutable
 data class ProgressChatMessage(
@@ -1459,8 +1485,13 @@ class MainViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val weeklyExercise: StateFlow<List<ExerciseDailySummary>> =
-        repository.getWeeklyExerciseSummaries()
+        _realToday
+            .flatMapLatest { endDate ->
+                val dates = DateUtils.rollingWeekDates(endDate)
+                repository.getExerciseSummariesBetween(dates.first(), dates.last())
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1468,6 +1499,15 @@ class MainViewModel(
         _monthlyEndDate
             .flatMapLatest { endDate ->
                 val (start, end) = DateUtils.rolling30DayBounds(endDate)
+                repository.getExerciseSummariesBetween(start, end)
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val sixMonthExercise: StateFlow<List<ExerciseDailySummary>> =
+        _realToday
+            .flatMapLatest { endDate ->
+                val (start, end) = DateUtils.rollingSixMonthBounds(endDate)
                 repository.getExerciseSummariesBetween(start, end)
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -1748,7 +1788,17 @@ class MainViewModel(
         viewModelScope.launch {
             val context = buildTargetContext(age, heightCm, weightKg, sex, activityLevel, goal)
             runCatching { repository.designTargets(context) }
-                .onSuccess { plan -> _targetPlan.update { it.copy(isLoading = false, plan = plan) } }
+                .onSuccess { plan ->
+                    val planGoal = plan.recommendedGoal.ifBlank { goal }
+                    val normalizedPlan = plan.copy(
+                        targetWeightKg = normalizeAiTargetWeight(
+                            proposedTargetWeightKg = plan.targetWeightKg,
+                            currentWeightKg = weightKg,
+                            goal = planGoal
+                        )
+                    )
+                    _targetPlan.update { it.copy(isLoading = false, plan = normalizedPlan) }
+                }
                 .onFailure { e ->
                     _targetPlan.update {
                         it.copy(isLoading = false, error = e.message ?: "Couldn't generate targets")
@@ -1767,25 +1817,57 @@ class MainViewModel(
         age: Int,
         heightCm: Double,
         weightKg: Double,
+        targetWeightKg: Double?,
         sex: String?,
         activityLevel: String
     ) {
+        val planGoal = plan.recommendedGoal.ifBlank { "RECOMP" }
+        val proposedTargetWeight = normalizeAiTargetWeight(
+            proposedTargetWeightKg = plan.targetWeightKg,
+            currentWeightKg = weightKg,
+            goal = planGoal
+        ) ?: targetWeightKg
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
         viewModelScope.launch {
+            val existing = dashboardState.value.profile
+            val applyNutritionTargets = plan.targetsChanged
             repository.saveProfile(
                 UserProfile(
                     id = 1,
                     age = age,
                     weightKg = weightKg,
                     heightCm = heightCm,
-                    dailyTargetCalories = plan.dailyTargetCalories,
-                    targetProteinG = plan.targetProteinG,
-                    targetCarbsG = plan.targetCarbsG,
-                    targetFatsG = plan.targetFatsG,
+                    dailyTargetCalories = if (applyNutritionTargets) {
+                        plan.dailyTargetCalories
+                    } else {
+                        existing?.dailyTargetCalories ?: plan.dailyTargetCalories
+                    },
+                    targetProteinG = if (applyNutritionTargets) {
+                        plan.targetProteinG
+                    } else {
+                        existing?.targetProteinG ?: plan.targetProteinG
+                    },
+                    targetCarbsG = if (applyNutritionTargets) {
+                        plan.targetCarbsG
+                    } else {
+                        existing?.targetCarbsG ?: plan.targetCarbsG
+                    },
+                    targetFatsG = if (applyNutritionTargets) {
+                        plan.targetFatsG
+                    } else {
+                        existing?.targetFatsG ?: plan.targetFatsG
+                    },
                     lastUpdatedTimestamp = System.currentTimeMillis(),
                     sex = sex,
-                    goal = plan.recommendedGoal,
+                    goal = if (applyNutritionTargets) {
+                        plan.recommendedGoal
+                    } else {
+                        existing?.goal ?: plan.recommendedGoal
+                    },
                     activityLevel = activityLevel,
-                    goalRationale = plan.rationale
+                    goalRationale = plan.rationale,
+                    targetWeightKg = proposedTargetWeight
                 )
             )
             _targetPlan.update { TargetPlanUiState() }
@@ -3025,7 +3107,8 @@ class MainViewModel(
                     sex = sex,
                     goal = existing?.goal ?: "RECOMP",
                     activityLevel = existing?.activityLevel ?: "MODERATE",
-                    goalRationale = existing?.goalRationale
+                    goalRationale = existing?.goalRationale,
+                    targetWeightKg = existing?.targetWeightKg
                 )
             )
             _analysisState.update { it.copy(userMessage = "Profile saved") }
@@ -3062,6 +3145,18 @@ class MainViewModel(
                             targetFatsG = plan.targetFatsG,
                             goal = plan.recommendedGoal.ifBlank { profile.goal },
                             goalRationale = plan.rationale,
+                            targetWeightKg = normalizeAiTargetWeight(
+                                proposedTargetWeightKg = plan.targetWeightKg,
+                                currentWeightKg = profile.weightKg,
+                                goal = plan.recommendedGoal.ifBlank { profile.goal }
+                            ) ?: profile.targetWeightKg
+                                ?.takeIf {
+                                    targetWeightMatchesGoal(
+                                        it,
+                                        profile.weightKg,
+                                        plan.recommendedGoal.ifBlank { profile.goal }
+                                    )
+                                },
                             lastUpdatedTimestamp = System.currentTimeMillis()
                         )
                     )
@@ -3123,6 +3218,7 @@ class MainViewModel(
 
     fun saveProfile(
         weightKg: Double,
+        targetWeightKg: Double?,
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
@@ -3130,6 +3226,9 @@ class MainViewModel(
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
+        val validTargetWeight = targetWeightKg
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?.takeIf { targetWeightMatchesGoal(it, weightKg, goal) }
         viewModelScope.launch {
             val existing = dashboardState.value.profile
             repository.saveProfile(
@@ -3147,7 +3246,8 @@ class MainViewModel(
                     goal = goal,
                     activityLevel = activityLevel,
                     // Preserve the latest AI rationale across manual edits.
-                    goalRationale = existing?.goalRationale
+                    goalRationale = existing?.goalRationale,
+                    targetWeightKg = validTargetWeight
                 )
             )
             _analysisState.update { it.copy(userMessage = "Body saved · dashboard recalibrated") }
