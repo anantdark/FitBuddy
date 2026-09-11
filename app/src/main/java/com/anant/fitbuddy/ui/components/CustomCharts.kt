@@ -160,8 +160,8 @@ fun calorieTargetPrefersSurplus(goal: String): Boolean =
 /**
  * Net calories vs daily target. Equidistant points, no X labels; scrub for date + vs-target.
  *
- * Color is goal-aware via [preferSurplus]: bulk/recomp paints under-target red;
- * lose-weight paints over-target red. On-target is always green.
+ * Values within ±100 kcal are green. Beyond that range, [preferSurplus] makes overages yellow
+ * and shortfalls red; loss goals make shortfalls yellow and overages red.
  */
 @Composable
 fun CustomLineChart(
@@ -169,7 +169,7 @@ fun CustomLineChart(
     exerciseSummaries: List<ExerciseDailySummary>,
     targetCalories: Int,
     modifier: Modifier = Modifier,
-    /** True for GAIN_MUSCLE / RECOMP — shortfall is bad. False for LOSE_WEIGHT — surplus is bad. */
+    /** True for GAIN_MUSCLE / RECOMP; false for LOSE_WEIGHT. */
     preferSurplus: Boolean = false,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -234,8 +234,14 @@ fun CustomLineChart(
     }
 
     fun dayColor(net: Int): Color {
-        val offTrack = if (preferSurplus) net < targetCalories else net > targetCalories
-        return if (offTrack) badColor else goodColor
+        val difference = net - targetCalories
+        val cautionColor = Color(0xFFF59E0B)
+        return when {
+            difference in -100..100 -> goodColor
+            preferSurplus && difference > 100 -> cautionColor
+            !preferSurplus && difference < -100 -> cautionColor
+            else -> badColor
+        }
     }
     Box(
         modifier = modifier

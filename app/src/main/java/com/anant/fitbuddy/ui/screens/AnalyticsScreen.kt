@@ -197,9 +197,9 @@ fun AnalyticsScreen(
             ChartCard(title = "Net Calories vs Target") {
                 Text(
                     text = if (preferSurplus) {
-                        "Green at/over target · red under · scrub for detail"
+                        "Within ±100 green · over by >100 yellow · under by >100 red"
                     } else {
-                        "Green under/on target · red over · scrub for detail"
+                        "Within ±100 green · under by >100 yellow · over by >100 red"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
