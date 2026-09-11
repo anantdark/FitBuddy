@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MonitorWeight
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -155,6 +154,10 @@ fun MainScreen(
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
 
+    var donationColorIndex by rememberSaveable {
+        mutableStateOf(initialDonationHeartColorIndex())
+    }
+    val currentDonationHeartColor = donationHeartColor(donationColorIndex)
     var selectedTab by rememberSaveable { mutableStateOf(Tab.DASHBOARD) }
     // Tabs are composed once on first visit and then kept alive (just hidden) so switching back
     // and forth is instant and doesn't lose scroll/animation/unsaved-edit state or re-run
@@ -169,10 +172,21 @@ fun MainScreen(
     LaunchedEffect(Unit) { viewModel.onDashboardLaunched() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    var awaitingInitialDonationStart by remember(lifecycleOwner) {
+        mutableStateOf(!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshToToday()
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    if (awaitingInitialDonationStart) {
+                        awaitingInitialDonationStart = false
+                    } else {
+                        donationColorIndex = nextDonationHeartColorIndex(donationColorIndex)
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> viewModel.refreshToToday()
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -180,6 +194,7 @@ fun MainScreen(
     }
 
     var showSettings by remember { mutableStateOf(false) }
+    var showDonationDialog by rememberSaveable { mutableStateOf(false) }
     var showProgressChat by remember { mutableStateOf(false) }
     var showWeekHistory by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }
@@ -488,18 +503,22 @@ fun MainScreen(
                             Text(dashboardGreeting(settings.displayFirstName))
                         },
                         actions = {
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                            }
+                            MainTopBarActions(
+                                donationColor = currentDonationHeartColor,
+                                onDonate = { showDonationDialog = true },
+                                onSettings = { showSettings = true },
+                            )
                         }
                     )
                 } else {
                     CenterAlignedTopAppBar(
                         title = { Text(selectedTab.label) },
                         actions = {
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                            }
+                            MainTopBarActions(
+                                donationColor = currentDonationHeartColor,
+                                onDonate = { showDonationDialog = true },
+                                onSettings = { showSettings = true },
+                            )
                         }
                     )
                 }
@@ -638,9 +657,11 @@ fun MainScreen(
                                 }
                             },
                             actions = {
-                                IconButton(onClick = { showSettings = true }) {
-                                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                                }
+                                MainTopBarActions(
+                                    donationColor = currentDonationHeartColor,
+                                    onDonate = { showDonationDialog = true },
+                                    onSettings = { showSettings = true },
+                                )
                             }
                         )
                     },
@@ -877,6 +898,13 @@ fun MainScreen(
                 pendingProduct = null
                 scanFlow = null
             }
+        )
+    }
+
+    if (showDonationDialog) {
+        DonationDialog(
+            heartColor = currentDonationHeartColor,
+            onDismiss = { showDonationDialog = false },
         )
     }
 

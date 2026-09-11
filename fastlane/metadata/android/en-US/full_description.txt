@@ -15,6 +15,7 @@ Features:
 • Loading animations — choose Analyzing / Insights wait animations in Settings
 • Auto failover — rotates API keys and models on rate limits; stays on your preferred platform
 • Offline fallback — works without an AI key via built-in simulator
+• Developer support — optional Razorpay donations with UPI and card payment options
 • Material You — dynamic color theming on Android 12+
 • Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
 • Diagnostic log — optional AI connection log you can export from Settings for support (no meals, photos, or keys)
@@ -32,6 +33,7 @@ Privacy:
 • Crash reports (Sentry) are off by default on F-Droid builds; opt in under Settings
 • Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup
 • AI providers are contacted only when you choose to enable them
+• Razorpay is contacted only when you choose to open the donation page; the UPI QR is stored locally
 
 Updates on this F-Droid build are delivered by F-Droid. The GitHub update checker is disabled in this flavor.
 
