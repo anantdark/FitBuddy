@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -39,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
@@ -53,6 +55,9 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +68,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
 import com.anant.fitbuddy.data.database.FoodDailySummary
+import com.anant.fitbuddy.util.DateUtils
+import java.util.Calendar
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -1047,134 +1054,225 @@ private fun formatMetric(value: Double): String {
     return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
 }
 
+/** A calendar day rendered in the contribution-style calories-burned heatmap. */
+@Immutable
+private data class CaloriesHeatmapDay(
+    val date: String,
+    val calories: Int
+)
+
 /**
- * Simple vertical bar chart for a single integer series over time (e.g. daily calories burned).
- * Values are passed as (dateLabel, value) pairs in chronological order.
- * Dense series hide bottom labels; scrub horizontally for the tooltip.
+ * GitHub-style calendar heatmap for daily exercise calories. Missing dates are shown as zero-value
+ * cells. Tapping a cell displays its date and burned calories in a tooltip anchored to that column.
  */
 @Composable
-fun CustomBarChart(
-    values: List<Pair<String, Int>>,
-    unit: String,
-    modifier: Modifier = Modifier,
-    barColor: Color = MaterialTheme.colorScheme.tertiary
+fun CaloriesBurnedHeatmap(
+    summaries: List<ExerciseDailySummary>,
+    rangeStart: String,
+    rangeEnd: String,
+    modifier: Modifier = Modifier
 ) {
-    val textMeasurer = rememberTextMeasurer()
-    var selectedIndex by remember(values) { mutableIntStateOf(-1) }
-    val showDayLabels = values.size <= 10
+    val days = remember(summaries, rangeStart, rangeEnd) {
+        val caloriesByDate = summaries.associate { it.dateString to it.totalBurned.coerceAtLeast(0) }
+        buildList {
+            var date = rangeStart
+            while (date <= rangeEnd) {
+                add(CaloriesHeatmapDay(date, caloriesByDate[date] ?: 0))
+                date = DateUtils.addDays(date, 1)
+            }
+        }
+    }
+    val weeks = remember(days, rangeStart) {
+        if (days.isEmpty()) {
+            emptyList()
+        } else {
+            val leadingEmptyCells = Calendar.getInstance().run {
+                time = DateUtils.parse(rangeStart)
+                get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+            }
+            val cells = List<CaloriesHeatmapDay?>(leadingEmptyCells) { null } + days
+            val trailingEmptyCells = (7 - cells.size % 7) % 7
+            (cells + List<CaloriesHeatmapDay?>(trailingEmptyCells) { null }).chunked(7)
+        }
+    }
+    var selectedDate by remember(rangeStart, rangeEnd) { mutableStateOf<String?>(null) }
+    var containerWidth by remember { mutableIntStateOf(0) }
 
-    if (values.isEmpty()) {
+    if (days.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No exercise logged yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("No calendar days to show", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
 
-    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    val tooltipBgColor = MaterialTheme.colorScheme.tertiaryContainer
-    val tooltipTextColor = MaterialTheme.colorScheme.onTertiaryContainer
+    val maxCalories = days.maxOfOrNull { it.calories }?.coerceAtLeast(1) ?: 1
+    val heatColors = listOf(
+        MaterialTheme.colorScheme.surfaceVariant,
+        MaterialTheme.colorScheme.tertiaryContainer,
+        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f),
+        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f),
+        MaterialTheme.colorScheme.tertiary
+    )
+    val cellSize = 26.dp
+    val cellGap = 4.dp
+    val weekdayLabelWidth = 32.dp
+    val labelGap = 6.dp
+    val tooltipWidth = 164.dp
+    val density = LocalDensity.current
+    val gridWidth = weekdayLabelWidth + labelGap +
+        cellSize * weeks.size + cellGap * (weeks.size - 1).coerceAtLeast(0)
+    val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
+    val selectedWeekIndex = selectedDate?.let { date ->
+        weeks.indexOfFirst { week -> week.any { it?.date == date } }
+    } ?: -1
+    val tooltipOffsetX = with(density) {
+        val gridStart = ((containerWidth - gridWidth.toPx()) / 2f).coerceAtLeast(0f)
+        val cellCenter = gridStart + weekdayLabelWidth.toPx() + labelGap.toPx() +
+            selectedWeekIndex.coerceAtLeast(0) * (cellSize + cellGap).toPx() +
+            cellSize.toPx() / 2f
+        (cellCenter - tooltipWidth.toPx() / 2f)
+            .coerceIn(0f, (containerWidth - tooltipWidth.toPx()).coerceAtLeast(0f))
+            .roundToInt()
+    }
 
-    Box(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(values) {
-                    val paddingLeft = 100f
-                    val paddingRight = 40f
-                    fun indexAt(x: Float): Int {
-                        val graphWidth = size.width - paddingLeft - paddingRight
-                        val stepX = graphWidth / values.size.coerceAtLeast(1)
-                        return ((x - paddingLeft) / stepX)
-                            .toInt()
-                            .coerceIn(0, values.lastIndex)
-                    }
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        selectedIndex = indexAt(down.position.x)
-                        drag(down.id) { change ->
-                            selectedIndex = indexAt(change.position.x)
-                            change.consume()
+    Box(
+        modifier = modifier.onSizeChanged { containerWidth = it.width }
+    ) {
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.width(gridWidth),
+                horizontalArrangement = Arrangement.spacedBy(labelGap)
+            ) {
+                Column(
+                    modifier = Modifier.width(weekdayLabelWidth),
+                    verticalArrangement = Arrangement.spacedBy(cellGap)
+                ) {
+                    listOf("", "Mon", "", "Wed", "", "Fri", "").forEach { label ->
+                        Box(
+                            modifier = Modifier
+                                .width(weekdayLabelWidth)
+                                .height(cellSize),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            if (label.isNotEmpty()) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
-        ) {
-            val paddingLeft = 100f
-            val paddingRight = 40f
-            val paddingTop = 40f
-            val paddingBottom = if (showDayLabels) 80f else 24f
-            val graphWidth = size.width - paddingLeft - paddingRight
-            val graphHeight = size.height - paddingTop - paddingBottom
-            val barCount = values.size
-            val barWidth = (graphWidth / barCount * 0.6f).coerceIn(8f, 100f)
-            val stepX = graphWidth / barCount.coerceAtLeast(1)
-            val maxVal = values.maxOf { it.second }.toFloat().coerceAtLeast(1f) * 1.1f
 
-            val gridCount = 3
-            for (i in 0..gridCount) {
-                val ratio = i.toFloat() / gridCount
-                val y = paddingTop + graphHeight * (1f - ratio)
-                drawLine(
-                    color = gridColor,
-                    start = Offset(paddingLeft, y),
-                    end = Offset(size.width - paddingRight, y),
-                    strokeWidth = 2f
-                )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = (maxVal * ratio).toInt().toString(),
-                    topLeft = Offset(10f, y - 20f),
-                    style = TextStyle(color = textColor, fontSize = 10.sp)
-                )
-            }
-
-            values.forEachIndexed { idx, entry ->
-                val centerX = paddingLeft + idx * stepX + stepX / 2
-                val barHeight = (entry.second / maxVal) * graphHeight
-                val top = paddingTop + graphHeight - barHeight
-                val isSelected = idx == selectedIndex
-                drawRect(
-                    color = if (isSelected) tooltipBgColor else barColor,
-                    topLeft = Offset(centerX - barWidth / 2, top),
-                    size = Size(barWidth, barHeight)
-                )
-                if (showDayLabels) {
-                    val dateLabel = entry.first
-                    val labelLayout = textMeasurer.measure(dateLabel)
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = dateLabel,
-                        topLeft = Offset(
-                            centerX - labelLayout.size.width / 2,
-                            size.height - paddingBottom + 15f
-                        ),
-                        style = TextStyle(color = textColor, fontSize = 10.sp)
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(cellGap)) {
+                    weeks.forEach { week ->
+                        Column(verticalArrangement = Arrangement.spacedBy(cellGap)) {
+                            week.forEach { day ->
+                                if (day == null) {
+                                    Spacer(Modifier.size(cellSize))
+                                } else {
+                                    val level = when {
+                                        day.calories <= 0 -> 0
+                                        day.calories * 4 <= maxCalories -> 1
+                                        day.calories * 2 <= maxCalories -> 2
+                                        day.calories * 4 <= maxCalories * 3 -> 3
+                                        else -> 4
+                                    }
+                                    val isSelected = day.date == selectedDate
+                                    val dateLabel = DateUtils.displayDateSubtitle(day.date)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(cellSize)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(heatColors[level])
+                                            .border(
+                                                width = if (isSelected) 2.dp else 1.dp,
+                                                color = if (isSelected) {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                } else {
+                                                    MaterialTheme.colorScheme.outlineVariant
+                                                },
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .clickable {
+                                                selectedDate = if (isSelected) null else day.date
+                                            }
+                                            .semantics {
+                                                contentDescription =
+                                                    "$dateLabel, ${day.calories} calories burned"
+                                                selected = isSelected
+                                            }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            if (selectedIndex in values.indices) {
-                val entry = values[selectedIndex]
-                val centerX = paddingLeft + selectedIndex * stepX + stepX / 2
-                val barHeight = (entry.second / maxVal) * graphHeight
-                val top = paddingTop + graphHeight - barHeight
-                val tooltipText = "${entry.first}: ${entry.second}$unit"
-                val layout = textMeasurer.measure(tooltipText)
-                val textWidth = layout.size.width
-                val tooltipX = (centerX - textWidth / 2)
-                    .coerceIn(paddingLeft, size.width - paddingRight - textWidth)
-                val tooltipY = min(top - 60f, graphHeight)
-                drawRect(
-                    color = tooltipBgColor,
-                    topLeft = Offset(tooltipX - 10f, tooltipY),
-                    size = Size(textWidth + 20f, 44f)
+            Spacer(Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text(
+                    text = "Less",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = tooltipText,
-                    topLeft = Offset(tooltipX, tooltipY + 12f),
-                    style = TextStyle(color = tooltipTextColor, fontSize = 11.sp)
+                heatColors.forEach { color ->
+                    Box(
+                        Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(color)
+                    )
+                }
+                Text(
+                    text = "More",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        if (selectedDay == null) {
+            Text(
+                text = "Tap a day to see details",
+                modifier = Modifier.align(Alignment.TopCenter),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Surface(
+                modifier = Modifier
+                    .offset { IntOffset(tooltipOffsetX, 0) }
+                    .width(tooltipWidth),
+                shape = RoundedCornerShape(10.dp),
+                tonalElevation = 4.dp,
+                shadowElevation = 6.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = DateUtils.displayDateSubtitle(selectedDay.date),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "${selectedDay.calories} kcal burned",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }

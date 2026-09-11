@@ -65,7 +65,7 @@ import com.anant.fitbuddy.data.database.ExerciseDailySummary
 import com.anant.fitbuddy.data.database.FoodDailySummary
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.components.CalorieRing
-import com.anant.fitbuddy.ui.components.CustomBarChart
+import com.anant.fitbuddy.ui.components.CaloriesBurnedHeatmap
 import com.anant.fitbuddy.ui.components.CustomLineChart
 import com.anant.fitbuddy.ui.components.CustomStackedBarChart
 import com.anant.fitbuddy.ui.components.MacroCarbsColor
@@ -217,7 +217,18 @@ fun AnalyticsScreen(
             }
         }
 
-        item { ExerciseCard(exerciseSummaries = exerciseSummaries) }
+        item {
+            val (exerciseRangeStart, exerciseRangeEnd) = if (selectedRange == 0) {
+                DateUtils.rollingWeekDates(realToday).let { it.first() to it.last() }
+            } else {
+                DateUtils.rolling30DayBounds(monthlyEndDate)
+            }
+            ExerciseCard(
+                exerciseSummaries = exerciseSummaries,
+                rangeStart = exerciseRangeStart,
+                rangeEnd = exerciseRangeEnd
+            )
+        }
 
         item {
             ChartCard(title = "Macronutrient Trend") {
@@ -389,12 +400,16 @@ private fun BodyMetricCard(measurements: List<BodyMeasurement>) {
 }
 
 @Composable
-private fun ExerciseCard(exerciseSummaries: List<ExerciseDailySummary>) {
-    val values = remember(exerciseSummaries) {
-        exerciseSummaries.asReversed().map { it.dateString.substringAfter("-") to it.totalBurned }
+private fun ExerciseCard(
+    exerciseSummaries: List<ExerciseDailySummary>,
+    rangeStart: String,
+    rangeEnd: String
+) {
+    val visibleSummaries = remember(exerciseSummaries, rangeStart, rangeEnd) {
+        exerciseSummaries.filter { it.dateString in rangeStart..rangeEnd }
     }
-    val totalBurned = exerciseSummaries.sumOf { it.totalBurned }
-    val activeDays = exerciseSummaries.count { it.totalBurned > 0 }
+    val totalBurned = visibleSummaries.sumOf { it.totalBurned }
+    val activeDays = visibleSummaries.count { it.totalBurned > 0 }
 
     ChartCard(title = "Calories Burned") {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -403,12 +418,13 @@ private fun ExerciseCard(exerciseSummaries: List<ExerciseDailySummary>) {
             SummaryStat("Avg/day", if (activeDays > 0) "${totalBurned / activeDays}" else "0")
         }
         Spacer(Modifier.height(12.dp))
-        CustomBarChart(
-            values = values,
-            unit = " kcal",
+        CaloriesBurnedHeatmap(
+            summaries = visibleSummaries,
+            rangeStart = rangeStart,
+            rangeEnd = rangeEnd,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(240.dp)
+                .height(270.dp)
         )
     }
 }
