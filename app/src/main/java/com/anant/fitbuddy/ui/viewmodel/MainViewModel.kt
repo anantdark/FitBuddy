@@ -2686,7 +2686,9 @@ class MainViewModel(
                 is AnalysisOutcome.FoodReady ->
                     state.copy(
                         isReanalyzing = false,
-                        foodDraft = outcome.draft,
+                        foodDraft = outcome.draft.copy(
+                            timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp
+                        ),
                         reviewMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
