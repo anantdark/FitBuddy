@@ -47,7 +47,7 @@ object HealthTargetCalculator {
             6.25 * input.heightCm -
             5.0 * input.age +
             sexAdjustment
-        val activityFactor = activityFactor(input.activityLevel)
+        val activityFactor = ActivityLevels.factor(input.activityLevel)
         val maintenanceCalories = restingCalories * activityFactor
 
         val unroundedTarget = when (goal) {
@@ -141,17 +141,8 @@ object HealthTargetCalculator {
         }
     }
 
-    private fun activityFactor(level: String): Double = when (level.trim().uppercase()) {
-        "SEDENTARY" -> 1.2
-        "LIGHT" -> 1.375
-        "MODERATE" -> 1.55
-        "ACTIVE" -> 1.725
-        "VERY_ACTIVE" -> 1.9
-        else -> 1.375
-    }
-
     private fun proteinPerKg(goal: String, activityLevel: String): Double {
-        val active = activityLevel.trim().uppercase() in setOf("MODERATE", "ACTIVE", "VERY_ACTIVE")
+        val active = ActivityLevels.isActive(activityLevel)
         return when (goal) {
             "LOSE_WEIGHT" -> if (active) 1.6 else 1.4
             "GAIN_MUSCLE" -> if (active) 1.6 else 1.4

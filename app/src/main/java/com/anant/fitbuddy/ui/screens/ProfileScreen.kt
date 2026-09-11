@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.bridge.FreeScaleBridge
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.model.ActivityLevels
 import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.settings.AppSettings
@@ -81,13 +82,7 @@ private val GOAL_OPTIONS = listOf(
     "GAIN_MUSCLE" to "Gain muscle",
     "RECOMP" to "Body recomposition"
 )
-private val ACTIVITY_OPTIONS = listOf(
-    "SEDENTARY" to "Sedentary",
-    "LIGHT" to "Lightly active",
-    "MODERATE" to "Moderately active",
-    "ACTIVE" to "Active",
-    "VERY_ACTIVE" to "Very active"
-)
+private val ACTIVITY_OPTIONS = ActivityLevels.options
 
 @Composable
 fun BodyScreen(
@@ -126,7 +121,8 @@ fun BodyScreen(
         weightKg: Double,
         targetWeightKg: Double?,
         sex: String?,
-        activityLevel: String
+        activityLevel: String,
+        acceptActivityRecommendation: Boolean
     ) -> Unit,
     onDismissTargetPlan: () -> Unit,
     onScanSavedFood: () -> Unit,
@@ -247,7 +243,18 @@ fun BodyScreen(
             NumberField("Target weight (kg, optional)", targetWeight.value, decimal = true) {
                 targetWeight.value = it
             }
-            LabeledDropdown("Activity level", activity.value, ACTIVITY_OPTIONS) { activity.value = it }
+            LabeledDropdown(
+                "Typical overall activity",
+                activity.value,
+                ACTIVITY_OPTIONS,
+                ActivityLevels.descriptions
+            ) { activity.value = it }
+            Text(
+                text = ActivityLevels.descriptions[activity.value].orEmpty() +
+                    ". Include workouts, daily movement, and physical work.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
             if (adultBmi != null && healthyWeightRange != null) {
                 Text(
@@ -305,19 +312,23 @@ fun BodyScreen(
     }
 
     targetPlanState.plan?.let { plan ->
+        val applyPlan: (Boolean) -> Unit = { acceptActivityRecommendation ->
+            onApplyTargetPlan(
+                plan,
+                profile?.age ?: 0,
+                profile?.heightCm ?: 0.0,
+                weight.value.toDoubleOrNull() ?: 0.0,
+                targetWeightForPlan,
+                profile?.sex,
+                activity.value,
+                acceptActivityRecommendation
+            )
+        }
         TargetProposalDialog(
             plan = plan,
-            onApply = {
-                onApplyTargetPlan(
-                    plan,
-                    profile?.age ?: 0,
-                    profile?.heightCm ?: 0.0,
-                    weight.value.toDoubleOrNull() ?: 0.0,
-                    targetWeightForPlan,
-                    profile?.sex,
-                    activity.value
-                )
-            },
+            currentActivityLevel = activity.value,
+            onApply = { applyPlan(true) },
+            onApplyCurrentActivity = { applyPlan(false) },
             onDismiss = onDismissTargetPlan
         )
     }
@@ -601,17 +612,25 @@ private fun ReadingsHistoryCard(
 @Composable
 private fun TargetProposalDialog(
     plan: TargetPlanResponse,
+    currentActivityLevel: String,
     onApply: () -> Unit,
+    onApplyCurrentActivity: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val goalLabel = GOAL_OPTIONS.firstOrNull { it.first == plan.recommendedGoal }?.second
         ?: plan.recommendedGoal
     val proposedTargetWeight = plan.targetWeightKg
         ?.takeIf { it.isFinite() && it > 0.0 }
-    val canApply = plan.targetsChanged || proposedTargetWeight != null
+    val recommendedActivity = plan.recommendedActivityLevel
+        ?.takeIf { ActivityLevels.definition(it) != null }
+    val activityChanged = recommendedActivity != null &&
+        !recommendedActivity.equals(currentActivityLevel, ignoreCase = true)
+    val canApply = plan.targetsChanged || proposedTargetWeight != null || activityChanged
     val title = when {
         plan.targetsChanged -> "Science-based recommendation"
+        proposedTargetWeight != null && activityChanged -> "Health target recommendation"
         proposedTargetWeight != null -> "Target weight recommendation"
+        recommendedActivity != null -> "Activity recommendation"
         else -> "You're on track"
     }
     AlertDialog(
@@ -631,6 +650,26 @@ private fun TargetProposalDialog(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+                recommendedActivity?.let { activityLevel ->
+                    Text(
+                        "Suggested activity: ${ActivityLevels.label(activityLevel)}",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Based on the past ${plan.activityWindowDays ?: 28} days: " +
+                            "${plan.activityWorkoutDays ?: 0} workout days, " +
+                            "${plan.activityWorkoutCount ?: 0} sessions, about " +
+                            "${plan.activityWeeklyMinutes ?: 0} min/week.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "Logged workouts don't capture physical work, daily movement, or " +
+                            "unlogged exercise. Choose Use current if your existing level better " +
+                            "reflects your typical overall activity.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (canApply) HorizontalDivider()
                 Text(
                     plan.rationale,
@@ -642,7 +681,14 @@ private fun TargetProposalDialog(
         confirmButton = {
             if (canApply) {
                 TextButton(onClick = onApply) {
-                    Text(if (plan.targetsChanged) "Apply" else "Save target weight")
+                    Text(
+                        when {
+                            plan.targetsChanged -> "Apply"
+                            proposedTargetWeight != null && activityChanged -> "Apply recommendations"
+                            proposedTargetWeight != null -> "Save target weight"
+                            else -> "Apply activity level"
+                        }
+                    )
                 }
             } else {
                 TextButton(onClick = onDismiss) { Text("OK") }
@@ -650,7 +696,12 @@ private fun TargetProposalDialog(
         },
         dismissButton = {
             if (canApply) {
-                TextButton(onClick = onDismiss) { Text("Discard") }
+                Row {
+                    if (activityChanged) {
+                        TextButton(onClick = onApplyCurrentActivity) { Text("Use current") }
+                    }
+                    TextButton(onClick = onDismiss) { Text("Discard") }
+                }
             }
         }
     )
@@ -950,6 +1001,7 @@ private fun LabeledDropdown(
     label: String,
     selectedValue: String,
     options: List<Pair<String, String>>,
+    descriptions: Map<String, String> = emptyMap(),
     onSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -971,7 +1023,18 @@ private fun LabeledDropdown(
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { (value, text) ->
                 DropdownMenuItem(
-                    text = { Text(text) },
+                    text = {
+                        Column {
+                            Text(text)
+                            descriptions[value]?.let { description ->
+                                Text(
+                                    description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
                     onClick = {
                         onSelected(value)
                         expanded = false

@@ -27,6 +27,20 @@ The up-to-5% milestone reflects evidence that modest sustained loss can improve 
 
 These are starting estimates, not measured metabolism. The selected activity factor already represents average exercise, so FitBuddy compares food intake directly with the target. Logged exercise remains visible but is not credited back 1:1, avoiding the prior double count and reducing sensitivity to inaccurate burn estimates. Users should reassess from a 2–4 week weight trend.
 
+### Activity-level guidance and workout recommendation
+
+The activity selector describes each factor in terms of typical overall movement, planned workouts, and physical work. When the user explicitly requests a target recommendation, FitBuddy also reviews logged workouts from the current 28-day window. It normalizes workout days, session count, and duration to weekly values, without using estimated calories burned:
+
+- very active: at least 6 workout days, 9 sessions, and 600 minutes per week;
+- active: at least 6 workout days or 300 minutes per week;
+- moderately active: at least 3 workout days or 150 minutes per week;
+- lightly active: at least 1 workout day or 60 minutes per week;
+- sedentary: some workout history exists but remains below those thresholds.
+
+The strict very-active threshold is evaluated first, followed by each lower level. The recommendation is applied to the proposed calorie and macro calculation before it is shown, but it is never changed silently: the proposal displays the suggested level and its supporting workout totals. If there are no logged workouts in the 28-day window, FitBuddy makes no activity recommendation and preserves the selected level.
+
+This is a conservative workout-history suggestion, not a complete measurement of total energy expenditure. It cannot observe a physical job, walking and other daily movement, workout intensity, or unlogged exercise. Users should keep another level when it better represents their typical life, then reassess targets against their 2–4 week weight trend.
+
 Mifflin–St Jeor remains a practical general-adult starting equation, but individual errors can be material. A 2023 athlete meta-analysis found that equation performance varies by population and that athlete-specific or measured resting energy is preferable when available.
 
 ## Macronutrients

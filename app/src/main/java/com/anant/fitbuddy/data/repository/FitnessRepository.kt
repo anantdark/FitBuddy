@@ -195,7 +195,12 @@ class FitnessRepository(
             explained.targetCarbsG == calculatedPlan.targetCarbsG &&
             explained.targetFatsG == calculatedPlan.targetFatsG &&
             explained.targetsChanged == calculatedPlan.targetsChanged &&
-            explained.targetWeightKg == calculatedPlan.targetWeightKg
+            explained.targetWeightKg == calculatedPlan.targetWeightKg &&
+            explained.recommendedActivityLevel == calculatedPlan.recommendedActivityLevel &&
+            explained.activityWindowDays == calculatedPlan.activityWindowDays &&
+            explained.activityWorkoutDays == calculatedPlan.activityWorkoutDays &&
+            explained.activityWorkoutCount == calculatedPlan.activityWorkoutCount &&
+            explained.activityWeeklyMinutes == calculatedPlan.activityWeeklyMinutes
         if (!echoedPlan) return calculatedPlan
 
         val coachingNote = explained.rationale.trim().takeIf { note ->

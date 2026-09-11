@@ -175,7 +175,10 @@ interface ExerciseLogDao {
 
     // For graphs: returns daily total burned for last N days that have logs
     @Query("""
-        SELECT dateString, SUM(caloriesBurned) as totalBurned 
+        SELECT dateString,
+               SUM(caloriesBurned) AS totalBurned,
+               SUM(durationMinutes) AS totalDurationMinutes,
+               COUNT(*) AS workoutCount
         FROM exercise_logs 
         GROUP BY dateString 
         ORDER BY dateString DESC 
@@ -185,7 +188,10 @@ interface ExerciseLogDao {
 
     /** Every day that has exercise logs (newest first) — for AI progress context. */
     @Query("""
-        SELECT dateString, SUM(caloriesBurned) as totalBurned 
+        SELECT dateString,
+               SUM(caloriesBurned) AS totalBurned,
+               SUM(durationMinutes) AS totalDurationMinutes,
+               COUNT(*) AS workoutCount
         FROM exercise_logs 
         GROUP BY dateString 
         ORDER BY dateString DESC
@@ -193,7 +199,10 @@ interface ExerciseLogDao {
     suspend fun getAllExerciseDailySummaries(): List<ExerciseDailySummary>
 
     @Query("""
-        SELECT dateString, SUM(caloriesBurned) as totalBurned 
+        SELECT dateString,
+               SUM(caloriesBurned) AS totalBurned,
+               SUM(durationMinutes) AS totalDurationMinutes,
+               COUNT(*) AS workoutCount
         FROM exercise_logs 
         WHERE dateString >= :startDate AND dateString <= :endDate
         GROUP BY dateString 
@@ -204,7 +213,9 @@ interface ExerciseLogDao {
 
 data class ExerciseDailySummary(
     val dateString: String,
-    val totalBurned: Int
+    val totalBurned: Int,
+    val totalDurationMinutes: Int,
+    val workoutCount: Int
 )
 
 @Dao

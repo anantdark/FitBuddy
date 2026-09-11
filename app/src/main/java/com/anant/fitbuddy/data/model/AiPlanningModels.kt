@@ -16,7 +16,12 @@ data class TargetPlanResponse(
     @Json(name = "target_fats_g") val targetFatsG: Int,
     @Json(name = "rationale") val rationale: String,
     @Json(name = "targets_changed") val targetsChanged: Boolean = true,
-    @Json(name = "target_weight_kg") val targetWeightKg: Double? = null
+    @Json(name = "target_weight_kg") val targetWeightKg: Double? = null,
+    @Json(name = "recommended_activity_level") val recommendedActivityLevel: String? = null,
+    @Json(name = "activity_window_days") val activityWindowDays: Int? = null,
+    @Json(name = "activity_workout_days") val activityWorkoutDays: Int? = null,
+    @Json(name = "activity_workout_count") val activityWorkoutCount: Int? = null,
+    @Json(name = "activity_weekly_minutes") val activityWeeklyMinutes: Int? = null
 )
 
 /**
