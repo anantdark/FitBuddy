@@ -97,8 +97,8 @@ class RemoteAiDataSource(
     }
 
     /**
-     * Recommends a goal + daily calorie/macro targets from the user's profile + body composition.
-     * Text-only completion (no image), reusing the same retry/parse pipeline as [analyze].
+     * Optionally asks AI to explain the authoritative on-device target plan. Numeric output from
+     * the model is ignored by the repository.
      */
     suspend fun designTargets(
         settings: AppSettings,

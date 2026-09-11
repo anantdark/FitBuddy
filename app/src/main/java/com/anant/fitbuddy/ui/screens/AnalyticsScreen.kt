@@ -127,7 +127,6 @@ fun AnalyticsScreen(
     val preferSurplus = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
-    val netExerciseSummaries = if (selectedRange == 0) weeklyExercise else monthlyExercise
     val isLatestWindow = monthlyEndDate == realToday
     val rangeLabel = remember(monthlyEndDate, isLatestWindow) {
         if (isLatestWindow) "Last 30 days" else DateUtils.rolling30DayLabel(monthlyEndDate)
@@ -188,7 +187,7 @@ fun AnalyticsScreen(
         }
 
         item {
-            ChartCard(title = "Net Calories vs Target") {
+            ChartCard(title = "Calories Eaten vs Target") {
                 Text(
                     text = if (preferSurplus) {
                         "Within ±100 green · over by >100 yellow · under by >100 red"
@@ -201,7 +200,6 @@ fun AnalyticsScreen(
                 Spacer(Modifier.height(8.dp))
                 CustomLineChart(
                     foodSummaries = foodSummaries,
-                    exerciseSummaries = netExerciseSummaries,
                     targetCalories = targetCalories,
                     preferSurplus = preferSurplus,
                     modifier = Modifier

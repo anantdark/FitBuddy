@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.bridge.FreeScaleBridge
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
@@ -75,7 +76,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val GOAL_OPTIONS = listOf(
-    "AUTO" to "Let AI decide",
+    "AUTO" to "Choose automatically",
     "LOSE_WEIGHT" to "Lose weight",
     "GAIN_MUSCLE" to "Gain muscle",
     "RECOMP" to "Body recomposition"
@@ -140,6 +141,16 @@ fun BodyScreen(
     val parsedTargetWeight = targetWeight.value.toDoubleOrNull()
         ?.takeIf { it.isFinite() && it > 0.0 }
     val currentWeight = weight.value.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+    val adultBmi = if ((profile?.age ?: 0) >= 18) {
+        currentWeight?.let { HealthTargetCalculator.bodyMassIndex(it, profile?.heightCm ?: 0.0) }
+    } else {
+        null
+    }
+    val healthyWeightRange = if ((profile?.age ?: 0) >= 18) {
+        HealthTargetCalculator.healthyWeightRange(profile?.heightCm ?: 0.0)
+    } else {
+        null
+    }
     val targetWeightError = when {
         targetWeight.value.isBlank() -> null
         parsedTargetWeight == null -> "Enter a valid target weight"
@@ -200,7 +211,7 @@ fun BodyScreen(
             onManage = onManageSavedFoods
         )
 
-        AiTargetsCard(
+        DailyTargetsCard(
             targetCalories = targetCalories.value,
             targetProtein = targetProtein.value,
             targetCarbs = targetCarbs.value,
@@ -238,6 +249,16 @@ fun BodyScreen(
             }
             LabeledDropdown("Activity level", activity.value, ACTIVITY_OPTIONS) { activity.value = it }
             LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
+            if (adultBmi != null && healthyWeightRange != null) {
+                Text(
+                    text = "Adult BMI screening: ${formatOneDecimal(adultBmi)} · " +
+                        "reference range ${formatOneDecimal(healthyWeightRange.start)}–" +
+                        "${formatOneDecimal(healthyWeightRange.endInclusive)} kg. " +
+                        "BMI is a screening measure, not an ideal-weight prescription.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             targetWeightError?.let {
                 Text(
                     text = it,
@@ -456,7 +477,7 @@ private val PLAN_CAPTIONS = listOf(
 )
 
 @Composable
-private fun AiTargetsCard(
+private fun DailyTargetsCard(
     targetCalories: String,
     targetProtein: String,
     targetCarbs: String,
@@ -481,7 +502,7 @@ private fun AiTargetsCard(
         val planLoading = planState.isLoading || forceShowAnimation
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = isAiConfigured && !planLoading,
+            enabled = !planLoading,
             onClick = onRequestPlan,
             colors = if (planLoading) {
                 ButtonDefaults.buttonColors(
@@ -504,22 +525,24 @@ private fun AiTargetsCard(
             } else {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Recommend with AI")
+                Text("Calculate science-based targets")
             }
         }
-        if (!isAiConfigured) {
-            Text(
-                "Connect an AI provider in Settings to get recommendations.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = if (isAiConfigured) {
+                "Targets are calculated on device; AI only personalizes the explanation."
+            } else {
+                "Targets are calculated on device — no AI connection required."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         planState.error?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         if (!rationale.isNullOrBlank()) {
             HorizontalDivider()
-            Text("Why these targets", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            Text("How these were calculated", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             Text(
                 rationale,
                 style = MaterialTheme.typography.bodySmall,
@@ -587,7 +610,7 @@ private fun TargetProposalDialog(
         ?.takeIf { it.isFinite() && it > 0.0 }
     val canApply = plan.targetsChanged || proposedTargetWeight != null
     val title = when {
-        plan.targetsChanged -> "AI recommendation"
+        plan.targetsChanged -> "Science-based recommendation"
         proposedTargetWeight != null -> "Target weight recommendation"
         else -> "You're on track"
     }
@@ -860,6 +883,9 @@ private fun AddMeasurementSheet(
 }
 
 private const val FREESCALE_WEBSITE_URL = "https://github.com/anantdark/FreeScale"
+
+private fun formatOneDecimal(value: Double): String =
+    String.format(java.util.Locale.US, "%.1f", value)
 
 private fun fmtOptional(value: Double?): String? {
     if (value == null) return null

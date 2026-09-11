@@ -4,8 +4,8 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * AI-designed daily nutrition plan derived from the user's profile + latest body composition.
- * [recommendedGoal] is one of LOSE_WEIGHT | GAIN_MUSCLE | RECOMP.
+ * Adult daily nutrition plan calculated on-device. AI can optionally personalize [rationale], but
+ * [recommendedGoal], numeric targets, [targetsChanged], and [targetWeightKg] remain authoritative.
  */
 @JsonClass(generateAdapter = true)
 data class TargetPlanResponse(

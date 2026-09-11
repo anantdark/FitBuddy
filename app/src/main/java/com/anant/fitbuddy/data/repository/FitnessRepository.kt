@@ -175,16 +175,35 @@ class FitnessRepository(
 
     // --- AI planning ------------------------------------------------------------------------
 
-    /** Asks the AI to recommend a goal + daily calorie/macro targets from the user's context. */
-    suspend fun designTargets(contextJson: String): TargetPlanResponse {
+    /** Adds an optional region-aware AI explanation without allowing AI to alter local math. */
+    suspend fun designTargets(
+        contextJson: String,
+        calculatedPlan: TargetPlanResponse
+    ): TargetPlanResponse {
         val settings = settingsRepository.settings.first()
-        check(settings.isConfigured) {
-            "Connect an AI provider in Settings to get AI target recommendations."
-        }
-        val (result, _) = withAiFailover(settings) { s ->
-            remoteAiDataSource.designTargets(s, contextJson)
-        }
-        return result
+        if (!settings.isConfigured) return calculatedPlan
+
+        val explained = runCatching {
+            withAiFailover(settings) { s ->
+                remoteAiDataSource.designTargets(s, contextJson)
+            }.first
+        }.getOrNull() ?: return calculatedPlan
+
+        val echoedPlan = explained.recommendedGoal == calculatedPlan.recommendedGoal &&
+            explained.dailyTargetCalories == calculatedPlan.dailyTargetCalories &&
+            explained.targetProteinG == calculatedPlan.targetProteinG &&
+            explained.targetCarbsG == calculatedPlan.targetCarbsG &&
+            explained.targetFatsG == calculatedPlan.targetFatsG &&
+            explained.targetsChanged == calculatedPlan.targetsChanged &&
+            explained.targetWeightKg == calculatedPlan.targetWeightKg
+        if (!echoedPlan) return calculatedPlan
+
+        val coachingNote = explained.rationale.trim().takeIf { note ->
+            note.length in 20..300 && note.none(Char::isDigit)
+        } ?: return calculatedPlan
+        return calculatedPlan.copy(
+            rationale = "${calculatedPlan.rationale} Coaching note: $coachingNote"
+        )
     }
 
     /** Asks the AI to summarise progress and give recommendations from compressed trend data. */

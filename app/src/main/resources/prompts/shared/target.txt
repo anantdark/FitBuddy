@@ -1,91 +1,20 @@
-{{TARGET_SYSTEM_INTRO}} Compute daily targets and a goal-directed target body weight from the user JSON
-using the rules below. Do NOT freestyle calorie numbers — identical inputs must produce identical
-calorie and macro outputs.
+{{TARGET_SYSTEM_INTRO}} Explain the deterministic, on-device adult health-target calculation in the
+user JSON. The object at calculated_plan is authoritative: copy every numeric, goal, Boolean, and
+null value EXACTLY. Never recalculate, round, adjust, replace, or infer any target.
 
-IMPORTANT — "daily_target_calories" is a REST-DAY baseline. The app tracks NET calories
-as (eaten − exercise burned) and credits exercise back 1:1 onto the day's allowance.
-Do NOT inflate the baseline to pre-account for exercise. Mention eat-back briefly in
-rationale only when avg_daily_calories_burned_recent is meaningfully > 0.
+The app uses Mifflin–St Jeor as a population estimate, a standard full-day activity multiplier,
+a moderate goal adjustment, adult macronutrient distribution ranges, and an initial loss
+milestone of up to 5% only when the adult BMI screening result is at least 25. BMI is screening context, never
+an "ideal weight" prescription. Logged exercise is already represented by the selected average
+activity level and is not credited back a second time.
 
-Personalise from ACTUAL JSON fields only — never invent missing demographics or scale
-metrics. Prefer latest_measurement.bmr / body_fat_pct / fat_free_mass_kg / muscle fields
-when present.
+Write rationale as one short, optional regional coaching note with no numbers. Do not repeat or
+reinterpret the calculation, make medical claims, or mention targets that are absent. The app keeps
+its authoritative local rationale and labels your text as a coaching note. You may draw only from
+the supplied regional guidance and actual JSON fields. {{TARGET_COACH_NOTES}}
 
-STEP 1 — recommended_goal (exactly one of LOSE_WEIGHT | GAIN_MUSCLE | RECOMP):
-- If stated_goal is not "AUTO", use stated_goal unless clearly unsafe.
-- Else: high body fat → LOSE_WEIGHT; lean / under-muscled → GAIN_MUSCLE;
-  moderate body fat → RECOMP.
-
-STEP 2 — compute ideal_calories with this exact formula (no ranges):
-a) BMR = latest_measurement.bmr if present and > 0; else Mifflin–St Jeor:
-   men: 10*kg + 6.25*cm − 5*age + 5; women: 10*kg + 6.25*cm − 5*age − 161.
-   If sex unknown, use the women formula.
-b) Activity multiplier (activity_level → factor):
-   SEDENTARY=1.2, LIGHT=1.375, MODERATE=1.55, ACTIVE=1.725, VERY_ACTIVE=1.9.
-   Unknown/blank → 1.55.
-c) TDEE = round(BMR * multiplier).
-d) Goal adjustment (fixed deltas, not ranges):
-   LOSE_WEIGHT: TDEE − 400; if age≥50 OR (sex FEMALE/female and kg<60) use TDEE − 300.
-   RECOMP: TDEE (maintenance).
-   GAIN_MUSCLE: TDEE + 250.
-e) Floors: women ≥1200, men ≥1500 (skip floor only if notably small / missing sex).
-f) Round the result to the NEAREST 50 kcal → ideal_calories.
-
-STEP 3 — compute ideal macros (whole grams; per CURRENT bodyweight kg):
-- Protein:
-    LOSE_WEIGHT: round(1.0 * kg). Do NOT push 1.5–2 g/kg on a cut.
-    RECOMP / GAIN_MUSCLE: 1.6 g/kg default; use 1.5 if heavier/older/female/high BF
-    or calorie budget tight; use 1.8 only if lean + younger/mid-adult. Cap 2.0 g/kg.
-    Never invent 2.2+ g/kg. Never secretly switch to per-lean-mass on LOSE_WEIGHT.
-- Fats: round(0.9 * kg), at least ~20% of ideal_calories (9 kcal/g).
-- Carbs: fill remaining calories → carbs_g = round((ideal_calories − protein*4 − fats*9) / 4),
-  floored at 0. {{TARGET_COACH_NOTES}}
-
-STEP 4 — compute target_weight_kg from available body metrics:
-- This is a goal milestone for bulking, cutting, or recomposition — never call it an "ideal" weight.
-- Use current_weight_kg, height_cm, age, sex, recommended_goal, recent weight change, and
-  latest_measurement values. Never invent a missing metric.
-- Determine the exact target dynamically from the available user metrics and the recommended goal.
-  Do not use a fixed percentage, fixed kilogram delta, or generic default target.
-- Direction is mandatory when current_weight_kg is valid:
-    GAIN_MUSCLE: target_weight_kg MUST be greater than or equal to current_weight_kg. Never
-    recommend weight loss for this goal; derive the gain target from the user's body composition,
-    build, muscle metrics, age, sex, height, and recent trajectory.
-    LOSE_WEIGHT: target_weight_kg MUST be less than or equal to current_weight_kg. Never
-    recommend weight gain for this goal.
-    RECOMP: target_weight_kg may be below, equal to, or above current weight when justified by
-    body-composition data; prefer a small change rather than a bulk or cut target.
-- Prefer a body-composition estimate when possible: use fat_free_mass_kg directly, or derive
-  fat-free mass from current weight and body_fat_pct. Select a sustainable target body-fat level
-  appropriate to the actual sex, age, and goal, then compute target weight from fat-free mass.
-- Otherwise, if height_cm is valid, choose a realistic goal-consistent weight informed by current
-  weight, goal, build/muscle metrics, recent trajectory, and the healthy BMI range (18.5–24.9).
-  Do not force a GAIN_MUSCLE target below current weight merely to fit that BMI range.
-- Do not suggest an extreme or rapid-change target. Round to the nearest 0.1 kg.
-- If neither valid height nor sufficient body-composition data is available, return null.
-
-STEP 5 — STABILITY / HYSTERESIS (mandatory; no soft judgment):
-Current targets are current_target_calories / current_target_protein_g /
-current_target_carbs_g / current_target_fats_g.
-Let cal_delta = abs(ideal_calories − current_target_calories).
-Let protein_delta = abs(ideal_protein_g − current_target_protein_g).
-Change targets (targets_changed=true) ONLY if ANY of these hold:
-  (A) current_target_calories is missing or ≤0, OR
-  (B) cal_delta ≥ 150, OR
-  (C) protein_delta ≥ 20.
-Do NOT invent other reasons to change. target_weight_kg is independent of targets_changed.
-Otherwise targets_changed=false: echo ALL four current target values EXACTLY
-(do not "nudge" them), keep recommended_goal as decided in STEP 1, and write a short
-encouraging rationale that current targets are already appropriate.
-
-When targets_changed=true, output the ideal_* nutrition values from STEPS 2–3 and justify WHY
-in rationale (cite age, sex, weight/height, goal, BMR/TDEE, and the cal_delta).
-Mention the target-weight basis briefly whenever target_weight_kg is not null.
-
-rationale: 2–4 sentences in either case.
-
-Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-EXACTLY this schema:
+Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary), exactly
+this schema. Every field except rationale must exactly match calculated_plan:
 {
   "recommended_goal": "LOSE_WEIGHT | GAIN_MUSCLE | RECOMP",
   "daily_target_calories": Int,

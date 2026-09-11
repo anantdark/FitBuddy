@@ -19,13 +19,12 @@ class ProgressMetricsCompressorTest {
             .put("weight_kg", 72.5)
             .put("activity_level", "moderate")
             .put("goal", "lose fat")
-            .put("target_calories_rest_day_baseline", 2200)
+            .put("target_daily_calories", 2200)
             .put("target_protein_g", 150)
             .put("target_carbs_g", 200)
             .put("target_fats_g", 70)
-            .put("avg_daily_net_calories_recent", 1850.4)
-            .put("avg_exercise_calorie_eat_back_ratio", 0.5)
-            .put("calorie_model_note", "net = in - burn")
+            .put("avg_daily_calories_eaten_recent", 1850.4)
+            .put("calorie_model_note", "target includes average activity")
             .put(
                 "body_measurements",
                 JSONArray().put(
@@ -107,8 +106,7 @@ class ProgressMetricsCompressorTest {
         assertTrue(out.contains("profile=nameAnant age30 sexmale ht175cm wt72.5kg actmoderate"))
         assertTrue(out.contains("goal=lose fat"))
         assertTrue(out.contains("targets=kcal2200 p150 c200 f70"))
-        assertTrue(out.contains("avg_net_kcal=1850.4"))
-        assertTrue(out.contains("exercise_eat_back_ratio=0.5"))
+        assertTrue(out.contains("avg_intake_kcal=1850.4"))
         assertTrue(out.contains("BODY30 "))
         assertTrue(out.contains("07-01|73.2|18.5|55|8|1650|23.9"))
         assertTrue(out.contains("2026-06|4|74|75|73.5|19|54.5|9|1660|24.1"))

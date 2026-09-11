@@ -168,7 +168,7 @@ fun calorieTargetPrefersSurplus(goal: String): Boolean =
     }
 
 /**
- * Net calories vs daily target. Equidistant points, no X labels; scrub for date + vs-target.
+ * Food calories vs the full-day target. Equidistant points, no X labels; scrub for date + vs-target.
  *
  * Values within ±100 kcal are green. Beyond that range, [preferSurplus] makes overages yellow
  * and shortfalls red; loss goals make shortfalls yellow and overages red.
@@ -176,7 +176,6 @@ fun calorieTargetPrefersSurplus(goal: String): Boolean =
 @Composable
 fun CustomLineChart(
     foodSummaries: List<FoodDailySummary>,
-    exerciseSummaries: List<ExerciseDailySummary>,
     targetCalories: Int,
     modifier: Modifier = Modifier,
     /** True for GAIN_MUSCLE / RECOMP; false for LOSE_WEIGHT. */
@@ -184,14 +183,12 @@ fun CustomLineChart(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    var selectedIndex by remember(foodSummaries, exerciseSummaries) { mutableIntStateOf(-1) }
+    var selectedIndex by remember(foodSummaries) { mutableIntStateOf(-1) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val dataPoints = remember(foodSummaries, exerciseSummaries) {
-        val exerciseMap = exerciseSummaries.associate { it.dateString to it.totalBurned }
-        foodSummaries.map { f ->
-            val burned = exerciseMap[f.dateString] ?: 0
-            f.dateString to (f.totalCalories - burned)
+    val dataPoints = remember(foodSummaries) {
+        foodSummaries.map { summary ->
+            summary.dateString to summary.totalCalories
         }.asReversed()
     }
 
