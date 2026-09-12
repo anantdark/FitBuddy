@@ -54,6 +54,24 @@ a:hover {
   color: var(--paper);
 }
 
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 60;
+  padding: 0.65rem 0.9rem;
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 700;
+  transform: translateY(-200%);
+  transition: transform 0.2s var(--ease);
+}
+
+.skip-link:focus {
+  color: var(--ink);
+  transform: translateY(0);
+}
+
 code {
   font-family: var(--font-mono);
   font-size: 0.9em;
@@ -486,6 +504,10 @@ h2 {
   scroll-margin-top: 5rem;
 }
 
+.docs-main section {
+  scroll-margin-top: 5rem;
+}
+
 .docs-main p,
 .docs-main li,
 .docs-main dd {
@@ -521,6 +543,14 @@ h2 {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.docs-main tbody th {
+  color: var(--paper);
+  font-size: 0.92rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
 }
 
 .faq dt {

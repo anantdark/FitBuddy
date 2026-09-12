@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Health target methodology — FitBuddy</title>
+  <meta name="description" content="How FitBuddy calculates adult calorie, macro, activity, weight, and trend-adjusted targets on-device, including safeguards and evidence." />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/health-target-methodology.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <header class="site-header">
+    <a class="brand" href="./">FitBuddy</a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <nav id="site-nav">
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="health-target-methodology.html" aria-current="page">Methodology</a>
+    </nav>
+  </header>
+
+  <main class="docs-layout" id="main-content" tabindex="-1">
+    <aside class="docs-nav" aria-label="Methodology sections">
+      <p class="docs-nav-title">Methodology</p>
+      <a href="#overview">Overview</a>
+      <a href="#weight">Weight milestones</a>
+      <a href="#energy">Energy calculation</a>
+      <a href="#activity">Activity guidance</a>
+      <a href="#trends">Trend personalization</a>
+      <a href="#macros">Macronutrients</a>
+      <a href="#ai">AI &amp; offline behavior</a>
+      <a href="#safety">Limits &amp; safety</a>
+      <a href="#correction">Previous method</a>
+      <a href="#evidence">Evidence</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Evidence &amp; safety</p>
+      <h1>How FitBuddy calculates<br /><em>health targets</em></h1>
+      <p class="lede">
+        The numbers are calculated deterministically on your device. Repeated body and
+        nutrition history can support one small, bounded alternative. AI can choose only
+        between exact candidates created by the app; it cannot invent or edit a target.
+      </p>
+      <p><strong>Last evidence review:</strong> 11 September 2026.</p>
+
+      <section id="overview">
+        <h2>Calculation at a glance</h2>
+        <ol>
+          <li>Validate that the profile is within the adult calculator’s safety scope.</li>
+          <li>Estimate resting energy from age, height, weight, and sex.</li>
+          <li>Apply the full-day activity level used for this proposal.</li>
+          <li>Apply a bounded deficit, maintenance target, or bounded surplus for the goal.</li>
+          <li>Calculate protein, fat, and carbohydrate inside adult distribution ranges.</li>
+          <li>Optionally inspect quality-gated repeated readings and food-log coverage.</li>
+          <li>Show every candidate and its evidence before the user applies it.</li>
+        </ol>
+        <p>
+          FitBuddy always creates the normal formula candidate. It creates at most one
+          trend-adjusted candidate, and only when all consistency and adherence gates pass.
+          No smart scale and no AI provider are required for the standard calculation.
+        </p>
+      </section>
+
+      <section id="weight">
+        <h2>Weight context, not an “ideal weight”</h2>
+        <p>
+          There is no scientifically valid universal ideal weight. BMI is a population
+          screening tool, not a diagnosis or an individualized prescription. FitBuddy shows
+          the adult BMI range of <strong>18.5–24.9</strong> only as context and suggests a
+          scale target only when it can serve as a defensible first milestone.
+        </p>
+        <table aria-label="Target weight milestone behavior">
+          <thead><tr><th>Situation</th><th>Milestone behavior</th></tr></thead>
+          <tbody>
+            <tr>
+              <th scope="row">Weight loss at BMI 25 or above</th>
+              <td>Up to 5% below current weight, without crossing below the upper healthy-BMI boundary.</td>
+            </tr>
+            <tr>
+              <th scope="row">Gain goal below BMI 18.5</th>
+              <td>The lower healthy-BMI boundary is shown as a milestone; professional guidance is encouraged.</td>
+            </tr>
+            <tr>
+              <th scope="row">Healthy-range muscle gain or recomposition</th>
+              <td>No scale target is invented. A manual target remains available.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Suggested milestones are rounded to <strong>0.5 kg</strong> to avoid false precision.
+          The 5% loss milestone is a first checkpoint associated with possible improvement in
+          health markers, not a universal endpoint or a requirement to reach a particular BMI.
+        </p>
+      </section>
+
+      <section id="energy">
+        <h2>Baseline energy calculation</h2>
+        <h3>1. Resting energy</h3>
+        <p>
+          FitBuddy uses the Mifflin–St Jeor equation. Weight (<code>w</code>) is in kilograms,
+          height (<code>h</code>) in centimetres, and age (<code>a</code>) in years.
+        </p>
+        <table aria-label="Mifflin–St Jeor resting energy equations">
+          <thead><tr><th>Profile value</th><th>Resting estimate (kcal/day)</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Male</th><td><code>10w + 6.25h − 5a + 5</code></td></tr>
+            <tr><th scope="row">Female</th><td><code>10w + 6.25h − 5a − 161</code></td></tr>
+            <tr><th scope="row">Not provided</th><td><code>10w + 6.25h − 5a − 78</code>, the midpoint of the two constants</td></tr>
+          </tbody>
+        </table>
+        <p>This estimates resting energy; it is not a measurement of metabolism.</p>
+
+        <h3>2. Full-day activity</h3>
+        <p>The resting estimate is multiplied by the activity level used for the proposal:</p>
+        <table aria-label="Full-day activity level factors">
+          <thead><tr><th>Level</th><th>Factor</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Sedentary</th><td>1.2</td><td>Mostly seated with little planned exercise</td></tr>
+            <tr><th scope="row">Lightly active</th><td>1.375</td><td>Mostly seated plus light exercise about 1–3 days/week</td></tr>
+            <tr><th scope="row">Moderately active</th><td>1.55</td><td>Moderate exercise about 3–5 days/week or an active routine</td></tr>
+            <tr><th scope="row">Active</th><td>1.725</td><td>Hard exercise about 6–7 days/week or a physical job</td></tr>
+            <tr><th scope="row">Very active</th><td>1.9</td><td>A strenuous job plus hard training or frequent two-a-days</td></tr>
+          </tbody>
+        </table>
+        <p><code>estimated maintenance = resting estimate × activity factor</code></p>
+
+        <h3>3. Goal adjustment</h3>
+        <table aria-label="Calorie adjustment by health goal">
+          <thead><tr><th>Goal</th><th>Adjustment</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Weight loss</th><td>15% deficit, bounded to 250–500 kcal/day</td></tr>
+            <tr><th scope="row">Body recomposition</th><td>Estimated maintenance</td></tr>
+            <tr><th scope="row">Muscle gain</th><td>8% surplus, bounded to 150–300 kcal/day</td></tr>
+          </tbody>
+        </table>
+        <p>
+          The result is not set below <strong>1,200 kcal/day</strong> without supervision and
+          is rounded to the nearest 50 kcal. The recommendation window shows the resting
+          estimate, activity factor, estimated maintenance, goal adjustment, formula target,
+          optional trend step, and final target separately.
+        </p>
+        <p>
+          The activity factor already includes average exercise. Logged workout calories stay
+          visible but are not credited back 1:1, avoiding exercise double counting and reducing
+          sensitivity to uncertain calorie-burn estimates. Reassess the starting estimate
+          against a consistent 2–4 week weight trend.
+        </p>
+      </section>
+
+      <section id="activity">
+        <h2>Selected versus workout-suggested activity</h2>
+        <p>
+          The activity selector represents typical overall movement: planned workouts, daily
+          movement, and physical work. When a user requests a target recommendation, FitBuddy
+          also reviews the current <strong>28-day</strong> workout window. It normalizes workout
+          days, session count, and duration to weekly values. Estimated exercise calories are
+          not used for this recommendation.
+        </p>
+        <table aria-label="Workout evidence thresholds for activity suggestions">
+          <thead><tr><th>Suggested level</th><th>Weekly workout evidence</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Very active</th><td>At least 6 workout days <strong>and</strong> 9 sessions <strong>and</strong> 600 minutes</td></tr>
+            <tr><th scope="row">Active</th><td>At least 6 workout days <strong>or</strong> 300 minutes</td></tr>
+            <tr><th scope="row">Moderately active</th><td>At least 3 workout days <strong>or</strong> 150 minutes</td></tr>
+            <tr><th scope="row">Lightly active</th><td>At least 1 workout day <strong>or</strong> 60 minutes</td></tr>
+            <tr><th scope="row">Sedentary</th><td>Some workout history exists but remains below those thresholds</td></tr>
+          </tbody>
+        </table>
+        <p>
+          Thresholds are evaluated from very active downward. When a valid suggestion exists,
+          <strong>the proposal is recalculated with the workout-suggested level before it is
+          displayed</strong>. The dialog explicitly identifies that level, its factor, and the
+          supporting workout totals. If the user chooses <strong>Use current</strong>, FitBuddy
+          rebuilds the whole proposal with the manually selected level before saving it.
+        </p>
+        <p>
+          With no workouts in the window, there is no workout suggestion and the selected level
+          is preserved. Workout logs cannot observe a physical job, walking, workout intensity,
+          or unlogged exercise, so users should keep the selected level when it better reflects
+          their typical life.
+        </p>
+      </section>
+
+      <section id="trends">
+        <h2>Repeated body-trend personalization</h2>
+        <p>
+          FitBuddy never changes a target from one smart-scale reading. It reviews up to
+          <strong>42 recent calendar days</strong>, collapses multiple readings on the same day
+          to their median, and estimates direction with a robust Theil–Sen slope so isolated
+          readings have less influence.
+        </p>
+
+        <h3>Weight-trend quality gates</h3>
+        <p>Every gate below must pass:</p>
+        <ul>
+          <li>At least 4 measurement days spanning at least 14 days.</li>
+          <li>The latest reading is no more than 10 days old.</li>
+          <li>No gap between measurement days exceeds 14 days.</li>
+          <li>
+            Median absolute residual variation stays within the larger of 0.4 kg or 0.6% of
+            median body weight.
+          </li>
+        </ul>
+        <p>
+          Missing, sparse, stale, irregular, or noisy readings keep the normal formula plan.
+          Consistent weight-only history is enough to support cautious feedback; smart-scale
+          body-composition fields remain optional.
+        </p>
+
+        <h3>Optional composition support</h3>
+        <p>
+          Body-fat percentage and muscle-mass direction can support interpretation, but neither
+          directly calculates calories. Each field independently needs at least 3 valid readings
+          spanning 14 days, a reading within 10 days, no gap over 14 days, and bounded residual
+          variation. The residual limit is 2 percentage points for body fat and the larger of
+          0.75 kg or 1% of median body weight for muscle mass.
+        </p>
+        <p>
+          Consumer bioimpedance varies with hydration, meals, exercise, temperature, and device
+          algorithms. Composition trends are supporting evidence only, never a diagnosis.
+        </p>
+
+        <h3>Food-log and adherence gate</h3>
+        <p>A numeric adjustment additionally requires:</p>
+        <ul>
+          <li>Food logs on at least 21 of the previous 28 completed days, excluding today.</li>
+          <li>
+            Average logged intake within the larger of 10% or 150 kcal of the current target.
+          </li>
+        </ul>
+        <p>
+          This reduces the chance of changing a target when incomplete logging or adherence is
+          a more plausible explanation for the observed trend.
+        </p>
+
+        <h3>One bounded response</h3>
+        <table aria-label="Bounded calorie feedback rules by goal and weight trend">
+          <thead><tr><th>Goal</th><th>Observed weekly weight rate</th><th>Candidate step</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Weight loss</th><td>At least −0.10% (flat, increasing, or very slow loss)</td><td>−100 kcal/day</td></tr>
+            <tr><th scope="row">Weight loss</th><td>At most −1.00%</td><td>+100 kcal/day</td></tr>
+            <tr><th scope="row">Muscle gain</th><td>At most +0.05%</td><td>+100 kcal/day</td></tr>
+            <tr><th scope="row">Muscle gain</th><td>At least +0.50%</td><td>−100 kcal/day</td></tr>
+            <tr><th scope="row">Recomposition</th><td>At most −0.50%</td><td>+100 kcal/day</td></tr>
+            <tr><th scope="row">Recomposition</th><td>At least +0.50%</td><td>−100 kcal/day</td></tr>
+          </tbody>
+        </table>
+        <p>
+          These are conservative FitBuddy feedback rules, not clinical diagnoses or claims of a
+          universally optimal weekly rate. Only one 100 kcal/day alternative can be created.
+          Every request reconstructs the unadjusted baseline, preventing repeated requests from
+          stacking the same adjustment. The 1,200 kcal floor still applies and macros are
+          recalculated for the adjusted candidate.
+        </p>
+        <p>
+          Before application, the app shows the sample count, date span, weight trend, food-log
+          coverage, available composition support, and exact calorie step.
+        </p>
+      </section>
+
+      <section id="macros">
+        <h2>Macronutrient calculation</h2>
+        <p>
+          Protein begins from body weight and the selected goal/activity context. “Active” here
+          means moderately active, active, or very active.
+        </p>
+        <table aria-label="Protein grams per kilogram by goal and activity">
+          <thead><tr><th>Goal</th><th>Below moderate activity</th><th>Moderate activity or above</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Weight loss</th><td>1.4 g/kg</td><td>1.6 g/kg</td></tr>
+            <tr><th scope="row">Muscle gain</th><td>1.4 g/kg</td><td>1.6 g/kg</td></tr>
+            <tr><th scope="row">Recomposition</th><td>1.2 g/kg</td><td>1.6 g/kg</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>At BMI 30 or above, protein dosing weight is capped at the weight corresponding to BMI 30.</li>
+          <li>Protein is constrained to 10–30% of target energy.</li>
+          <li>Fat is set near 25% of energy.</li>
+          <li>Carbohydrate fills the remaining energy.</li>
+          <li>Four kcal/g are used for protein and carbohydrate; nine kcal/g for fat.</li>
+        </ul>
+        <p>
+          Existing calculated targets are normally kept stable unless calories differ by at least
+          150 kcal or protein differs by at least 20 g. The quality-gated 100 kcal trend step is
+          the explicit exception. Placeholder, non-positive, energy-inconsistent, or
+          out-of-range macros are recalculated rather than preserved.
+        </p>
+      </section>
+
+      <section id="ai">
+        <h2>AI boundary, privacy, and offline behavior</h2>
+        <table aria-label="Where health target calculations and optional AI processing happen">
+          <thead><tr><th>Where</th><th>What happens</th></tr></thead>
+          <tbody>
+            <tr>
+              <th scope="row">Always on-device</th>
+              <td>Profile validation, BMI context, energy arithmetic, activity analysis, trend processing, quality gates, candidate numbers, safety bounds, and macro validation.</td>
+            </tr>
+            <tr>
+              <th scope="row">Optional AI provider</th>
+              <td>When configured and requested, the fields listed below and each complete local candidate may be sent so AI can select one exact candidate ID and write a short regional coaching note.</td>
+            </tr>
+            <tr>
+              <th scope="row">No AI or provider failure</th>
+              <td>The calculation still works. FitBuddy uses the deterministic local default: the trend candidate when valid, otherwise the formula candidate.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>An optional target-selection request can contain:</p>
+        <ul>
+          <li>Age, sex, height, current weight, selected activity level, and goal.</li>
+          <li>Current calorie and protein targets.</li>
+          <li>Aggregated workout, body-trend, composition-trend, and nutrition-coverage evidence.</li>
+          <li>Each complete locally generated candidate: its ID, calories, macros, target weight, recommended activity, and bounded adjustment.</li>
+        </ul>
+        <p>
+          Raw individual body-reading rows and the full food-log history are not included in this
+          request. The provider receives the aggregates above. Its retention rules apply.
+        </p>
+        <p>
+          AI does not generate calorie or macro numbers for this feature. The repository accepts
+          only an exact candidate ID that the app generated locally. Unknown IDs, malformed
+          responses, timeouts, and provider failures fall back to the local default. If a valid
+          candidate ID arrives with invalid coaching text, the text is discarded while the valid
+          selection remains. AI cannot bypass local floors and bounds.
+        </p>
+        <p>
+          Profile data, raw body readings, food logs, and saved targets remain in the local
+          database. See <a href="privacy.html">Privacy</a> for the complete data boundary.
+        </p>
+      </section>
+
+      <section id="safety">
+        <h2>Limits and safety scope</h2>
+        <ul>
+          <li>Automated targets are available only for adults age 18 or older.</li>
+          <li>Children and adolescents need age- and sex-specific growth assessment.</li>
+          <li>Pregnancy and breastfeeding are outside the calculator’s scope.</li>
+          <li>Medical conditions, prescribed diets, eating-disorder history, and elite sport require individualized professional advice.</li>
+          <li>BMI is screening context, not a diagnosis.</li>
+          <li>Mifflin–St Jeor is a practical starting estimate; individual error can be material.</li>
+          <li>Athlete-specific equations or measured resting energy may be preferable for competitive athletes.</li>
+          <li>Workout history is incomplete evidence of total daily expenditure.</li>
+          <li>Smart-scale composition is noisy and used only as supporting trend evidence.</li>
+        </ul>
+        <p>
+          Recommendations are planning estimates, not medical advice. FitBuddy encourages
+          reassessment from consistent real-world trends rather than treating one calculated
+          number as permanent or exact.
+        </p>
+      </section>
+
+      <section id="correction">
+        <h2>Previous method and correction</h2>
+        <p>
+          An earlier FitBuddy method asked an LLM to perform target arithmetic, used a fixed
+          1.0 g/kg weight-loss protein rule, could imply unsupported target-weight precision,
+          and combined a full activity factor with exercise calorie subtraction. That could
+          double count exercise.
+        </p>
+        <p>
+          The current method moves arithmetic and safety bounds into deterministic app code,
+          uses goal/activity-aware protein, treats BMI only as context, avoids 1:1 exercise
+          credit-back, and permits only quality-gated repeated-reading feedback. AI remains
+          optional and constrained to selecting an exact local candidate plus coaching text.
+        </p>
+      </section>
+
+      <section id="evidence">
+        <h2>Evidence used</h2>
+        <ul>
+          <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10725806/">ADA Standards of Care in Diabetes—2024: obesity and weight management</a> — individualized treatment, modest sustained loss, and energy-deficit evidence.</li>
+          <li><a href="https://www.niddk.nih.gov/research-funding/at-niddk/labs-branches/laboratory-biological-modeling/integrative-physiology-section/research/body-weight-planner">NIDDK research behind the Body Weight Planner</a> — dynamic weight change, adult-only scope, and limitations.</li>
+          <li><a href="https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html">CDC adult BMI categories and limitations</a> — BMI as a screening measure interpreted with other factors.</li>
+          <li><a href="https://pubmed.ncbi.nlm.nih.gov/15883556/">Comparison of resting metabolic rate equations in adults</a> — Mifflin–St Jeor as a practical general-adult estimate.</li>
+          <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10687135/">Systematic review and meta-analysis of RMR equations in athletes</a> — population-specific accuracy and individual uncertainty.</li>
+          <li><a href="https://www.nationalacademies.org/news/report-offers-new-eating-and-physical-activity-targets-to-reduce-chronic-disease-risk">National Academies macronutrient distribution guidance</a> — adult carbohydrate, fat, and protein ranges.</li>
+          <li><a href="https://jissn.biomedcentral.com/articles/10.1186/s12970-017-0177-8">International Society of Sports Nutrition position stand</a> — protein needs for healthy exercising adults.</li>
+        </ul>
+        <p>Source material was summarized and rephrased; links are provided for verification.</p>
+      </section>
+
+      <p class="docs-end">
+        Continue with the <a href="docs/">beginner guide</a> ·
+        Review <a href="privacy.html">Privacy</a> ·
+        <a href="https://github.com/anantdark/FitBuddy">Inspect the source code</a>
+      </p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">FitBuddy</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="health-target-methodology.html" aria-current="page">Methodology</a>
+      <a href="https://github.com/anantdark/FitBuddy">GitHub</a>
+    </div>
+    <p class="fine">Transparent, deterministic target calculations for adults.</p>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

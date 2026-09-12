@@ -59,10 +59,23 @@
       <section id="ai">
         <h2>Sent to your AI provider</h2>
         <p>
-          When you analyze a photo or text, design targets, estimate workout calories,
-          or use Progress Coach, FitBuddy sends the relevant content to the provider you configured.
-          That can include meal photos or descriptions, profile snippets needed for the request,
-          and compressed progress metrics for insights.
+          When you analyze a meal photo or text, estimate workout calories, use Progress Coach,
+          or request optional AI-assisted target selection, FitBuddy sends only the content
+          needed for that feature to the provider you configured. This can include meal photos
+          or descriptions, relevant profile details, and compressed progress metrics.
+        </p>
+        <p>
+          A target-selection request can include age, sex, height, current weight, selected
+          activity, goal, current calorie and protein targets, aggregated workout/body/nutrition
+          evidence, and each complete locally calculated candidate (ID, calories, macros, target
+          weight, recommended activity, and adjustment). Raw body-reading rows and full food-log
+          history are not included in that request.
+        </p>
+        <p>
+          Target arithmetic, safety bounds, and candidate numbers are always calculated on-device.
+          A configured provider may select only one exact local candidate ID and add a short
+          coaching note; it cannot supply or edit target numbers. See the
+          <a href="health-target-methodology.html#ai">calculation and AI boundary</a>.
         </p>
         <p>
           Choose a provider you trust — their retention rules apply. Prefer local Ollama if you want analysis on your network.
