@@ -227,12 +227,6 @@ private fun CalorieHeaderCard(
                 HeaderStat("Exercise", state.burnedCalories)
                 HeaderStat("Target", state.targetCalories)
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Exercise is tracked separately; your target already includes average activity.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

@@ -188,16 +188,6 @@ fun AnalyticsScreen(
 
         item {
             ChartCard(title = "Calories Eaten vs Target") {
-                Text(
-                    text = if (preferSurplus) {
-                        "Within ±100 green · over by >100 yellow · under by >100 red"
-                    } else {
-                        "Within ±100 green · under by >100 yellow · over by >100 red"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
                 CustomLineChart(
                     foodSummaries = foodSummaries,
                     targetCalories = targetCalories,
