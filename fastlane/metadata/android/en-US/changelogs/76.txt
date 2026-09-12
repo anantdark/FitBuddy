@@ -1,0 +1,10 @@
+• feat: make the six-month calorie-burn heatmap compact
+• feat: help add missing barcode products
+• feat: swap barcode and meal dashboard actions
+• feat: personalize targets from body and nutrition trends
+• feat: suggest activity levels from workout history
+• feat: calculate health targets from evidence-based formulas
+• fix: calculate target weight dynamically from body metrics
+• feat: improve progress charts and goal-based target weight
+• feat: add interactive calorie-burn heatmap
+• feat: show goal-aware calorie target colors
