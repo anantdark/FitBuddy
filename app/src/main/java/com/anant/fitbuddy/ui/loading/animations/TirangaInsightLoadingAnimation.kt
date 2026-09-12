@@ -28,7 +28,7 @@ import com.anant.fitbuddy.ui.loading.LoadingAnimationScope
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import kotlinx.coroutines.delay
 
-/** Compact tiranga wash used inside insight / AI-target buttons. */
+/** Compact tiranga wash used inside insight / health-target buttons. */
 object TirangaInsightLoadingAnimation : LoadingAnimation {
     override val id: String = "tiranga_insight"
     override val displayName: String = "Indian flag"

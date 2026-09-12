@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.data.model.ActivityLevels
 import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.region.AppRegion
@@ -86,7 +87,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 private val GOAL_OPTIONS = listOf(
-    "AUTO" to "Let AI decide",
+    "AUTO" to "Choose automatically",
     "LOSE_WEIGHT" to "Lose weight",
     "GAIN_MUSCLE" to "Gain muscle",
     "RECOMP" to "Body recomposition"
@@ -96,13 +97,7 @@ private val SEX_OPTIONS = listOf(
     "MALE" to "Male",
     "FEMALE" to "Female"
 )
-private val ACTIVITY_OPTIONS = listOf(
-    "SEDENTARY" to "Sedentary",
-    "LIGHT" to "Lightly active",
-    "MODERATE" to "Moderately active",
-    "ACTIVE" to "Active",
-    "VERY_ACTIVE" to "Very active"
-)
+private val ACTIVITY_OPTIONS = ActivityLevels.options
 
 /** Per-provider "how to get set up" doc, linked from the onboarding AI step. */
 private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
@@ -261,9 +256,9 @@ fun OnboardingScreen(
     val skipNameInOnboarding = BuildConfig.DEBUG
     val stepOneValid = (skipNameInOnboarding ||
         (firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty())) &&
-        (age.toIntOrNull() ?: 0) in 10..120 &&
-        (height.toDoubleOrNull() ?: 0.0) in 50.0..280.0 &&
-        (weight.toDoubleOrNull() ?: 0.0) in 20.0..400.0
+        (age.toIntOrNull() ?: 0) in 18..120 &&
+        (height.toDoubleOrNull() ?: 0.0) in 100.0..250.0 &&
+        (weight.toDoubleOrNull() ?: 0.0) in 25.0..400.0
     val aiConfigValid = when (aiProvider) {
         AiProvider.OPENROUTER -> apiKeys.isNotEmpty() || openRouterOAuthConnected
         AiProvider.GEMINI -> apiKeys.isNotEmpty()
@@ -816,15 +811,24 @@ fun OnboardingScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "We'll use this with AI to set your daily calorie and macro " +
-                                    "targets when you open the dashboard. You can fine-tune them " +
-                                    "anytime in Body.",
+                                text = "We'll calculate adult calorie and macro targets on your " +
+                                    "device from these details when you open the dashboard. If AI " +
+                                    "is connected, it can personalize the explanation but not the math.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            OnboardingDropdown("Activity level", activity, ACTIVITY_OPTIONS) {
-                                activity = it
-                            }
+                            OnboardingDropdown(
+                                label = "Typical overall activity",
+                                selectedValue = activity,
+                                options = ACTIVITY_OPTIONS,
+                                descriptions = ActivityLevels.descriptions
+                            ) { activity = it }
+                            Text(
+                                text = ActivityLevels.descriptions[activity].orEmpty() +
+                                    ". Include workouts, daily movement, and physical work.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             OnboardingDropdown("Goal", goal, GOAL_OPTIONS) { goal = it }
                         }
                     }
@@ -1212,6 +1216,7 @@ private fun OnboardingDropdown(
     label: String,
     selectedValue: String,
     options: List<Pair<String, String>>,
+    descriptions: Map<String, String> = emptyMap(),
     onSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -1239,7 +1244,18 @@ private fun OnboardingDropdown(
         ) {
             options.forEach { (value, text) ->
                 DropdownMenuItem(
-                    text = { Text(text) },
+                    text = {
+                        Column {
+                            Text(text)
+                            descriptions[value]?.let { description ->
+                                Text(
+                                    description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
                     onClick = {
                         onSelected(value)
                         expanded = false

@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -32,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
@@ -53,6 +57,13 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +74,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
 import com.anant.fitbuddy.data.database.FoodDailySummary
+import com.anant.fitbuddy.util.DateUtils
+import java.util.Calendar
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -158,30 +171,27 @@ fun calorieTargetPrefersSurplus(goal: String): Boolean =
     }
 
 /**
- * Net calories vs daily target. Equidistant points, no X labels; scrub for date + vs-target.
+ * Food calories vs the full-day target. Equidistant points, no X labels; scrub for date + vs-target.
  *
- * Color is goal-aware via [preferSurplus]: bulk/recomp paints under-target red;
- * lose-weight paints over-target red. On-target is always green.
+ * Values within ±100 kcal are green. Beyond that range, [preferSurplus] makes overages yellow
+ * and shortfalls red; loss goals make shortfalls yellow and overages red.
  */
 @Composable
 fun CustomLineChart(
     foodSummaries: List<FoodDailySummary>,
-    exerciseSummaries: List<ExerciseDailySummary>,
     targetCalories: Int,
     modifier: Modifier = Modifier,
-    /** True for GAIN_MUSCLE / RECOMP — shortfall is bad. False for LOSE_WEIGHT — surplus is bad. */
+    /** True for GAIN_MUSCLE / RECOMP; false for LOSE_WEIGHT. */
     preferSurplus: Boolean = false,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    var selectedIndex by remember(foodSummaries, exerciseSummaries) { mutableIntStateOf(-1) }
+    var selectedIndex by remember(foodSummaries) { mutableIntStateOf(-1) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val dataPoints = remember(foodSummaries, exerciseSummaries) {
-        val exerciseMap = exerciseSummaries.associate { it.dateString to it.totalBurned }
-        foodSummaries.map { f ->
-            val burned = exerciseMap[f.dateString] ?: 0
-            f.dateString to (f.totalCalories - burned)
+    val dataPoints = remember(foodSummaries) {
+        foodSummaries.map { summary ->
+            summary.dateString to summary.totalCalories
         }.asReversed()
     }
 
@@ -234,8 +244,14 @@ fun CustomLineChart(
     }
 
     fun dayColor(net: Int): Color {
-        val offTrack = if (preferSurplus) net < targetCalories else net > targetCalories
-        return if (offTrack) badColor else goodColor
+        val difference = net - targetCalories
+        val cautionColor = Color(0xFFF59E0B)
+        return when {
+            difference in -100..100 -> goodColor
+            preferSurplus && difference > 100 -> cautionColor
+            !preferSurplus && difference < -100 -> cautionColor
+            else -> badColor
+        }
     }
     Box(
         modifier = modifier
@@ -782,6 +798,8 @@ fun MetricLineChart(
     unit: String,
     modifier: Modifier = Modifier,
     decreaseIsPositive: Boolean = true,
+    targetValue: Double? = null,
+    targetPreferHigher: Boolean = false,
     lineColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -796,9 +814,11 @@ fun MetricLineChart(
         return
     }
 
+    val chartTarget = targetValue?.takeIf { it.isFinite() && it > 0.0 }
     val values = points.map { it.second }
-    val rawMin = values.min()
-    val rawMax = values.max()
+    val boundsValues = chartTarget?.let { values + it } ?: values
+    val rawMin = boundsValues.min()
+    val rawMax = boundsValues.max()
     val span = (rawMax - rawMin).takeIf { it > 0.0 } ?: (if (rawMax != 0.0) rawMax * 0.1 else 1.0)
     val minVal = rawMin - span * 0.15
     val maxVal = rawMax + span * 0.15
@@ -806,6 +826,18 @@ fun MetricLineChart(
     val gridLineColor = MaterialTheme.colorScheme.outlineVariant
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val markerCoreColor = MaterialTheme.colorScheme.surface
+    val targetLineColor = MaterialTheme.colorScheme.outline
+    val cautionColor = Color(0xFFF59E0B)
+
+    fun targetColor(value: Double): Color {
+        val difference = value - (chartTarget ?: return lineColor)
+        return when {
+            kotlin.math.abs(difference) <= 1.0 -> TrendGreen
+            targetPreferHigher && difference > 1.0 -> cautionColor
+            !targetPreferHigher && difference < -1.0 -> cautionColor
+            else -> TrendRed
+        }
+    }
 
     val leftPadPx = with(density) { 44.dp.toPx() }
     val rightPadPx = with(density) { 8.dp.toPx() }
@@ -883,6 +915,28 @@ fun MetricLineChart(
                 )
             }
 
+            chartTarget?.let { target ->
+                val targetY = topPad + graphHeight *
+                    (1f - ((target - minVal) / range).toFloat()).coerceIn(0f, 1f)
+                drawLine(
+                    color = targetLineColor,
+                    start = Offset(leftPad, targetY),
+                    end = Offset(size.width - rightPad, targetY),
+                    strokeWidth = 3f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f),
+                )
+                drawText(
+                    textMeasurer = textMeasurer,
+                    text = "Target · ${formatMetric(target)} kg",
+                    topLeft = Offset(leftPad + 6f, targetY - 28f),
+                    style = TextStyle(
+                        color = targetLineColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+            }
+
             val pts = points.mapIndexed { idx, pair ->
                 val x = if (points.size <= 1) leftPad + graphWidth / 2f else leftPad + idx * stepX
                 val y = topPad + graphHeight *
@@ -904,13 +958,17 @@ fun MetricLineChart(
 
             val strokeWidth = 8f
             for (i in 1 until pts.size) {
-                val trend = metricStepTrend(
-                    points[i - 1].second,
-                    points[i].second,
-                    decreaseIsPositive,
-                )
+                val segmentColor = if (chartTarget != null) {
+                    targetColor(points[i].second)
+                } else {
+                    metricStepTrend(
+                        points[i - 1].second,
+                        points[i].second,
+                        decreaseIsPositive,
+                    )?.color() ?: lineColor
+                }
                 drawLine(
-                    color = trend?.color() ?: lineColor,
+                    color = segmentColor,
                     start = pts[i - 1],
                     end = pts[i],
                     strokeWidth = strokeWidth,
@@ -920,15 +978,24 @@ fun MetricLineChart(
 
             pts.forEachIndexed { idx, point ->
                 val isSelected = idx == selectedIndex
+                val pointColor = if (chartTarget != null) {
+                    targetColor(points[idx].second)
+                } else {
+                    lineColor
+                }
                 if (isSelected) {
                     drawLine(
-                        color = lineColor.copy(alpha = 0.35f),
+                        color = pointColor.copy(alpha = 0.35f),
                         start = Offset(point.x, topPad),
                         end = Offset(point.x, topPad + graphHeight),
                         strokeWidth = 3f,
                     )
                 }
-                drawCircle(color = lineColor, radius = if (isSelected) 14f else 8f, center = point)
+                drawCircle(
+                    color = pointColor,
+                    radius = if (isSelected) 14f else 8f,
+                    center = point
+                )
                 drawCircle(
                     color = markerCoreColor,
                     radius = if (isSelected) 5f else 3f,
@@ -945,9 +1012,18 @@ fun MetricLineChart(
             val trend = prev?.let {
                 metricStepTrend(it.second, pair.second, decreaseIsPositive)
             }
+            val targetDifference = chartTarget?.let { pair.second - it }
+            val targetStatusColor = chartTarget?.let { targetColor(pair.second) }
+            val targetStatusText = targetDifference?.let { difference ->
+                when {
+                    kotlin.math.abs(difference) < 0.05 -> "On target"
+                    difference > 0.0 -> "Above target by ${formatMetric(difference)} kg"
+                    else -> "Below target by ${formatMetric(-difference)} kg"
+                }
+            }
             val valueText = "${formatMetric(pair.second)}$unit"
             val bubbleMaxWidth = with(density) { 220.dp.toPx() }
-            val bubbleApproxHeight = with(density) { 72.dp.toPx() }
+            val bubbleApproxHeight = with(density) { 78.dp.toPx() }
             val x = (pos.x - bubbleMaxWidth / 2f)
                 .coerceIn(0f, (canvasSize.width - bubbleMaxWidth).coerceAtLeast(0f))
             val y = (pos.y - bubbleApproxHeight - with(density) { 10.dp.toPx() })
@@ -976,7 +1052,14 @@ fun MetricLineChart(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (delta != null && trend != null) {
+                    if (targetStatusText != null && targetStatusColor != null) {
+                        Text(
+                            targetStatusText,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = targetStatusColor,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    } else if (delta != null && trend != null) {
                         val rose = delta > 0.0
                         // Direction of change (not health judgment — color carries that).
                         val hint = if (rose) "Increased" else "Decreased"
@@ -1041,135 +1124,305 @@ private fun formatMetric(value: Double): String {
     return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
 }
 
-/**
- * Simple vertical bar chart for a single integer series over time (e.g. daily calories burned).
- * Values are passed as (dateLabel, value) pairs in chronological order.
- * Dense series hide bottom labels; scrub horizontally for the tooltip.
- */
-@Composable
-fun CustomBarChart(
-    values: List<Pair<String, Int>>,
-    unit: String,
-    modifier: Modifier = Modifier,
-    barColor: Color = MaterialTheme.colorScheme.tertiary
-) {
-    val textMeasurer = rememberTextMeasurer()
-    var selectedIndex by remember(values) { mutableIntStateOf(-1) }
-    val showDayLabels = values.size <= 10
+/** A calendar day rendered in the contribution-style calories-burned heatmap. */
+@Immutable
+private data class CaloriesHeatmapDay(
+    val date: String,
+    val calories: Int,
+    val level: Int
+)
 
-    if (values.isEmpty()) {
+@Immutable
+private data class CaloriesHeatmapMonthLabel(
+    val weekIndex: Int,
+    val label: String
+)
+
+@Immutable
+private data class CaloriesHeatmapGrid(
+    val cells: List<CaloriesHeatmapDay?>,
+    val days: List<CaloriesHeatmapDay>,
+    val weekCount: Int,
+    val monthLabels: List<CaloriesHeatmapMonthLabel>
+)
+
+private fun buildCaloriesHeatmapGrid(
+    summaries: List<ExerciseDailySummary>,
+    rangeStart: String,
+    rangeEnd: String
+): CaloriesHeatmapGrid {
+    if (rangeStart > rangeEnd || rangeStart.length < 7 || rangeEnd.length < 7) {
+        return CaloriesHeatmapGrid(emptyList(), emptyList(), 0, emptyList())
+    }
+
+    val caloriesByDate = summaries
+        .asSequence()
+        .filter { it.dateString in rangeStart..rangeEnd }
+        .associate { it.dateString to it.totalBurned.coerceAtLeast(0) }
+    val positiveValues = caloriesByDate.values.filter { it > 0 }.distinct().sorted()
+
+    fun levelFor(calories: Int): Int {
+        if (calories <= 0) return 0
+        if (positiveValues.size <= 1) return 4
+        val rank = positiveValues.binarySearch(calories).coerceAtLeast(0)
+        return 1 + rank * 3 / positiveValues.lastIndex
+    }
+
+    val days = buildList {
+        var date = rangeStart
+        while (date <= rangeEnd) {
+            val calories = caloriesByDate[date] ?: 0
+            add(CaloriesHeatmapDay(date, calories, levelFor(calories)))
+            date = DateUtils.addDays(date, 1)
+        }
+    }
+    val cells = mutableListOf<CaloriesHeatmapDay?>()
+    val monthLabels = mutableListOf<CaloriesHeatmapMonthLabel>()
+    var month = rangeStart.take(7)
+    val endMonth = rangeEnd.take(7)
+    while (month <= endMonth) {
+        val monthDays = days.filter { it.date.startsWith(month) }
+        if (monthDays.isNotEmpty()) {
+            monthLabels += CaloriesHeatmapMonthLabel(
+                weekIndex = cells.size / 7,
+                label = DateUtils.monthLabel(month).substringBefore(" ")
+            )
+            val leadingCells = Calendar.getInstance().run {
+                time = DateUtils.parse(monthDays.first().date)
+                get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+            }
+            repeat(leadingCells) { cells += null }
+            cells += monthDays
+            val trailingCells = (7 - cells.size % 7) % 7
+            repeat(trailingCells) { cells += null }
+        }
+        month = DateUtils.addMonths(month, 1)
+    }
+    return CaloriesHeatmapGrid(
+        cells = cells,
+        days = days,
+        weekCount = cells.size / 7,
+        monthLabels = monthLabels
+    )
+}
+
+/** GitHub-style contribution calendar with weeks in one horizontally scrollable strip. */
+@Composable
+fun CaloriesBurnedHeatmap(
+    summaries: List<ExerciseDailySummary>,
+    rangeStart: String,
+    rangeEnd: String,
+    modifier: Modifier = Modifier
+) {
+    val grid = remember(summaries, rangeStart, rangeEnd) {
+        buildCaloriesHeatmapGrid(summaries, rangeStart, rangeEnd)
+    }
+    var selectedDate by remember(rangeStart, rangeEnd) { mutableStateOf<String?>(null) }
+
+    if (grid.weekCount == 0) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No exercise logged yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("No calendar days to show", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
 
-    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    val tooltipBgColor = MaterialTheme.colorScheme.tertiaryContainer
-    val tooltipTextColor = MaterialTheme.colorScheme.onTertiaryContainer
+    val colorScheme = MaterialTheme.colorScheme
+    val baseColor = colorScheme.surfaceContainerHighest
+    val heatColors = listOf(
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.onSurface, 0.12f),
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.primary, 0.28f),
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.primary, 0.48f),
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.primary, 0.72f),
+        colorScheme.primary
+    )
+    val selectedDay = selectedDate?.let { date -> grid.days.firstOrNull { it.date == date } }
+    val scrollState = rememberScrollState()
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val cellSize = 11.dp
+    val cellGap = 3.dp
+    val cellStride = cellSize + cellGap
+    val monthLabelHeight = 20.dp
+    val canvasWidth = cellStride * grid.weekCount
+    val canvasHeight = monthLabelHeight + cellStride * 7
+    val cellSizePx = with(density) { cellSize.toPx() }
+    val cellStridePx = with(density) { cellStride.toPx() }
+    val monthLabelHeightPx = with(density) { monthLabelHeight.toPx() }
+    val cornerRadiusPx = with(density) { 2.dp.toPx() }
+    val selectedStrokePx = with(density) { 1.5.dp.toPx() }
+    val monthLabelStyle = MaterialTheme.typography.labelSmall.copy(
+        color = colorScheme.onSurfaceVariant,
+        fontSize = 9.sp
+    )
+    val accessibilityActions = grid.days.map { day ->
+        CustomAccessibilityAction(
+            label = "${DateUtils.displayDateSubtitle(day.date)}, " +
+                "${day.calories} calories burned"
+        ) {
+            selectedDate = if (selectedDate == day.date) null else day.date
+            true
+        }
+    }
 
-    Box(modifier = modifier) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(values) {
-                    val paddingLeft = 100f
-                    val paddingRight = 40f
-                    fun indexAt(x: Float): Int {
-                        val graphWidth = size.width - paddingLeft - paddingRight
-                        val stepX = graphWidth / values.size.coerceAtLeast(1)
-                        return ((x - paddingLeft) / stepX)
-                            .toInt()
-                            .coerceIn(0, values.lastIndex)
-                    }
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        selectedIndex = indexAt(down.position.x)
-                        drag(down.id) { change ->
-                            selectedIndex = indexAt(change.position.x)
-                            change.consume()
+    LaunchedEffect(scrollState.maxValue, rangeEnd) {
+        if (scrollState.maxValue > 0) scrollState.scrollTo(scrollState.maxValue)
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.width(26.dp)) {
+                Spacer(Modifier.height(monthLabelHeight))
+                listOf("", "Mon", "", "Wed", "", "Fri", "").forEach { label ->
+                    Box(
+                        modifier = Modifier
+                            .width(26.dp)
+                            .height(cellStride),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        if (label.isNotEmpty()) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 8.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
-        ) {
-            val paddingLeft = 100f
-            val paddingRight = 40f
-            val paddingTop = 40f
-            val paddingBottom = if (showDayLabels) 80f else 24f
-            val graphWidth = size.width - paddingLeft - paddingRight
-            val graphHeight = size.height - paddingTop - paddingBottom
-            val barCount = values.size
-            val barWidth = (graphWidth / barCount * 0.6f).coerceIn(8f, 100f)
-            val stepX = graphWidth / barCount.coerceAtLeast(1)
-            val maxVal = values.maxOf { it.second }.toFloat().coerceAtLeast(1f) * 1.1f
-
-            val gridCount = 3
-            for (i in 0..gridCount) {
-                val ratio = i.toFloat() / gridCount
-                val y = paddingTop + graphHeight * (1f - ratio)
-                drawLine(
-                    color = gridColor,
-                    start = Offset(paddingLeft, y),
-                    end = Offset(size.width - paddingRight, y),
-                    strokeWidth = 2f
-                )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = (maxVal * ratio).toInt().toString(),
-                    topLeft = Offset(10f, y - 20f),
-                    style = TextStyle(color = textColor, fontSize = 10.sp)
-                )
             }
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .width(canvasWidth)
+                        .height(canvasHeight)
+                        .semantics {
+                            contentDescription = "Calories burned contribution calendar"
+                            stateDescription = selectedDay?.let {
+                                "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
+                                    "${it.calories} calories burned"
+                            } ?: "No day selected"
+                            customActions = accessibilityActions
+                        }
+                        .pointerInput(grid.cells, selectedDate) {
+                            detectTapGestures { tap ->
+                                val localY = tap.y - monthLabelHeightPx
+                                if (tap.x < 0f || localY < 0f) return@detectTapGestures
+                                val week = (tap.x / cellStridePx).toInt()
+                                val weekday = (localY / cellStridePx).toInt()
+                                if (week !in 0 until grid.weekCount || weekday !in 0..6) {
+                                    return@detectTapGestures
+                                }
+                                grid.cells[week * 7 + weekday]?.let { day ->
+                                    selectedDate = if (selectedDate == day.date) null else day.date
+                                }
+                            }
+                        }
+                ) {
+                    grid.monthLabels.forEach { month ->
+                        val measured = textMeasurer.measure(month.label, monthLabelStyle)
+                        drawText(
+                            textLayoutResult = measured,
+                            topLeft = Offset(month.weekIndex * cellStridePx, 0f)
+                        )
+                    }
+                    grid.cells.forEachIndexed { index, day ->
+                        day ?: return@forEachIndexed
+                        val week = index / 7
+                        val weekday = index % 7
+                        val topLeft = Offset(
+                            x = week * cellStridePx,
+                            y = monthLabelHeightPx + weekday * cellStridePx
+                        )
+                        drawRoundRect(
+                            color = heatColors[day.level],
+                            topLeft = topLeft,
+                            size = Size(cellSizePx, cellSizePx),
+                            cornerRadius = CornerRadius(cornerRadiusPx)
+                        )
+                        if (day.date == selectedDate) {
+                            drawRoundRect(
+                                color = colorScheme.onSurface,
+                                topLeft = topLeft,
+                                size = Size(cellSizePx, cellSizePx),
+                                cornerRadius = CornerRadius(cornerRadiusPx),
+                                style = Stroke(width = selectedStrokePx)
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
-            values.forEachIndexed { idx, entry ->
-                val centerX = paddingLeft + idx * stepX + stepX / 2
-                val barHeight = (entry.second / maxVal) * graphHeight
-                val top = paddingTop + graphHeight - barHeight
-                val isSelected = idx == selectedIndex
-                drawRect(
-                    color = if (isSelected) tooltipBgColor else barColor,
-                    topLeft = Offset(centerX - barWidth / 2, top),
-                    size = Size(barWidth, barHeight)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    liveRegion = LiveRegionMode.Polite
+                    contentDescription = selectedDay?.let {
+                        "${DateUtils.displayDateSubtitle(it.date)}, ${it.calories} calories burned"
+                    } ?: "No heatmap day selected"
+                },
+            shape = RoundedCornerShape(10.dp),
+            color = baseColor
+        ) {
+            if (selectedDay == null) {
+                Text(
+                    text = "Swipe the calendar and tap a square for details",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colorScheme.onSurfaceVariant
                 )
-                if (showDayLabels) {
-                    val dateLabel = entry.first
-                    val labelLayout = textMeasurer.measure(dateLabel)
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = dateLabel,
-                        topLeft = Offset(
-                            centerX - labelLayout.size.width / 2,
-                            size.height - paddingBottom + 15f
-                        ),
-                        style = TextStyle(color = textColor, fontSize = 10.sp)
+            } else {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = DateUtils.displayDateSubtitle(selectedDay.date),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${selectedDay.calories} kcal",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
+        }
 
-            if (selectedIndex in values.indices) {
-                val entry = values[selectedIndex]
-                val centerX = paddingLeft + selectedIndex * stepX + stepX / 2
-                val barHeight = (entry.second / maxVal) * graphHeight
-                val top = paddingTop + graphHeight - barHeight
-                val tooltipText = "${entry.first}: ${entry.second}$unit"
-                val layout = textMeasurer.measure(tooltipText)
-                val textWidth = layout.size.width
-                val tooltipX = (centerX - textWidth / 2)
-                    .coerceIn(paddingLeft, size.width - paddingRight - textWidth)
-                val tooltipY = min(top - 60f, graphHeight)
-                drawRect(
-                    color = tooltipBgColor,
-                    topLeft = Offset(tooltipX - 10f, tooltipY),
-                    size = Size(textWidth + 20f, 44f)
-                )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = tooltipText,
-                    topLeft = Offset(tooltipX, tooltipY + 12f),
-                    style = TextStyle(color = tooltipTextColor, fontSize = 11.sp)
+        Row(
+            modifier = Modifier.align(Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Less",
+                style = MaterialTheme.typography.labelSmall,
+                color = colorScheme.onSurfaceVariant
+            )
+            heatColors.forEach { color ->
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(color)
                 )
             }
+            Text(
+                text = "More",
+                style = MaterialTheme.typography.labelSmall,
+                color = colorScheme.onSurfaceVariant
+            )
         }
     }
 }

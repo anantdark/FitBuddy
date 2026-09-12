@@ -8,13 +8,15 @@ Features:
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc
 • Editable workouts — structured sessions, AI session names, upgrade simple logs
 • Presets — searchable saved foods and meals; recently used on top; one-tap log
-• Barcode scan — look up packaged foods; save to library or log straight to today
+• Barcode scan — look up packaged foods; save or log them, and contribute missing products through Open Food Facts
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
-• Analytics — custom charts; rolling 30-day progress window
+• Body goals — calculate adult calorie and macro targets on-device with transparent Mifflin–St Jeor/TDEE estimates, quality-gated smart-scale trends, bounded AI-assisted personalization, activity guidance, BMI screening context, and goal milestones; AI can choose only between exact plans generated safely on-device
+• Analytics — weekly or rolling 30-day calorie intake vs target, target-weight body charts, and a compact GitHub-style six-month calorie-burn heatmap
 • Encrypted backups — AES-256-GCM; gzip; optional cloud with append-only chunks
 • Loading animations — choose Analyzing / Insights wait animations in Settings
 • Auto failover — rotates API keys and models on rate limits; stays on your preferred platform
 • Offline fallback — works without an AI key via built-in simulator
+• Developer support — Razorpay UPI/cards for India and GitHub Sponsors internationally
 • Material You — dynamic color theming on Android 12+
 • Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
 • Diagnostic log — optional AI connection log you can export from Settings for support (no meals, photos, or keys)
@@ -32,6 +34,7 @@ Privacy:
 • Crash reports (Sentry) are off by default on F-Droid builds; opt in under Settings
 • Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup
 • AI providers are contacted only when you choose to enable them
+• Razorpay, payment apps, and GitHub Sponsors open only when you choose them; the UPI QR is stored locally
 
 Updates on this F-Droid build are delivered by F-Droid. The GitHub update checker is disabled in this flavor.
 

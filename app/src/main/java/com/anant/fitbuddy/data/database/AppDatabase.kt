@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -152,7 +152,12 @@ abstract class AppDatabase : RoomDatabase() {
                     // Version 11 is the first production-shipped schema; any upgrade from v11+
                     // must provide an explicit Migration object so user data is never silently
                     // wiped on an app update.
-                    .addMigrations(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(
+                        MIGRATION_11_12,
+                        MIGRATION_12_13,
+                        MIGRATION_13_14,
+                        MIGRATION_14_15
+                    )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
                 INSTANCE = instance
@@ -168,6 +173,11 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL(
                 "ALTER TABLE body_measurements ADD COLUMN freescalePayloadJson TEXT"
             )
+        }
+
+        /** Adds the optional AI-recommended or manually entered target body weight. */
+        val MIGRATION_14_15 = migration(14, 15) { db ->
+            db.execSQL("ALTER TABLE user_profile ADD COLUMN targetWeightKg REAL")
         }
 
         /**

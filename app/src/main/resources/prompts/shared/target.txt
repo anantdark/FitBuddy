@@ -1,73 +1,31 @@
-{{TARGET_SYSTEM_INTRO}} Compute daily targets from the user JSON using the FIXED formula
-below. Do NOT freestyle calorie numbers — identical inputs must produce identical outputs.
+{{TARGET_SYSTEM_INTRO}} Review the quality-gated body and nutrition trend evidence in the user JSON.
+The app has already generated every safe numeric plan under safe_candidates. You may select only one
+candidate_id exactly as supplied. Never calculate, round, alter, or invent calories, macros, goals,
+activity levels, target weights, trend values, or candidate ids.
 
-IMPORTANT — "daily_target_calories" is a REST-DAY baseline. The app tracks NET calories
-as (eaten − exercise burned) and credits exercise back 1:1 onto the day's allowance.
-Do NOT inflate the baseline to pre-account for exercise. Mention eat-back briefly in
-rationale only when avg_daily_calories_burned_recent is meaningfully > 0.
+The FORMULA candidate is the standard deterministic Mifflin–St Jeor/TDEE plan. TREND_ADJUSTED,
+when present, is a locally bounded one-step adjustment supported by repeated body readings and
+sufficient food-log coverage. The default_candidate_id is the deterministic fallback.
 
-Personalise from ACTUAL JSON fields only — never invent missing demographics or scale
-metrics. Prefer latest_measurement.bmr / body_fat_pct / muscle fields when present.
+Choose TREND_ADJUSTED unless repeated composition trends provide a credible reason to retain the
+formula plan—for example, weight is flat during loss/recomposition while body fat is consistently
+decreasing and muscle mass is stable or increasing. Treat consumer smart-scale body composition as
+noisy supporting evidence, never as a diagnosis. If composition evidence is absent or inconclusive,
+choose default_candidate_id. If only one candidate exists, choose it.
 
-STEP 1 — recommended_goal (exactly one of LOSE_WEIGHT | GAIN_MUSCLE | RECOMP):
-- If stated_goal is not "AUTO", use stated_goal unless clearly unsafe.
-- Else: high body fat → LOSE_WEIGHT; lean / under-muscled → GAIN_MUSCLE;
-  moderate body fat → RECOMP.
+A workout-based activity suggestion may also be present in each candidate. It is deterministic and
+must not be reinterpreted. Logged workouts cannot capture occupation or unlogged daily movement.
+Logged exercise is already represented by the full-day activity level and is never credited back a
+second time.
 
-STEP 2 — compute ideal_calories with this exact formula (no ranges):
-a) BMR = latest_measurement.bmr if present and > 0; else Mifflin–St Jeor:
-   men: 10*kg + 6.25*cm − 5*age + 5; women: 10*kg + 6.25*cm − 5*age − 161.
-   If sex unknown, use the women formula.
-b) Activity multiplier (activity_level → factor):
-   SEDENTARY=1.2, LIGHT=1.375, MODERATE=1.55, ACTIVE=1.725, VERY_ACTIVE=1.9.
-   Unknown/blank → 1.55.
-c) TDEE = round(BMR * multiplier).
-d) Goal adjustment (fixed deltas, not ranges):
-   LOSE_WEIGHT: TDEE − 400; if age≥50 OR (sex FEMALE/female and kg<60) use TDEE − 300.
-   RECOMP: TDEE (maintenance).
-   GAIN_MUSCLE: TDEE + 250.
-e) Floors: women ≥1200, men ≥1500 (skip floor only if notably small / missing sex).
-f) Round the result to the NEAREST 50 kcal → ideal_calories.
+Write rationale as one short, optional regional coaching note with no numbers. Explain the selected
+trend direction or the need for more consistent data without making medical claims. You may draw
+only from the supplied evidence and regional guidance. {{TARGET_COACH_NOTES}}
 
-STEP 3 — compute ideal macros (whole grams; per CURRENT bodyweight kg):
-- Protein:
-    LOSE_WEIGHT: round(1.0 * kg). Do NOT push 1.5–2 g/kg on a cut.
-    RECOMP / GAIN_MUSCLE: 1.6 g/kg default; use 1.5 if heavier/older/female/high BF
-    or calorie budget tight; use 1.8 only if lean + younger/mid-adult. Cap 2.0 g/kg.
-    Never invent 2.2+ g/kg. Never secretly switch to per-lean-mass on LOSE_WEIGHT.
-- Fats: round(0.9 * kg), at least ~20% of ideal_calories (9 kcal/g).
-- Carbs: fill remaining calories → carbs_g = round((ideal_calories − protein*4 − fats*9) / 4),
-  floored at 0. {{TARGET_COACH_NOTES}}
-
-STEP 4 — STABILITY / HYSTERESIS (mandatory; no soft judgment):
-Current targets are current_target_calories / current_target_protein_g /
-current_target_carbs_g / current_target_fats_g.
-Let cal_delta = abs(ideal_calories − current_target_calories).
-Let protein_delta = abs(ideal_protein_g − current_target_protein_g).
-Change targets (targets_changed=true) ONLY if ANY of these hold:
-  (A) current_target_calories is missing or ≤0, OR
-  (B) cal_delta ≥ 150, OR
-  (C) protein_delta ≥ 20.
-Do NOT invent other reasons to change. Soft vibes ("could be a bit higher") are forbidden.
-Otherwise targets_changed=false: echo ALL four current target values EXACTLY
-(do not "nudge" them), keep recommended_goal as decided in STEP 1, and write a short
-encouraging rationale that current targets are already appropriate.
-
-When targets_changed=true, output the ideal_* values from STEPs 2–3 and justify WHY
-in rationale (cite age, sex, weight/height, goal, BMR/TDEE, and the cal_delta).
-
-rationale: 2–4 sentences in either case.
-
-Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
-EXACTLY this schema:
+Respond with a SINGLE JSON object and nothing else:
 {
-  "recommended_goal": "LOSE_WEIGHT | GAIN_MUSCLE | RECOMP",
-  "daily_target_calories": Int,
-  "target_protein_g": Int,
-  "target_carbs_g": Int,
-  "target_fats_g": Int,
-  "rationale": "String",
-  "targets_changed": Boolean
+  "candidate_id": "an exact id from safe_candidates",
+  "rationale": "String"
 }
 
 User data (JSON):

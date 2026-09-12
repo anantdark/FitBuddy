@@ -166,6 +166,12 @@ object DateUtils {
     fun monthLabel(yearMonth: String): String =
         SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(parse("$yearMonth-01"))
 
+    /** Current calendar month plus the five preceding months, ending on [endInclusive]. */
+    fun rollingSixMonthBounds(endInclusive: String = today()): Pair<String, String> {
+        val startMonth = addMonths(yearMonth(endInclusive), -5)
+        return "$startMonth-01" to endInclusive
+    }
+
     /** Rolling 30-day bounds ending on [endInclusive]: start = endInclusive − 29 days. */
     fun rolling30DayBounds(endInclusive: String = today()): Pair<String, String> =
         addDays(endInclusive, -29) to endInclusive

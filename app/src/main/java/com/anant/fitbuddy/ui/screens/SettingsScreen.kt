@@ -830,8 +830,8 @@ fun SettingsScreen(
             )
             val profileValid = profileFirstName.trim().isNotEmpty() &&
                 profileLastName.trim().isNotEmpty() &&
-                (profileAge.toIntOrNull() ?: 0) in 10..120 &&
-                (profileHeight.toDoubleOrNull() ?: 0.0) in 50.0..280.0
+                (profileAge.toIntOrNull() ?: 0) in 18..120 &&
+                (profileHeight.toDoubleOrNull() ?: 0.0) in 100.0..250.0
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = profileValid,

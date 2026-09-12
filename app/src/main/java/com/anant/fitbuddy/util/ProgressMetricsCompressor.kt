@@ -30,16 +30,13 @@ object ProgressMetricsCompressor {
         appendLine()
         appendLine("goal=${context.optString("goal", "?")}")
         appendLine(
-            "targets=kcal${context.optInt("target_calories_rest_day_baseline")} " +
+            "targets=kcal${context.optInt("target_daily_calories")} " +
                 "p${context.optInt("target_protein_g")} " +
                 "c${context.optInt("target_carbs_g")} " +
                 "f${context.optInt("target_fats_g")}"
         )
-        context.optDouble("avg_daily_net_calories_recent").takeIf { !it.isNaN() }?.let {
-            appendLine("avg_net_kcal=${fmt(it)}")
-        }
-        context.optDouble("avg_exercise_calorie_eat_back_ratio").takeIf { !it.isNaN() }?.let {
-            appendLine("exercise_eat_back_ratio=${fmt(it)}")
+        context.optDouble("avg_daily_calories_eaten_recent").takeIf { !it.isNaN() }?.let {
+            appendLine("avg_intake_kcal=${fmt(it)}")
         }
         appendLine("calorie_model=${context.optString("calorie_model_note").replace('\n', ' ')}")
         appendLine()

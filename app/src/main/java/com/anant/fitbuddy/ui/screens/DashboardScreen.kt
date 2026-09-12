@@ -224,7 +224,7 @@ private fun CalorieHeaderCard(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 HeaderStat("Eaten", state.consumedCalories)
-                HeaderStat("Burned", state.burnedCalories)
+                HeaderStat("Exercise", state.burnedCalories)
                 HeaderStat("Target", state.targetCalories)
             }
         }

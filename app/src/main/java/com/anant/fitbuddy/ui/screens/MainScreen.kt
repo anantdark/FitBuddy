@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MonitorWeight
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.zIndex
@@ -129,6 +129,7 @@ fun MainScreen(
     val monthlyFood by viewModel.monthlyFood.collectAsStateWithLifecycle()
     val weeklyExercise by viewModel.weeklyExercise.collectAsStateWithLifecycle()
     val monthlyExercise by viewModel.monthlyExercise.collectAsStateWithLifecycle()
+    val sixMonthExercise by viewModel.sixMonthExercise.collectAsStateWithLifecycle()
     val monthlyEndDate by viewModel.monthlyEndDate.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val regionPack = remember(settings.region) {
@@ -155,6 +156,20 @@ fun MainScreen(
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
 
+    val keepScreenAwake = analysisState.isLoading ||
+        analysisState.isReanalyzing ||
+        targetPlanState.isLoading ||
+        progressInsightState.isLoading
+    val rootView = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(rootView, keepScreenAwake) {
+        rootView.keepScreenOn = keepScreenAwake
+        onDispose { rootView.keepScreenOn = false }
+    }
+
+    var donationColorIndex by rememberSaveable {
+        mutableStateOf(initialDonationHeartColorIndex())
+    }
+    val currentDonationHeartColor = donationHeartColor(donationColorIndex)
     var selectedTab by rememberSaveable { mutableStateOf(Tab.DASHBOARD) }
     // Tabs are composed once on first visit and then kept alive (just hidden) so switching back
     // and forth is instant and doesn't lose scroll/animation/unsaved-edit state or re-run
@@ -169,10 +184,21 @@ fun MainScreen(
     LaunchedEffect(Unit) { viewModel.onDashboardLaunched() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    var awaitingInitialDonationStart by remember(lifecycleOwner) {
+        mutableStateOf(!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshToToday()
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    if (awaitingInitialDonationStart) {
+                        awaitingInitialDonationStart = false
+                    } else {
+                        donationColorIndex = nextDonationHeartColorIndex(donationColorIndex)
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> viewModel.refreshToToday()
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -180,6 +206,7 @@ fun MainScreen(
     }
 
     var showSettings by remember { mutableStateOf(false) }
+    var showDonationDialog by rememberSaveable { mutableStateOf(false) }
     var showProgressChat by remember { mutableStateOf(false) }
     var showWeekHistory by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }
@@ -199,6 +226,7 @@ fun MainScreen(
     var showBarcodeScan by remember { mutableStateOf(false) }
     var scanFlow by remember { mutableStateOf<ScanFlow?>(null) }
     var pendingProduct by remember { mutableStateOf<ScannedProduct?>(null) }
+    var unavailableBarcode by remember { mutableStateOf<String?>(null) }
     val mealItems = remember { mutableStateListOf<FoodEntryDraft>() }
     var mealBuilderInitial by remember { mutableStateOf<MealDraft?>(null) }
     var foodEditorTarget by remember { mutableStateOf(FoodEditorTarget.LOG_MEAL) }
@@ -488,18 +516,22 @@ fun MainScreen(
                             Text(dashboardGreeting(settings.displayFirstName))
                         },
                         actions = {
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                            }
+                            MainTopBarActions(
+                                donationColor = currentDonationHeartColor,
+                                onDonate = { showDonationDialog = true },
+                                onSettings = { showSettings = true },
+                            )
                         }
                     )
                 } else {
                     CenterAlignedTopAppBar(
                         title = { Text(selectedTab.label) },
                         actions = {
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                            }
+                            MainTopBarActions(
+                                donationColor = currentDonationHeartColor,
+                                onDonate = { showDonationDialog = true },
+                                onSettings = { showSettings = true },
+                            )
                         }
                     )
                 }
@@ -571,8 +603,10 @@ fun MainScreen(
                                 monthlyFood = monthlyFood,
                                 weeklyExercise = weeklyExercise,
                                 monthlyExercise = monthlyExercise,
+                                sixMonthExercise = sixMonthExercise,
                                 measurements = measurements,
                                 targetCalories = dashboardState.targetCalories,
+                                targetWeightKg = dashboardState.profile?.targetWeightKg,
                                 goal = dashboardState.profile?.goal ?: "RECOMP",
                                 monthlyEndDate = monthlyEndDate,
                                 realToday = realToday,
@@ -601,9 +635,10 @@ fun MainScreen(
                                 onRequestTargetPlan = viewModel::requestTargetPlan,
                                 onApplyTargetPlan = viewModel::applyTargetPlan,
                                 onDismissTargetPlan = viewModel::dismissTargetPlan,
-                                onScanSavedFood = {
-                                    scanFlow = ScanFlow.SAVE_FOOD
-                                    showBarcodeScan = true
+                                onBuildMeal = {
+                                    mealItems.clear()
+                                    mealBuilderInitial = null
+                                    showMealBuilder = true
                                 },
                                 onManageSavedFoods = { showSavedFoodManageSheet = true }
                             )
@@ -638,9 +673,11 @@ fun MainScreen(
                                 }
                             },
                             actions = {
-                                IconButton(onClick = { showSettings = true }) {
-                                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                                }
+                                MainTopBarActions(
+                                    donationColor = currentDonationHeartColor,
+                                    onDonate = { showDonationDialog = true },
+                                    onSettings = { showSettings = true },
+                                )
                             }
                         )
                     },
@@ -713,11 +750,10 @@ fun MainScreen(
                 showLogHub = false
                 showTextDialog = true
             },
-            onBuildMeal = {
+            onScanBarcode = {
                 showLogHub = false
-                mealItems.clear()
-                mealBuilderInitial = null
-                showMealBuilder = true
+                scanFlow = ScanFlow.SAVE_FOOD
+                showBarcodeScan = true
             },
             onLogSavedMeal = {
                 showLogHub = false
@@ -834,10 +870,17 @@ fun MainScreen(
             isLookingUp = barcodeLookupLoading,
             barcodeExample = regionPack.barcodeExample,
             onBarcode = { code ->
-                viewModel.lookupBarcode(code) { product ->
-                    showBarcodeScan = false
-                    pendingProduct = product
-                }
+                viewModel.lookupBarcode(
+                    barcode = code,
+                    onSuccess = { product ->
+                        showBarcodeScan = false
+                        pendingProduct = product
+                    },
+                    onProductUnavailable = {
+                        showBarcodeScan = false
+                        unavailableBarcode = it
+                    }
+                )
             },
             onDismiss = {
                 showBarcodeScan = false
@@ -845,6 +888,16 @@ fun MainScreen(
             },
             onCameraPermissionDenied = {
                 SystemToast.show(context, "Camera permission not allowed.")
+            }
+        )
+    }
+
+    unavailableBarcode?.let { barcode ->
+        OpenFoodFactsProductUnavailableDialog(
+            barcode = barcode,
+            onDismiss = {
+                unavailableBarcode = null
+                showBarcodeScan = true
             }
         )
     }
@@ -877,6 +930,13 @@ fun MainScreen(
                 pendingProduct = null
                 scanFlow = null
             }
+        )
+    }
+
+    if (showDonationDialog) {
+        DonationDialog(
+            heartColor = currentDonationHeartColor,
+            onDismiss = { showDonationDialog = false },
         )
     }
 
@@ -1329,6 +1389,40 @@ fun MainScreen(
             viewModel.beginExportBackupAndUpdate(context, downloadUrl)
         },
         onSkipBackupAndUpdate = ::startUpdateDownload
+    )
+}
+
+private const val OPEN_FOOD_FACTS_APP_URL =
+    "https://world.openfoodfacts.org/open-food-facts-mobile-app"
+
+@Composable
+private fun OpenFoodFactsProductUnavailableDialog(
+    barcode: String,
+    onDismiss: () -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.ErrorOutline, contentDescription = null) },
+        title = { Text("Product not found") },
+        text = {
+            Text(
+                "Barcode $barcode was read, but Open Food Facts has no usable product or " +
+                    "nutrition data for it. Install Open Food Facts and add this product to " +
+                    "its public database, then scan it again here."
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDismiss()
+                    uriHandler.openUri(OPEN_FOOD_FACTS_APP_URL)
+                }
+            ) { Text("Install & add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Keep scanning") }
+        }
     )
 }
 

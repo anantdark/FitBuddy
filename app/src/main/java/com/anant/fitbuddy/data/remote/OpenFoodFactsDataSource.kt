@@ -2,6 +2,11 @@ package com.anant.fitbuddy.data.remote
 
 import com.anant.fitbuddy.data.model.ScannedProduct
 import kotlin.math.roundToInt
+import retrofit2.HttpException
+
+class OpenFoodFactsProductUnavailableException(
+    val barcode: String
+) : IllegalStateException("No usable Open Food Facts data for barcode $barcode")
 
 class OpenFoodFactsDataSource(
     private val api: OpenFoodFactsApi
@@ -11,11 +16,17 @@ class OpenFoodFactsDataSource(
         require(code.isNotBlank()) { "Invalid barcode" }
 
         val http = api.getProduct(code, OpenFoodFactsApi.FIELDS)
-        // OFF returns HTTP 404 (JSON body) for unknown codes. Using Response<> avoids Retrofit's
-        // bare "HTTP 404" HttpException so we can say which barcode failed.
+        if (http.code() == 404) {
+            throw OpenFoodFactsProductUnavailableException(code)
+        }
+        if (!http.isSuccessful) {
+            throw HttpException(http)
+        }
+
         val response = http.body()
-        if (!http.isSuccessful || response == null || response.status != 1 || response.product == null) {
-            throw IllegalStateException("No Open Food Facts product for barcode $code")
+            ?: throw IllegalStateException("Open Food Facts returned an empty response")
+        if (response.status != 1 || response.product == null) {
+            throw OpenFoodFactsProductUnavailableException(code)
         }
 
         val product = response.product
@@ -26,10 +37,10 @@ class OpenFoodFactsDataSource(
 
         val servingGrams = parseServingGrams(product.servingSize)
         val nutriments = product.nutriments
-            ?: throw IllegalStateException("No nutrition data for barcode $code")
+            ?: throw OpenFoodFactsProductUnavailableException(code)
 
         val calories = pickNutrient(nutriments.energyKcalServing, nutriments.energyKcal100g, servingGrams)
-            ?: throw IllegalStateException("No calorie info for barcode $code")
+            ?: throw OpenFoodFactsProductUnavailableException(code)
         val protein = pickNutrient(nutriments.proteinsServing, nutriments.proteins100g, servingGrams) ?: 0.0
         val carbs = pickNutrient(nutriments.carbsServing, nutriments.carbs100g, servingGrams) ?: 0.0
         val fats = pickNutrient(nutriments.fatServing, nutriments.fat100g, servingGrams) ?: 0.0
@@ -46,8 +57,8 @@ class OpenFoodFactsDataSource(
     }
 
     private fun pickNutrient(perServing: Double?, per100g: Double?, servingGrams: Int?): Double? {
-        perServing?.takeIf { it > 0 }?.let { return it }
-        val per100 = per100g?.takeIf { it > 0 } ?: return null
+        perServing?.takeIf { it >= 0 }?.let { return it }
+        val per100 = per100g?.takeIf { it >= 0 } ?: return null
         val grams = servingGrams?.takeIf { it > 0 } ?: 100
         return per100 * grams / 100.0
     }

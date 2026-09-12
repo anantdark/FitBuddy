@@ -5,6 +5,6 @@ enum class LoadingAnimationSlot {
     /** Wide dashboard banner while AI analyses a photo or text log. */
     ANALYZING,
 
-    /** Compact fill inside Generate insight / Recommend with AI buttons. */
+    /** Compact fill inside Generate insight / Calculate targets buttons. */
     INSIGHT,
 }

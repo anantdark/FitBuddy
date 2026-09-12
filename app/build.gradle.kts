@@ -178,6 +178,14 @@ android {
     }
 }
 
+// Core 1.16+ maps system bars to a platform method missing on base Android 14.
+configurations.configureEach {
+    resolutionStrategy.force(
+        "androidx.core:core:${libs.versions.coreKtx.get()}",
+        "androidx.core:core-ktx:${libs.versions.coreKtx.get()}"
+    )
+}
+
 // Release APK: FitBuddy-<versionName>.apk (not app-release.apk). Read per-variant so the
 // fdroid flavor's fixed versionName is used instead of the github flavor's CI-injected one.
 val fallbackApkVersionName = ciVersionName ?: "3.0.0-dev"

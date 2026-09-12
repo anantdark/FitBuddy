@@ -34,6 +34,7 @@ import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -263,6 +264,10 @@ private fun BarcodeCameraPreview(
     val lifecycleOwner = LocalLifecycleOwner.current
     val onBarcodeState by rememberUpdatedState(onBarcode)
     val enabledState by rememberUpdatedState(enabled)
+    val delivered = remember { AtomicBoolean(false) }
+    LaunchedEffect(enabled) {
+        if (enabled) delivered.set(false)
+    }
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -272,7 +277,6 @@ private fun BarcodeCameraPreview(
 
     DisposableEffect(lifecycleOwner) {
         val executor = Executors.newSingleThreadExecutor()
-        val delivered = AtomicBoolean(false)
         val reader = BarcodeReader().apply {
             options.formats = setOf(
                 Format.EAN_13,
@@ -301,6 +305,8 @@ private fun BarcodeCameraPreview(
                     }
                     val results = imageProxy.use { reader.read(it) }
                     val code = results.firstOrNull()?.text
+                        ?.filter(Char::isDigit)
+                        ?.takeIf { it.isNotBlank() }
                     if (code != null && delivered.compareAndSet(false, true)) {
                         mainExecutor.execute { onBarcodeState(code) }
                     }

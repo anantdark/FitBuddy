@@ -19,12 +19,14 @@ data class UserProfile(
     val targetCarbsG: Int,
     val targetFatsG: Int,
     val lastUpdatedTimestamp: Long,
-    // Static-ish attributes used to personalise AI target design.
+    // Static-ish attributes used to calculate and explain health targets.
     val sex: String? = null, // "MALE" | "FEMALE" | null
     val goal: String = "RECOMP", // "LOSE_WEIGHT" | "GAIN_MUSCLE" | "RECOMP" | "AUTO"
     val activityLevel: String = "MODERATE", // "SEDENTARY" | "LIGHT" | "MODERATE" | "ACTIVE" | "VERY_ACTIVE"
-    // Latest AI rationale for the recommended goal/targets (shown in Profile).
-    val goalRationale: String? = null
+    // Latest rationale for the calculated goal/targets (shown in Body).
+    val goalRationale: String? = null,
+    // Optional AI-recommended or manually entered body-weight target.
+    val targetWeightKg: Double? = null
 ) {
     /** True once the user has completed first-run onboarding (age, height, weight). */
     fun hasBasicsConfigured(): Boolean = age > 0 && weightKg > 0 && heightCm > 0

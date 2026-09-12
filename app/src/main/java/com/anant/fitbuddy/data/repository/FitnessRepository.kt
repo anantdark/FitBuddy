@@ -72,6 +72,7 @@ import com.anant.fitbuddy.data.model.Macros
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
+import com.anant.fitbuddy.data.model.TargetPlanOptions
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
@@ -175,16 +176,28 @@ class FitnessRepository(
 
     // --- AI planning ------------------------------------------------------------------------
 
-    /** Asks the AI to recommend a goal + daily calorie/macro targets from the user's context. */
-    suspend fun designTargets(contextJson: String): TargetPlanResponse {
+    /** Lets AI select only among locally generated safe plans and add a nonnumeric coaching note. */
+    suspend fun designTargets(
+        contextJson: String,
+        options: TargetPlanOptions
+    ): TargetPlanResponse {
+        val fallback = options.defaultPlan
         val settings = settingsRepository.settings.first()
-        check(settings.isConfigured) {
-            "Connect an AI provider in Settings to get AI target recommendations."
-        }
-        val (result, _) = withAiFailover(settings) { s ->
-            remoteAiDataSource.designTargets(s, contextJson)
-        }
-        return result
+        if (!settings.isConfigured) return fallback
+
+        val decision = runCatching {
+            withAiFailover(settings) { configured ->
+                remoteAiDataSource.designTargets(configured, contextJson)
+            }.first
+        }.getOrNull() ?: return fallback
+
+        val selectedPlan = options.planFor(decision.candidateId) ?: return fallback
+        val coachingNote = decision.rationale.trim().takeIf { note ->
+            note.length in 20..300 && note.none(Char::isDigit)
+        } ?: return selectedPlan
+        return selectedPlan.copy(
+            rationale = "${selectedPlan.rationale} Coaching note: $coachingNote"
+        )
     }
 
     /** Asks the AI to summarise progress and give recommendations from compressed trend data. */

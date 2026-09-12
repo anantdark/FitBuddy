@@ -19,19 +19,29 @@ import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.model.ActivityLevelRecommendation
+import com.anant.fitbuddy.data.model.ActivityLevelRecommender
+import com.anant.fitbuddy.data.model.BodyTrendAnalyzer
+import com.anant.fitbuddy.data.model.BodyTrendEvidence
+import com.anant.fitbuddy.data.model.BodyTrendReading
 import com.anant.fitbuddy.data.model.CommonExercise
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.buildExercisePickerList
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.FoodEntryDraft
+import com.anant.fitbuddy.data.model.HealthTargetCalculator
+import com.anant.fitbuddy.data.model.HealthTargetInput
 import com.anant.fitbuddy.data.model.MealDraft
 import com.anant.fitbuddy.data.model.toSingleFoodMeal
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.ModelOption
+import com.anant.fitbuddy.data.model.NutritionTrendEvidence
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.ScannedProduct
+import com.anant.fitbuddy.data.model.TargetPlanOptions
+import com.anant.fitbuddy.data.model.TargetPlanPersonalizer
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.crash.CrashReporter
@@ -39,6 +49,7 @@ import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
+import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
@@ -56,6 +67,7 @@ import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -78,6 +90,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
@@ -98,19 +111,19 @@ data class DashboardUiState(
     val targetCarbs: Int get() = profile?.targetCarbsG ?: DEFAULT_TARGET_CARBS
     val targetFats: Int get() = profile?.targetFatsG ?: DEFAULT_TARGET_FATS
 
-    /** Net balance (Step 3): today's consumed calories minus today's burned calories. */
+    /** Exercise burn is shown separately; the TDEE-based target already includes average activity. */
     val netCalories: Int get() = consumedCalories - burnedCalories
-    val remainingCalories: Int get() = targetCalories - netCalories
+    val remainingCalories: Int get() = targetCalories - consumedCalories
 
     val remainingProtein: Int get() = (targetProtein - consumedProtein).coerceAtLeast(0)
     val remainingCarbs: Int get() = (targetCarbs - consumedCarbs).coerceAtLeast(0)
     val remainingFats: Int get() = (targetFats - consumedFats).coerceAtLeast(0)
 
-    /** 0f..1f fill of the calorie ring (net progress toward the daily target). */
+    /** 0f..1f fill of the calorie ring (food intake progress toward the daily target). */
     val calorieProgress: Float
-        get() = if (targetCalories <= 0) 0f else (netCalories.toFloat() / targetCalories).coerceIn(0f, 1f)
+        get() = if (targetCalories <= 0) 0f else (consumedCalories.toFloat() / targetCalories).coerceIn(0f, 1f)
 
-    val isOverTarget: Boolean get() = netCalories > targetCalories
+    val isOverTarget: Boolean get() = consumedCalories > targetCalories
 
     companion object {
         const val DEFAULT_TARGET_CALORIES = 2000
@@ -153,13 +166,23 @@ data class ModelsUiState(
 )
 
 
-/** State of the AI target-recommendation flow shown in Profile. */
+/** State of the science-based target calculation shown in Body. */
 @Immutable
 data class TargetPlanUiState(
     val isLoading: Boolean = false,
     val plan: TargetPlanResponse? = null,
     val error: String? = null
 )
+
+private fun targetWeightMatchesGoal(
+    targetWeightKg: Double,
+    currentWeightKg: Double,
+    goal: String
+): Boolean = when (goal.trim().uppercase()) {
+    "GAIN_MUSCLE" -> currentWeightKg <= 0.0 || targetWeightKg >= currentWeightKg
+    "LOSE_WEIGHT" -> currentWeightKg <= 0.0 || targetWeightKg <= currentWeightKg
+    else -> true
+}
 
 /** One message in the progress-coach follow-up chat. */
 @Immutable
@@ -231,6 +254,12 @@ data class UpdateUiState(
     /** Inline status under the update dialog backup actions. */
     val backupStatusMessage: String? = null,
     val backupStatusIsError: Boolean = false
+)
+
+private data class TargetPlanningContext(
+    val options: TargetPlanOptions,
+    val bodyTrend: BodyTrendEvidence,
+    val nutritionTrend: NutritionTrendEvidence
 )
 
 class MainViewModel(
@@ -1298,24 +1327,31 @@ class MainViewModel(
     private val _barcodeLookupLoading = MutableStateFlow(false)
     val barcodeLookupLoading: StateFlow<Boolean> = _barcodeLookupLoading.asStateFlow()
 
-    fun lookupBarcode(barcode: String, onSuccess: (ScannedProduct) -> Unit) {
+    fun lookupBarcode(
+        barcode: String,
+        onSuccess: (ScannedProduct) -> Unit,
+        onProductUnavailable: (String) -> Unit
+    ) {
         if (_barcodeLookupLoading.value) return
         _barcodeLookupLoading.value = true
         CrashReporter.breadcrumb("barcode", "lookup")
         viewModelScope.launch {
-            runCatching { repository.lookupProductByBarcode(barcode) }
-                .onSuccess(onSuccess)
-                .onFailure { e ->
-                    val code = barcode.filter { it.isDigit() }.ifBlank { barcode.trim() }
-                    _analysisState.update {
-                        it.copy(
-                            errorDialogTitle = "Product not found",
-                            errorDialogMessage = e.message
-                                ?: "No Open Food Facts match for $code"
-                        )
-                    }
+            try {
+                onSuccess(repository.lookupProductByBarcode(barcode))
+            } catch (e: OpenFoodFactsProductUnavailableException) {
+                onProductUnavailable(e.barcode)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _analysisState.update {
+                    it.copy(
+                        errorDialogTitle = "Couldn't look up product",
+                        errorDialogMessage = e.message ?: "Check your connection and try again."
+                    )
                 }
-            _barcodeLookupLoading.value = false
+            } finally {
+                _barcodeLookupLoading.value = false
+            }
         }
     }
 
@@ -1459,8 +1495,13 @@ class MainViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val weeklyExercise: StateFlow<List<ExerciseDailySummary>> =
-        repository.getWeeklyExerciseSummaries()
+        _realToday
+            .flatMapLatest { endDate ->
+                val dates = DateUtils.rollingWeekDates(endDate)
+                repository.getExerciseSummariesBetween(dates.first(), dates.last())
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1468,6 +1509,15 @@ class MainViewModel(
         _monthlyEndDate
             .flatMapLatest { endDate ->
                 val (start, end) = DateUtils.rolling30DayBounds(endDate)
+                repository.getExerciseSummariesBetween(start, end)
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val sixMonthExercise: StateFlow<List<ExerciseDailySummary>> =
+        _realToday
+            .flatMapLatest { endDate ->
+                val (start, end) = DateUtils.rollingSixMonthBounds(endDate)
                 repository.getExerciseSummariesBetween(start, end)
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -1725,15 +1775,14 @@ class MainViewModel(
         }.toString()
     }
 
-    // --- AI target design -------------------------------------------------------------------
+    // --- Health target calculation -----------------------------------------------------------
 
     private val _targetPlan = MutableStateFlow(TargetPlanUiState())
     val targetPlanState: StateFlow<TargetPlanUiState> = _targetPlan.asStateFlow()
 
     /**
-     * Requests an AI-recommended goal + calorie/macro targets. Takes the Profile screen's
-     * currently-displayed basics directly (rather than the persisted [dashboardState] profile)
-     * so a not-yet-saved edit is still used to personalise the recommendation.
+     * Calculates a goal + calorie/macro targets from the Body screen's currently displayed basics.
+     * An optional AI explanation uses the same unsaved values but cannot change the calculation.
      */
     fun requestTargetPlan(
         age: Int,
@@ -1746,50 +1795,132 @@ class MainViewModel(
         if (_targetPlan.value.isLoading) return
         _targetPlan.update { it.copy(isLoading = true, error = null, plan = null) }
         viewModelScope.launch {
-            val context = buildTargetContext(age, heightCm, weightKg, sex, activityLevel, goal)
-            runCatching { repository.designTargets(context) }
-                .onSuccess { plan -> _targetPlan.update { it.copy(isLoading = false, plan = plan) } }
+            runCatching {
+                val activityRecommendation = recentActivityRecommendation()
+                val planning = buildTargetPlanningContext(
+                    age = age,
+                    heightCm = heightCm,
+                    weightKg = weightKg,
+                    sex = sex,
+                    activityLevel = activityLevel,
+                    goal = goal,
+                    activityRecommendation = activityRecommendation,
+                    forceRecalculation = activityRecommendation?.level != null &&
+                        activityRecommendation.level != activityLevel
+                )
+                val context = buildTargetContext(
+                    age = age,
+                    heightCm = heightCm,
+                    weightKg = weightKg,
+                    sex = sex,
+                    activityLevel = activityLevel,
+                    goal = goal,
+                    planning = planning
+                )
+                repository.designTargets(context, planning.options)
+            }
+                .onSuccess { plan ->
+                    _targetPlan.update { it.copy(isLoading = false, plan = plan) }
+                }
                 .onFailure { e ->
                     _targetPlan.update {
-                        it.copy(isLoading = false, error = e.message ?: "Couldn't generate targets")
+                        it.copy(isLoading = false, error = e.message ?: "Couldn't calculate targets")
                     }
                 }
         }
     }
 
     /**
-     * Persists the AI-proposed goal + targets to the profile. [age]/[heightCm]/[weightKg]/[sex]/
-     * [activityLevel] are always taken from the Profile screen's current fields (never defaulted
-     * to zero/null) so applying a plan can never wipe out basics that haven't been saved yet.
+     * Persists the selected local plan. Declining a workout-based activity suggestion rebuilds the
+     * safe candidates against the retained activity before preserving the prior candidate choice.
      */
     fun applyTargetPlan(
         plan: TargetPlanResponse,
         age: Int,
         heightCm: Double,
         weightKg: Double,
+        targetWeightKg: Double?,
         sex: String?,
-        activityLevel: String
+        activityLevel: String,
+        acceptActivityRecommendation: Boolean
     ) {
         viewModelScope.launch {
+            val recommendedActivityDiffers = plan.recommendedActivityLevel?.let {
+                !it.equals(activityLevel, ignoreCase = true)
+            } == true
+            val appliedPlan = if (!acceptActivityRecommendation && recommendedActivityDiffers) {
+                val rebuilt = runCatching {
+                    buildTargetPlanningContext(
+                        age = age,
+                        heightCm = heightCm,
+                        weightKg = weightKg,
+                        sex = sex,
+                        activityLevel = activityLevel,
+                        goal = plan.recommendedGoal.ifBlank { "RECOMP" },
+                        forceRecalculation = true
+                    )
+                }.getOrNull()
+                rebuilt?.options?.planFor(plan.personalizationCandidateId)
+                    ?: rebuilt?.options?.defaultPlan
+                    ?: HealthTargetCalculator.calculate(
+                        targetInput(
+                            age = age,
+                            heightCm = heightCm,
+                            weightKg = weightKg,
+                            sex = sex,
+                            activityLevel = activityLevel,
+                            goal = plan.recommendedGoal.ifBlank { "RECOMP" },
+                            forceRecalculation = true
+                        )
+                    )
+            } else {
+                plan
+            }
+            val planGoal = appliedPlan.recommendedGoal.ifBlank { "RECOMP" }
+            val proposedTargetWeight = appliedPlan.targetWeightKg
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
+                ?: targetWeightKg
+                    ?.takeIf { it.isFinite() && it > 0.0 }
+                    ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
+            val existing = dashboardState.value.profile
+            val applyNutritionTargets = appliedPlan.targetsChanged
             repository.saveProfile(
                 UserProfile(
                     id = 1,
                     age = age,
                     weightKg = weightKg,
                     heightCm = heightCm,
-                    dailyTargetCalories = plan.dailyTargetCalories,
-                    targetProteinG = plan.targetProteinG,
-                    targetCarbsG = plan.targetCarbsG,
-                    targetFatsG = plan.targetFatsG,
+                    dailyTargetCalories = if (applyNutritionTargets) {
+                        appliedPlan.dailyTargetCalories
+                    } else {
+                        existing?.dailyTargetCalories ?: appliedPlan.dailyTargetCalories
+                    },
+                    targetProteinG = if (applyNutritionTargets) {
+                        appliedPlan.targetProteinG
+                    } else {
+                        existing?.targetProteinG ?: appliedPlan.targetProteinG
+                    },
+                    targetCarbsG = if (applyNutritionTargets) {
+                        appliedPlan.targetCarbsG
+                    } else {
+                        existing?.targetCarbsG ?: appliedPlan.targetCarbsG
+                    },
+                    targetFatsG = if (applyNutritionTargets) {
+                        appliedPlan.targetFatsG
+                    } else {
+                        existing?.targetFatsG ?: appliedPlan.targetFatsG
+                    },
                     lastUpdatedTimestamp = System.currentTimeMillis(),
                     sex = sex,
-                    goal = plan.recommendedGoal,
-                    activityLevel = activityLevel,
-                    goalRationale = plan.rationale
+                    goal = appliedPlan.recommendedGoal.ifBlank { existing?.goal ?: "RECOMP" },
+                    activityLevel = appliedPlan.recommendedActivityLevel ?: activityLevel,
+                    goalRationale = appliedPlan.rationale,
+                    targetWeightKg = proposedTargetWeight
                 )
             )
             _targetPlan.update { TargetPlanUiState() }
-            _analysisState.update { it.copy(userMessage = "AI targets applied") }
+            _analysisState.update { it.copy(userMessage = "Targets applied") }
         }
     }
 
@@ -2686,7 +2817,9 @@ class MainViewModel(
                 is AnalysisOutcome.FoodReady ->
                     state.copy(
                         isReanalyzing = false,
-                        foodDraft = outcome.draft,
+                        foodDraft = outcome.draft.copy(
+                            timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp
+                        ),
                         reviewMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
@@ -2895,6 +3028,9 @@ class MainViewModel(
         _onboardingSaving.value = true
         viewModelScope.launch {
             runCatching {
+                require(age in 18..120) { "FitBuddy's automated health targets are for adults 18+" }
+                require(heightCm in 100.0..250.0) { "Enter a valid height between 100 and 250 cm" }
+                require(weightKg in 25.0..400.0) { "Enter a valid weight between 25 and 400 kg" }
                 val current = settings.value
                 settingsRepository.save(
                     current.copy(
@@ -3023,7 +3159,8 @@ class MainViewModel(
                     sex = sex,
                     goal = existing?.goal ?: "RECOMP",
                     activityLevel = existing?.activityLevel ?: "MODERATE",
-                    goalRationale = existing?.goalRationale
+                    goalRationale = existing?.goalRationale,
+                    targetWeightKg = existing?.targetWeightKg
                 )
             )
             _analysisState.update { it.copy(userMessage = "Profile saved") }
@@ -3031,8 +3168,8 @@ class MainViewModel(
     }
 
     /**
-     * Called when the main UI becomes active after onboarding. Designs calorie/macro targets
-     * once via AI and applies them to the profile.
+     * Called when the main UI becomes active after onboarding. Calculates calorie/macro targets
+     * once on-device and optionally asks AI to personalize the explanation.
      */
     fun onDashboardLaunched() {
         if (!pendingInitialTargetDesign) return
@@ -3041,16 +3178,27 @@ class MainViewModel(
             val profile = repository.activeProfile
                 .mapNotNull { p -> p?.takeIf { it.hasBasicsConfigured() } }
                 .first()
-            _analysisState.update { it.copy(userMessage = "Calculating your calorie targets…") }
-            val context = buildTargetContext(
-                age = profile.age,
-                heightCm = profile.heightCm,
-                weightKg = profile.weightKg,
-                sex = profile.sex,
-                activityLevel = profile.activityLevel,
-                goal = profile.goal
-            )
-            runCatching { repository.designTargets(context) }
+            _analysisState.update { it.copy(userMessage = "Calculating your science-based targets…") }
+            runCatching {
+                val planning = buildTargetPlanningContext(
+                    age = profile.age,
+                    heightCm = profile.heightCm,
+                    weightKg = profile.weightKg,
+                    sex = profile.sex,
+                    activityLevel = profile.activityLevel,
+                    goal = profile.goal
+                )
+                val context = buildTargetContext(
+                    age = profile.age,
+                    heightCm = profile.heightCm,
+                    weightKg = profile.weightKg,
+                    sex = profile.sex,
+                    activityLevel = profile.activityLevel,
+                    goal = profile.goal,
+                    planning = planning
+                )
+                repository.designTargets(context, planning.options)
+            }
                 .onSuccess { plan ->
                     repository.saveProfile(
                         profile.copy(
@@ -3060,11 +3208,28 @@ class MainViewModel(
                             targetFatsG = plan.targetFatsG,
                             goal = plan.recommendedGoal.ifBlank { profile.goal },
                             goalRationale = plan.rationale,
+                            targetWeightKg = plan.targetWeightKg
+                                ?.takeIf { it.isFinite() && it > 0.0 }
+                                ?.takeIf {
+                                    targetWeightMatchesGoal(
+                                        it,
+                                        profile.weightKg,
+                                        plan.recommendedGoal.ifBlank { profile.goal }
+                                    )
+                                }
+                                ?: profile.targetWeightKg
+                                    ?.takeIf {
+                                        targetWeightMatchesGoal(
+                                            it,
+                                            profile.weightKg,
+                                            plan.recommendedGoal.ifBlank { profile.goal }
+                                        )
+                                    },
                             lastUpdatedTimestamp = System.currentTimeMillis()
                         )
                     )
                     _analysisState.update {
-                        it.copy(userMessage = "Your personalized targets are ready")
+                        it.copy(userMessage = "Your science-based targets are ready")
                     }
                 }
                 .onFailure { e ->
@@ -3121,6 +3286,7 @@ class MainViewModel(
 
     fun saveProfile(
         weightKg: Double,
+        targetWeightKg: Double?,
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
@@ -3128,6 +3294,9 @@ class MainViewModel(
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
+        val validTargetWeight = targetWeightKg
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?.takeIf { targetWeightMatchesGoal(it, weightKg, goal) }
         viewModelScope.launch {
             val existing = dashboardState.value.profile
             repository.saveProfile(
@@ -3145,7 +3314,8 @@ class MainViewModel(
                     goal = goal,
                     activityLevel = activityLevel,
                     // Preserve the latest AI rationale across manual edits.
-                    goalRationale = existing?.goalRationale
+                    goalRationale = existing?.goalRationale,
+                    targetWeightKg = validTargetWeight
                 )
             )
             _analysisState.update { it.copy(userMessage = "Body saved · dashboard recalibrated") }
@@ -3178,47 +3348,191 @@ class MainViewModel(
         }.toString()
     }
 
-    /**
-     * Profile basics (as currently shown on screen, not necessarily saved yet) + latest body
-     * composition + recent trends, for AI target design.
-     */
+    private suspend fun recentActivityRecommendation(): ActivityLevelRecommendation? {
+        val endDate = _realToday.value.ifBlank { DateUtils.today() }
+        val startDate = DateUtils.addDays(endDate, -(ACTIVITY_RECOMMENDATION_DAYS - 1))
+        val summaries = repository.getExerciseSummariesBetween(startDate, endDate).first()
+        return ActivityLevelRecommender.recommend(
+            windowDays = ACTIVITY_RECOMMENDATION_DAYS,
+            workoutDays = summaries.size,
+            workoutCount = summaries.sumOf { it.workoutCount },
+            totalDurationMinutes = summaries.sumOf { it.totalDurationMinutes }
+        )
+    }
+
+    private suspend fun recentBodyTrend(): BodyTrendEvidence {
+        val today = LocalDate.parse(_realToday.value.ifBlank { DateUtils.today() })
+        val readings = repository.getAllBodyMeasurementsOnce().mapNotNull { measurement ->
+            runCatching {
+                BodyTrendReading(
+                    epochDay = LocalDate.parse(measurement.dateString).toEpochDay(),
+                    weightKg = measurement.weightKg,
+                    bodyFatPct = measurement.bodyFatPct,
+                    muscleMassKg = measurement.muscleMassKg
+                )
+            }.getOrNull()
+        }
+        return BodyTrendAnalyzer.analyze(readings, today.toEpochDay())
+    }
+
+    private suspend fun recentNutritionTrend(): NutritionTrendEvidence {
+        val today = _realToday.value.ifBlank { DateUtils.today() }
+        val endDate = DateUtils.addDays(today, -1)
+        val startDate = DateUtils.addDays(endDate, -(TARGET_NUTRITION_WINDOW_DAYS - 1))
+        val summaries = repository.getFoodSummariesBetween(startDate, endDate).first()
+        return NutritionTrendEvidence(
+            windowDays = TARGET_NUTRITION_WINDOW_DAYS,
+            loggedDays = summaries.size,
+            averageCalories = summaries.takeIf { it.isNotEmpty() }
+                ?.map { it.totalCalories }
+                ?.average()
+                ?.roundToInt()
+        )
+    }
+
+    private suspend fun buildTargetPlanningContext(
+        age: Int,
+        heightCm: Double,
+        weightKg: Double,
+        sex: String?,
+        activityLevel: String,
+        goal: String,
+        activityRecommendation: ActivityLevelRecommendation? = null,
+        forceRecalculation: Boolean = false
+    ): TargetPlanningContext {
+        val effectiveActivityLevel = activityRecommendation?.level ?: activityLevel
+        val input = targetInput(
+            age = age,
+            heightCm = heightCm,
+            weightKg = weightKg,
+            sex = sex,
+            activityLevel = effectiveActivityLevel,
+            goal = goal,
+            forceRecalculation = forceRecalculation
+        )
+        val basePlan = HealthTargetCalculator.calculate(input)
+            .withActivityRecommendation(activityRecommendation)
+        val bodyTrend = recentBodyTrend()
+        val nutritionTrend = recentNutritionTrend()
+        return TargetPlanningContext(
+            options = TargetPlanPersonalizer.buildOptions(
+                basePlan = basePlan,
+                input = input,
+                bodyTrend = bodyTrend,
+                nutritionTrend = nutritionTrend
+            ),
+            bodyTrend = bodyTrend,
+            nutritionTrend = nutritionTrend
+        )
+    }
+
+    private fun TargetPlanResponse.withActivityRecommendation(
+        recommendation: ActivityLevelRecommendation?
+    ): TargetPlanResponse = copy(
+        recommendedActivityLevel = recommendation?.level,
+        activityWindowDays = recommendation?.windowDays,
+        activityWorkoutDays = recommendation?.workoutDays,
+        activityWorkoutCount = recommendation?.workoutCount,
+        activityWeeklyMinutes = recommendation?.weeklyMinutes
+    )
+
+    private fun targetInput(
+        age: Int,
+        heightCm: Double,
+        weightKg: Double,
+        sex: String?,
+        activityLevel: String,
+        goal: String,
+        forceRecalculation: Boolean
+    ): HealthTargetInput {
+        val current = dashboardState.value
+        val savedRationale = current.profile?.goalRationale
+        return HealthTargetInput(
+            age = age,
+            heightCm = heightCm,
+            weightKg = weightKg,
+            sex = sex,
+            activityLevel = activityLevel,
+            statedGoal = goal,
+            currentCalories = current.targetCalories,
+            currentProteinG = current.targetProtein,
+            currentCarbsG = current.targetCarbs,
+            currentFatsG = current.targetFats,
+            currentTargetsCalculated = !forceRecalculation &&
+                savedRationale?.startsWith("Evidence-based v") == true &&
+                savedRationale.contains("Trend-adjusted locally").not()
+        )
+    }
+
     private fun buildTargetContext(
         age: Int,
         heightCm: Double,
         weightKg: Double,
         sex: String?,
         activityLevel: String,
-        goal: String
-    ): String {
-        val measurements = bodyMeasurements.value
-        val latest = latestMeasurement.value
-        val food = weeklyFood.value
-        val exercise = weeklyExercise.value
+        goal: String,
+        planning: TargetPlanningContext
+    ): String = JSONObject().apply {
+        put("age", if (age > 0) age else JSONObject.NULL)
+        put("sex", sex ?: JSONObject.NULL)
+        put("height_cm", if (heightCm > 0) heightCm else JSONObject.NULL)
+        put("current_weight_kg", if (weightKg > 0) weightKg else JSONObject.NULL)
+        put("activity_level", activityLevel)
+        put("stated_goal", goal.ifBlank { "AUTO" })
+        put("current_target_calories", dashboardState.value.targetCalories)
+        put("current_target_protein_g", dashboardState.value.targetProtein)
+        put("body_trend", JSONObject().apply {
+            put("status", planning.bodyTrend.quality.name)
+            put("reason", planning.bodyTrend.reason)
+            put("window_days", planning.bodyTrend.windowDays)
+            put("measurement_days", planning.bodyTrend.sampleCount)
+            put("span_days", planning.bodyTrend.spanDays)
+            put("latest_age_days", planning.bodyTrend.latestAgeDays ?: JSONObject.NULL)
+            put("weight_change_kg", planning.bodyTrend.weightChangeKg ?: JSONObject.NULL)
+            put(
+                "weight_change_per_week_pct",
+                planning.bodyTrend.weightChangePerWeekPct ?: JSONObject.NULL
+            )
+            put(
+                "body_fat_change_percentage_points",
+                planning.bodyTrend.bodyFatChangePct ?: JSONObject.NULL
+            )
+            put(
+                "muscle_mass_change_kg",
+                planning.bodyTrend.muscleMassChangeKg ?: JSONObject.NULL
+            )
+        })
+        put("nutrition_coverage", JSONObject().apply {
+            put("window_days", planning.nutritionTrend.windowDays)
+            put("days_logged", planning.nutritionTrend.loggedDays)
+            put("average_calories", planning.nutritionTrend.averageCalories ?: JSONObject.NULL)
+            put("sufficient", planning.nutritionTrend.hasSufficientCoverage)
+        })
+        put("default_candidate_id", planning.options.defaultCandidateId)
+        put("safe_candidates", JSONArray().apply {
+            planning.options.candidates.forEach { candidate ->
+                put(targetCandidateJson(candidate.id, candidate.plan))
+            }
+        })
+    }.toString()
 
-        val avgIntake = food.takeIf { it.isNotEmpty() }?.map { it.totalCalories }?.average()
-        val avgBurned = exercise.takeIf { it.isNotEmpty() }?.map { it.totalBurned }?.average()
-        // Oldest-to-newest weight change across the stored readings.
-        val weightChange = measurements.takeIf { it.size >= 2 }?.let {
-            it.first().weightKg - it.last().weightKg
+    private fun targetCandidateJson(id: String, plan: TargetPlanResponse): JSONObject =
+        JSONObject().apply {
+            put("candidate_id", id)
+            put("recommended_goal", plan.recommendedGoal)
+            put("daily_target_calories", plan.dailyTargetCalories)
+            put("target_protein_g", plan.targetProteinG)
+            put("target_carbs_g", plan.targetCarbsG)
+            put("target_fats_g", plan.targetFatsG)
+            put("targets_changed", plan.targetsChanged)
+            put("target_weight_kg", plan.targetWeightKg ?: JSONObject.NULL)
+            put("recommended_activity_level", plan.recommendedActivityLevel ?: JSONObject.NULL)
+            put("activity_window_days", plan.activityWindowDays ?: JSONObject.NULL)
+            put("activity_workout_days", plan.activityWorkoutDays ?: JSONObject.NULL)
+            put("activity_workout_count", plan.activityWorkoutCount ?: JSONObject.NULL)
+            put("activity_weekly_minutes", plan.activityWeeklyMinutes ?: JSONObject.NULL)
+            put("trend_adjustment_calories", plan.bodyTrendAdjustmentCalories)
         }
-
-        return JSONObject().apply {
-            put("age", if (age > 0) age else JSONObject.NULL)
-            put("sex", sex ?: JSONObject.NULL)
-            put("height_cm", if (heightCm > 0) heightCm else JSONObject.NULL)
-            put("current_weight_kg", if (weightKg > 0) weightKg else JSONObject.NULL)
-            put("activity_level", activityLevel)
-            put("stated_goal", goal.ifBlank { "AUTO" })
-            put("latest_measurement", latest?.let(::measurementJson) ?: JSONObject.NULL)
-            put("weight_change_kg_recent", weightChange ?: JSONObject.NULL)
-            put("avg_daily_calories_in_recent", avgIntake ?: JSONObject.NULL)
-            put("avg_daily_calories_burned_recent", avgBurned ?: JSONObject.NULL)
-            put("current_target_calories", dashboardState.value.targetCalories)
-            put("current_target_protein_g", dashboardState.value.targetProtein)
-            put("current_target_carbs_g", dashboardState.value.targetCarbs)
-            put("current_target_fats_g", dashboardState.value.targetFats)
-        }.toString()
-    }
 
     /**
      * Body-composition series + nutrition/exercise trends for the AI progress insight.
@@ -3259,15 +3573,9 @@ class MainViewModel(
         val dailyExerciseSeries = buildExerciseSeries(recentExercise)
         val priorExerciseMonths = buildPriorMonthExerciseSeries(olderExercise)
 
-        val avgNet = recentFood.takeIf { it.isNotEmpty() }
-            ?.map { it.totalCalories - (burnedByDate[it.dateString] ?: 0) }
+        val avgIntake = recentFood.takeIf { it.isNotEmpty() }
+            ?.map { it.totalCalories }
             ?.average()
-        val eatBackRatio = recentExercise.sumOf { it.totalBurned }.takeIf { it > 0 }?.let { totalBurned ->
-            val avgIntakeOnExerciseDays = recentFood
-                .filter { (burnedByDate[it.dateString] ?: 0) > 0 }
-                .sumOf { it.totalCalories }
-            avgIntakeOnExerciseDays.toDouble() / totalBurned
-        }
 
         val firstName = settings.value.displayFirstName
         return JSONObject().apply {
@@ -3281,15 +3589,15 @@ class MainViewModel(
             put("weight_kg", profile?.weightKg?.takeIf { it > 0 } ?: JSONObject.NULL)
             put("activity_level", profile?.activityLevel ?: JSONObject.NULL)
             put("goal", profile?.goal ?: JSONObject.NULL)
-            put("target_calories_rest_day_baseline", dashboardState.value.targetCalories)
+            put("target_daily_calories", dashboardState.value.targetCalories)
             put("target_protein_g", dashboardState.value.targetProtein)
             put("target_carbs_g", dashboardState.value.targetCarbs)
             put("target_fats_g", dashboardState.value.targetFats)
             put(
                 "calorie_model_note",
-                "target_calories_rest_day_baseline is compared against NET calories " +
-                    "(calories eaten minus calories burned via exercise) each day, so exercise " +
-                    "calories are automatically credited back to that day's eating allowance."
+                "The daily target is a full-day TDEE estimate that already includes the selected " +
+                    "average activity level. Compare it directly with calories eaten; logged " +
+                    "exercise is tracked separately and is not credited back a second time."
             )
             put(
                 "metrics_granularity_note",
@@ -3299,8 +3607,7 @@ class MainViewModel(
                     "body_prior_months summarise older history as calendar-month averages " +
                     "(omit if empty)."
             )
-            put("avg_daily_net_calories_recent", avgNet ?: JSONObject.NULL)
-            put("avg_exercise_calorie_eat_back_ratio", eatBackRatio ?: JSONObject.NULL)
+            put("avg_daily_calories_eaten_recent", avgIntake ?: JSONObject.NULL)
             put("body_measurements", measurementSeries)
             put("body_prior_months", priorBodyMonths)
             put("nutrition_daily", dailyFoodSeries)
@@ -3434,6 +3741,8 @@ class MainViewModel(
     }
 
     companion object {
+        private const val ACTIVITY_RECOMMENDATION_DAYS = 28
+        private const val TARGET_NUTRITION_WINDOW_DAYS = 28
         /** Calendar days of day-level nutrition/exercise/body detail for AI insights. */
         private const val PROGRESS_DETAIL_DAYS = 30
     }

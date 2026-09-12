@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,7 +53,7 @@ fun LogHubSheet(
     onLogPhoto: () -> Unit,
     onLogGallery: () -> Unit,
     onLogText: () -> Unit,
-    onBuildMeal: () -> Unit,
+    onScanBarcode: () -> Unit,
     onLogSavedMeal: () -> Unit,
     onLogSavedFood: () -> Unit,
     onLogWorkout: () -> Unit
@@ -64,7 +64,7 @@ fun LogHubSheet(
         LogAction("photo", "Photo", "Snap a meal", Icons.Filled.CameraAlt, "Food", onLogPhoto),
         LogAction("gallery", "Gallery", "From photos", Icons.Filled.PhotoLibrary, "Food", onLogGallery),
         LogAction("text", "Describe", "Type it loosely", Icons.Filled.Edit, "Food", onLogText),
-        LogAction("meal", "Build meal", "Multiple foods", Icons.Filled.Restaurant, "Food", onBuildMeal),
+        LogAction("barcode", "Scan barcode", "Packaged food", Icons.Filled.QrCodeScanner, "Food", onScanBarcode),
         LogAction("savedMeal", "Saved meal", "One tap", Icons.Filled.Bookmark, "Food", onLogSavedMeal),
         LogAction("savedFood", "Saved food", "From library", Icons.Filled.RestaurantMenu, "Food", onLogSavedFood),
         LogAction("workout", "Workout", "Gym or cardio", Icons.Filled.FitnessCenter, "Activity", onLogWorkout)
