@@ -20,7 +20,7 @@ AI-powered health tracker for Android with region-aware diets and daily routines
 - **Editable workouts** — structured sessions with AI-suggested names; upgrade simple logs
 - **Presets** — bookmark meals for one-tap logging
 - **Dashboard** — daily calorie ring, food/exercise logs, macro breakdown
-- **Science-based body goals** — deterministic adult calorie/macronutrient estimates, understandable activity-level guidance, workout-history suggestions, and BMI screening context; [methodology and evidence](docs/health-target-methodology.md)
+- **Science-based body goals** — deterministic adult calorie/macronutrient estimates, quality-gated smart-scale trend personalization, bounded AI-assisted choices, activity guidance, and BMI screening context; [methodology and evidence](docs/health-target-methodology.md)
 - **Analytics** — custom Canvas charts; rolling 30-day “monthly” window
 - **Encrypted backups** — AES-256-GCM local export + cloud; gzip; append-only chunk chains
 - **Loading animations** — per-slot Analyzing / Insights choices in Settings

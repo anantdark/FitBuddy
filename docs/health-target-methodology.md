@@ -2,7 +2,7 @@
 
 Last evidence review: 2026-09-11
 
-FitBuddy calculates adult calorie and macronutrient targets deterministically on-device. An AI provider may rephrase the explanation for the user's region, but the app rejects an AI response unless every goal and numeric field exactly matches the local calculation.
+FitBuddy calculates all adult calorie and macronutrient candidates deterministically on-device. When repeated body and nutrition data are sufficient, the app may generate one bounded trend-adjusted alternative. A configured AI provider can select only between those exact local candidates and add a short regional coaching note; it cannot supply or alter target numbers. Without AI, the conservative local default is used.
 
 ## What the app estimates
 
@@ -41,13 +41,34 @@ The strict very-active threshold is evaluated first, followed by each lower leve
 
 This is a conservative workout-history suggestion, not a complete measurement of total energy expenditure. It cannot observe a physical job, walking and other daily movement, workout intensity, or unlogged exercise. Users should keep another level when it better represents their typical life, then reassess targets against their 2–4 week weight trend.
 
+### Repeated body-trend personalization
+
+FitBuddy never adjusts a target from one smart-scale reading. It reviews up to 42 recent calendar days, collapses multiple readings on the same day to their median, and uses a robust Theil–Sen slope so isolated values have less influence. Smart-scale readings and optional composition fields are not required: no readings or an insufficient history always retain the normal deterministic formula plan, while consistent weight-only history can still support cautious feedback. A numeric trend is considered usable only when all of these local quality gates pass:
+
+- at least 4 measurement days spanning at least 14 days;
+- the newest reading is no more than 10 days old;
+- no gap between measurement days exceeds 14 days;
+- weight residual variation remains within a small weight-relative tolerance.
+
+Body-fat and muscle-mass directions are included only as supporting evidence when each metric has at least 3 valid readings spanning 14 days, its newest value is no more than 10 days old, no gap exceeds 14 days, and residual variation is bounded. Consumer bioimpedance changes with hydration, meals, exercise, temperature, and device algorithms, so composition does not directly calculate calories and is never treated as a diagnosis.
+
+A calorie adjustment also requires food logs on at least 21 of the previous 28 days, with average logged intake within 10% or 150 kcal of the current target. This reduces the risk of changing the target when the apparent result is more likely explained by incomplete adherence data. When coverage is sufficient, the app may generate one locally calculated step of no more than 100 kcal/day:
+
+- loss: reduce by 100 kcal when weight is flat or increasing (at least −0.10%/week), or increase by 100 kcal when loss exceeds 1.00%/week;
+- muscle gain: increase by 100 kcal when gain is no more than 0.05%/week, or reduce by 100 kcal when gain reaches 0.50%/week;
+- recomposition: increase by 100 kcal when loss reaches 0.50%/week, or reduce by 100 kcal when gain reaches 0.50%/week.
+
+These thresholds are conservative FitBuddy feedback rules, not clinical diagnoses or claims that a particular weekly rate is universally optimal. Every request reconstructs the unadjusted formula baseline before creating a candidate, so repeated requests cannot stack the same feedback step. The adjusted calories are still subject to the 1,200 kcal floor, and macros are recalculated within the same adult distribution ranges.
+
+The app creates a formula candidate and, only when the gates support it, a trend-adjusted candidate. If AI is configured, it receives aggregated trend evidence—not authority to generate numbers—and may select only one exact candidate ID. It is instructed to retain the formula candidate when repeated body-composition trends credibly suggest favorable recomposition despite scale weight. Unknown IDs, malformed output, or provider failure fall back to the deterministic local default. Without AI, the trend-adjusted candidate is the conservative default when available. The proposal shows the sample count, span, trend, food-log coverage, composition support, and calorie step before the user applies it.
+
 Mifflin–St Jeor remains a practical general-adult starting equation, but individual errors can be material. A 2023 athlete meta-analysis found that equation performance varies by population and that athlete-specific or measured resting energy is preferable when available.
 
 ## Macronutrients
 
 Protein uses 1.2–1.6 g/kg according to goal and selected activity. At BMI 30 or above, dosing weight is capped at the weight corresponding to BMI 30 to avoid extreme protein targets from total body weight. Protein is then constrained to 10–30% of target energy. Fat is set near 25% of energy and carbohydrate fills the remainder, keeping the plan within the adult Acceptable Macronutrient Distribution Ranges: carbohydrate 45–65%, fat 20–35%, and protein 10–35%.
 
-The app keeps previously calculated targets stable unless calculated calories differ by at least 150 kcal or protein differs by at least 20 g. Placeholder, non-positive, energy-inconsistent, or out-of-range macro targets are recalculated instead of being preserved. Medical conditions, pregnancy, breastfeeding, eating-disorder history, elite sport, and prescribed diets require individualized professional advice.
+The app normally keeps previously calculated targets stable unless calculated calories differ by at least 150 kcal or protein differs by at least 20 g. A quality-gated trend recommendation is an explicit exception: it may propose one 100 kcal feedback step after sufficient repeated measurements and food-log coverage. Placeholder, non-positive, energy-inconsistent, or out-of-range macro targets are recalculated instead of being preserved. Medical conditions, pregnancy, breastfeeding, eating-disorder history, elite sport, and prescribed diets require individualized professional advice.
 
 ## Safety scope
 
@@ -55,7 +76,7 @@ Automated targets require age 18 or older. Child and adolescent energy and weigh
 
 ## Previous method and correction
 
-Previously, an LLM performed the arithmetic from prompt instructions, weight-loss protein was fixed at 1.0 g/kg, target weight could imply unsupported precision, and the app multiplied resting energy by a full activity factor while also subtracting logged exercise from food intake. The new method moves all arithmetic and safety bounds into Kotlin, raises goal/activity-aware protein into the evidence-supported adult range, treats BMI only as screening context, validates any AI echo, and removes exercise double counting.
+Previously, an LLM performed the arithmetic from prompt instructions, weight-loss protein was fixed at 1.0 g/kg, target weight could imply unsupported precision, and the app multiplied resting energy by a full activity factor while also subtracting logged exercise from food intake. The first deterministic method moved arithmetic and safety bounds into Kotlin, raised goal/activity-aware protein, treated BMI only as screening context, and removed exercise double counting. The current method adds robust repeated-reading feedback without restoring free-form AI arithmetic: AI can select only between exact bounded candidates produced and validated on-device.
 
 ## Evidence used
 

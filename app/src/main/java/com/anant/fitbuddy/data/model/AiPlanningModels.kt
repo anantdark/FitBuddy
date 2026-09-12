@@ -4,8 +4,8 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * Adult daily nutrition plan calculated on-device. AI can optionally personalize [rationale], but
- * [recommendedGoal], numeric targets, [targetsChanged], and [targetWeightKg] remain authoritative.
+ * Adult daily nutrition plan calculated on-device. AI may choose only between app-generated
+ * [TargetPlanCandidate] values and can add a coaching note; it never supplies target numbers.
  */
 @JsonClass(generateAdapter = true)
 data class TargetPlanResponse(
@@ -21,7 +21,48 @@ data class TargetPlanResponse(
     @Json(name = "activity_window_days") val activityWindowDays: Int? = null,
     @Json(name = "activity_workout_days") val activityWorkoutDays: Int? = null,
     @Json(name = "activity_workout_count") val activityWorkoutCount: Int? = null,
-    @Json(name = "activity_weekly_minutes") val activityWeeklyMinutes: Int? = null
+    @Json(name = "activity_weekly_minutes") val activityWeeklyMinutes: Int? = null,
+    @Json(name = "personalization_candidate_id") val personalizationCandidateId: String = "FORMULA",
+    @Json(name = "estimated_resting_calories") val estimatedRestingCalories: Int? = null,
+    @Json(name = "activity_factor") val activityFactor: Double? = null,
+    @Json(name = "estimated_maintenance_calories") val estimatedMaintenanceCalories: Int? = null,
+    @Json(name = "formula_target_calories") val formulaTargetCalories: Int? = null,
+    @Json(name = "goal_adjustment_calories") val goalAdjustmentCalories: Int? = null,
+    @Json(name = "body_trend_status") val bodyTrendStatus: String? = null,
+    @Json(name = "body_trend_reason") val bodyTrendReason: String? = null,
+    @Json(name = "body_trend_window_days") val bodyTrendWindowDays: Int? = null,
+    @Json(name = "body_trend_sample_count") val bodyTrendSampleCount: Int? = null,
+    @Json(name = "body_trend_span_days") val bodyTrendSpanDays: Int? = null,
+    @Json(name = "body_trend_weight_change_kg") val bodyTrendWeightChangeKg: Double? = null,
+    @Json(name = "body_trend_weekly_change_pct") val bodyTrendWeeklyChangePct: Double? = null,
+    @Json(name = "body_trend_body_fat_change_pct") val bodyTrendBodyFatChangePct: Double? = null,
+    @Json(name = "body_trend_muscle_mass_change_kg") val bodyTrendMuscleMassChangeKg: Double? = null,
+    @Json(name = "body_trend_food_days_logged") val bodyTrendFoodDaysLogged: Int? = null,
+    @Json(name = "body_trend_adjustment_calories") val bodyTrendAdjustmentCalories: Int = 0
+)
+
+data class TargetPlanCandidate(
+    val id: String,
+    val plan: TargetPlanResponse
+)
+
+data class TargetPlanOptions(
+    val candidates: List<TargetPlanCandidate>,
+    val defaultCandidateId: String
+) {
+    val defaultPlan: TargetPlanResponse
+        get() = candidates.firstOrNull { it.id == defaultCandidateId }?.plan
+            ?: candidates.first().plan
+
+    fun planFor(candidateId: String): TargetPlanResponse? =
+        candidates.firstOrNull { it.id == candidateId }?.plan
+}
+
+/** AI can select only an app-generated target candidate and provide a nonnumeric coaching note. */
+@JsonClass(generateAdapter = true)
+data class TargetPlanDecision(
+    @Json(name = "candidate_id") val candidateId: String,
+    @Json(name = "rationale") val rationale: String
 )
 
 /**

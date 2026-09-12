@@ -10,7 +10,7 @@ Features:
 • Presets — searchable saved foods and meals; recently used on top; one-tap log
 • Barcode scan — look up packaged foods; save to library or log straight to today
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
-• Body goals — calculate adult calorie and macro targets on-device with transparent Mifflin–St Jeor/TDEE estimates, clear activity-level definitions, optional 28-day workout-history activity suggestions, BMI screening context, and goal milestones; AI can explain but never changes the math
+• Body goals — calculate adult calorie and macro targets on-device with transparent Mifflin–St Jeor/TDEE estimates, quality-gated smart-scale trends, bounded AI-assisted personalization, activity guidance, BMI screening context, and goal milestones; AI can choose only between exact plans generated safely on-device
 • Analytics — weekly or rolling 30-day calorie intake vs target, target-weight body charts, and a rolling six-month calorie-burn heatmap
 • Encrypted backups — AES-256-GCM; gzip; optional cloud with append-only chunks
 • Loading animations — choose Analyzing / Insights wait animations in Settings

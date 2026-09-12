@@ -536,14 +536,15 @@ private fun DailyTargetsCard(
             } else {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Calculate science-based targets")
+                Text("Calculate personalized targets")
             }
         }
         Text(
             text = if (isAiConfigured) {
-                "Targets are calculated on device; AI only personalizes the explanation."
+                "Targets and safe trend adjustments are calculated on device; AI may choose " +
+                    "between those exact options and personalize the explanation."
             } else {
-                "Targets are calculated on device — no AI connection required."
+                "Targets and safe trend adjustments are calculated on device — no AI connection required."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -552,13 +553,32 @@ private fun DailyTargetsCard(
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         if (!rationale.isNullOrBlank()) {
+            val rationaleParts = splitPlanRationale(rationale)
             HorizontalDivider()
-            Text("How these were calculated", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             Text(
-                rationale,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "How these were calculated",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
             )
+            if (rationaleParts.localRationale.isNotBlank()) {
+                Text(
+                    rationaleParts.localRationale,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            rationaleParts.coachingNote?.let { coachingNote ->
+                Text(
+                    "AI coaching note",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    coachingNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -625,7 +645,20 @@ private fun TargetProposalDialog(
         ?.takeIf { ActivityLevels.definition(it) != null }
     val activityChanged = recommendedActivity != null &&
         !recommendedActivity.equals(currentActivityLevel, ignoreCase = true)
+    val activityUsed = recommendedActivity ?: currentActivityLevel
+    val activityUsedLabel = ActivityLevels.label(activityUsed)
+    val currentActivityLabel = ActivityLevels.label(currentActivityLevel)
     val canApply = plan.targetsChanged || proposedTargetWeight != null || activityChanged
+    val coachingNote = splitPlanRationale(plan.rationale).coachingNote
+    val restingCalories = plan.estimatedRestingCalories
+    val activityFactor = plan.activityFactor
+    val maintenanceCalories = plan.estimatedMaintenanceCalories
+    val formulaTarget = plan.formulaTargetCalories
+    val goalAdjustment = plan.goalAdjustmentCalories
+    val trendAdjustment = plan.bodyTrendAdjustmentCalories
+    val stabilityAdjustment = formulaTarget?.let {
+        plan.dailyTargetCalories - it - trendAdjustment
+    } ?: 0
     val title = when {
         plan.targetsChanged -> "Science-based recommendation"
         proposedTargetWeight != null && activityChanged -> "Health target recommendation"
@@ -633,46 +666,223 @@ private fun TargetProposalDialog(
         recommendedActivity != null -> "Activity recommendation"
         else -> "You're on track"
     }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (plan.targetsChanged) {
-                    Text("Suggested goal: $goalLabel", fontWeight = FontWeight.SemiBold)
-                    Text("${plan.dailyTargetCalories} kcal / day")
-                    Text("Protein ${plan.targetProteinG}g · Carbs ${plan.targetCarbsG}g · Fats ${plan.targetFatsG}g")
-                }
-                proposedTargetWeight?.let {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                RecommendationCard(title = "Daily plan") {
                     Text(
-                        "Target weight: ${String.format(java.util.Locale.US, "%.1f", it)} kg",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                recommendedActivity?.let { activityLevel ->
-                    Text(
-                        "Suggested activity: ${ActivityLevels.label(activityLevel)}",
-                        fontWeight = FontWeight.SemiBold
+                        text = "${plan.dailyTargetCalories} kcal/day",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "Based on the past ${plan.activityWindowDays ?: 28} days: " +
-                            "${plan.activityWorkoutDays ?: 0} workout days, " +
-                            "${plan.activityWorkoutCount ?: 0} sessions, about " +
-                            "${plan.activityWeeklyMinutes ?: 0} min/week.",
+                        text = goalLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Protein ${plan.targetProteinG} g  ·  " +
+                            "Carbs ${plan.targetCarbsG} g  ·  Fats ${plan.targetFatsG} g",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Text(
-                        "Logged workouts don't capture physical work, daily movement, or " +
-                            "unlogged exercise. Choose Use current if your existing level better " +
-                            "reflects your typical overall activity.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (!plan.targetsChanged) {
+                        Text(
+                            text = "Your saved nutrition targets remain unchanged.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                if (canApply) HorizontalDivider()
+
+                RecommendationCard(title = "Activity used") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(activityUsedLabel, fontWeight = FontWeight.SemiBold)
+                        activityFactor?.let {
+                            Text(
+                                text = "${formatActivityFactor(it)}×",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Text(
+                        text = when {
+                            activityChanged ->
+                                "This proposal uses the workout-suggested $activityUsedLabel " +
+                                    "level, not your selected $currentActivityLabel level. " +
+                                    "Choose Use current to recalculate before saving."
+                            recommendedActivity != null ->
+                                "The workout-based suggestion matches your selected " +
+                                    "$currentActivityLabel level."
+                            else ->
+                                "This proposal uses your selected $currentActivityLabel level."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    recommendedActivity?.let {
+                        Text(
+                            text = "Evidence: ${plan.activityWorkoutDays ?: 0} workout days, " +
+                                "${plan.activityWorkoutCount ?: 0} sessions, about " +
+                                "${plan.activityWeeklyMinutes ?: 0} min/week over " +
+                                "${plan.activityWindowDays ?: 28} days.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Workout logs may not include physical work, daily movement, " +
+                                "or unlogged exercise.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                RecommendationCard(title = "Calorie calculation") {
+                    if (
+                        restingCalories != null && activityFactor != null &&
+                        maintenanceCalories != null && formulaTarget != null &&
+                        goalAdjustment != null
+                    ) {
+                        Text(
+                            text = "Mifflin–St Jeor resting estimate, adjusted for the activity " +
+                                "level above and your goal.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        CalculationRow("Resting estimate", "$restingCalories kcal")
+                        CalculationRow("Activity multiplier", "×${formatActivityFactor(activityFactor)}")
+                        CalculationRow("Estimated maintenance", "$maintenanceCalories kcal")
+                        CalculationRow("Goal adjustment", "${signedInteger(goalAdjustment)} kcal")
+                        CalculationRow("Formula target", "$formulaTarget kcal")
+                        if (stabilityAdjustment != 0) {
+                            CalculationRow("Target stability", "${signedInteger(stabilityAdjustment)} kcal")
+                            Text(
+                                text = "Small differences from your saved target are retained to " +
+                                    "avoid unnecessary changes.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (trendAdjustment != 0) {
+                            CalculationRow("Body-trend adjustment", "${signedInteger(trendAdjustment)} kcal")
+                        }
+                        HorizontalDivider()
+                        CalculationRow(
+                            label = "Final daily target",
+                            value = "${plan.dailyTargetCalories} kcal",
+                            emphasized = true
+                        )
+                    } else {
+                        Text(
+                            text = "This target was calculated locally from your profile, " +
+                                "activity level, and goal.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                if (plan.bodyTrendStatus != null) {
+                    RecommendationCard(title = "Body trend (optional)") {
+                        if (plan.bodyTrendStatus == "SUFFICIENT") {
+                            Text(
+                                text = "${plan.bodyTrendSampleCount ?: 0} measurement days over " +
+                                    "${plan.bodyTrendSpanDays ?: 0} days",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Weight ${signedTwoDecimals(plan.bodyTrendWeightChangeKg ?: 0.0)} kg " +
+                                    "· ${signedTwoDecimals(plan.bodyTrendWeeklyChangePct ?: 0.0)}%/week",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            val compositionParts = buildList {
+                                plan.bodyTrendBodyFatChangePct?.let {
+                                    add("Body fat ${signedTwoDecimals(it)} points")
+                                }
+                                plan.bodyTrendMuscleMassChangeKg?.let {
+                                    add("Muscle ${signedTwoDecimals(it)} kg")
+                                }
+                            }
+                            if (compositionParts.isNotEmpty()) {
+                                Text(
+                                    text = compositionParts.joinToString("  ·  "),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Text(
+                                text = if (trendAdjustment == 0) {
+                                    "The formula target was retained after reviewing the trend."
+                                } else {
+                                    "A ${signedInteger(trendAdjustment)} kcal/day bounded trend " +
+                                        "adjustment was applied."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Food logs: ${plan.bodyTrendFoodDaysLogged ?: 0} of the " +
+                                    "previous 28 completed days. Composition readings are " +
+                                    "supporting evidence and can vary with hydration.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                text = plan.bodyTrendReason
+                                    ?: "More consistent readings are needed.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = "No trend adjustment was applied; the profile-based " +
+                                    "formula remains available without scale history.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                proposedTargetWeight?.let {
+                    RecommendationCard(title = "Weight target") {
+                        Text(
+                            text = "${formatOneDecimal(it)} kg",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "A gradual milestone based on your goal and the healthy BMI " +
+                                "screening range.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                coachingNote?.let {
+                    RecommendationCard(title = "AI coaching note") {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
                 Text(
-                    plan.rationale,
+                    text = "These are adult planning estimates, not medical advice. Reassess " +
+                        "progress regularly and seek professional guidance when needed.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -705,6 +915,71 @@ private fun TargetProposalDialog(
             }
         }
     )
+}
+
+@Composable
+private fun RecommendationCard(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun CalculationRow(
+    label: String,
+    value: String,
+    emphasized: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            style = if (emphasized) {
+                MaterialTheme.typography.bodyMedium
+            } else {
+                MaterialTheme.typography.bodySmall
+            },
+            fontWeight = if (emphasized) FontWeight.SemiBold else FontWeight.Normal
+        )
+        Text(
+            text = value,
+            style = if (emphasized) {
+                MaterialTheme.typography.bodyMedium
+            } else {
+                MaterialTheme.typography.bodySmall
+            },
+            fontWeight = FontWeight.SemiBold,
+            color = if (emphasized) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+        )
+    }
 }
 
 /** Optional smart-scale fields, rendered generically. First element is the state key. */
@@ -934,9 +1209,37 @@ private fun AddMeasurementSheet(
 }
 
 private const val FREESCALE_WEBSITE_URL = "https://github.com/anantdark/FreeScale"
+private const val COACHING_NOTE_MARKER = " Coaching note: "
+
+private data class PlanRationaleParts(
+    val localRationale: String,
+    val coachingNote: String?
+)
+
+private fun splitPlanRationale(rationale: String): PlanRationaleParts {
+    val markerIndex = rationale.indexOf(COACHING_NOTE_MARKER)
+    if (markerIndex < 0) return PlanRationaleParts(rationale.trim(), null)
+    val coachingNote = rationale
+        .substring(markerIndex + COACHING_NOTE_MARKER.length)
+        .trim()
+        .takeIf { it.isNotEmpty() }
+    return PlanRationaleParts(
+        localRationale = rationale.substring(0, markerIndex).trim(),
+        coachingNote = coachingNote
+    )
+}
+
+private fun formatActivityFactor(value: Double): String =
+    String.format(java.util.Locale.US, "%.3f", value).trimEnd('0').trimEnd('.')
 
 private fun formatOneDecimal(value: Double): String =
     String.format(java.util.Locale.US, "%.1f", value)
+
+private fun signedTwoDecimals(value: Double): String =
+    String.format(java.util.Locale.US, "%+.2f", value)
+
+private fun signedInteger(value: Int): String =
+    String.format(java.util.Locale.US, "%+d", value)
 
 private fun fmtOptional(value: Double?): String? {
     if (value == null) return null

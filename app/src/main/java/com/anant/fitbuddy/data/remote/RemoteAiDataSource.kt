@@ -7,7 +7,7 @@ import com.anant.fitbuddy.data.model.CustomExerciseResponse
 import com.anant.fitbuddy.data.model.ParsedWorkoutResponse
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
-import com.anant.fitbuddy.data.model.TargetPlanResponse
+import com.anant.fitbuddy.data.model.TargetPlanDecision
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutNameResponse
 import com.anant.fitbuddy.data.model.normalized
@@ -54,7 +54,7 @@ class RemoteAiDataSource(
     moshi: Moshi
 ) {
     private val responseAdapter = moshi.adapter(FitnessTrackerResponse::class.java)
-    private val targetPlanAdapter = moshi.adapter(TargetPlanResponse::class.java)
+    private val targetPlanDecisionAdapter = moshi.adapter(TargetPlanDecision::class.java)
     private val progressInsightAdapter = moshi.adapter(ProgressInsightResponse::class.java)
     private val workoutCaloriesAdapter = moshi.adapter(WorkoutCaloriesResponse::class.java)
     private val customExerciseAdapter = moshi.adapter(CustomExerciseResponse::class.java)
@@ -96,22 +96,18 @@ class RemoteAiDataSource(
         return parseJson(responseAdapter, cleanJson)
     }
 
-    /**
-     * Optionally asks AI to explain the authoritative on-device target plan. Numeric output from
-     * the model is ignored by the repository.
-     */
+    /** Selects one app-generated safe target candidate and adds an optional coaching note. */
     suspend fun designTargets(
         settings: AppSettings,
         contextJson: String
-    ): TargetPlanResponse {
-        // temperature=0: target math should be deterministic across identical inputs
+    ): TargetPlanDecision {
         val json = completeToJson(
             settings,
             PromptCatalog.targetPrompt(contextJson, regionPack(settings)),
             imageDataUrl = null,
             temperature = 0.0
         )
-        return parseJson(targetPlanAdapter, json)
+        return parseJson(targetPlanDecisionAdapter, json)
     }
 
     /** Summarises progress trends and returns actionable recommendations (text-only completion). */

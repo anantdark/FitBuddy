@@ -72,6 +72,7 @@ import com.anant.fitbuddy.data.model.Macros
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
+import com.anant.fitbuddy.data.model.TargetPlanOptions
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
@@ -175,39 +176,27 @@ class FitnessRepository(
 
     // --- AI planning ------------------------------------------------------------------------
 
-    /** Adds an optional region-aware AI explanation without allowing AI to alter local math. */
+    /** Lets AI select only among locally generated safe plans and add a nonnumeric coaching note. */
     suspend fun designTargets(
         contextJson: String,
-        calculatedPlan: TargetPlanResponse
+        options: TargetPlanOptions
     ): TargetPlanResponse {
+        val fallback = options.defaultPlan
         val settings = settingsRepository.settings.first()
-        if (!settings.isConfigured) return calculatedPlan
+        if (!settings.isConfigured) return fallback
 
-        val explained = runCatching {
-            withAiFailover(settings) { s ->
-                remoteAiDataSource.designTargets(s, contextJson)
+        val decision = runCatching {
+            withAiFailover(settings) { configured ->
+                remoteAiDataSource.designTargets(configured, contextJson)
             }.first
-        }.getOrNull() ?: return calculatedPlan
+        }.getOrNull() ?: return fallback
 
-        val echoedPlan = explained.recommendedGoal == calculatedPlan.recommendedGoal &&
-            explained.dailyTargetCalories == calculatedPlan.dailyTargetCalories &&
-            explained.targetProteinG == calculatedPlan.targetProteinG &&
-            explained.targetCarbsG == calculatedPlan.targetCarbsG &&
-            explained.targetFatsG == calculatedPlan.targetFatsG &&
-            explained.targetsChanged == calculatedPlan.targetsChanged &&
-            explained.targetWeightKg == calculatedPlan.targetWeightKg &&
-            explained.recommendedActivityLevel == calculatedPlan.recommendedActivityLevel &&
-            explained.activityWindowDays == calculatedPlan.activityWindowDays &&
-            explained.activityWorkoutDays == calculatedPlan.activityWorkoutDays &&
-            explained.activityWorkoutCount == calculatedPlan.activityWorkoutCount &&
-            explained.activityWeeklyMinutes == calculatedPlan.activityWeeklyMinutes
-        if (!echoedPlan) return calculatedPlan
-
-        val coachingNote = explained.rationale.trim().takeIf { note ->
+        val selectedPlan = options.planFor(decision.candidateId) ?: return fallback
+        val coachingNote = decision.rationale.trim().takeIf { note ->
             note.length in 20..300 && note.none(Char::isDigit)
-        } ?: return calculatedPlan
-        return calculatedPlan.copy(
-            rationale = "${calculatedPlan.rationale} Coaching note: $coachingNote"
+        } ?: return selectedPlan
+        return selectedPlan.copy(
+            rationale = "${selectedPlan.rationale} Coaching note: $coachingNote"
         )
     }
 

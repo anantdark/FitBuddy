@@ -47,8 +47,10 @@ object HealthTargetCalculator {
             6.25 * input.heightCm -
             5.0 * input.age +
             sexAdjustment
+        val roundedRestingCalories = restingCalories.roundToInt()
         val activityFactor = ActivityLevels.factor(input.activityLevel)
         val maintenanceCalories = restingCalories * activityFactor
+        val roundedMaintenanceCalories = (roundedRestingCalories * activityFactor).roundToInt()
 
         val unroundedTarget = when (goal) {
             "LOSE_WEIGHT" -> {
@@ -63,20 +65,17 @@ object HealthTargetCalculator {
         }
         val idealCalories = roundToStep(max(MIN_UNSUPERVISED_CALORIES, unroundedTarget), 50)
 
-        val referenceWeight = if (bmi >= 30.0) {
-            min(input.weightKg, 30.0 * heightMetresSquared(input.heightCm))
-        } else {
-            input.weightKg
-        }
+        val referenceWeight = referenceWeight(input.weightKg, input.heightCm, bmi)
         val proteinPerKg = proteinPerKg(goal, input.activityLevel)
-        val desiredProtein = (referenceWeight * proteinPerKg).roundToInt()
-        val proteinMin = ceil(idealCalories * 0.10 / 4.0).toInt()
-        val proteinMax = floor(idealCalories * 0.30 / 4.0).toInt()
-        val idealProtein = desiredProtein.coerceIn(proteinMin, proteinMax)
-        val idealFats = (idealCalories * 0.25 / 9.0).roundToInt()
-        val idealCarbs = ((idealCalories - idealProtein * 4 - idealFats * 9) / 4.0)
-            .roundToInt()
-            .coerceAtLeast(0)
+        val macros = macroTargets(
+            calories = idealCalories,
+            referenceWeight = referenceWeight,
+            goal = goal,
+            activityLevel = input.activityLevel
+        )
+        val idealProtein = macros.proteinG
+        val idealFats = macros.fatsG
+        val idealCarbs = macros.carbsG
 
         val targetsChanged = !input.currentTargetsCalculated ||
             !currentMacrosPlausible(input) ||
@@ -95,7 +94,7 @@ object HealthTargetCalculator {
             targetProteinG = outputProtein,
             targetCarbsG = outputCarbs,
             targetFatsG = outputFats,
-            rationale = "Evidence-based v1: " + rationale(
+            rationale = "Evidence-based v2: " + rationale(
                 input = input,
                 goal = goal,
                 bmi = bmi,
@@ -110,7 +109,52 @@ object HealthTargetCalculator {
                 targetsChanged = targetsChanged
             ),
             targetsChanged = targetsChanged,
-            targetWeightKg = targetWeight
+            targetWeightKg = targetWeight,
+            estimatedRestingCalories = roundedRestingCalories,
+            activityFactor = activityFactor,
+            estimatedMaintenanceCalories = roundedMaintenanceCalories,
+            formulaTargetCalories = idealCalories,
+            goalAdjustmentCalories = idealCalories - roundedMaintenanceCalories
+        )
+    }
+
+    fun adjustCalories(
+        input: HealthTargetInput,
+        plan: TargetPlanResponse,
+        requestedAdjustmentCalories: Int
+    ): TargetPlanResponse {
+        val boundedAdjustment = requestedAdjustmentCalories.coerceIn(
+            -MAX_TREND_ADJUSTMENT,
+            MAX_TREND_ADJUSTMENT
+        )
+        val adjustedCalories = roundToStep(
+            max(
+                MIN_UNSUPERVISED_CALORIES,
+                (plan.dailyTargetCalories + boundedAdjustment).toDouble()
+            ),
+            50
+        )
+        val actualAdjustment = adjustedCalories - plan.dailyTargetCalories
+        if (actualAdjustment == 0) return plan
+
+        val bmi = requireNotNull(bodyMassIndex(input.weightKg, input.heightCm))
+        val macros = macroTargets(
+            calories = adjustedCalories,
+            referenceWeight = referenceWeight(input.weightKg, input.heightCm, bmi),
+            goal = plan.recommendedGoal,
+            activityLevel = input.activityLevel
+        )
+        val direction = if (actualAdjustment > 0) "increased" else "reduced"
+        return plan.copy(
+            dailyTargetCalories = adjustedCalories,
+            targetProteinG = macros.proteinG,
+            targetCarbsG = macros.carbsG,
+            targetFatsG = macros.fatsG,
+            rationale = plan.rationale +
+                " Trend-adjusted locally with a cautious $direction calorie step from " +
+                "consistent body and nutrition history; reassess after another two to four weeks.",
+            targetsChanged = true,
+            bodyTrendAdjustmentCalories = actualAdjustment
         )
     }
 
@@ -139,6 +183,30 @@ object HealthTargetCalculator {
             bmi >= 25.0 -> "LOSE_WEIGHT"
             else -> "RECOMP"
         }
+    }
+
+    private fun referenceWeight(weightKg: Double, heightCm: Double, bmi: Double): Double =
+        if (bmi >= 30.0) {
+            min(weightKg, 30.0 * heightMetresSquared(heightCm))
+        } else {
+            weightKg
+        }
+
+    private fun macroTargets(
+        calories: Int,
+        referenceWeight: Double,
+        goal: String,
+        activityLevel: String
+    ): MacroTargets {
+        val desiredProtein = (referenceWeight * proteinPerKg(goal, activityLevel)).roundToInt()
+        val proteinMin = ceil(calories * 0.10 / 4.0).toInt()
+        val proteinMax = floor(calories * 0.30 / 4.0).toInt()
+        val protein = desiredProtein.coerceIn(proteinMin, proteinMax)
+        val fats = (calories * 0.25 / 9.0).roundToInt()
+        val carbs = ((calories - protein * 4 - fats * 9) / 4.0)
+            .roundToInt()
+            .coerceAtLeast(0)
+        return MacroTargets(proteinG = protein, carbsG = carbs, fatsG = fats)
     }
 
     private fun proteinPerKg(goal: String, activityLevel: String): Double {
@@ -251,7 +319,14 @@ object HealthTargetCalculator {
     private fun formatOneDecimal(value: Double): String =
         String.format(java.util.Locale.US, "%.1f", value)
 
+    private data class MacroTargets(
+        val proteinG: Int,
+        val carbsG: Int,
+        val fatsG: Int
+    )
+
     private const val MIN_UNSUPERVISED_CALORIES = 1200.0
+    private const val MAX_TREND_ADJUSTMENT = 100
     private const val CALORIE_UPDATE_THRESHOLD = 150
     private const val PROTEIN_UPDATE_THRESHOLD = 20
     private val SUPPORTED_GOALS = setOf("LOSE_WEIGHT", "GAIN_MUSCLE", "RECOMP")
