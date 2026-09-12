@@ -114,7 +114,7 @@ fun SavedFoodPickerSheet(
             when {
                 foods.isEmpty() -> {
                     Text(
-                        text = "No saved foods yet. Scan a barcode on the Body tab, or save a food as preset after AI review.",
+                        text = "No saved foods yet. Scan a barcode from Log, or save a food as preset after AI review.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)

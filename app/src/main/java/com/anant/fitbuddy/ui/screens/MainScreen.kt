@@ -633,9 +633,10 @@ fun MainScreen(
                                 onRequestTargetPlan = viewModel::requestTargetPlan,
                                 onApplyTargetPlan = viewModel::applyTargetPlan,
                                 onDismissTargetPlan = viewModel::dismissTargetPlan,
-                                onScanSavedFood = {
-                                    scanFlow = ScanFlow.SAVE_FOOD
-                                    showBarcodeScan = true
+                                onBuildMeal = {
+                                    mealItems.clear()
+                                    mealBuilderInitial = null
+                                    showMealBuilder = true
                                 },
                                 onManageSavedFoods = { showSavedFoodManageSheet = true }
                             )
@@ -747,11 +748,10 @@ fun MainScreen(
                 showLogHub = false
                 showTextDialog = true
             },
-            onBuildMeal = {
+            onScanBarcode = {
                 showLogHub = false
-                mealItems.clear()
-                mealBuilderInitial = null
-                showMealBuilder = true
+                scanFlow = ScanFlow.SAVE_FOOD
+                showBarcodeScan = true
             },
             onLogSavedMeal = {
                 showLogHub = false

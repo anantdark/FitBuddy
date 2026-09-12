@@ -24,7 +24,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -125,7 +125,7 @@ fun BodyScreen(
         acceptActivityRecommendation: Boolean
     ) -> Unit,
     onDismissTargetPlan: () -> Unit,
-    onScanSavedFood: () -> Unit,
+    onBuildMeal: () -> Unit,
     onManageSavedFoods: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -203,7 +203,7 @@ fun BodyScreen(
 
         FoodLibraryCard(
             savedFoodCount = savedFoodCount,
-            onScan = onScanSavedFood,
+            onBuildMeal = onBuildMeal,
             onManage = onManageSavedFoods
         )
 
@@ -337,13 +337,13 @@ fun BodyScreen(
 @Composable
 private fun FoodLibraryCard(
     savedFoodCount: Int,
-    onScan: () -> Unit,
+    onBuildMeal: () -> Unit,
     onManage: () -> Unit
 ) {
     SectionCard(title = "Food library") {
         Text(
             text = if (savedFoodCount == 0) {
-                "No saved foods yet — scan barcodes or bookmark foods after AI review."
+                "No saved foods yet — scan barcodes from Log or bookmark foods after AI review."
             } else {
                 "$savedFoodCount saved food${if (savedFoodCount == 1) "" else "s"} for meal building."
             },
@@ -356,11 +356,11 @@ private fun FoodLibraryCard(
         ) {
             OutlinedButton(
                 modifier = Modifier.weight(1f),
-                onClick = onScan
+                onClick = onBuildMeal
             ) {
-                Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
+                Icon(Icons.Filled.Restaurant, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Scan barcode")
+                Text("Build meal")
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
