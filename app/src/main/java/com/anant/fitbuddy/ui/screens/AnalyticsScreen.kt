@@ -409,9 +409,7 @@ private fun ExerciseCard(
             summaries = visibleSummaries,
             rangeStart = rangeStart,
             rangeEnd = rangeEnd,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(400.dp)
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -58,9 +57,13 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -1125,13 +1128,85 @@ private fun formatMetric(value: Double): String {
 @Immutable
 private data class CaloriesHeatmapDay(
     val date: String,
-    val calories: Int
+    val calories: Int,
+    val level: Int
 )
 
-/**
- * GitHub-style calendar heatmap for daily exercise calories. Missing dates are shown as zero-value
- * cells. Tapping a cell displays its date and burned calories in a tooltip anchored to that column.
- */
+@Immutable
+private data class CaloriesHeatmapMonthLabel(
+    val weekIndex: Int,
+    val label: String
+)
+
+@Immutable
+private data class CaloriesHeatmapGrid(
+    val cells: List<CaloriesHeatmapDay?>,
+    val days: List<CaloriesHeatmapDay>,
+    val weekCount: Int,
+    val monthLabels: List<CaloriesHeatmapMonthLabel>
+)
+
+private fun buildCaloriesHeatmapGrid(
+    summaries: List<ExerciseDailySummary>,
+    rangeStart: String,
+    rangeEnd: String
+): CaloriesHeatmapGrid {
+    if (rangeStart > rangeEnd || rangeStart.length < 7 || rangeEnd.length < 7) {
+        return CaloriesHeatmapGrid(emptyList(), emptyList(), 0, emptyList())
+    }
+
+    val caloriesByDate = summaries
+        .asSequence()
+        .filter { it.dateString in rangeStart..rangeEnd }
+        .associate { it.dateString to it.totalBurned.coerceAtLeast(0) }
+    val positiveValues = caloriesByDate.values.filter { it > 0 }.distinct().sorted()
+
+    fun levelFor(calories: Int): Int {
+        if (calories <= 0) return 0
+        if (positiveValues.size <= 1) return 4
+        val rank = positiveValues.binarySearch(calories).coerceAtLeast(0)
+        return 1 + rank * 3 / positiveValues.lastIndex
+    }
+
+    val days = buildList {
+        var date = rangeStart
+        while (date <= rangeEnd) {
+            val calories = caloriesByDate[date] ?: 0
+            add(CaloriesHeatmapDay(date, calories, levelFor(calories)))
+            date = DateUtils.addDays(date, 1)
+        }
+    }
+    val cells = mutableListOf<CaloriesHeatmapDay?>()
+    val monthLabels = mutableListOf<CaloriesHeatmapMonthLabel>()
+    var month = rangeStart.take(7)
+    val endMonth = rangeEnd.take(7)
+    while (month <= endMonth) {
+        val monthDays = days.filter { it.date.startsWith(month) }
+        if (monthDays.isNotEmpty()) {
+            monthLabels += CaloriesHeatmapMonthLabel(
+                weekIndex = cells.size / 7,
+                label = DateUtils.monthLabel(month).substringBefore(" ")
+            )
+            val leadingCells = Calendar.getInstance().run {
+                time = DateUtils.parse(monthDays.first().date)
+                get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+            }
+            repeat(leadingCells) { cells += null }
+            cells += monthDays
+            val trailingCells = (7 - cells.size % 7) % 7
+            repeat(trailingCells) { cells += null }
+        }
+        month = DateUtils.addMonths(month, 1)
+    }
+    return CaloriesHeatmapGrid(
+        cells = cells,
+        days = days,
+        weekCount = cells.size / 7,
+        monthLabels = monthLabels
+    )
+}
+
+/** GitHub-style contribution calendar with weeks in one horizontally scrollable strip. */
 @Composable
 fun CaloriesBurnedHeatmap(
     summaries: List<ExerciseDailySummary>,
@@ -1139,248 +1214,215 @@ fun CaloriesBurnedHeatmap(
     rangeEnd: String,
     modifier: Modifier = Modifier
 ) {
-    val days = remember(summaries, rangeStart, rangeEnd) {
-        val caloriesByDate = summaries.associate { it.dateString to it.totalBurned.coerceAtLeast(0) }
-        buildList {
-            var date = rangeStart
-            while (date <= rangeEnd) {
-                add(CaloriesHeatmapDay(date, caloriesByDate[date] ?: 0))
-                date = DateUtils.addDays(date, 1)
-            }
-        }
-    }
-    val weeks = remember(days, rangeStart) {
-        if (days.isEmpty()) {
-            emptyList()
-        } else {
-            val leadingEmptyCells = Calendar.getInstance().run {
-                time = DateUtils.parse(rangeStart)
-                get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
-            }
-            val cells = List<CaloriesHeatmapDay?>(leadingEmptyCells) { null } + days
-            val trailingEmptyCells = (7 - cells.size % 7) % 7
-            (cells + List<CaloriesHeatmapDay?>(trailingEmptyCells) { null }).chunked(7)
-        }
+    val grid = remember(summaries, rangeStart, rangeEnd) {
+        buildCaloriesHeatmapGrid(summaries, rangeStart, rangeEnd)
     }
     var selectedDate by remember(rangeStart, rangeEnd) { mutableStateOf<String?>(null) }
-    var containerWidth by remember { mutableIntStateOf(0) }
 
-    if (days.isEmpty()) {
+    if (grid.weekCount == 0) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Text("No calendar days to show", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
 
-    val maxCalories = days.maxOfOrNull { it.calories }?.coerceAtLeast(1) ?: 1
+    val colorScheme = MaterialTheme.colorScheme
+    val baseColor = colorScheme.surfaceContainerHighest
     val heatColors = listOf(
-        MaterialTheme.colorScheme.surfaceVariant,
-        MaterialTheme.colorScheme.tertiaryContainer,
-        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f),
-        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f),
-        MaterialTheme.colorScheme.tertiary
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.onSurface, 0.12f),
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.primary, 0.28f),
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.primary, 0.48f),
+        androidx.compose.ui.graphics.lerp(baseColor, colorScheme.primary, 0.72f),
+        colorScheme.primary
     )
-    val visualCellSize = 26.dp
-    val cellSlotSize = 40.dp
-    val weekdayLabelWidth = 32.dp
-    val labelGap = 6.dp
-    val monthLabelHeight = 24.dp
-    val tooltipWidth = 164.dp
-    val density = LocalDensity.current
+    val selectedDay = selectedDate?.let { date -> grid.days.firstOrNull { it.date == date } }
     val scrollState = rememberScrollState()
-    val weekGridWidth = cellSlotSize * weeks.size
-    val monthLabels = remember(weeks) {
-        weeks.mapIndexed { index, week ->
-            val monthStart = week.firstOrNull { it?.date?.endsWith("-01") == true }
-            val labelDay = monthStart ?: if (index == 0) week.filterNotNull().firstOrNull() else null
-            labelDay?.let { DateUtils.monthLabel(it.date.take(7)).substringBefore(" ") }
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val cellSize = 11.dp
+    val cellGap = 3.dp
+    val cellStride = cellSize + cellGap
+    val monthLabelHeight = 20.dp
+    val canvasWidth = cellStride * grid.weekCount
+    val canvasHeight = monthLabelHeight + cellStride * 7
+    val cellSizePx = with(density) { cellSize.toPx() }
+    val cellStridePx = with(density) { cellStride.toPx() }
+    val monthLabelHeightPx = with(density) { monthLabelHeight.toPx() }
+    val cornerRadiusPx = with(density) { 2.dp.toPx() }
+    val selectedStrokePx = with(density) { 1.5.dp.toPx() }
+    val monthLabelStyle = MaterialTheme.typography.labelSmall.copy(
+        color = colorScheme.onSurfaceVariant,
+        fontSize = 9.sp
+    )
+    val accessibilityActions = grid.days.map { day ->
+        CustomAccessibilityAction(
+            label = "${DateUtils.displayDateSubtitle(day.date)}, " +
+                "${day.calories} calories burned"
+        ) {
+            selectedDate = if (selectedDate == day.date) null else day.date
+            true
         }
     }
+
     LaunchedEffect(scrollState.maxValue, rangeEnd) {
         if (scrollState.maxValue > 0) scrollState.scrollTo(scrollState.maxValue)
     }
-    val selectedDay = selectedDate?.let { date -> days.firstOrNull { it.date == date } }
-    val selectedWeekIndex = selectedDate?.let { date ->
-        weeks.indexOfFirst { week -> week.any { it?.date == date } }
-    } ?: -1
-    val tooltipOffsetX = with(density) {
-        val cellCenter = weekdayLabelWidth.toPx() + labelGap.toPx() +
-            selectedWeekIndex.coerceAtLeast(0) * cellSlotSize.toPx() +
-            cellSlotSize.toPx() / 2f - scrollState.value
-        (cellCenter - tooltipWidth.toPx() / 2f)
-            .coerceIn(0f, (containerWidth - tooltipWidth.toPx()).coerceAtLeast(0f))
-            .roundToInt()
-    }
 
-    Box(
-        modifier = modifier.onSizeChanged { containerWidth = it.width }
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.width(weekdayLabelWidth)) {
-                    Spacer(Modifier.height(monthLabelHeight))
-                    listOf("", "Mon", "", "Wed", "", "Fri", "").forEach { label ->
-                        Box(
-                            modifier = Modifier
-                                .width(weekdayLabelWidth)
-                                .height(cellSlotSize),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            if (label.isNotEmpty()) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.width(labelGap))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(scrollState)
-                ) {
-                    Row(
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.width(26.dp)) {
+                Spacer(Modifier.height(monthLabelHeight))
+                listOf("", "Mon", "", "Wed", "", "Fri", "").forEach { label ->
+                    Box(
                         modifier = Modifier
-                            .width(weekGridWidth)
-                            .height(monthLabelHeight)
+                            .width(26.dp)
+                            .height(cellStride),
+                        contentAlignment = Alignment.CenterEnd
                     ) {
-                        monthLabels.forEach { label ->
-                            Box(
-                                modifier = Modifier.width(cellSlotSize),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                label?.let {
-                                    Text(
-                                        text = it,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Row(modifier = Modifier.width(weekGridWidth)) {
-                        weeks.forEach { week ->
-                            Column {
-                                week.forEach { day ->
-                                    if (day == null) {
-                                        Spacer(Modifier.size(cellSlotSize))
-                                    } else {
-                                        val level = when {
-                                            day.calories <= 0 -> 0
-                                            day.calories * 4 <= maxCalories -> 1
-                                            day.calories * 2 <= maxCalories -> 2
-                                            day.calories * 4 <= maxCalories * 3 -> 3
-                                            else -> 4
-                                        }
-                                        val isSelected = day.date == selectedDate
-                                        val dateLabel = DateUtils.displayDateSubtitle(day.date)
-                                        Box(
-                                            modifier = Modifier
-                                                .size(cellSlotSize)
-                                                .clickable {
-                                                    selectedDate = if (isSelected) null else day.date
-                                                }
-                                                .semantics {
-                                                    contentDescription =
-                                                        "$dateLabel, ${day.calories} calories burned"
-                                                    selected = isSelected
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(visualCellSize)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(heatColors[level])
-                                                    .border(
-                                                        width = if (isSelected) 2.dp else 1.dp,
-                                                        color = if (isSelected) {
-                                                            MaterialTheme.colorScheme.onSurface
-                                                        } else {
-                                                            MaterialTheme.colorScheme.outlineVariant
-                                                        },
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                        if (label.isNotEmpty()) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 8.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
             }
-
-            Spacer(Modifier.height(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
             ) {
-                Text(
-                    text = "Less",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                heatColors.forEach { color ->
-                    Box(
-                        Modifier
-                            .size(12.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(color)
-                    )
+                Canvas(
+                    modifier = Modifier
+                        .width(canvasWidth)
+                        .height(canvasHeight)
+                        .semantics {
+                            contentDescription = "Calories burned contribution calendar"
+                            stateDescription = selectedDay?.let {
+                                "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
+                                    "${it.calories} calories burned"
+                            } ?: "No day selected"
+                            customActions = accessibilityActions
+                        }
+                        .pointerInput(grid.cells, selectedDate) {
+                            detectTapGestures { tap ->
+                                val localY = tap.y - monthLabelHeightPx
+                                if (tap.x < 0f || localY < 0f) return@detectTapGestures
+                                val week = (tap.x / cellStridePx).toInt()
+                                val weekday = (localY / cellStridePx).toInt()
+                                if (week !in 0 until grid.weekCount || weekday !in 0..6) {
+                                    return@detectTapGestures
+                                }
+                                grid.cells[week * 7 + weekday]?.let { day ->
+                                    selectedDate = if (selectedDate == day.date) null else day.date
+                                }
+                            }
+                        }
+                ) {
+                    grid.monthLabels.forEach { month ->
+                        val measured = textMeasurer.measure(month.label, monthLabelStyle)
+                        drawText(
+                            textLayoutResult = measured,
+                            topLeft = Offset(month.weekIndex * cellStridePx, 0f)
+                        )
+                    }
+                    grid.cells.forEachIndexed { index, day ->
+                        day ?: return@forEachIndexed
+                        val week = index / 7
+                        val weekday = index % 7
+                        val topLeft = Offset(
+                            x = week * cellStridePx,
+                            y = monthLabelHeightPx + weekday * cellStridePx
+                        )
+                        drawRoundRect(
+                            color = heatColors[day.level],
+                            topLeft = topLeft,
+                            size = Size(cellSizePx, cellSizePx),
+                            cornerRadius = CornerRadius(cornerRadiusPx)
+                        )
+                        if (day.date == selectedDate) {
+                            drawRoundRect(
+                                color = colorScheme.onSurface,
+                                topLeft = topLeft,
+                                size = Size(cellSizePx, cellSizePx),
+                                cornerRadius = CornerRadius(cornerRadiusPx),
+                                style = Stroke(width = selectedStrokePx)
+                            )
+                        }
+                    }
                 }
-                Text(
-                    text = "More",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 
-        if (selectedDay == null) {
-            Text(
-                text = "Tap a day to see details",
-                modifier = Modifier.align(Alignment.TopCenter),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            Surface(
-                modifier = Modifier
-                    .offset { IntOffset(tooltipOffsetX, 0) }
-                    .width(tooltipWidth),
-                shape = RoundedCornerShape(10.dp),
-                tonalElevation = 4.dp,
-                shadowElevation = 6.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    liveRegion = LiveRegionMode.Polite
+                    contentDescription = selectedDay?.let {
+                        "${DateUtils.displayDateSubtitle(it.date)}, ${it.calories} calories burned"
+                    } ?: "No heatmap day selected"
+                },
+            shape = RoundedCornerShape(10.dp),
+            color = baseColor
+        ) {
+            if (selectedDay == null) {
+                Text(
+                    text = "Swipe the calendar and tap a square for details",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colorScheme.onSurfaceVariant
+                )
+            } else {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = DateUtils.displayDateSubtitle(selectedDay.date),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "${selectedDay.calories} kcal burned",
                         style = MaterialTheme.typography.labelMedium,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${selectedDay.calories} kcal",
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             }
+        }
+
+        Row(
+            modifier = Modifier.align(Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Less",
+                style = MaterialTheme.typography.labelSmall,
+                color = colorScheme.onSurfaceVariant
+            )
+            heatColors.forEach { color ->
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(color)
+                )
+            }
+            Text(
+                text = "More",
+                style = MaterialTheme.typography.labelSmall,
+                color = colorScheme.onSurfaceVariant
+            )
         }
     }
 }
