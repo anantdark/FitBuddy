@@ -6,6 +6,7 @@ AI-powered health tracker for Android with region-aware diets and daily routines
 [![Release](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/anantdark/FitBuddy)](https://github.com/anantdark/FitBuddy/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/anantdark)
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/en/packages/com.anant.fitbuddy/)
 [<img src="https://www.openapk.net/images/openapk-badge.png" alt="Get it on OpenAPK" height="80">](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/)
@@ -160,6 +161,12 @@ updates over that install will succeed.
 3. Open a PR against `main` — CI must pass
 
 Bug reports and feature requests: [Issues](https://github.com/anantdark/FitBuddy/issues).
+
+## Support development
+
+If FitBuddy helps you, support its continued development through
+[GitHub Sponsors](https://github.com/sponsors/anantdark). Indian users can also use the heart
+button in the app for UPI or card contributions.
 
 ## License
 
