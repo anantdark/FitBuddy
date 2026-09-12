@@ -53,6 +53,7 @@ import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.util.SystemToast
 
 private const val RAZORPAY_DONATION_URL = "https://rzp.io/rzp/fitbuddy"
+private const val GITHUB_SPONSORS_URL = "https://github.com/sponsors/anantdark"
 private const val UPI_ID = "anantdark969817.rzp@rxairtel"
 private const val DEVELOPER_EMAIL = "fitbuddy31@proton.me"
 private const val UPI_QR_ASPECT_RATIO = 674f / 1644f
@@ -65,6 +66,7 @@ private val DONATION_HEART_COLORS = listOf(
     Color(0xFFFFA000),
 )
 
+private enum class DonationRegion { INDIA, INTERNATIONAL }
 private enum class UpiPaymentOption { QR, ID }
 
 internal fun initialDonationHeartColorIndex(): Int =
@@ -101,11 +103,18 @@ internal fun DonationDialog(
 ) {
     val context = LocalContext.current
     val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * 0.58f).dp
-    var showUpiDialog by rememberSaveable { mutableStateOf(false) }
+    var selectedRegion by rememberSaveable { mutableStateOf<DonationRegion?>(null) }
 
-    if (showUpiDialog) {
-        UpiPaymentDialog(onBack = { showUpiDialog = false })
-        return
+    when (selectedRegion) {
+        DonationRegion.INDIA -> {
+            IndiaDonationDialog(onBack = { selectedRegion = null })
+            return
+        }
+        DonationRegion.INTERNATIONAL -> {
+            InternationalDonationDialog(onBack = { selectedRegion = null })
+            return
+        }
+        null -> Unit
     }
 
     AlertDialog(
@@ -132,27 +141,21 @@ internal fun DonationDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "Choose a payment method",
+                    "Choose your region",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
-
-                Button(
-                    onClick = { showUpiDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Pay with UPI")
-                }
-
                 OutlinedButton(
-                    onClick = { openRazorpayPaymentPage(context) },
+                    onClick = { selectedRegion = DonationRegion.INDIA },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(Icons.Filled.CreditCard, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Pay with card")
+                    Text("India")
+                }
+                OutlinedButton(
+                    onClick = { selectedRegion = DonationRegion.INTERNATIONAL },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("International")
                 }
 
                 HorizontalDivider()
@@ -174,13 +177,6 @@ internal fun DonationDialog(
                     Spacer(Modifier.size(8.dp))
                     Text("Copy email")
                 }
-
-                Text(
-                    "Payment apps and Razorpay open only when you choose them. FitBuddy does " +
-                        "not receive or store your payment details.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         },
         confirmButton = {},
@@ -188,6 +184,112 @@ internal fun DonationDialog(
             TextButton(onClick = onDismiss) { Text("Close") }
         },
     )
+}
+
+@Composable
+private fun IndiaDonationDialog(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * 0.58f).dp
+    var showUpiDialog by rememberSaveable { mutableStateOf(false) }
+
+    if (showUpiDialog) {
+        UpiPaymentDialog(onBack = { showUpiDialog = false })
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onBack,
+        icon = {
+            Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null)
+        },
+        title = { Text("Donate from India") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxBodyHeight)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Use Razorpay to contribute with UPI or a debit or credit card.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(
+                    onClick = { showUpiDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Pay with UPI")
+                }
+                OutlinedButton(
+                    onClick = { openRazorpayPaymentPage(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.CreditCard, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Pay by card with Razorpay")
+                }
+                Text(
+                    "Razorpay and payment apps open only when you choose them. FitBuddy " +
+                        "does not receive or store your payment details.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onBack) { Text("Back") }
+        },
+    )
+}
+
+@Composable
+private fun InternationalDonationDialog(onBack: () -> Unit) {
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onBack,
+        icon = {
+            Icon(Icons.Filled.Favorite, contentDescription = null)
+        },
+        title = { Text("Donate internationally") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Sponsor FitBuddy development through GitHub Sponsors.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(
+                    onClick = { openGitHubSponsorsPage(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Sponsor on GitHub")
+                }
+                Text(
+                    "GitHub Sponsors opens only when you choose it. FitBuddy does not " +
+                        "receive or store your payment details.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onBack) { Text("Back") }
+        },
+    )
+}
+
+private fun openGitHubSponsorsPage(context: Context) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_SPONSORS_URL)).apply {
+        addCategory(Intent.CATEGORY_BROWSABLE)
+    }
+    launchExternalIntent(context, intent, "Couldn't open GitHub Sponsors")
 }
 
 @Composable
