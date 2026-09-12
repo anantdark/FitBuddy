@@ -8,7 +8,7 @@ Features:
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc
 • Editable workouts — structured sessions, AI session names, upgrade simple logs
 • Presets — searchable saved foods and meals; recently used on top; one-tap log
-• Barcode scan — look up packaged foods; save to library or log straight to today
+• Barcode scan — look up packaged foods; save or log them, and contribute missing products through Open Food Facts
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
 • Body goals — calculate adult calorie and macro targets on-device with transparent Mifflin–St Jeor/TDEE estimates, quality-gated smart-scale trends, bounded AI-assisted personalization, activity guidance, BMI screening context, and goal milestones; AI can choose only between exact plans generated safely on-device
 • Analytics — weekly or rolling 30-day calorie intake vs target, target-weight body charts, and a rolling six-month calorie-burn heatmap

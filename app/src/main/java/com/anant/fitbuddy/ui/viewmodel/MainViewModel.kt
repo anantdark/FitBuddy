@@ -49,6 +49,7 @@ import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
+import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
@@ -66,6 +67,7 @@ import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -1325,24 +1327,31 @@ class MainViewModel(
     private val _barcodeLookupLoading = MutableStateFlow(false)
     val barcodeLookupLoading: StateFlow<Boolean> = _barcodeLookupLoading.asStateFlow()
 
-    fun lookupBarcode(barcode: String, onSuccess: (ScannedProduct) -> Unit) {
+    fun lookupBarcode(
+        barcode: String,
+        onSuccess: (ScannedProduct) -> Unit,
+        onProductUnavailable: (String) -> Unit
+    ) {
         if (_barcodeLookupLoading.value) return
         _barcodeLookupLoading.value = true
         CrashReporter.breadcrumb("barcode", "lookup")
         viewModelScope.launch {
-            runCatching { repository.lookupProductByBarcode(barcode) }
-                .onSuccess(onSuccess)
-                .onFailure { e ->
-                    val code = barcode.filter { it.isDigit() }.ifBlank { barcode.trim() }
-                    _analysisState.update {
-                        it.copy(
-                            errorDialogTitle = "Product not found",
-                            errorDialogMessage = e.message
-                                ?: "No Open Food Facts match for $code"
-                        )
-                    }
+            try {
+                onSuccess(repository.lookupProductByBarcode(barcode))
+            } catch (e: OpenFoodFactsProductUnavailableException) {
+                onProductUnavailable(e.barcode)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _analysisState.update {
+                    it.copy(
+                        errorDialogTitle = "Couldn't look up product",
+                        errorDialogMessage = e.message ?: "Check your connection and try again."
+                    )
                 }
-            _barcodeLookupLoading.value = false
+            } finally {
+                _barcodeLookupLoading.value = false
+            }
         }
     }
 

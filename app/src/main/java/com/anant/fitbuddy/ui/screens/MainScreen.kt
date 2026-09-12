@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.zIndex
@@ -225,6 +226,7 @@ fun MainScreen(
     var showBarcodeScan by remember { mutableStateOf(false) }
     var scanFlow by remember { mutableStateOf<ScanFlow?>(null) }
     var pendingProduct by remember { mutableStateOf<ScannedProduct?>(null) }
+    var unavailableBarcode by remember { mutableStateOf<String?>(null) }
     val mealItems = remember { mutableStateListOf<FoodEntryDraft>() }
     var mealBuilderInitial by remember { mutableStateOf<MealDraft?>(null) }
     var foodEditorTarget by remember { mutableStateOf(FoodEditorTarget.LOG_MEAL) }
@@ -868,10 +870,17 @@ fun MainScreen(
             isLookingUp = barcodeLookupLoading,
             barcodeExample = regionPack.barcodeExample,
             onBarcode = { code ->
-                viewModel.lookupBarcode(code) { product ->
-                    showBarcodeScan = false
-                    pendingProduct = product
-                }
+                viewModel.lookupBarcode(
+                    barcode = code,
+                    onSuccess = { product ->
+                        showBarcodeScan = false
+                        pendingProduct = product
+                    },
+                    onProductUnavailable = {
+                        showBarcodeScan = false
+                        unavailableBarcode = it
+                    }
+                )
             },
             onDismiss = {
                 showBarcodeScan = false
@@ -879,6 +888,16 @@ fun MainScreen(
             },
             onCameraPermissionDenied = {
                 SystemToast.show(context, "Camera permission not allowed.")
+            }
+        )
+    }
+
+    unavailableBarcode?.let { barcode ->
+        OpenFoodFactsProductUnavailableDialog(
+            barcode = barcode,
+            onDismiss = {
+                unavailableBarcode = null
+                showBarcodeScan = true
             }
         )
     }
@@ -1370,6 +1389,40 @@ fun MainScreen(
             viewModel.beginExportBackupAndUpdate(context, downloadUrl)
         },
         onSkipBackupAndUpdate = ::startUpdateDownload
+    )
+}
+
+private const val OPEN_FOOD_FACTS_APP_URL =
+    "https://world.openfoodfacts.org/open-food-facts-mobile-app"
+
+@Composable
+private fun OpenFoodFactsProductUnavailableDialog(
+    barcode: String,
+    onDismiss: () -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.ErrorOutline, contentDescription = null) },
+        title = { Text("Product not found") },
+        text = {
+            Text(
+                "Barcode $barcode was read, but Open Food Facts has no usable product or " +
+                    "nutrition data for it. Install Open Food Facts and add this product to " +
+                    "its public database, then scan it again here."
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDismiss()
+                    uriHandler.openUri(OPEN_FOOD_FACTS_APP_URL)
+                }
+            ) { Text("Install & add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Keep scanning") }
+        }
     )
 }
 
