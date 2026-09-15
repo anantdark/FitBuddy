@@ -76,6 +76,7 @@ import com.anant.fitbuddy.ui.viewmodel.TargetPlanUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 private val GOAL_OPTIONS = listOf(
     "AUTO" to "Choose automatically",
@@ -96,7 +97,6 @@ fun BodyScreen(
     animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
     forceShowAnimation: Boolean = false,
     onSave: (
-        weightKg: Double,
         targetWeightKg: Double?,
         goal: String,
         activityLevel: String
@@ -132,14 +132,14 @@ fun BodyScreen(
     onManageSavedFoods: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val weight = remember(profile) { mutableStateOf(profile?.weightKg?.toString() ?: "") }
-    val targetWeight = remember(profile) {
+    val currentWeight = latestMeasurement?.weightKg
+        ?.takeIf { it.isFinite() && it > 0.0 }
+    val targetWeight = remember(profile?.targetWeightKg) {
         mutableStateOf(profile?.targetWeightKg?.toString() ?: "")
     }
-    val goal = remember(profile) { mutableStateOf(profile?.goal ?: "RECOMP") }
+    val goal = remember(profile?.goal) { mutableStateOf(profile?.goal ?: "RECOMP") }
     val parsedTargetWeight = targetWeight.value.toDoubleOrNull()
         ?.takeIf { it.isFinite() && it > 0.0 }
-    val currentWeight = weight.value.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
     val adultBmi = if ((profile?.age ?: 0) >= 18) {
         currentWeight?.let { HealthTargetCalculator.bodyMassIndex(it, profile?.heightCm ?: 0.0) }
     } else {
@@ -152,8 +152,8 @@ fun BodyScreen(
     }
     val targetWeightError = when {
         targetWeight.value.isBlank() -> null
-        parsedTargetWeight == null -> "Enter a valid target weight"
-        currentWeight == null -> null
+        parsedTargetWeight == null -> "Enter a valid weight milestone"
+        currentWeight == null -> "Add a current reading before setting a weight milestone"
         goal.value == "GAIN_MUSCLE" && parsedTargetWeight < currentWeight ->
             "A muscle-gain target cannot be below your current weight"
         goal.value == "LOSE_WEIGHT" && parsedTargetWeight > currentWeight ->
@@ -166,7 +166,9 @@ fun BodyScreen(
         parsedTargetWeight != null -> parsedTargetWeight
         else -> profile?.targetWeightKg
     }
-    val activity = remember(profile) { mutableStateOf(profile?.activityLevel ?: "MODERATE") }
+    val activity = remember(profile?.activityLevel) {
+        mutableStateOf(profile?.activityLevel ?: "MODERATE")
+    }
 
     val persistedTargetCalories = profile?.dailyTargetCalories
         ?: DashboardUiState.DEFAULT_TARGET_CALORIES
@@ -246,7 +248,7 @@ fun BodyScreen(
                 onRequestTargetPlan(
                     profile?.age ?: 0,
                     profile?.heightCm ?: 0.0,
-                    weight.value.toDoubleOrNull() ?: 0.0,
+                    currentWeight ?: 0.0,
                     profile?.sex,
                     activity.value,
                     goal.value
@@ -260,10 +262,32 @@ fun BodyScreen(
         )
 
         SectionCard(title = "Body basics") {
-            NumberField("Current weight (kg)", weight.value, decimal = true) { weight.value = it }
-            NumberField("Target weight (kg, optional)", targetWeight.value, decimal = true) {
+            OutlinedTextField(
+                value = currentWeight?.toString().orEmpty(),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Current weight (kg)") },
+                supportingText = {
+                    Text(
+                        if (latestMeasurement != null) {
+                            "Synced from the latest reading (${latestMeasurement.dateString})"
+                        } else {
+                            "Add a reading to update your current weight"
+                        }
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            NumberField("Weight milestone (kg, optional)", targetWeight.value, decimal = true) {
                 targetWeight.value = it
             }
+            Text(
+                text = "Personalized targets set a bounded weight milestone when appropriate; " +
+                    "otherwise your current weight is used as a maintenance milestone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             LabeledDropdown(
                 "Typical overall activity",
                 activity.value,
@@ -301,7 +325,6 @@ fun BodyScreen(
             enabled = targetWeightInputValid,
             onClick = {
                 onSave(
-                    weight.value.toDoubleOrNull() ?: 0.0,
                     parsedTargetWeight,
                     goal.value,
                     activity.value
@@ -334,7 +357,7 @@ fun BodyScreen(
                 plan,
                 profile?.age ?: 0,
                 profile?.heightCm ?: 0.0,
-                weight.value.toDoubleOrNull() ?: 0.0,
+                currentWeight ?: 0.0,
                 targetWeightForPlan,
                 profile?.sex,
                 activity.value,
@@ -343,6 +366,8 @@ fun BodyScreen(
         }
         TargetProposalDialog(
             plan = plan,
+            currentWeightKg = currentWeight,
+            savedWeightMilestoneKg = profile?.targetWeightKg,
             currentActivityLevel = activity.value,
             onApply = { applyPlan(true) },
             onApplyCurrentActivity = { applyPlan(false) },
@@ -729,6 +754,8 @@ private fun ReadingsHistoryCard(
 @Composable
 private fun TargetProposalDialog(
     plan: TargetPlanResponse,
+    currentWeightKg: Double?,
+    savedWeightMilestoneKg: Double?,
     currentActivityLevel: String,
     onApply: () -> Unit,
     onApplyCurrentActivity: () -> Unit,
@@ -738,6 +765,8 @@ private fun TargetProposalDialog(
         ?: plan.recommendedGoal
     val proposedTargetWeight = plan.targetWeightKg
         ?.takeIf { it.isFinite() && it > 0.0 }
+    val isMaintenanceWeight = proposedTargetWeight != null && currentWeightKg != null &&
+        abs(proposedTargetWeight - currentWeightKg) < 0.05
     val recommendedActivity = plan.recommendedActivityLevel
         ?.takeIf { ActivityLevels.definition(it) != null }
     val activityChanged = recommendedActivity != null &&
@@ -745,7 +774,9 @@ private fun TargetProposalDialog(
     val activityUsed = recommendedActivity ?: currentActivityLevel
     val activityUsedLabel = ActivityLevels.label(activityUsed)
     val currentActivityLabel = ActivityLevels.label(currentActivityLevel)
-    val canApply = plan.targetsChanged || proposedTargetWeight != null || activityChanged
+    val weightMilestoneChanged = proposedTargetWeight != null &&
+        (savedWeightMilestoneKg == null || abs(proposedTargetWeight - savedWeightMilestoneKg) >= 0.05)
+    val canApply = plan.targetsChanged || weightMilestoneChanged || activityChanged
     val coachingNote = splitPlanRationale(plan.rationale).coachingNote
     val restingCalories = plan.estimatedRestingCalories
     val activityFactor = plan.activityFactor
@@ -758,8 +789,8 @@ private fun TargetProposalDialog(
     } ?: 0
     val title = when {
         plan.targetsChanged -> "Science-based recommendation"
-        proposedTargetWeight != null && activityChanged -> "Health target recommendation"
-        proposedTargetWeight != null -> "Target weight recommendation"
+        weightMilestoneChanged && activityChanged -> "Health target recommendation"
+        weightMilestoneChanged -> "Weight milestone recommendation"
         recommendedActivity != null -> "Activity recommendation"
         else -> "You're on track"
     }
@@ -953,15 +984,20 @@ private fun TargetProposalDialog(
                 }
 
                 proposedTargetWeight?.let {
-                    RecommendationCard(title = "Weight target") {
+                    RecommendationCard(title = "Weight milestone") {
                         Text(
                             text = "${formatOneDecimal(it)} kg",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "A gradual milestone based on your goal and the healthy BMI " +
-                                "screening range.",
+                            text = if (isMaintenanceWeight) {
+                                "No automatic scale-weight change is recommended, so your " +
+                                    "current weight is used as a maintenance milestone."
+                            } else {
+                                "A gradual milestone based on your goal and the healthy BMI " +
+                                    "screening range."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -991,8 +1027,8 @@ private fun TargetProposalDialog(
                     Text(
                         when {
                             plan.targetsChanged -> "Apply"
-                            proposedTargetWeight != null && activityChanged -> "Apply recommendations"
-                            proposedTargetWeight != null -> "Save target weight"
+                            weightMilestoneChanged && activityChanged -> "Apply recommendations"
+                            weightMilestoneChanged -> "Save weight milestone"
                             else -> "Apply activity level"
                         }
                     )

@@ -1565,10 +1565,10 @@ class MainViewModel(
     /** Non-null while the "view / edit exercises" sheet for a logged workout is open. */
     val editingWorkout: StateFlow<WorkoutEditUiState?> = _editingWorkout.asStateFlow()
 
-    /** Resolves the user's current weight, treating an unset/zero profile weight as "not set". */
+    /** Resolves the user's current weight from the newest reading, then the profile fallback. */
     private fun currentWeightKg(): Double =
-        dashboardState.value.profile?.weightKg?.takeIf { it > 0 }
-            ?: latestMeasurement.value?.weightKg
+        latestMeasurement.value?.weightKg?.takeIf { it > 0 }
+            ?: dashboardState.value.profile?.weightKg?.takeIf { it > 0 }
             ?: 0.0
 
     /** Saves a workout session and estimates calories burned (AI, or an offline fallback). */
@@ -3292,19 +3292,18 @@ class MainViewModel(
     }
 
     fun saveProfile(
-        weightKg: Double,
         targetWeightKg: Double?,
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
+        val currentWeight = currentWeightKg()
         val validTargetWeight = targetWeightKg
             ?.takeIf { it.isFinite() && it > 0.0 }
-            ?.takeIf { targetWeightMatchesGoal(it, weightKg, goal) }
+            ?.takeIf { targetWeightMatchesGoal(it, currentWeight, goal) }
         viewModelScope.launch {
             runCatching {
                 check(
                     repository.updateBodyProfile(
-                        weightKg = weightKg,
                         targetWeightKg = validTargetWeight,
                         goal = goal,
                         activityLevel = activityLevel
