@@ -129,50 +129,26 @@ class FitnessRepository(
     val latestMeasurement: Flow<BodyMeasurement?> = bodyMeasurementDao.getLatest()
     fun getRecentMeasurements(limit: Int): Flow<List<BodyMeasurement>> = bodyMeasurementDao.getRecent(limit)
 
-    /** Saves a reading and mirrors its weight onto the profile so the dashboard/AI use current weight. */
+    /** Saves a reading and mirrors the actual latest reading's weight onto the profile. */
     suspend fun addMeasurement(measurement: BodyMeasurement) {
-        bodyMeasurementDao.insert(measurement)
-        userProfileDao.getProfileOnce()?.let { profile ->
-            userProfileDao.insertOrUpdateProfile(
-                profile.copy(
-                    weightKg = measurement.weightKg,
-                    lastUpdatedTimestamp = measurement.timestamp
-                )
-            )
-        }
+        bodyMeasurementDao.insertAndSync(measurement, System.currentTimeMillis())
     }
 
     /**
      * Insert or replace by [BodyMeasurement.timestamp]. Returns true if a new row was inserted.
      */
-    suspend fun upsertMeasurementByTimestamp(measurement: BodyMeasurement): Boolean {
-        val existing = bodyMeasurementDao.getByTimestamp(measurement.timestamp)
-        val toSave = if (existing != null) {
-            measurement.copy(
-                id = existing.id,
-                freescalePayloadJson = measurement.freescalePayloadJson
-                    ?: existing.freescalePayloadJson,
-            )
-        } else {
-            measurement.copy(id = 0)
-        }
-        bodyMeasurementDao.insert(toSave)
-        userProfileDao.getProfileOnce()?.let { profile ->
-            userProfileDao.insertOrUpdateProfile(
-                profile.copy(
-                    weightKg = toSave.weightKg,
-                    lastUpdatedTimestamp = toSave.timestamp
-                )
-            )
-        }
-        return existing == null
-    }
+    suspend fun upsertMeasurementByTimestamp(measurement: BodyMeasurement): Boolean =
+        bodyMeasurementDao.upsertByTimestampAndSync(
+            measurement = measurement,
+            lastUpdatedTimestamp = System.currentTimeMillis()
+        )
 
     suspend fun getAllMeasurementsOnce(): List<BodyMeasurement> =
         bodyMeasurementDao.getAllOnce()
 
-    suspend fun deleteMeasurement(measurement: BodyMeasurement) =
-        bodyMeasurementDao.delete(measurement)
+    suspend fun deleteMeasurement(measurement: BodyMeasurement) {
+        bodyMeasurementDao.deleteAndSync(measurement, System.currentTimeMillis())
+    }
 
     // --- AI planning ------------------------------------------------------------------------
 
@@ -793,8 +769,32 @@ class FitnessRepository(
         bodyMeasurementDao.getAllOnce()
 
     suspend fun saveProfile(profile: UserProfile) {
-        userProfileDao.insertOrUpdateProfile(profile)
+        userProfileDao.insertOrUpdateProfileWithLatestWeight(profile)
     }
+
+    suspend fun updateDailyTargets(
+        dailyTargetCalories: Int,
+        targetProteinG: Int,
+        targetCarbsG: Int,
+        targetFatsG: Int
+    ): Boolean = userProfileDao.updateDailyTargets(
+        dailyTargetCalories = dailyTargetCalories,
+        targetProteinG = targetProteinG,
+        targetCarbsG = targetCarbsG,
+        targetFatsG = targetFatsG,
+        lastUpdatedTimestamp = System.currentTimeMillis()
+    ) > 0
+
+    suspend fun updateBodyProfile(
+        targetWeightKg: Double?,
+        goal: String,
+        activityLevel: String
+    ): Boolean = userProfileDao.updateBodyProfile(
+        targetWeightKg = targetWeightKg,
+        goal = goal,
+        activityLevel = activityLevel,
+        lastUpdatedTimestamp = System.currentTimeMillis()
+    ) > 0
 
     suspend fun deleteFood(log: FoodLog) = foodLogDao.deleteFoodLog(log)
 

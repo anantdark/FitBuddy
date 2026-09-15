@@ -6,12 +6,12 @@ FitBuddy calculates all adult calorie and macronutrient candidates deterministic
 
 ## What the app estimates
 
-There is no scientifically valid universal “ideal weight.” BMI is a population screening tool, not a diagnosis or an individualized prescription. FitBuddy therefore shows the adult BMI 18.5–24.9 weight range only as context and uses a single target weight only when it has a defensible role as a goal milestone:
+There is no scientifically valid universal “ideal weight.” BMI is a population screening tool, not a diagnosis or an individualized prescription. FitBuddy therefore shows the adult BMI 18.5–24.9 weight range only as context and uses a bounded target-weight milestone only when it has a defensible role. In other cases, the newest reading is retained as a neutral maintenance milestone rather than inventing a gain or loss:
 
 - For weight loss at BMI 25 or above, the first milestone is up to 5% below current weight, without crossing below the upper healthy-BMI boundary.
 - For an adult below BMI 18.5 whose goal is gain, the lower healthy-BMI boundary is shown as a milestone and professional guidance is encouraged.
-- For healthy-range muscle gain or recomposition, FitBuddy does not invent a scale-weight target. Users may set one manually.
-- Targets are rounded to 0.5 kg to avoid false 0.1 kg precision.
+- For healthy-range muscle gain, recomposition, or other cases without a defensible automatic scale change, the newest weight is used as a maintenance milestone. Users may still set a different milestone manually.
+- Changed milestones are rounded to 0.5 kg to avoid false 0.1 kg precision; maintenance milestones retain the measured weight.
 
 The up-to-5% milestone reflects evidence that modest sustained loss can improve health markers. It is a first checkpoint, not a claim that everyone should reach a particular BMI.
 

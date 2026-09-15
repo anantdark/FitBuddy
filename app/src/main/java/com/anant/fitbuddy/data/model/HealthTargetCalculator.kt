@@ -249,7 +249,7 @@ object HealthTargetCalculator {
                 max(currentWeightKg * 0.95, healthyRange.endInclusive)
             goal == "GAIN_MUSCLE" && bmi < HEALTHY_BMI_MIN ->
                 healthyRange.start
-            else -> return null
+            else -> return currentWeightKg
         }
         val roundedUp = ceil(rawTarget * 2.0) / 2.0
         return if (goal == "LOSE_WEIGHT") min(currentWeightKg, roundedUp) else roundedUp
@@ -287,6 +287,9 @@ object HealthTargetCalculator {
         val bmiSentence = when {
             bmi == null || healthyRange == null ->
                 "Treat this as a starting estimate and adjust from your 2–4 week trend."
+            targetWeight != null && abs(targetWeight - input.weightKg) < 0.05 ->
+                "No automatic scale-weight change is recommended from the BMI screening context, " +
+                    "so current weight is retained as a maintenance milestone."
             targetWeight != null && goal == "LOSE_WEIGHT" ->
                 "The ${formatOneDecimal(targetWeight)} kg target is an initial health milestone of up to 5%, not an ideal weight; " +
                     "BMI ${formatOneDecimal(bmi)} is only a screening measure."

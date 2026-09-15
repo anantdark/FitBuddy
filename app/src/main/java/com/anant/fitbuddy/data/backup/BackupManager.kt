@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.backup
 
 import android.content.Context
 import android.net.Uri
+import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseLogDao
 import com.anant.fitbuddy.data.database.ExercisePresetDao
@@ -217,7 +218,12 @@ class BackupManager(
         workoutSessionDao.clearAll()
 
         data.profile?.let { userProfileDao.insertOrUpdateProfile(it.copy(id = 1)) }
-        bodyMeasurementDao.insertAll(data.measurements.map { it.copy(id = 0) })
+        bodyMeasurementDao.insertAllAndSync(
+            measurements = data.measurements
+                .sortedWith(compareBy<BodyMeasurement> { it.timestamp }.thenBy { it.id })
+                .map { it.copy(id = 0) },
+            lastUpdatedTimestamp = System.currentTimeMillis()
+        )
 
         val legacyFoods = LibraryRecency.normalizeSavedFoods(
             if (data.savedFoods.isNotEmpty()) data.savedFoods else data.presets

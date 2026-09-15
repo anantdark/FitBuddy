@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,6 +18,58 @@ interface UserProfileDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateProfile(profile: UserProfile)
+
+    @Query("""
+        UPDATE user_profile SET
+            weightKg = COALESCE(
+                (
+                    SELECT weightKg FROM body_measurements
+                    ORDER BY timestamp DESC, id DESC LIMIT 1
+                ),
+                weightKg
+            )
+        WHERE id = 1
+    """)
+    suspend fun syncWeightFromLatestMeasurement(): Int
+
+    @Transaction
+    suspend fun insertOrUpdateProfileWithLatestWeight(profile: UserProfile) {
+        insertOrUpdateProfile(profile)
+        syncWeightFromLatestMeasurement()
+    }
+
+    @Query("""
+        UPDATE user_profile SET
+            dailyTargetCalories = :dailyTargetCalories,
+            targetProteinG = :targetProteinG,
+            targetCarbsG = :targetCarbsG,
+            targetFatsG = :targetFatsG,
+            goalRationale = NULL,
+            lastUpdatedTimestamp = :lastUpdatedTimestamp
+        WHERE id = 1
+    """)
+    suspend fun updateDailyTargets(
+        dailyTargetCalories: Int,
+        targetProteinG: Int,
+        targetCarbsG: Int,
+        targetFatsG: Int,
+        lastUpdatedTimestamp: Long
+    ): Int
+
+    @Query("""
+        UPDATE user_profile SET
+            targetWeightKg = :targetWeightKg,
+            goal = :goal,
+            activityLevel = :activityLevel,
+            lastUpdatedTimestamp = :lastUpdatedTimestamp
+        WHERE id = 1
+    """)
+    suspend fun updateBodyProfile(
+        targetWeightKg: Double?,
+        goal: String,
+        activityLevel: String,
+        lastUpdatedTimestamp: Long
+    ): Int
 
     @Query("DELETE FROM user_profile")
     suspend fun clearAll()
@@ -349,19 +402,19 @@ interface BodyMeasurementDao {
     @Query("SELECT COUNT(*) FROM body_measurements")
     suspend fun count(): Int
 
-    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC")
+    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC")
     fun getAll(): Flow<List<BodyMeasurement>>
 
-    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC LIMIT :limit")
+    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC LIMIT :limit")
     fun getRecent(limit: Int): Flow<List<BodyMeasurement>>
 
-    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC LIMIT 1")
+    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC LIMIT 1")
     fun getLatest(): Flow<BodyMeasurement?>
 
-    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC")
+    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC")
     suspend fun getAllOnce(): List<BodyMeasurement>
 
-    @Query("SELECT * FROM body_measurements WHERE timestamp = :timestamp LIMIT 1")
+    @Query("SELECT * FROM body_measurements WHERE timestamp = :timestamp ORDER BY id DESC LIMIT 1")
     suspend fun getByTimestamp(timestamp: Long): BodyMeasurement?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -372,6 +425,58 @@ interface BodyMeasurementDao {
 
     @Delete
     suspend fun delete(measurement: BodyMeasurement)
+
+    @Query("""
+        UPDATE user_profile SET
+            weightKg = (
+                SELECT weightKg FROM body_measurements
+                ORDER BY timestamp DESC, id DESC LIMIT 1
+            ),
+            lastUpdatedTimestamp = :lastUpdatedTimestamp
+        WHERE id = 1 AND EXISTS (SELECT 1 FROM body_measurements)
+    """)
+    suspend fun syncProfileWeightToLatest(lastUpdatedTimestamp: Long): Int
+
+    @Transaction
+    suspend fun insertAndSync(measurement: BodyMeasurement, lastUpdatedTimestamp: Long) {
+        insert(measurement)
+        syncProfileWeightToLatest(lastUpdatedTimestamp)
+    }
+
+    @Transaction
+    suspend fun insertAllAndSync(
+        measurements: List<BodyMeasurement>,
+        lastUpdatedTimestamp: Long
+    ) {
+        insertAll(measurements)
+        syncProfileWeightToLatest(lastUpdatedTimestamp)
+    }
+
+    @Transaction
+    suspend fun upsertByTimestampAndSync(
+        measurement: BodyMeasurement,
+        lastUpdatedTimestamp: Long
+    ): Boolean {
+        val existing = getByTimestamp(measurement.timestamp)
+        val toSave = if (existing != null) {
+            measurement.copy(
+                id = existing.id,
+                freescalePayloadJson = measurement.freescalePayloadJson
+                    ?: existing.freescalePayloadJson
+            )
+        } else {
+            measurement.copy(id = 0)
+        }
+        insert(toSave)
+        syncProfileWeightToLatest(lastUpdatedTimestamp)
+        return existing == null
+    }
+
+    @Transaction
+    suspend fun deleteAndSync(measurement: BodyMeasurement, lastUpdatedTimestamp: Long) {
+        delete(measurement)
+        syncProfileWeightToLatest(lastUpdatedTimestamp)
+    }
 
     @Query("DELETE FROM body_measurements")
     suspend fun clearAll()
