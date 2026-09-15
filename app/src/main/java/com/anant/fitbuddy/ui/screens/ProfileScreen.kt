@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,12 +98,14 @@ fun BodyScreen(
     onSave: (
         weightKg: Double,
         targetWeightKg: Double?,
+        goal: String,
+        activityLevel: String
+    ) -> Unit,
+    onSaveTargets: (
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
-        targetFatsG: Int,
-        goal: String,
-        activityLevel: String
+        targetFatsG: Int
     ) -> Unit,
     onAddMeasurement: (BodyMeasurement) -> Unit,
     onDeleteMeasurement: (BodyMeasurement) -> Unit,
@@ -165,17 +168,30 @@ fun BodyScreen(
     }
     val activity = remember(profile) { mutableStateOf(profile?.activityLevel ?: "MODERATE") }
 
-    val targetCalories = remember(profile) {
-        mutableStateOf((profile?.dailyTargetCalories ?: DashboardUiState.DEFAULT_TARGET_CALORIES).toString())
-    }
-    val targetProtein = remember(profile) {
-        mutableStateOf((profile?.targetProteinG ?: DashboardUiState.DEFAULT_TARGET_PROTEIN).toString())
-    }
-    val targetCarbs = remember(profile) {
-        mutableStateOf((profile?.targetCarbsG ?: DashboardUiState.DEFAULT_TARGET_CARBS).toString())
-    }
-    val targetFats = remember(profile) {
-        mutableStateOf((profile?.targetFatsG ?: DashboardUiState.DEFAULT_TARGET_FATS).toString())
+    val persistedTargetCalories = profile?.dailyTargetCalories
+        ?: DashboardUiState.DEFAULT_TARGET_CALORIES
+    val persistedTargetProtein = profile?.targetProteinG
+        ?: DashboardUiState.DEFAULT_TARGET_PROTEIN
+    val persistedTargetCarbs = profile?.targetCarbsG
+        ?: DashboardUiState.DEFAULT_TARGET_CARBS
+    val persistedTargetFats = profile?.targetFatsG
+        ?: DashboardUiState.DEFAULT_TARGET_FATS
+    val targetCalories = remember { mutableStateOf(persistedTargetCalories.toString()) }
+    val targetProtein = remember { mutableStateOf(persistedTargetProtein.toString()) }
+    val targetCarbs = remember { mutableStateOf(persistedTargetCarbs.toString()) }
+    val targetFats = remember { mutableStateOf(persistedTargetFats.toString()) }
+
+    LaunchedEffect(
+        persistedTargetCalories,
+        persistedTargetProtein,
+        persistedTargetCarbs,
+        persistedTargetFats,
+        targetPlanState.appliedRevision
+    ) {
+        targetCalories.value = persistedTargetCalories.toString()
+        targetProtein.value = persistedTargetProtein.toString()
+        targetCarbs.value = persistedTargetCarbs.toString()
+        targetFats.value = persistedTargetFats.toString()
     }
 
     var showAddReading by remember { mutableStateOf(false) }
@@ -212,10 +228,15 @@ fun BodyScreen(
             targetProtein = targetProtein.value,
             targetCarbs = targetCarbs.value,
             targetFats = targetFats.value,
+            savedTargetCalories = persistedTargetCalories,
+            savedTargetProtein = persistedTargetProtein,
+            savedTargetCarbs = persistedTargetCarbs,
+            savedTargetFats = persistedTargetFats,
             onCaloriesChange = { targetCalories.value = it },
             onProteinChange = { targetProtein.value = it },
             onCarbsChange = { targetCarbs.value = it },
             onFatsChange = { targetFats.value = it },
+            onSaveTargets = onSaveTargets,
             rationale = profile?.goalRationale,
             planState = targetPlanState,
             isAiConfigured = isAiConfigured,
@@ -282,10 +303,6 @@ fun BodyScreen(
                 onSave(
                     weight.value.toDoubleOrNull() ?: 0.0,
                     parsedTargetWeight,
-                    targetCalories.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_CALORIES,
-                    targetProtein.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_PROTEIN,
-                    targetCarbs.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_CARBS,
-                    targetFats.value.toIntOrNull() ?: DashboardUiState.DEFAULT_TARGET_FATS,
                     goal.value,
                     activity.value
                 )
@@ -493,10 +510,15 @@ private fun DailyTargetsCard(
     targetProtein: String,
     targetCarbs: String,
     targetFats: String,
+    savedTargetCalories: Int,
+    savedTargetProtein: Int,
+    savedTargetCarbs: Int,
+    savedTargetFats: Int,
     onCaloriesChange: (String) -> Unit,
     onProteinChange: (String) -> Unit,
     onCarbsChange: (String) -> Unit,
     onFatsChange: (String) -> Unit,
+    onSaveTargets: (Int, Int, Int, Int) -> Unit,
     rationale: String?,
     planState: TargetPlanUiState,
     isAiConfigured: Boolean,
@@ -504,11 +526,86 @@ private fun DailyTargetsCard(
     forceShowAnimation: Boolean = false,
     onRequestPlan: () -> Unit
 ) {
+    val caloriesValue = targetCalories.toIntOrNull()
+    val proteinValue = targetProtein.toIntOrNull()
+    val carbsValue = targetCarbs.toIntOrNull()
+    val fatsValue = targetFats.toIntOrNull()
+    val caloriesError = when {
+        caloriesValue == null -> "Enter a whole number"
+        caloriesValue <= 0 -> "Must be greater than 0"
+        else -> null
+    }
+    val proteinError = when {
+        proteinValue == null -> "Enter a whole number"
+        proteinValue <= 0 -> "Must be greater than 0"
+        else -> null
+    }
+    val carbsError = when {
+        carbsValue == null -> "Enter a whole number"
+        carbsValue < 0 -> "Cannot be negative"
+        else -> null
+    }
+    val fatsError = when {
+        fatsValue == null -> "Enter a whole number"
+        fatsValue <= 0 -> "Must be greater than 0"
+        else -> null
+    }
+    val targetsChanged = caloriesValue != savedTargetCalories ||
+        proteinValue != savedTargetProtein ||
+        carbsValue != savedTargetCarbs ||
+        fatsValue != savedTargetFats
+    val canSaveTargets = caloriesError == null && proteinError == null &&
+        carbsError == null && fatsError == null && targetsChanged
+
     SectionCard(title = "Daily targets") {
-        NumberField("Calories (kcal)", targetCalories, onValueChange = onCaloriesChange)
-        NumberField("Protein (g)", targetProtein, onValueChange = onProteinChange)
-        NumberField("Carbs (g)", targetCarbs, onValueChange = onCarbsChange)
-        NumberField("Fats (g)", targetFats, onValueChange = onFatsChange)
+        NumberField(
+            "Calories (kcal)",
+            targetCalories,
+            errorMessage = caloriesError,
+            onValueChange = onCaloriesChange
+        )
+        NumberField(
+            "Protein (g)",
+            targetProtein,
+            errorMessage = proteinError,
+            onValueChange = onProteinChange
+        )
+        NumberField(
+            "Carbs (g)",
+            targetCarbs,
+            errorMessage = carbsError,
+            onValueChange = onCarbsChange
+        )
+        NumberField(
+            "Fats (g)",
+            targetFats,
+            errorMessage = fatsError,
+            onValueChange = onFatsChange
+        )
+
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = canSaveTargets,
+            onClick = {
+                onSaveTargets(
+                    requireNotNull(caloriesValue),
+                    requireNotNull(proteinValue),
+                    requireNotNull(carbsValue),
+                    requireNotNull(fatsValue)
+                )
+            }
+        ) {
+            Icon(Icons.Filled.Save, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Save manual targets")
+        }
+        Text(
+            text = "Manual targets are applied across your dashboard. Personalized target " +
+                "calculation starts fresh from your body data and does not use these values. " +
+                "Consult a qualified health professional before changing health targets.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         val planLoading = planState.isLoading || forceShowAnimation
         Button(
@@ -1274,6 +1371,7 @@ private fun NumberField(
     label: String,
     value: String,
     decimal: Boolean = false,
+    errorMessage: String? = null,
     onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
@@ -1290,6 +1388,10 @@ private fun NumberField(
             onValueChange(filtered)
         },
         label = { Text(label) },
+        isError = errorMessage != null,
+        supportingText = errorMessage?.let { message ->
+            { Text(message) }
+        },
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number

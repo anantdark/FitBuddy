@@ -630,6 +630,7 @@ fun MainScreen(
                                 animationChoice = settings.insightAnimationChoice,
                                 forceShowAnimation = settings.forceShowLoadingAnimations,
                                 onSave = viewModel::saveProfile,
+                                onSaveTargets = viewModel::saveDailyTargets,
                                 onAddMeasurement = viewModel::addMeasurement,
                                 onDeleteMeasurement = viewModel::deleteMeasurement,
                                 onRequestTargetPlan = viewModel::requestTargetPlan,

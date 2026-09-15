@@ -171,7 +171,8 @@ data class ModelsUiState(
 data class TargetPlanUiState(
     val isLoading: Boolean = false,
     val plan: TargetPlanResponse? = null,
-    val error: String? = null
+    val error: String? = null,
+    val appliedRevision: Long = 0L
 )
 
 private fun targetWeightMatchesGoal(
@@ -1779,6 +1780,7 @@ class MainViewModel(
 
     private val _targetPlan = MutableStateFlow(TargetPlanUiState())
     val targetPlanState: StateFlow<TargetPlanUiState> = _targetPlan.asStateFlow()
+    private var manualTargetsOverride = false
 
     /**
      * Calculates a goal + calorie/macro targets from the Body screen's currently displayed basics.
@@ -1919,12 +1921,17 @@ class MainViewModel(
                     targetWeightKg = proposedTargetWeight
                 )
             )
-            _targetPlan.update { TargetPlanUiState() }
+            manualTargetsOverride = false
+            _targetPlan.update {
+                TargetPlanUiState(appliedRevision = it.appliedRevision + 1)
+            }
             _analysisState.update { it.copy(userMessage = "Targets applied") }
         }
     }
 
-    fun dismissTargetPlan() = _targetPlan.update { TargetPlanUiState() }
+    fun dismissTargetPlan() = _targetPlan.update {
+        TargetPlanUiState(appliedRevision = it.appliedRevision)
+    }
 
     // --- AI progress insight ----------------------------------------------------------------
 
@@ -3287,10 +3294,6 @@ class MainViewModel(
     fun saveProfile(
         weightKg: Double,
         targetWeightKg: Double?,
-        dailyTargetCalories: Int,
-        targetProteinG: Int,
-        targetCarbsG: Int,
-        targetFatsG: Int,
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
@@ -3298,27 +3301,69 @@ class MainViewModel(
             ?.takeIf { it.isFinite() && it > 0.0 }
             ?.takeIf { targetWeightMatchesGoal(it, weightKg, goal) }
         viewModelScope.launch {
-            val existing = dashboardState.value.profile
-            repository.saveProfile(
-                UserProfile(
-                    id = 1,
-                    age = existing?.age ?: 0,
-                    weightKg = weightKg,
-                    heightCm = existing?.heightCm ?: 0.0,
-                    dailyTargetCalories = dailyTargetCalories,
-                    targetProteinG = targetProteinG,
-                    targetCarbsG = targetCarbsG,
-                    targetFatsG = targetFatsG,
-                    lastUpdatedTimestamp = System.currentTimeMillis(),
-                    sex = existing?.sex,
-                    goal = goal,
-                    activityLevel = activityLevel,
-                    // Preserve the latest AI rationale across manual edits.
-                    goalRationale = existing?.goalRationale,
-                    targetWeightKg = validTargetWeight
-                )
-            )
-            _analysisState.update { it.copy(userMessage = "Body saved · dashboard recalibrated") }
+            runCatching {
+                check(
+                    repository.updateBodyProfile(
+                        weightKg = weightKg,
+                        targetWeightKg = validTargetWeight,
+                        goal = goal,
+                        activityLevel = activityLevel
+                    )
+                ) { "Complete your profile before saving body data" }
+            }
+                .onSuccess {
+                    _analysisState.update {
+                        it.copy(userMessage = "Body saved · dashboard recalibrated")
+                    }
+                }
+                .onFailure { error ->
+                    _analysisState.update {
+                        it.copy(userMessage = error.message ?: "Couldn't save body data")
+                    }
+                }
+        }
+    }
+
+    fun saveDailyTargets(
+        dailyTargetCalories: Int,
+        targetProteinG: Int,
+        targetCarbsG: Int,
+        targetFatsG: Int
+    ) {
+        if (
+            dailyTargetCalories <= 0 || targetProteinG <= 0 ||
+            targetCarbsG < 0 || targetFatsG <= 0
+        ) {
+            _analysisState.update { it.copy(userMessage = "Enter valid daily targets") }
+            return
+        }
+        manualTargetsOverride = true
+        viewModelScope.launch {
+            runCatching {
+                check(
+                    repository.updateDailyTargets(
+                        dailyTargetCalories = dailyTargetCalories,
+                        targetProteinG = targetProteinG,
+                        targetCarbsG = targetCarbsG,
+                        targetFatsG = targetFatsG
+                    )
+                ) { "Complete your body profile before saving targets" }
+                repository.activeProfile.first { profile ->
+                    profile != null && profile.goalRationale == null
+                }
+            }
+                .onSuccess {
+                    manualTargetsOverride = false
+                    _analysisState.update {
+                        it.copy(userMessage = "Manual targets saved · dashboard recalibrated")
+                    }
+                }
+                .onFailure { error ->
+                    manualTargetsOverride = false
+                    _analysisState.update {
+                        it.copy(userMessage = error.message ?: "Couldn't save manual targets")
+                    }
+                }
         }
     }
 
@@ -3447,6 +3492,9 @@ class MainViewModel(
     ): HealthTargetInput {
         val current = dashboardState.value
         val savedRationale = current.profile?.goalRationale
+        val currentTargetsCalculated = !manualTargetsOverride && !forceRecalculation &&
+            savedRationale?.startsWith("Evidence-based v") == true &&
+            savedRationale.contains("Trend-adjusted locally").not()
         return HealthTargetInput(
             age = age,
             heightCm = heightCm,
@@ -3454,13 +3502,11 @@ class MainViewModel(
             sex = sex,
             activityLevel = activityLevel,
             statedGoal = goal,
-            currentCalories = current.targetCalories,
-            currentProteinG = current.targetProtein,
-            currentCarbsG = current.targetCarbs,
-            currentFatsG = current.targetFats,
-            currentTargetsCalculated = !forceRecalculation &&
-                savedRationale?.startsWith("Evidence-based v") == true &&
-                savedRationale.contains("Trend-adjusted locally").not()
+            currentCalories = if (currentTargetsCalculated) current.targetCalories else 0,
+            currentProteinG = if (currentTargetsCalculated) current.targetProtein else 0,
+            currentCarbsG = if (currentTargetsCalculated) current.targetCarbs else 0,
+            currentFatsG = if (currentTargetsCalculated) current.targetFats else 0,
+            currentTargetsCalculated = currentTargetsCalculated
         )
     }
 
@@ -3473,14 +3519,24 @@ class MainViewModel(
         goal: String,
         planning: TargetPlanningContext
     ): String = JSONObject().apply {
+        val currentRationale = dashboardState.value.profile?.goalRationale
+        val currentTargetsCalculated = !manualTargetsOverride &&
+            currentRationale?.startsWith("Evidence-based v") == true &&
+            currentRationale.contains("Trend-adjusted locally").not()
         put("age", if (age > 0) age else JSONObject.NULL)
         put("sex", sex ?: JSONObject.NULL)
         put("height_cm", if (heightCm > 0) heightCm else JSONObject.NULL)
         put("current_weight_kg", if (weightKg > 0) weightKg else JSONObject.NULL)
         put("activity_level", activityLevel)
         put("stated_goal", goal.ifBlank { "AUTO" })
-        put("current_target_calories", dashboardState.value.targetCalories)
-        put("current_target_protein_g", dashboardState.value.targetProtein)
+        put(
+            "current_target_calories",
+            if (currentTargetsCalculated) dashboardState.value.targetCalories else JSONObject.NULL
+        )
+        put(
+            "current_target_protein_g",
+            if (currentTargetsCalculated) dashboardState.value.targetProtein else JSONObject.NULL
+        )
         put("body_trend", JSONObject().apply {
             put("status", planning.bodyTrend.quality.name)
             put("reason", planning.bodyTrend.reason)

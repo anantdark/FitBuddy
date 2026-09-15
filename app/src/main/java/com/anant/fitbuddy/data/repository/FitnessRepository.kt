@@ -796,6 +796,32 @@ class FitnessRepository(
         userProfileDao.insertOrUpdateProfile(profile)
     }
 
+    suspend fun updateDailyTargets(
+        dailyTargetCalories: Int,
+        targetProteinG: Int,
+        targetCarbsG: Int,
+        targetFatsG: Int
+    ): Boolean = userProfileDao.updateDailyTargets(
+        dailyTargetCalories = dailyTargetCalories,
+        targetProteinG = targetProteinG,
+        targetCarbsG = targetCarbsG,
+        targetFatsG = targetFatsG,
+        lastUpdatedTimestamp = System.currentTimeMillis()
+    ) > 0
+
+    suspend fun updateBodyProfile(
+        weightKg: Double,
+        targetWeightKg: Double?,
+        goal: String,
+        activityLevel: String
+    ): Boolean = userProfileDao.updateBodyProfile(
+        weightKg = weightKg,
+        targetWeightKg = targetWeightKg,
+        goal = goal,
+        activityLevel = activityLevel,
+        lastUpdatedTimestamp = System.currentTimeMillis()
+    ) > 0
+
     suspend fun deleteFood(log: FoodLog) = foodLogDao.deleteFoodLog(log)
 
     /** Deleting an exercise log also removes its workout session + exercises, if it was mirrored from one. */

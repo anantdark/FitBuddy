@@ -18,6 +18,41 @@ interface UserProfileDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateProfile(profile: UserProfile)
 
+    @Query("""
+        UPDATE user_profile SET
+            dailyTargetCalories = :dailyTargetCalories,
+            targetProteinG = :targetProteinG,
+            targetCarbsG = :targetCarbsG,
+            targetFatsG = :targetFatsG,
+            goalRationale = NULL,
+            lastUpdatedTimestamp = :lastUpdatedTimestamp
+        WHERE id = 1
+    """)
+    suspend fun updateDailyTargets(
+        dailyTargetCalories: Int,
+        targetProteinG: Int,
+        targetCarbsG: Int,
+        targetFatsG: Int,
+        lastUpdatedTimestamp: Long
+    ): Int
+
+    @Query("""
+        UPDATE user_profile SET
+            weightKg = :weightKg,
+            targetWeightKg = :targetWeightKg,
+            goal = :goal,
+            activityLevel = :activityLevel,
+            lastUpdatedTimestamp = :lastUpdatedTimestamp
+        WHERE id = 1
+    """)
+    suspend fun updateBodyProfile(
+        weightKg: Double,
+        targetWeightKg: Double?,
+        goal: String,
+        activityLevel: String,
+        lastUpdatedTimestamp: Long
+    ): Int
+
     @Query("DELETE FROM user_profile")
     suspend fun clearAll()
 }
