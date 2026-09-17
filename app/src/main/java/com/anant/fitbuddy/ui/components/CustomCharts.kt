@@ -1254,14 +1254,8 @@ fun CaloriesBurnedHeatmap(
         color = colorScheme.onSurfaceVariant,
         fontSize = 9.sp
     )
-    val accessibilityActions = grid.days.map { day ->
-        CustomAccessibilityAction(
-            label = "${DateUtils.displayDateSubtitle(day.date)}, " +
-                "${day.calories} calories burned"
-        ) {
-            selectedDate = if (selectedDate == day.date) null else day.date
-            true
-        }
+    val accessibilityMonths = remember(grid.days) {
+        grid.days.groupBy { it.date.take(7) }.entries.toList()
     }
 
     LaunchedEffect(scrollState.maxValue, rangeEnd) {
@@ -1298,64 +1292,102 @@ fun CaloriesBurnedHeatmap(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(scrollState)
+                    .semantics {
+                        contentDescription = "Calories burned contribution calendar"
+                        stateDescription = selectedDay?.let {
+                            "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
+                                "${it.calories} calories burned"
+                        } ?: "No day selected"
+                    }
             ) {
-                Canvas(
+                Box(
                     modifier = Modifier
                         .width(canvasWidth)
                         .height(canvasHeight)
-                        .semantics {
-                            contentDescription = "Calories burned contribution calendar"
-                            stateDescription = selectedDay?.let {
-                                "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
-                                    "${it.calories} calories burned"
-                            } ?: "No day selected"
-                            customActions = accessibilityActions
-                        }
-                        .pointerInput(grid.cells, selectedDate) {
-                            detectTapGestures { tap ->
-                                val localY = tap.y - monthLabelHeightPx
-                                if (tap.x < 0f || localY < 0f) return@detectTapGestures
-                                val week = (tap.x / cellStridePx).toInt()
-                                val weekday = (localY / cellStridePx).toInt()
-                                if (week !in 0 until grid.weekCount || weekday !in 0..6) {
-                                    return@detectTapGestures
-                                }
-                                grid.cells[week * 7 + weekday]?.let { day ->
-                                    selectedDate = if (selectedDate == day.date) null else day.date
+                ) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(grid.cells, selectedDate) {
+                                detectTapGestures { tap ->
+                                    val localY = tap.y - monthLabelHeightPx
+                                    if (tap.x < 0f || localY < 0f) return@detectTapGestures
+                                    val week = (tap.x / cellStridePx).toInt()
+                                    val weekday = (localY / cellStridePx).toInt()
+                                    if (week !in 0 until grid.weekCount || weekday !in 0..6) {
+                                        return@detectTapGestures
+                                    }
+                                    grid.cells[week * 7 + weekday]?.let { day ->
+                                        selectedDate = if (selectedDate == day.date) null else day.date
+                                    }
                                 }
                             }
-                        }
-                ) {
-                    grid.monthLabels.forEach { month ->
-                        val measured = textMeasurer.measure(month.label, monthLabelStyle)
-                        drawText(
-                            textLayoutResult = measured,
-                            topLeft = Offset(month.weekIndex * cellStridePx, 0f)
-                        )
-                    }
-                    grid.cells.forEachIndexed { index, day ->
-                        day ?: return@forEachIndexed
-                        val week = index / 7
-                        val weekday = index % 7
-                        val topLeft = Offset(
-                            x = week * cellStridePx,
-                            y = monthLabelHeightPx + weekday * cellStridePx
-                        )
-                        drawRoundRect(
-                            color = heatColors[day.level],
-                            topLeft = topLeft,
-                            size = Size(cellSizePx, cellSizePx),
-                            cornerRadius = CornerRadius(cornerRadiusPx)
-                        )
-                        if (day.date == selectedDate) {
-                            drawRoundRect(
-                                color = colorScheme.onSurface,
-                                topLeft = topLeft,
-                                size = Size(cellSizePx, cellSizePx),
-                                cornerRadius = CornerRadius(cornerRadiusPx),
-                                style = Stroke(width = selectedStrokePx)
+                    ) {
+                        grid.monthLabels.forEach { month ->
+                            val measured = textMeasurer.measure(month.label, monthLabelStyle)
+                            drawText(
+                                textLayoutResult = measured,
+                                topLeft = Offset(month.weekIndex * cellStridePx, 0f)
                             )
                         }
+                        grid.cells.forEachIndexed { index, day ->
+                            day ?: return@forEachIndexed
+                            val week = index / 7
+                            val weekday = index % 7
+                            val topLeft = Offset(
+                                x = week * cellStridePx,
+                                y = monthLabelHeightPx + weekday * cellStridePx
+                            )
+                            drawRoundRect(
+                                color = heatColors[day.level],
+                                topLeft = topLeft,
+                                size = Size(cellSizePx, cellSizePx),
+                                cornerRadius = CornerRadius(cornerRadiusPx)
+                            )
+                            if (day.date == selectedDate) {
+                                drawRoundRect(
+                                    color = colorScheme.onSurface,
+                                    topLeft = topLeft,
+                                    size = Size(cellSizePx, cellSizePx),
+                                    cornerRadius = CornerRadius(cornerRadiusPx),
+                                    style = Stroke(width = selectedStrokePx)
+                                )
+                            }
+                        }
+                    }
+
+                    accessibilityMonths.forEachIndexed { index, (month, days) ->
+                        val startWeek = grid.monthLabels[index].weekIndex
+                        val endWeek = grid.monthLabels.getOrNull(index + 1)?.weekIndex
+                            ?: grid.weekCount
+                        val selectedMonthDay = selectedDay?.takeIf { it.date.startsWith(month) }
+                        Box(
+                            modifier = Modifier
+                                .offset(x = cellStride * startWeek)
+                                .width(cellStride * (endWeek - startWeek))
+                                .height(canvasHeight)
+                                .semantics {
+                                    contentDescription =
+                                        "${DateUtils.monthLabel(month)} calories burned"
+                                    stateDescription = selectedMonthDay?.let {
+                                        "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
+                                            "${it.calories} calories burned"
+                                    } ?: "No day selected"
+                                    customActions = days.map { day ->
+                                        CustomAccessibilityAction(
+                                            label = "${DateUtils.displayDateSubtitle(day.date)}, " +
+                                                "${day.calories} calories burned"
+                                        ) {
+                                            selectedDate = if (selectedDate == day.date) {
+                                                null
+                                            } else {
+                                                day.date
+                                            }
+                                            true
+                                        }
+                                    }
+                                }
+                        )
                     }
                 }
             }
