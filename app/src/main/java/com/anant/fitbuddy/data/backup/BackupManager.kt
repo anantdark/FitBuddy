@@ -188,7 +188,7 @@ class BackupManager(
         val settings = settingsRepository.settings.first()
         return BackupData(
             exportedAt = System.currentTimeMillis(),
-            profile = userProfileDao.getProfileOnce(),
+            profile = userProfileDao.getProfileOnce()?.withoutObsoleteTargetMetadata(),
             measurements = bodyMeasurementDao.getAllOnce(),
             foodLogs = foodLogDao.getAllOnce(),
             mealFoods = mealFoodDao.getAllOnce(),
@@ -217,7 +217,11 @@ class BackupManager(
         workoutExerciseDao.clearAll()
         workoutSessionDao.clearAll()
 
-        data.profile?.let { userProfileDao.insertOrUpdateProfile(it.copy(id = 1)) }
+        data.profile?.let {
+            userProfileDao.insertOrUpdateProfile(
+                it.copy(id = 1).withoutObsoleteTargetMetadata()
+            )
+        }
         bodyMeasurementDao.insertAllAndSync(
             measurements = data.measurements
                 .sortedWith(compareBy<BodyMeasurement> { it.timestamp }.thenBy { it.id })

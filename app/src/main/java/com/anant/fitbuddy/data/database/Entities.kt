@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.anant.fitbuddy.data.model.LoggedIngredient
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
@@ -30,6 +31,12 @@ data class UserProfile(
 ) {
     /** True once the user has completed first-run onboarding (age, height, weight). */
     fun hasBasicsConfigured(): Boolean = age > 0 && weightKg > 0 && heightCm > 0
+
+    fun withoutObsoleteTargetMetadata(): UserProfile {
+        val generated = goalRationale?.startsWith("Evidence-based v") == true
+        val current = goalRationale?.startsWith("Evidence-based v3:") == true
+        return if (generated && !current) copy(goalRationale = null, targetWeightKg = null) else this
+    }
 }
 
 @JsonClass(generateAdapter = true)
@@ -133,12 +140,9 @@ data class ExercisePreset(
 )
 
 /**
- * A timestamped body-composition reading. Only [weightKg] is required; the remaining fields come
- * from a smart scale and are optional. Stored as a time series so trends can be charted and fed
- * to the AI for goal/target design and progress insight.
- *
- * [freescalePayloadJson] holds an opaque FreeScale measurement dump (Ω / BLE / segments / etc.)
- * for round-trip restore into FreeScale. It is never shown in FitBuddy UI.
+ * A timestamped body reading. FitBuddy actively supports weight, body-fat percentage, BMR,
+ * and muscle mass. Legacy nullable columns remain Room-mapped so existing databases open without
+ * destructive migration, but they are ignored by JSON and cleared on every write.
  */
 @JsonClass(generateAdapter = true)
 @Entity(tableName = "body_measurements")
@@ -147,24 +151,39 @@ data class BodyMeasurement(
     val timestamp: Long,
     val dateString: String, // format: "YYYY-MM-DD"
     val weightKg: Double,
-    val bmi: Double? = null,
+    @Json(ignore = true) val bmi: Double? = null,
     val bodyFatPct: Double? = null,
-    val muscleRatePct: Double? = null,
-    val bodyWaterPct: Double? = null,
-    val boneMassKg: Double? = null,
+    @Json(ignore = true) val muscleRatePct: Double? = null,
+    @Json(ignore = true) val bodyWaterPct: Double? = null,
+    @Json(ignore = true) val boneMassKg: Double? = null,
     val bmr: Int? = null,
-    val metabolicAge: Int? = null,
-    val visceralFat: Double? = null,
-    val subcutaneousFatPct: Double? = null,
-    val proteinMassKg: Double? = null,
+    @Json(ignore = true) val metabolicAge: Int? = null,
+    @Json(ignore = true) val visceralFat: Double? = null,
+    @Json(ignore = true) val subcutaneousFatPct: Double? = null,
+    @Json(ignore = true) val proteinMassKg: Double? = null,
     val muscleMassKg: Double? = null,
-    val fatFreeMassKg: Double? = null, // "weight without fat"
-    val skeletalMuscleMassKg: Double? = null,
-    val waterWeightKg: Double? = null,
-    val fatMassKg: Double? = null,
-    /** Opaque FreeScale reading JSON; null for manual FitBuddy entries. */
-    val freescalePayloadJson: String? = null,
-)
+    @Json(ignore = true) val fatFreeMassKg: Double? = null,
+    @Json(ignore = true) val skeletalMuscleMassKg: Double? = null,
+    @Json(ignore = true) val waterWeightKg: Double? = null,
+    @Json(ignore = true) val fatMassKg: Double? = null,
+    @Json(ignore = true) val freescalePayloadJson: String? = null,
+) {
+    fun supportedMetricsOnly(): BodyMeasurement = copy(
+        bmi = null,
+        muscleRatePct = null,
+        bodyWaterPct = null,
+        boneMassKg = null,
+        metabolicAge = null,
+        visceralFat = null,
+        subcutaneousFatPct = null,
+        proteinMassKg = null,
+        fatFreeMassKg = null,
+        skeletalMuscleMassKg = null,
+        waterWeightKg = null,
+        fatMassKg = null,
+        freescalePayloadJson = null,
+    )
+}
 
 /**
  * A logged gym/workout session containing one or more [WorkoutExercise] entries. [caloriesBurned]
