@@ -64,3 +64,8 @@
 -dontwarn edu.umd.cs.findbugs.annotations.**
 -dontwarn com.google.common.**
 
+# Compose initializes every accessibility event as non-sensitive. Some API 34 framework
+# builds report SDK 34 but omit this API 34 method, so remove the redundant default setter.
+-assumenosideeffects class androidx.core.view.accessibility.AccessibilityEventCompat {
+    public static void setAccessibilityDataSensitive(android.view.accessibility.AccessibilityEvent, boolean);
+}
