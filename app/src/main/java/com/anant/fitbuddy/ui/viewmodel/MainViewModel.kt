@@ -635,6 +635,45 @@ class MainViewModel(
             .distinctUntilChanged()
             .onEach { refreshToToday() }
             .launchIn(viewModelScope)
+
+        viewModelScope.launch {
+            val profile = repository.activeProfile.mapNotNull { it }.first()
+            val legacyCalculatedTargets = profile.goalRationale
+                ?.startsWith("Evidence-based v") == true &&
+                profile.goalRationale.startsWith("Evidence-based v3:").not()
+            if (!legacyCalculatedTargets || !profile.hasBasicsConfigured()) return@launch
+
+            val plan = runCatching {
+                HealthTargetCalculator.calculate(
+                    HealthTargetInput(
+                        age = profile.age,
+                        heightCm = profile.heightCm,
+                        weightKg = profile.weightKg,
+                        sex = profile.sex,
+                        activityLevel = profile.activityLevel,
+                        statedGoal = profile.goal,
+                        currentCalories = 0,
+                        currentProteinG = 0,
+                        currentCarbsG = 0,
+                        currentFatsG = 0,
+                        currentTargetsCalculated = false
+                    )
+                )
+            }.getOrNull() ?: return@launch
+
+            repository.saveProfile(
+                profile.copy(
+                    dailyTargetCalories = plan.dailyTargetCalories,
+                    targetProteinG = plan.targetProteinG,
+                    targetCarbsG = plan.targetCarbsG,
+                    targetFatsG = plan.targetFatsG,
+                    goal = plan.recommendedGoal,
+                    goalRationale = plan.rationale,
+                    targetWeightKg = plan.targetWeightKg,
+                    lastUpdatedTimestamp = System.currentTimeMillis()
+                )
+            )
+        }
     }
 
     /** Reactive: true when the preferred provider is configured for live AI calls. */
@@ -1527,10 +1566,12 @@ class MainViewModel(
 
     val bodyMeasurements: StateFlow<List<BodyMeasurement>> =
         repository.bodyMeasurements
+            .map { readings -> readings.map(BodyMeasurement::supportedMetricsOnly) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val latestMeasurement: StateFlow<BodyMeasurement?> =
         repository.latestMeasurement
+            .map { it?.supportedMetricsOnly() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Saves a new body reading. Keeps [BodyMeasurement.timestamp] when already set (e.g. FreeScale pull). */
@@ -3492,7 +3533,7 @@ class MainViewModel(
         val current = dashboardState.value
         val savedRationale = current.profile?.goalRationale
         val currentTargetsCalculated = !manualTargetsOverride && !forceRecalculation &&
-            savedRationale?.startsWith("Evidence-based v") == true &&
+            savedRationale?.startsWith("Evidence-based v3:") == true &&
             savedRationale.contains("Trend-adjusted locally").not()
         return HealthTargetInput(
             age = age,
@@ -3520,7 +3561,7 @@ class MainViewModel(
     ): String = JSONObject().apply {
         val currentRationale = dashboardState.value.profile?.goalRationale
         val currentTargetsCalculated = !manualTargetsOverride &&
-            currentRationale?.startsWith("Evidence-based v") == true &&
+            currentRationale?.startsWith("Evidence-based v3:") == true &&
             currentRationale.contains("Trend-adjusted locally").not()
         put("age", if (age > 0) age else JSONObject.NULL)
         put("sex", sex ?: JSONObject.NULL)
@@ -3765,34 +3806,20 @@ class MainViewModel(
                     put("start_weight_kg", oldest.weightKg)
                     put("end_weight_kg", newest.weightKg)
                     newest.bodyFatPct?.let { put("end_body_fat_pct", it) }
-                    newest.muscleMassKg?.let { put("end_muscle_mass_kg", it) }
-                    newest.visceralFat?.let { put("end_visceral_fat", it) }
                     newest.bmr?.let { put("end_bmr", it) }
-                    newest.bmi?.let { put("end_bmi", it) }
+                    newest.muscleMassKg?.let { put("end_muscle_mass_kg", it) }
                 })
             }
         }
     }
 
-    /** Serializes a body reading to JSON, omitting null smart-scale fields. */
+    /** Serializes the four supported body metrics for AI context. */
     private fun measurementJson(m: BodyMeasurement): JSONObject = JSONObject().apply {
         put("date", m.dateString)
         put("weight_kg", m.weightKg)
-        m.bmi?.let { put("bmi", it) }
         m.bodyFatPct?.let { put("body_fat_pct", it) }
-        m.muscleRatePct?.let { put("muscle_rate_pct", it) }
-        m.bodyWaterPct?.let { put("body_water_pct", it) }
-        m.boneMassKg?.let { put("bone_mass_kg", it) }
         m.bmr?.let { put("bmr", it) }
-        m.metabolicAge?.let { put("metabolic_age", it) }
-        m.visceralFat?.let { put("visceral_fat", it) }
-        m.subcutaneousFatPct?.let { put("subcutaneous_fat_pct", it) }
-        m.proteinMassKg?.let { put("protein_mass_kg", it) }
         m.muscleMassKg?.let { put("muscle_mass_kg", it) }
-        m.fatFreeMassKg?.let { put("fat_free_mass_kg", it) }
-        m.skeletalMuscleMassKg?.let { put("skeletal_muscle_mass_kg", it) }
-        m.waterWeightKg?.let { put("water_weight_kg", it) }
-        m.fatMassKg?.let { put("fat_mass_kg", it) }
     }
 
     companion object {

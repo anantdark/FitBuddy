@@ -41,11 +41,11 @@ object ProgressMetricsCompressor {
         appendLine("calorie_model=${context.optString("calorie_model_note").replace('\n', ' ')}")
         appendLine()
 
-        appendLine("BODY30 d|kg|bf%|muscle_kg|visceral|bmr|bmi (past month, oldest→newest):")
+        appendLine("BODY30 d|kg|bf%|bmr|muscle_kg (past month, oldest→newest):")
         context.optJSONArray("body_measurements")?.let { appendBody(it) } ?: appendLine("(none)")
 
         appendLine()
-        appendLine("BODY_PRIOR month|n|avg_kg|start_kg|end_kg|end_bf%|end_muscle|end_visceral|end_bmr|end_bmi:")
+        appendLine("BODY_PRIOR month|n|avg_kg|start_kg|end_kg|end_bf%|end_bmr|end_muscle:")
         context.optJSONArray("body_prior_months")?.let { appendPriorBody(it) } ?: appendLine("(none)")
 
         appendLine()
@@ -80,10 +80,8 @@ object ProgressMetricsCompressor {
                 "${shortDate(m.optString("date"))}|" +
                     fmt(m.optDouble("weight_kg")) + "|" +
                     optFmt(m, "body_fat_pct") + "|" +
-                    optFmt(m, "muscle_mass_kg") + "|" +
-                    optFmt(m, "visceral_fat") + "|" +
                     optFmt(m, "bmr") + "|" +
-                    optFmt(m, "bmi")
+                    optFmt(m, "muscle_mass_kg")
             )
         }
     }
@@ -102,10 +100,8 @@ object ProgressMetricsCompressor {
                     fmt(m.optDouble("start_weight_kg")) + "|" +
                     fmt(m.optDouble("end_weight_kg")) + "|" +
                     optFmt(m, "end_body_fat_pct") + "|" +
-                    optFmt(m, "end_muscle_mass_kg") + "|" +
-                    optFmt(m, "end_visceral_fat") + "|" +
                     optFmt(m, "end_bmr") + "|" +
-                    optFmt(m, "end_bmi")
+                    optFmt(m, "end_muscle_mass_kg")
             )
         }
     }

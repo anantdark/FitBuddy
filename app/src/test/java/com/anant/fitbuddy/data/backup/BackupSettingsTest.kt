@@ -169,21 +169,9 @@ class BackupSettingsTest {
                     timestamp = 10L,
                     dateString = "2026-07-19",
                     weightKg = 72.5,
-                    bmi = 23.7,
                     bodyFatPct = 18.0,
-                    muscleRatePct = 42.0,
-                    bodyWaterPct = 55.0,
-                    boneMassKg = 3.1,
                     bmr = 1700,
-                    metabolicAge = 28,
-                    visceralFat = 7.0,
-                    subcutaneousFatPct = 15.0,
-                    proteinMassKg = 12.0,
-                    muscleMassKg = 30.0,
-                    fatFreeMassKg = 59.0,
-                    skeletalMuscleMassKg = 28.0,
-                    waterWeightKg = 40.0,
-                    fatMassKg = 13.5
+                    muscleMassKg = 30.0
                 )
             ),
             foodLogs = listOf(

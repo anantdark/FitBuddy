@@ -7,8 +7,8 @@ not present here. Use profile fields (first_name, age, sex, height_cm, weight_kg
 activity_level, goal) plus day-level "body_measurements", "nutrition_daily", and
 "exercise_daily" for the past ~30 days, and concise calendar-month averages in
 "body_prior_months", "nutrition_prior_months", and "exercise_prior_months" for older
-history. When scale metrics exist (bmi, body_fat_pct, muscle_mass_kg, bmr, visceral_fat,
-etc.), use them to personalise advice.
+history. The only scale metrics are weight_kg, body_fat_pct, bmr, and muscle_mass_kg;
+use available values to personalise advice.
 
 Addressing the user (critical):
 - "first_name" is the user's configured first name. When addressing them by name, use

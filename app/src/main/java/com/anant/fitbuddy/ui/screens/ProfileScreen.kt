@@ -66,7 +66,6 @@ import com.anant.fitbuddy.bridge.FreeScaleBridge
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ActivityLevels
-import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
@@ -140,16 +139,6 @@ fun BodyScreen(
     val goal = remember(profile?.goal) { mutableStateOf(profile?.goal ?: "RECOMP") }
     val parsedTargetWeight = targetWeight.value.toDoubleOrNull()
         ?.takeIf { it.isFinite() && it > 0.0 }
-    val adultBmi = if ((profile?.age ?: 0) >= 18) {
-        currentWeight?.let { HealthTargetCalculator.bodyMassIndex(it, profile?.heightCm ?: 0.0) }
-    } else {
-        null
-    }
-    val healthyWeightRange = if ((profile?.age ?: 0) >= 18) {
-        HealthTargetCalculator.healthyWeightRange(profile?.heightCm ?: 0.0)
-    } else {
-        null
-    }
     val targetWeightError = when {
         targetWeight.value.isBlank() -> null
         parsedTargetWeight == null -> "Enter a valid weight milestone"
@@ -301,16 +290,6 @@ fun BodyScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
-            if (adultBmi != null && healthyWeightRange != null) {
-                Text(
-                    text = "Adult BMI screening: ${formatOneDecimal(adultBmi)} · " +
-                        "reference range ${formatOneDecimal(healthyWeightRange.start)}–" +
-                        "${formatOneDecimal(healthyWeightRange.endInclusive)} kg. " +
-                        "BMI is a screening measure, not an ideal-weight prescription.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
             targetWeightError?.let {
                 Text(
                     text = it,
@@ -455,21 +434,9 @@ private const val METRIC_GRID_COLUMNS = 2
 private fun MetricGrid(m: BodyMeasurement) {
     val chips = buildList {
         add("Weight" to "${m.weightKg} kg")
-        m.bmi?.let { add("BMI" to it.toString()) }
         m.bodyFatPct?.let { add("Body fat" to "$it%") }
-        m.muscleRatePct?.let { add("Muscle rate" to "$it%") }
-        m.bodyWaterPct?.let { add("Body water" to "$it%") }
-        m.muscleMassKg?.let { add("Muscle mass" to "$it kg") }
-        m.fatMassKg?.let { add("Fat mass" to "$it kg") }
-        m.boneMassKg?.let { add("Bone mass" to "$it kg") }
         m.bmr?.let { add("BMR" to "$it kcal") }
-        m.metabolicAge?.let { add("Metabolic age" to "$it yrs") }
-        m.visceralFat?.let { add("Visceral fat" to "$it%") }
-        m.subcutaneousFatPct?.let { add("Subcut. fat" to "$it%") }
-        m.proteinMassKg?.let { add("Protein" to "$it kg") }
-        m.fatFreeMassKg?.let { add("Fat-free" to "$it kg") }
-        m.skeletalMuscleMassKg?.let { add("Skeletal muscle" to "$it kg") }
-        m.waterWeightKg?.let { add("Water" to "$it kg") }
+        m.muscleMassKg?.let { add("Muscle mass" to "$it kg") }
     }
     // Fixed-column grid (not a wrapping FlowRow) so every chip in a column shares the same width
     // and the last, possibly-partial row still aligns instead of leaving a lone stray chip.
@@ -995,8 +962,8 @@ private fun TargetProposalDialog(
                                 "No automatic scale-weight change is recommended, so your " +
                                     "current weight is used as a maintenance milestone."
                             } else {
-                                "A gradual milestone based on your goal and the healthy BMI " +
-                                    "screening range."
+                                "An initial milestone of up to 5% based on your selected " +
+                                    "weight-loss goal."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1119,21 +1086,9 @@ private fun CalculationRow(
 private data class MetricSpec(val key: String, val label: String, val decimal: Boolean = true)
 
 private val OPTIONAL_METRICS = listOf(
-    MetricSpec("bmi", "BMI"),
     MetricSpec("bodyFatPct", "Body fat (%)"),
-    MetricSpec("muscleRatePct", "Muscle rate (%)"),
-    MetricSpec("bodyWaterPct", "Body water (%)"),
-    MetricSpec("boneMassKg", "Bone mass (kg)"),
     MetricSpec("bmr", "BMR (kcal)", decimal = false),
-    MetricSpec("metabolicAge", "Metabolic age (yrs)", decimal = false),
-    MetricSpec("visceralFat", "Visceral fat (%)"),
-    MetricSpec("subcutaneousFatPct", "Subcutaneous fat (%)"),
-    MetricSpec("proteinMassKg", "Protein mass (kg)"),
     MetricSpec("muscleMassKg", "Muscle mass (kg)"),
-    MetricSpec("fatFreeMassKg", "Weight without fat (kg)"),
-    MetricSpec("skeletalMuscleMassKg", "Skeletal muscle mass (kg)"),
-    MetricSpec("waterWeightKg", "Water weight (kg)"),
-    MetricSpec("fatMassKg", "Fat mass (kg)")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1150,7 +1105,6 @@ private fun AddMeasurementSheet(
     val optional = remember { mutableStateMapOf<String, String>() }
     var pulledTimestamp by remember { mutableStateOf(0L) }
     var pulledDateString by remember { mutableStateOf("") }
-    var pulledFreescalePayload by remember { mutableStateOf<String?>(null) }
     var pullBusy by remember { mutableStateOf(false) }
     var showInstallFreeScale by remember { mutableStateOf(false) }
     var pullError by remember { mutableStateOf<String?>(null) }
@@ -1160,30 +1114,14 @@ private fun AddMeasurementSheet(
     fun applyPulled(m: BodyMeasurement) {
         pulledTimestamp = m.timestamp
         pulledDateString = m.dateString
-        pulledFreescalePayload = m.freescalePayloadJson
         weight = fmtOptional(m.weightKg) ?: ""
         fun put(key: String, value: Double?) {
             val s = fmtOptional(value)
             if (s != null) optional[key] = s else optional.remove(key)
         }
-        fun putInt(key: String, value: Int?) {
-            if (value != null) optional[key] = value.toString() else optional.remove(key)
-        }
-        put("bmi", m.bmi)
         put("bodyFatPct", m.bodyFatPct)
-        put("muscleRatePct", m.muscleRatePct)
-        put("bodyWaterPct", m.bodyWaterPct)
-        put("boneMassKg", m.boneMassKg)
-        putInt("bmr", m.bmr)
-        putInt("metabolicAge", m.metabolicAge)
-        put("visceralFat", m.visceralFat)
-        put("subcutaneousFatPct", m.subcutaneousFatPct)
-        put("proteinMassKg", m.proteinMassKg)
+        m.bmr?.let { optional["bmr"] = it.toString() } ?: optional.remove("bmr")
         put("muscleMassKg", m.muscleMassKg)
-        put("fatFreeMassKg", m.fatFreeMassKg)
-        put("skeletalMuscleMassKg", m.skeletalMuscleMassKg)
-        put("waterWeightKg", m.waterWeightKg)
-        put("fatMassKg", m.fatMassKg)
         showAdvanced = optional.isNotEmpty()
         pullStatus = "Loaded FreeScale reading — review and tap Save."
         pullError = null
@@ -1285,22 +1223,9 @@ private fun AddMeasurementSheet(
                             timestamp = pulledTimestamp,
                             dateString = pulledDateString,
                             weightKg = weight.toDoubleOrNull() ?: 0.0,
-                            bmi = d("bmi"),
                             bodyFatPct = d("bodyFatPct"),
-                            muscleRatePct = d("muscleRatePct"),
-                            bodyWaterPct = d("bodyWaterPct"),
-                            boneMassKg = d("boneMassKg"),
                             bmr = i("bmr"),
-                            metabolicAge = i("metabolicAge"),
-                            visceralFat = d("visceralFat"),
-                            subcutaneousFatPct = d("subcutaneousFatPct"),
-                            proteinMassKg = d("proteinMassKg"),
                             muscleMassKg = d("muscleMassKg"),
-                            fatFreeMassKg = d("fatFreeMassKg"),
-                            skeletalMuscleMassKg = d("skeletalMuscleMassKg"),
-                            waterWeightKg = d("waterWeightKg"),
-                            fatMassKg = d("fatMassKg"),
-                            freescalePayloadJson = pulledFreescalePayload,
                         )
                     )
                 }

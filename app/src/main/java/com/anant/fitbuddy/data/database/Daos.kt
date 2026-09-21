@@ -439,7 +439,7 @@ interface BodyMeasurementDao {
 
     @Transaction
     suspend fun insertAndSync(measurement: BodyMeasurement, lastUpdatedTimestamp: Long) {
-        insert(measurement)
+        insert(measurement.supportedMetricsOnly())
         syncProfileWeightToLatest(lastUpdatedTimestamp)
     }
 
@@ -448,7 +448,7 @@ interface BodyMeasurementDao {
         measurements: List<BodyMeasurement>,
         lastUpdatedTimestamp: Long
     ) {
-        insertAll(measurements)
+        insertAll(measurements.map(BodyMeasurement::supportedMetricsOnly))
         syncProfileWeightToLatest(lastUpdatedTimestamp)
     }
 
@@ -458,14 +458,11 @@ interface BodyMeasurementDao {
         lastUpdatedTimestamp: Long
     ): Boolean {
         val existing = getByTimestamp(measurement.timestamp)
+        val sanitized = measurement.supportedMetricsOnly()
         val toSave = if (existing != null) {
-            measurement.copy(
-                id = existing.id,
-                freescalePayloadJson = measurement.freescalePayloadJson
-                    ?: existing.freescalePayloadJson
-            )
+            sanitized.copy(id = existing.id)
         } else {
-            measurement.copy(id = 0)
+            sanitized.copy(id = 0)
         }
         insert(toSave)
         syncProfileWeightToLatest(lastUpdatedTimestamp)

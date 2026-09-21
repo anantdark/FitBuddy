@@ -89,12 +89,8 @@ private data class BodyMetric(
 private val BODY_METRICS = listOf(
     BodyMetric("Weight", " kg", decreaseIsPositive = true) { it.weightKg },
     BodyMetric("Body fat", "%", decreaseIsPositive = true) { it.bodyFatPct },
-    BodyMetric("Muscle mass", " kg", decreaseIsPositive = false) { it.muscleMassKg },
-    BodyMetric("Visceral fat", "%", decreaseIsPositive = true) { it.visceralFat },
-    BodyMetric("BMI", "", decreaseIsPositive = true) { it.bmi },
-    BodyMetric("Body water", "%", decreaseIsPositive = false) { it.bodyWaterPct },
-    BodyMetric("Metabolic age", " yrs", decreaseIsPositive = true) { it.metabolicAge?.toDouble() },
     BodyMetric("BMR", " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
+    BodyMetric("Muscle mass", " kg", decreaseIsPositive = false) { it.muscleMassKg },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

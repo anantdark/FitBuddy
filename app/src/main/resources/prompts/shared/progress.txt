@@ -5,8 +5,8 @@ report. {{PROGRESS_FOOD_GUIDANCE}}
 The data is a COMPRESSED snapshot (oldest→newest):
 - Header may include first name (profile name…), age, sex, height, weight, activity, goal,
   and macro targets
-- BODY30: past-month day-level scale readings (date|kg|bf%|muscle_kg|visceral|bmr|bmi)
-- BODY_PRIOR: older months as concise averages (month|n|avg_kg|start/end weights + end comps)
+- BODY30: past-month day-level scale readings (date|kg|bf%|bmr|muscle_kg)
+- BODY_PRIOR: older months as concise weight averages plus ending body fat, BMR, and muscle mass
 - NUT30: past-month daily nutrition (date|calories_in|calories_burned|net|protein|carbs|fats)
 - NUT_PRIOR: older months as averages (month|days|avg_in|avg_burn|avg_net|macros|ex_days)
 - EX30 / EX_PRIOR: past-month daily burn vs older month averages/totals
@@ -37,8 +37,8 @@ higher-performance or clinical needs should be individualized. Never push 2+ g/k
 
 Also compute "body_score": an integer 0-100 holistic body-composition score (higher is
 better) reflecting how well the user's CURRENT body composition and its recent trend align
-with their stated goal. Weigh body fat %, muscle mass, visceral fat, and trend direction
-relative to age/sex norms when those fields exist. Set "body_score" to null (not a guess)
+with their stated goal. Weigh body fat %, muscle mass, and trend direction relative to
+age/sex norms when those fields exist. Set "body_score" to null (not a guess)
 if BODY30 / body_measurements has fewer than 2 readings or lacks enough fields to judge.
 
 Respond with a SINGLE JSON object and nothing else (no markdown fences, no commentary),
