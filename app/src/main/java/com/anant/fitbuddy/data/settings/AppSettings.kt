@@ -146,6 +146,15 @@ data class AppSettings(
     val dailyLogReminderHour: Int = DEFAULT_REMINDER_HOUR,
     val dailyLogReminderMinute: Int = DEFAULT_REMINDER_MINUTE,
     /**
+     * Weekly optional donate nudge (morning notification + evening dialog). Re-enabled on
+     * app update, then turned off again if this install's Support ID is on the donors list.
+     */
+    val donationReminderEnabled: Boolean = true,
+    /** Epoch ms of last soft-dismiss / cycle close; 0 until first-run seed. */
+    val donationLastNudgeAt: Long = 0L,
+    val donationLastNotifAt: Long = 0L,
+    val donationLastDialogAt: Long = 0L,
+    /**
      * Local hour (0–23) at which the app's "day" rolls over. Default 0 = midnight.
      * Logs created before this hour (e.g. 2 AM with offset 3) are attributed to the
      * previous calendar day.

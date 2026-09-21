@@ -65,6 +65,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
@@ -112,7 +113,9 @@ private enum class FoodEditorTarget {
 fun MainScreen(
     viewModel: MainViewModel,
     openLogHubRequest: Boolean = false,
-    onOpenLogHubConsumed: () -> Unit = {}
+    onOpenLogHubConsumed: () -> Unit = {},
+    openDonateReminderRequest: Boolean = false,
+    onOpenDonateReminderConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val dismissKeyboard = rememberDismissKeyboard()
@@ -155,6 +158,10 @@ fun MainScreen(
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
+    val donationReminderVisible by viewModel.donationReminderVisible.collectAsStateWithLifecycle()
+    val alreadyPaidPromptVisible by viewModel.alreadyPaidPromptVisible.collectAsStateWithLifecycle()
+    val openDonationDialogRequested by viewModel.openDonationDialogRequested.collectAsStateWithLifecycle()
+    val newDonorsThankYou by viewModel.newDonorsThankYou.collectAsStateWithLifecycle()
 
     val keepScreenAwake = analysisState.isLoading ||
         analysisState.isReanalyzing ||
@@ -197,7 +204,10 @@ fun MainScreen(
                         donationColorIndex = nextDonationHeartColorIndex(donationColorIndex)
                     }
                 }
-                Lifecycle.Event.ON_RESUME -> viewModel.refreshToToday()
+                Lifecycle.Event.ON_RESUME -> {
+                    viewModel.refreshToToday()
+                    viewModel.maybeShowEveningDonateReminder()
+                }
                 else -> Unit
             }
         }
@@ -214,6 +224,18 @@ fun MainScreen(
         if (openLogHubRequest) {
             showLogHub = true
             onOpenLogHubConsumed()
+        }
+    }
+    LaunchedEffect(openDonateReminderRequest) {
+        if (openDonateReminderRequest) {
+            viewModel.onDonateReminderNotificationOpened()
+            onOpenDonateReminderConsumed()
+        }
+    }
+    LaunchedEffect(openDonationDialogRequested) {
+        if (openDonationDialogRequested) {
+            showDonationDialog = true
+            viewModel.consumeOpenDonationDialogRequest()
         }
     }
     var showTextDialog by remember { mutableStateOf(false) }
@@ -455,6 +477,20 @@ fun MainScreen(
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
                 onApplyBuiltInModelDefaults = viewModel::applyBuiltInModelDefaults,
                 onShowTestUpdatePrompt = viewModel::showTestUpdatePrompt,
+                onShowTestDonateNotification = {
+                    val ok = DonationReminderReceiver.postDonationNotification(context, isTest = true)
+                    SystemToast.show(
+                        context,
+                        if (ok) "Donate test notification sent" else "Couldn't send notification",
+                    )
+                },
+                onShowTestDonateReminderDialog = viewModel::showTestDonationReminderDialog,
+                onShowTestNewDonorsThankYou = viewModel::showTestNewDonorsThankYou,
+                onShowTestDonationDialog = {
+                    showSettings = false
+                    viewModel.showTestDonationDialog()
+                },
+                onResetDonateReminderTimers = viewModel::resetDonationReminderTimers,
                 onRestartOnboarding = viewModel::restartOnboardingForTesting,
                 onTestNotificationSent = { ok ->
                     SystemToast.show(
@@ -936,8 +972,30 @@ fun MainScreen(
 
     if (showDonationDialog) {
         DonationDialog(
-            heartColor = currentDonationHeartColor,
             onDismiss = { showDonationDialog = false },
+        )
+    }
+
+    if (donationReminderVisible) {
+        DonationReminderDialog(
+            onSoftDismiss = viewModel::dismissDonationReminderSoft,
+            onAlreadyPaid = viewModel::onDonationReminderAlreadyPaid,
+            onPay = viewModel::onDonationReminderPay,
+        )
+    }
+
+    if (alreadyPaidPromptVisible) {
+        AlreadyPaidDonorPrompt(
+            supportId = settings.supportId,
+            developerEmail = DEVELOPER_EMAIL,
+            onDismiss = viewModel::dismissAlreadyPaidPrompt,
+        )
+    }
+
+    if (newDonorsThankYou.isNotEmpty()) {
+        NewDonorsThankYouDialog(
+            donors = newDonorsThankYou,
+            onDismiss = viewModel::dismissNewDonorsThankYou,
         )
     }
 

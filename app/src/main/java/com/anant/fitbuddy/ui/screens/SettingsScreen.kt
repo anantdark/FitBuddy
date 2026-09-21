@@ -201,6 +201,11 @@ fun SettingsScreen(
     onClearModelCooldowns: () -> Unit = {},
     onApplyBuiltInModelDefaults: () -> Unit = {},
     onShowTestUpdatePrompt: () -> Unit = {},
+    onShowTestDonateNotification: () -> Unit = {},
+    onShowTestDonateReminderDialog: () -> Unit = {},
+    onShowTestNewDonorsThankYou: () -> Unit = {},
+    onShowTestDonationDialog: () -> Unit = {},
+    onResetDonateReminderTimers: () -> Unit = {},
     onRestartOnboarding: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
     onPermissionDenied: (message: String) -> Unit = {},
@@ -878,6 +883,26 @@ fun SettingsScreen(
                 hintTitle = "Daily log reminder",
                 hint = "Local notification once a day (no Google Play Services). " +
                     "Default time is 8:00 PM."
+            )
+            SettingToggleRow(
+                title = "Weekly donate reminder",
+                checked = settings.donationReminderEnabled,
+                onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        onSave(settings.copy(donationReminderEnabled = false))
+                        return@SettingToggleRow
+                    }
+                    if (
+                        needsNotificationPermission &&
+                        !notificationPermission.status.isGranted
+                    ) {
+                        notificationPermission.launchPermissionRequest()
+                    }
+                    onSave(settings.copy(donationReminderEnabled = true))
+                },
+                hintTitle = "Weekly donate reminder",
+                hint = "Optional morning notification and evening dialog once a week. " +
+                    "Turns off automatically if your Support ID is on the donor list."
             )
             if (settings.dailyLogReminderEnabled) {
                 val hour12 = settings.dailyLogReminderHour % 12
@@ -1599,8 +1624,9 @@ fun SettingsScreen(
 
                 DeveloperSection(
                     title = "Testing",
-                    description = "One-shot checks for update UI, notifications, crash reporting, and onboarding."
+                    description = "One-shot checks for update UI, donations, notifications, crash reporting, and onboarding."
                 ) {
+                    DemoDonorsPreview(donors = com.anant.fitbuddy.data.donors.DemoDonors.all)
                     OutlinedButton(
                         onClick = onShowTestUpdatePrompt,
                         modifier = Modifier.fillMaxWidth()
@@ -1609,6 +1635,50 @@ fun SettingsScreen(
                     }
                     Text(
                         text = "Fake release dialog for backup-before-update. Download fails on purpose.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            if (
+                                needsNotificationPermission &&
+                                !notificationPermission.status.isGranted
+                            ) {
+                                notificationPermission.launchPermissionRequest()
+                                return@OutlinedButton
+                            }
+                            onShowTestDonateNotification()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Show donate reminder notification")
+                    }
+                    OutlinedButton(
+                        onClick = onShowTestDonateReminderDialog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Show donate reminder dialog")
+                    }
+                    OutlinedButton(
+                        onClick = onShowTestNewDonorsThankYou,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Show new-donors thank-you")
+                    }
+                    OutlinedButton(
+                        onClick = onShowTestDonationDialog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open donation dialog")
+                    }
+                    OutlinedButton(
+                        onClick = onResetDonateReminderTimers,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Reset donate reminder timers")
+                    }
+                    Text(
+                        text = "Donate test actions bypass the weekly schedule. Demo thank-you does not change last-seen donors.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -49,6 +49,9 @@ import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
+import com.anant.fitbuddy.data.donors.DemoDonors
+import com.anant.fitbuddy.data.donors.DonorEntry
+import com.anant.fitbuddy.data.donors.DonorListRepository
 import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
@@ -65,6 +68,7 @@ import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
+import com.anant.fitbuddy.reminders.DonationReminderScheduler
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.CancellationException
@@ -619,6 +623,201 @@ class MainViewModel(
         }
     }
 
+    // --- Donation reminder / thank-you ------------------------------------------------------
+
+    private val donorListRepository = DonorListRepository(settingsRepository)
+
+    private val _donationReminderVisible = MutableStateFlow(false)
+    val donationReminderVisible: StateFlow<Boolean> = _donationReminderVisible.asStateFlow()
+
+    private val _alreadyPaidPromptVisible = MutableStateFlow(false)
+    val alreadyPaidPromptVisible: StateFlow<Boolean> = _alreadyPaidPromptVisible.asStateFlow()
+
+    private val _openDonationDialogRequested = MutableStateFlow(false)
+    val openDonationDialogRequested: StateFlow<Boolean> = _openDonationDialogRequested.asStateFlow()
+
+    private val _newDonorsThankYou = MutableStateFlow<List<DonorEntry>>(emptyList())
+    val newDonorsThankYou: StateFlow<List<DonorEntry>> = _newDonorsThankYou.asStateFlow()
+
+    private val _pendingEveningDonateReminder = MutableStateFlow(false)
+
+    fun consumeOpenDonationDialogRequest() {
+        _openDonationDialogRequested.value = false
+    }
+
+    fun showDonationReminderDialog(force: Boolean = false) {
+        if (force || DonationReminderScheduler.canShowEveningDialog(settings.value) ||
+            _pendingEveningDonateReminder.value
+        ) {
+            _donationReminderVisible.value = true
+        }
+    }
+
+    fun onDonateReminderNotificationOpened() {
+        val s = settings.value
+        val now = System.currentTimeMillis()
+        if (DonationReminderScheduler.canShowEveningDialog(s, now)) {
+            _donationReminderVisible.value = true
+        } else {
+            _pendingEveningDonateReminder.value = true
+        }
+    }
+
+    fun dismissDonationReminderSoft() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = now,
+                    donationLastDialogAt = now,
+                )
+            )
+            _donationReminderVisible.value = false
+            _pendingEveningDonateReminder.value = false
+        }
+    }
+
+    fun onDonationReminderAlreadyPaid() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = now,
+                    donationLastDialogAt = now,
+                )
+            )
+            _donationReminderVisible.value = false
+            _alreadyPaidPromptVisible.value = true
+            _pendingEveningDonateReminder.value = false
+        }
+    }
+
+    fun dismissAlreadyPaidPrompt() {
+        _alreadyPaidPromptVisible.value = false
+    }
+
+    fun onDonationReminderPay() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = now,
+                    donationLastDialogAt = now,
+                )
+            )
+            _donationReminderVisible.value = false
+            _pendingEveningDonateReminder.value = false
+            _openDonationDialogRequested.value = true
+        }
+    }
+
+    fun dismissNewDonorsThankYou() {
+        val shown = _newDonorsThankYou.value
+        _newDonorsThankYou.value = emptyList()
+        if (shown.isEmpty()) return
+        // Developer demo donors must not pollute last-seen.
+        if (shown.any { it.hash.startsWith("demo-hash") }) return
+        viewModelScope.launch {
+            val file = donorListRepository.cachedOrEmpty()
+            val hashes = file.donors.map { it.normalizedHash }.filter { it.isNotEmpty() }
+            settingsRepository.addLastSeenDonorHashes(hashes)
+        }
+    }
+
+    fun showTestDonationReminderDialog() {
+        _donationReminderVisible.value = true
+    }
+
+    fun showTestNewDonorsThankYou() {
+        _newDonorsThankYou.value = DemoDonors.forThankYou
+    }
+
+    fun showTestDonationDialog() {
+        _openDonationDialogRequested.value = true
+    }
+
+    fun resetDonationReminderTimers() {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = DonationReminderScheduler.seedFirstRunNudgeAt(),
+                    donationLastNotifAt = 0L,
+                    donationLastDialogAt = 0L,
+                    donationReminderEnabled = true,
+                )
+            )
+            showTransientMessage("Donate reminder timers reset")
+        }
+    }
+
+    /**
+     * Fetches donors, toggles personal reminder after upgrades, and queues public thank-you
+     * for named donors not yet in last-seen.
+     */
+    fun syncDonors() {
+        viewModelScope.launch {
+            runCatching {
+                var current = settings.value
+                if (current.donationLastNudgeAt <= 0L) {
+                    current = current.copy(
+                        donationLastNudgeAt = DonationReminderScheduler.seedFirstRunNudgeAt()
+                    )
+                    settingsRepository.save(current)
+                }
+
+                val version = BuildConfig.VERSION_CODE
+                val lastReminderVersion = settingsRepository.lastDonationReminderVersionCode()
+                if (lastReminderVersion != null && version > lastReminderVersion) {
+                    current = current.copy(donationReminderEnabled = true)
+                    settingsRepository.save(current)
+                }
+                if (lastReminderVersion == null || version != lastReminderVersion) {
+                    settingsRepository.setLastDonationReminderVersionCode(version)
+                }
+
+                val file = donorListRepository.refresh(forceNetwork = true)
+                val isDonor = donorListRepository.containsSupportId(file, current.supportId)
+                if (isDonor && current.donationReminderEnabled) {
+                    settingsRepository.save(current.copy(donationReminderEnabled = false))
+                }
+
+                val lastSeen = settingsRepository.lastSeenDonorHashes()
+                val newcomers = donorListRepository.newDisplayableDonors(file, lastSeen)
+                if (newcomers.isNotEmpty()) {
+                    _newDonorsThankYou.value = newcomers
+                } else if (file.donors.isNotEmpty()) {
+                    val hashes = file.donors.map { it.normalizedHash }.filter { it.isNotEmpty() }
+                    settingsRepository.addLastSeenDonorHashes(hashes)
+                }
+
+                maybeShowEveningDonateReminder()
+            }
+        }
+    }
+
+    fun maybeShowEveningDonateReminder() {
+        val s = settings.value
+        if (_pendingEveningDonateReminder.value) {
+            val now = System.currentTimeMillis()
+            val hour = java.util.Calendar.getInstance().apply { timeInMillis = now }
+                .get(java.util.Calendar.HOUR_OF_DAY)
+            val gapOk = s.donationLastNotifAt <= 0L ||
+                now - s.donationLastNotifAt >= DonationReminderScheduler.MIN_GAP_MS
+            if (hour >= DonationReminderScheduler.DIALOG_HOUR && gapOk) {
+                _donationReminderVisible.value = true
+                _pendingEveningDonateReminder.value = false
+                return
+            }
+        }
+        if (DonationReminderScheduler.canShowEveningDialog(s)) {
+            _donationReminderVisible.value = true
+        }
+    }
+
     // --- Settings ---------------------------------------------------------------------------
 
     private val _hasSettingsSnapshot = MutableStateFlow(false)
@@ -635,6 +834,12 @@ class MainViewModel(
             .distinctUntilChanged()
             .onEach { refreshToToday() }
             .launchIn(viewModelScope)
+
+        viewModelScope.launch {
+            // Wait for first settings emission so Support ID / nudge seed see real prefs.
+            settingsRepository.settings.first()
+            syncDonors()
+        }
 
         viewModelScope.launch {
             val profile = repository.activeProfile.mapNotNull { it }.first()

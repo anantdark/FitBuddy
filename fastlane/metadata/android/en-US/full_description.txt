@@ -16,7 +16,7 @@ Features:
 • Loading animations — choose Analyzing / Insights wait animations in Settings
 • Auto failover — rotates API keys and models on rate limits; stays on your preferred platform
 • Offline fallback — works without an AI key via built-in simulator
-• Developer support — Razorpay UPI/cards for India and GitHub Sponsors internationally
+• Developer support — Razorpay UPI/cards for India and GitHub Sponsors internationally; optional weekly reminder you can turn off
 • Material You — dynamic color theming on Android 12+
 • Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
 • Diagnostic log — optional AI connection log you can export from Settings for support (no meals, photos, or keys)

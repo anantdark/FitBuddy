@@ -159,6 +159,10 @@ class SettingsRepository(context: Context) {
                 ?: AppSettings.DEFAULT_REMINDER_HOUR).coerceIn(0, 23),
             dailyLogReminderMinute = (prefs[KEY_DAILY_LOG_REMINDER_MINUTE]
                 ?: AppSettings.DEFAULT_REMINDER_MINUTE).coerceIn(0, 59),
+            donationReminderEnabled = prefs[KEY_DONATION_REMINDER] ?: true,
+            donationLastNudgeAt = prefs[KEY_DONATION_LAST_NUDGE_AT] ?: 0L,
+            donationLastNotifAt = prefs[KEY_DONATION_LAST_NOTIF_AT] ?: 0L,
+            donationLastDialogAt = prefs[KEY_DONATION_LAST_DIALOG_AT] ?: 0L,
             dayChangeHour = (prefs[KEY_DAY_CHANGE_HOUR]
                 ?: AppSettings.DEFAULT_DAY_CHANGE_HOUR).coerceIn(0, 23),
             developerModeUnlocked = prefs[KEY_DEVELOPER_UNLOCKED] ?: false,
@@ -251,6 +255,43 @@ class SettingsRepository(context: Context) {
 
     suspend fun setLastKnownVersionCode(versionCode: Int) {
         dataStore.edit { prefs -> prefs[KEY_LAST_KNOWN_VERSION_CODE] = versionCode }
+    }
+
+    suspend fun cachedDonorsJson(): String? =
+        dataStore.data.first()[KEY_CACHED_DONORS_JSON]
+
+    suspend fun setCachedDonorsJson(json: String) {
+        dataStore.edit { prefs -> prefs[KEY_CACHED_DONORS_JSON] = json }
+    }
+
+    suspend fun lastSeenDonorHashes(): Set<String> {
+        val raw = dataStore.data.first()[KEY_LAST_SEEN_DONOR_HASHES].orEmpty()
+        if (raw.isBlank()) return emptySet()
+        return raw.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    suspend fun addLastSeenDonorHashes(hashes: Collection<String>) {
+        if (hashes.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_LAST_SEEN_DONOR_HASHES].orEmpty()
+                .split(',')
+                .map { it.trim().lowercase() }
+                .filter { it.isNotEmpty() }
+                .toMutableSet()
+            current.addAll(hashes.map { it.trim().lowercase() }.filter { it.isNotEmpty() })
+            prefs[KEY_LAST_SEEN_DONOR_HASHES] = current.sorted().joinToString(",")
+        }
+    }
+
+    /**
+     * Version code at which we last re-enabled the donate reminder on upgrade.
+     * Null on fresh installs.
+     */
+    suspend fun lastDonationReminderVersionCode(): Int? =
+        dataStore.data.first()[KEY_DONATION_REMINDER_VERSION]
+
+    suspend fun setLastDonationReminderVersionCode(versionCode: Int) {
+        dataStore.edit { prefs -> prefs[KEY_DONATION_REMINDER_VERSION] = versionCode }
     }
 
     /** Active model cooldowns (expired entries already pruned). Survives process death. */
@@ -350,6 +391,10 @@ class SettingsRepository(context: Context) {
             prefs[KEY_DAILY_LOG_REMINDER] = settings.dailyLogReminderEnabled
             prefs[KEY_DAILY_LOG_REMINDER_HOUR] = settings.dailyLogReminderHour.coerceIn(0, 23)
             prefs[KEY_DAILY_LOG_REMINDER_MINUTE] = settings.dailyLogReminderMinute.coerceIn(0, 59)
+            prefs[KEY_DONATION_REMINDER] = settings.donationReminderEnabled
+            prefs[KEY_DONATION_LAST_NUDGE_AT] = settings.donationLastNudgeAt
+            prefs[KEY_DONATION_LAST_NOTIF_AT] = settings.donationLastNotifAt
+            prefs[KEY_DONATION_LAST_DIALOG_AT] = settings.donationLastDialogAt
             prefs[KEY_DAY_CHANGE_HOUR] = settings.dayChangeHour.coerceIn(0, 23)
             prefs[KEY_DEVELOPER_UNLOCKED] = settings.developerModeUnlocked
             prefs[KEY_FORCE_OFFLINE_AI] = settings.forceOfflineAiSimulator
@@ -589,6 +634,13 @@ class SettingsRepository(context: Context) {
         val KEY_DAILY_LOG_REMINDER = booleanPreferencesKey("daily_log_reminder_enabled")
         val KEY_DAILY_LOG_REMINDER_HOUR = intPreferencesKey("daily_log_reminder_hour")
         val KEY_DAILY_LOG_REMINDER_MINUTE = intPreferencesKey("daily_log_reminder_minute")
+        val KEY_DONATION_REMINDER = booleanPreferencesKey("donation_reminder_enabled")
+        val KEY_DONATION_LAST_NUDGE_AT = longPreferencesKey("donation_last_nudge_at")
+        val KEY_DONATION_LAST_NOTIF_AT = longPreferencesKey("donation_last_notif_at")
+        val KEY_DONATION_LAST_DIALOG_AT = longPreferencesKey("donation_last_dialog_at")
+        val KEY_CACHED_DONORS_JSON = stringPreferencesKey("cached_donors_json")
+        val KEY_LAST_SEEN_DONOR_HASHES = stringPreferencesKey("last_seen_donor_hashes")
+        val KEY_DONATION_REMINDER_VERSION = intPreferencesKey("donation_reminder_version_code")
         val KEY_DAY_CHANGE_HOUR = intPreferencesKey("day_change_hour")
         val KEY_DEVELOPER_UNLOCKED = booleanPreferencesKey("developer_mode_unlocked")
         val KEY_FORCE_OFFLINE_AI = booleanPreferencesKey("force_offline_ai_simulator")

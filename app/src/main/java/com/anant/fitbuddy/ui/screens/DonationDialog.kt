@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,12 +66,12 @@ private const val GITHUB_SPONSORS_URL = "https://github.com/sponsors/anantdark"
 private const val UPI_PAYMENT_URI =
     "upi://pay?cu=INR&mc=5817&mode=19&pa=anantdark969817.rzp@rxairtel&" +
         "tn=Payment%20To%20Anantdark&tr=TaiXaWZZm9gukCqrv2"
-private const val DEVELOPER_EMAIL = "fitbuddy31@proton.me"
+internal const val DEVELOPER_EMAIL = "fitbuddy31@proton.me"
 private const val UPI_QR_ASPECT_RATIO = 674f / 1644f
-private const val DONATION_BODY_HEIGHT_FRACTION = 0.5f
+private const val DONATION_BODY_HEIGHT_FRACTION = 0.52f
 private val DONATION_DIALOG_MAX_WIDTH = 560.dp
-private val DONATION_BODY_MIN_HEIGHT = 220.dp
-private val DONATION_BODY_MAX_HEIGHT = 420.dp
+private val DONATION_BODY_MIN_HEIGHT = 240.dp
+private val DONATION_BODY_MAX_HEIGHT = 440.dp
 private val DONATION_HEART_COLORS = listOf(
     Color(0xFFE91E63),
     Color(0xFFFF5722),
@@ -111,21 +112,16 @@ internal fun MainTopBarActions(
 
 @Composable
 internal fun DonationDialog(
-    heartColor: Color,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     var step by rememberSaveable { mutableStateOf(DonationStep.REGION) }
     var showQr by rememberSaveable { mutableStateOf(false) }
     val title = when (step) {
-        DonationStep.REGION -> "Support FitBuddy development"
+        DonationStep.REGION -> "Fuel the free app"
         DonationStep.INDIA -> "Donate from India"
         DonationStep.INTERNATIONAL -> "Donate internationally"
         DonationStep.UPI -> "Pay with UPI"
-    }
-    val icon = when (step) {
-        DonationStep.REGION, DonationStep.INTERNATIONAL -> Icons.Filled.Favorite
-        DonationStep.INDIA, DonationStep.UPI -> Icons.Filled.AccountBalanceWallet
     }
     val navigateBack = {
         step = when (step) {
@@ -140,18 +136,12 @@ internal fun DonationDialog(
             if (step == DonationStep.REGION) onDismiss() else navigateBack()
         },
         modifier = donationDialogModifier(),
-        icon = {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (step == DonationStep.REGION) {
-                    heartColor
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
+        title = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
             )
         },
-        title = { Text(title) },
         text = {
             DonationDialogContent {
                 when (step) {
@@ -198,28 +188,28 @@ private fun DonationRegionContent(
 ) {
     DonationInfoCard(
         icon = Icons.Filled.Favorite,
-        text = "FitBuddy is free and open source. Your optional contribution supports " +
-            "continued development, maintenance, and new features.",
+        text = "FitBuddy stays free and open source because of optional tips. " +
+            "Buy the dev a chai. No account, no pressure.",
     )
-    DonationSectionTitle("Choose your region")
-    OutlinedButton(
+    DonationSectionTitle("Where are you?")
+    Button(
         onClick = onIndia,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Icon(Icons.Filled.LocationOn, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("India")
+        Text("India · UPI or card")
     }
-    OutlinedButton(
+    FilledTonalButton(
         onClick = onInternational,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Icon(Icons.Filled.Public, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("International")
+        Text("International · GitHub Sponsors")
     }
     HorizontalDivider()
-    DonationSectionTitle("Contact developer")
+    DonationSectionTitle("Say hi")
     Text(
         DEVELOPER_EMAIL,
         style = MaterialTheme.typography.bodyMedium,
@@ -242,8 +232,7 @@ private fun IndiaDonationContent(
 ) {
     DonationInfoCard(
         icon = Icons.Filled.AccountBalanceWallet,
-        text = "Choose UPI for a quick payment or use Razorpay for a debit or credit " +
-            "card contribution.",
+        text = "UPI is fastest. Razorpay works if you prefer a debit or credit card.",
     )
     DonationSectionTitle("Payment method")
     Button(
@@ -263,8 +252,7 @@ private fun IndiaDonationContent(
         Text("Pay by card with Razorpay")
     }
     DonationPrivacyNote(
-        "Razorpay and payment apps open only when you choose them. FitBuddy does not " +
-            "receive or store your payment details.",
+        "Payment apps open only when you choose them. FitBuddy never sees your card details.",
     )
 }
 
@@ -272,7 +260,7 @@ private fun IndiaDonationContent(
 private fun InternationalDonationContent(context: Context) {
     DonationInfoCard(
         icon = Icons.Filled.Public,
-        text = "Support FitBuddy development securely through GitHub Sponsors.",
+        text = "GitHub Sponsors is the easiest way to tip from outside India.",
     )
     DonationSectionTitle("International payment")
     Button(
@@ -284,8 +272,7 @@ private fun InternationalDonationContent(context: Context) {
         Text("Sponsor on GitHub")
     }
     DonationPrivacyNote(
-        "GitHub Sponsors opens only when you choose it. FitBuddy does not receive or " +
-            "store your payment details.",
+        "GitHub opens only when you tap. FitBuddy does not store payment details.",
     )
 }
 
@@ -297,7 +284,7 @@ private fun UpiDonationContent(
 ) {
     DonationInfoCard(
         icon = Icons.Filled.AccountBalanceWallet,
-        text = "Open a UPI app on this device or scan the QR from another device.",
+        text = "Open a UPI app on this phone, or scan the QR from another device.",
     )
     Button(
         onClick = { openUpiApp(context) },
@@ -313,7 +300,7 @@ private fun UpiDonationContent(
     ) {
         Icon(Icons.Filled.QrCode2, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Pay with UPI QR")
+        Text("Show UPI QR")
     }
 
     if (showQr) {
@@ -372,7 +359,7 @@ private fun DonationInfoCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(28.dp),
             )
             Text(
                 text = text,

@@ -15,6 +15,8 @@ import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.SettingsRepository
+import com.anant.fitbuddy.reminders.DonationReminderReceiver
+import com.anant.fitbuddy.reminders.DonationReminderScheduler
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
 import com.anant.fitbuddy.util.DiagnosticLogger
@@ -109,7 +111,9 @@ class FitBuddyApp : Application() {
         )
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         ReminderReceiver.ensureChannel(this)
+        DonationReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)
+        DonationReminderScheduler.applyFromSettings(this, settings)
         // Cancel legacy weekly Atlas alarms (replaced by startup + 12h debounce).
         MongoBackupScheduler.cancel(this)
         appScope.launch {
@@ -129,6 +133,21 @@ class FitBuddyApp : Application() {
                         ReminderScheduler.scheduleNext(this@FitBuddyApp, hour, minute)
                     } else {
                         ReminderScheduler.cancel(this@FitBuddyApp)
+                    }
+                }
+        }
+        appScope.launch {
+            settingsRepository.settings
+                .map { s ->
+                    s.donationReminderEnabled to s.donationLastNudgeAt
+                }
+                .distinctUntilChanged()
+                .collect { (enabled, _) ->
+                    val latest = settingsRepository.settings.first()
+                    if (enabled) {
+                        DonationReminderScheduler.scheduleNext(this@FitBuddyApp, latest)
+                    } else {
+                        DonationReminderScheduler.cancel(this@FitBuddyApp)
                     }
                 }
         }

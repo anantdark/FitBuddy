@@ -78,6 +78,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".reminders.DonationReminderReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".crash.HeartbeatReceiver"
             android:exported="false" />
 
