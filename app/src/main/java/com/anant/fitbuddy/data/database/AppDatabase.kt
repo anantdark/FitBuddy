@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -157,7 +157,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_12_13,
                         MIGRATION_13_14,
                         MIGRATION_14_15,
-                        MIGRATION_15_16
+                        MIGRATION_15_16,
+                        MIGRATION_16_17
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -184,10 +185,11 @@ abstract class AppDatabase : RoomDatabase() {
         /**
          * Adds change-point nutrition target history on the profile row, seeded from current
          * targets so all past days resolve to today's values until the next real change.
+         * Column must be NOT NULL to match [UserProfile.nutritionTargetHistory].
          */
         val MIGRATION_15_16 = migration(15, 16) { db ->
             db.execSQL(
-                "ALTER TABLE user_profile ADD COLUMN nutritionTargetHistory TEXT"
+                "ALTER TABLE user_profile ADD COLUMN nutritionTargetHistory TEXT NOT NULL DEFAULT '[]'"
             )
             db.execSQL(
                 """
@@ -197,9 +199,62 @@ abstract class AppDatabase : RoomDatabase() {
                     ',"carbsG":' || targetCarbsG ||
                     ',"fatsG":' || targetFatsG || '}]'
                 )
-                WHERE nutritionTargetHistory IS NULL
+                WHERE nutritionTargetHistory = '[]'
                 """.trimIndent()
             )
+        }
+
+        /**
+         * v16 shipped with nullable nutritionTargetHistory (ALTER … TEXT without NOT NULL),
+         * which fails Room's schema check against the non-null entity field. Rebuild the
+         * profile table so the column is NOT NULL; preserve existing seeded JSON.
+         */
+        val MIGRATION_16_17 = migration(16, 17) { db ->
+            db.execSQL(
+                """
+                CREATE TABLE user_profile_new (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    age INTEGER NOT NULL,
+                    weightKg REAL NOT NULL,
+                    heightCm REAL NOT NULL,
+                    dailyTargetCalories INTEGER NOT NULL,
+                    targetProteinG INTEGER NOT NULL,
+                    targetCarbsG INTEGER NOT NULL,
+                    targetFatsG INTEGER NOT NULL,
+                    lastUpdatedTimestamp INTEGER NOT NULL,
+                    sex TEXT,
+                    goal TEXT NOT NULL,
+                    activityLevel TEXT NOT NULL,
+                    goalRationale TEXT,
+                    targetWeightKg REAL,
+                    nutritionTargetHistory TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO user_profile_new (
+                    id, age, weightKg, heightCm, dailyTargetCalories,
+                    targetProteinG, targetCarbsG, targetFatsG, lastUpdatedTimestamp,
+                    sex, goal, activityLevel, goalRationale, targetWeightKg,
+                    nutritionTargetHistory
+                )
+                SELECT
+                    id, age, weightKg, heightCm, dailyTargetCalories,
+                    targetProteinG, targetCarbsG, targetFatsG, lastUpdatedTimestamp,
+                    sex, goal, activityLevel, goalRationale, targetWeightKg,
+                    COALESCE(
+                        NULLIF(nutritionTargetHistory, ''),
+                        '[{"from":"1970-01-01","kcal":' || dailyTargetCalories ||
+                        ',"proteinG":' || targetProteinG ||
+                        ',"carbsG":' || targetCarbsG ||
+                        ',"fatsG":' || targetFatsG || '}]'
+                    )
+                FROM user_profile
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE user_profile")
+            db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
         }
 
         /**

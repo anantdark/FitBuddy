@@ -42,10 +42,10 @@ class Converters {
         json?.let { presetMealFoodsAdapter.fromJson(it) }
 
     @TypeConverter
-    fun nutritionTargetHistoryToJson(history: List<NutritionTargetPeriod>?): String? =
-        history?.let { nutritionTargetHistoryAdapter.toJson(it) }
+    fun nutritionTargetHistoryToJson(history: List<NutritionTargetPeriod>): String =
+        nutritionTargetHistoryAdapter.toJson(history) ?: "[]"
 
     @TypeConverter
-    fun jsonToNutritionTargetHistory(json: String?): List<NutritionTargetPeriod>? =
+    fun jsonToNutritionTargetHistory(json: String?): List<NutritionTargetPeriod> =
         json?.let { nutritionTargetHistoryAdapter.fromJson(it) } ?: emptyList()
 }
