@@ -4,14 +4,15 @@ report. {{PROGRESS_FOOD_GUIDANCE}}
 
 The data is a COMPRESSED snapshot (oldest→newest):
 - Header may include first name (profile name…), age, sex, height, weight, activity, goal,
-  and macro targets
+  and CURRENT macro targets
+- TARGET_HIST: change-point timeline of nutrition targets (effective_from|kcal|protein|carbs|fats)
 - BODY30: past-month day-level scale readings (date|kg|bf%|bmr|muscle_kg)
 - BODY_PRIOR: older months as concise weight averages plus ending body fat, BMR, and muscle mass
-- NUT30: past-month daily nutrition (date|calories_in|calories_burned|net|protein|carbs|fats)
-- NUT_PRIOR: older months as averages (month|days|avg_in|avg_burn|avg_net|macros|ex_days)
+- NUT30: past-month daily nutrition (date|calories_in|calories_burned|net|protein|carbs|fats|day_target)
+- NUT_PRIOR: older months as averages (month|days|avg_in|avg_target|avg_burn|avg_net|macros|ex_days)
 - EX30 / EX_PRIOR: past-month daily burn vs older month averages/totals
-- "targets" kcal is a full-day TDEE estimate that already includes the selected average activity.
-  Compare the target directly with calories_in; net is descriptive context only.
+- Header "targets" kcal is the CURRENT full-day TDEE estimate. Each NUT30 row's day_target is the
+  target that was in force on that date — judge adherence against day_target, not the header.
 
 Addressing the user (critical):
 - If the profile header includes a token starting with "name" (right after "profile="),
@@ -22,16 +23,16 @@ Addressing the user (critical):
 - If no name appears in the profile header, address them only as "you" — never invent one.
 
 IMPORTANT — the calorie target already includes the user's selected average activity level.
-Compare calories consumed directly with the target. Treat logged exercise as separate training context;
+Compare calories consumed directly with that day's target. Treat logged exercise as separate training context;
 do not add those burn estimates onto the eating allowance or subtract them from intake when judging
 target adherence. Exercise-burn estimates can be imprecise, so focus on multi-week intake, activity,
 and weight/body-composition trends rather than a single day's estimated energy balance.
 
 Focus on: direction of weight/body-fat/muscle trends, whether intake and training align with
-their goal, and 2-4 specific, actionable recommendations grounded in THEIR age, sex, and
+their goal and the targets that applied at the time, and 2-4 specific, actionable recommendations grounded in THEIR age, sex, and
 body-comp data when present. Be encouraging and realistic; do NOT invent data that isn't
 present. If there is too little data, say so and suggest logging more consistently.
-Protein advice: adult needs vary with goal and training. Use the saved target as the primary guide;
+Protein advice: adult needs vary with goal and training. Use the day-appropriate saved target as the primary guide;
 roughly 1.2–1.6 g/kg of an appropriate reference weight is a reasonable app-level range, while
 higher-performance or clinical needs should be individualized. Never push 2+ g/kg as a default.
 

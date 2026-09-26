@@ -219,7 +219,9 @@ class BackupManager(
 
         data.profile?.let {
             userProfileDao.insertOrUpdateProfile(
-                it.copy(id = 1).withoutObsoleteTargetMetadata()
+                it.copy(id = 1)
+                    .withoutObsoleteTargetMetadata()
+                    .withSeededTargetHistory()
             )
         }
         bodyMeasurementDao.insertAllAndSync(

@@ -36,6 +36,7 @@ import com.anant.fitbuddy.data.model.MealDraft
 import com.anant.fitbuddy.data.model.toSingleFoodMeal
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.ModelOption
+import com.anant.fitbuddy.data.model.NutritionTargetHistory
 import com.anant.fitbuddy.data.model.NutritionTrendEvidence
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
@@ -49,6 +50,9 @@ import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
+import com.anant.fitbuddy.data.donors.DemoDonors
+import com.anant.fitbuddy.data.donors.DonorEntry
+import com.anant.fitbuddy.data.donors.DonorListRepository
 import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
@@ -65,6 +69,7 @@ import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
+import com.anant.fitbuddy.reminders.DonationReminderScheduler
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.CancellationException
@@ -100,17 +105,17 @@ import org.json.JSONObject
 @Immutable
 data class DashboardUiState(
     val profile: UserProfile? = null,
+    /** Targets in force for the selected day (from history); falls back to profile/defaults. */
+    val targetCalories: Int = DEFAULT_TARGET_CALORIES,
+    val targetProtein: Int = DEFAULT_TARGET_PROTEIN,
+    val targetCarbs: Int = DEFAULT_TARGET_CARBS,
+    val targetFats: Int = DEFAULT_TARGET_FATS,
     val consumedCalories: Int = 0,
     val burnedCalories: Int = 0,
     val consumedProtein: Int = 0,
     val consumedCarbs: Int = 0,
     val consumedFats: Int = 0
 ) {
-    val targetCalories: Int get() = profile?.dailyTargetCalories ?: DEFAULT_TARGET_CALORIES
-    val targetProtein: Int get() = profile?.targetProteinG ?: DEFAULT_TARGET_PROTEIN
-    val targetCarbs: Int get() = profile?.targetCarbsG ?: DEFAULT_TARGET_CARBS
-    val targetFats: Int get() = profile?.targetFatsG ?: DEFAULT_TARGET_FATS
-
     /** Exercise burn is shown separately; the TDEE-based target already includes average activity. */
     val netCalories: Int get() = consumedCalories - burnedCalories
     val remainingCalories: Int get() = targetCalories - consumedCalories
@@ -130,8 +135,26 @@ data class DashboardUiState(
         const val DEFAULT_TARGET_PROTEIN = 120
         const val DEFAULT_TARGET_CARBS = 250
         const val DEFAULT_TARGET_FATS = 60
+
+        fun targetsFrom(profile: UserProfile?, date: String): QuadrupleTargets {
+            val period = profile?.targetsForDate(date)
+            return QuadrupleTargets(
+                calories = period?.kcal ?: DEFAULT_TARGET_CALORIES,
+                protein = period?.proteinG ?: DEFAULT_TARGET_PROTEIN,
+                carbs = period?.carbsG ?: DEFAULT_TARGET_CARBS,
+                fats = period?.fatsG ?: DEFAULT_TARGET_FATS
+            )
+        }
     }
 }
+
+/** Small holder so [DashboardUiState.targetsFrom] stays allocation-light. */
+data class QuadrupleTargets(
+    val calories: Int,
+    val protein: Int,
+    val carbs: Int,
+    val fats: Int
+)
 
 
 /** Transient state for the AI analysis flow (loading, clarification prompt, review draft, snackbar). */
@@ -619,6 +642,201 @@ class MainViewModel(
         }
     }
 
+    // --- Donation reminder / thank-you ------------------------------------------------------
+
+    private val donorListRepository = DonorListRepository(settingsRepository)
+
+    private val _donationReminderVisible = MutableStateFlow(false)
+    val donationReminderVisible: StateFlow<Boolean> = _donationReminderVisible.asStateFlow()
+
+    private val _alreadyPaidPromptVisible = MutableStateFlow(false)
+    val alreadyPaidPromptVisible: StateFlow<Boolean> = _alreadyPaidPromptVisible.asStateFlow()
+
+    private val _openDonationDialogRequested = MutableStateFlow(false)
+    val openDonationDialogRequested: StateFlow<Boolean> = _openDonationDialogRequested.asStateFlow()
+
+    private val _newDonorsThankYou = MutableStateFlow<List<DonorEntry>>(emptyList())
+    val newDonorsThankYou: StateFlow<List<DonorEntry>> = _newDonorsThankYou.asStateFlow()
+
+    private val _pendingEveningDonateReminder = MutableStateFlow(false)
+
+    fun consumeOpenDonationDialogRequest() {
+        _openDonationDialogRequested.value = false
+    }
+
+    fun showDonationReminderDialog(force: Boolean = false) {
+        if (force || DonationReminderScheduler.canShowEveningDialog(settings.value) ||
+            _pendingEveningDonateReminder.value
+        ) {
+            _donationReminderVisible.value = true
+        }
+    }
+
+    fun onDonateReminderNotificationOpened() {
+        val s = settings.value
+        val now = System.currentTimeMillis()
+        if (DonationReminderScheduler.canShowEveningDialog(s, now)) {
+            _donationReminderVisible.value = true
+        } else {
+            _pendingEveningDonateReminder.value = true
+        }
+    }
+
+    fun dismissDonationReminderSoft() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = now,
+                    donationLastDialogAt = now,
+                )
+            )
+            _donationReminderVisible.value = false
+            _pendingEveningDonateReminder.value = false
+        }
+    }
+
+    fun onDonationReminderAlreadyPaid() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = now,
+                    donationLastDialogAt = now,
+                )
+            )
+            _donationReminderVisible.value = false
+            _alreadyPaidPromptVisible.value = true
+            _pendingEveningDonateReminder.value = false
+        }
+    }
+
+    fun dismissAlreadyPaidPrompt() {
+        _alreadyPaidPromptVisible.value = false
+    }
+
+    fun onDonationReminderPay() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = now,
+                    donationLastDialogAt = now,
+                )
+            )
+            _donationReminderVisible.value = false
+            _pendingEveningDonateReminder.value = false
+            _openDonationDialogRequested.value = true
+        }
+    }
+
+    fun dismissNewDonorsThankYou() {
+        val shown = _newDonorsThankYou.value
+        _newDonorsThankYou.value = emptyList()
+        if (shown.isEmpty()) return
+        // Developer demo donors must not pollute last-seen.
+        if (shown.any { it.hash.startsWith("demo-hash") }) return
+        viewModelScope.launch {
+            val file = donorListRepository.cachedOrEmpty()
+            val hashes = file.donors.map { it.normalizedHash }.filter { it.isNotEmpty() }
+            settingsRepository.addLastSeenDonorHashes(hashes)
+        }
+    }
+
+    fun showTestDonationReminderDialog() {
+        _donationReminderVisible.value = true
+    }
+
+    fun showTestNewDonorsThankYou() {
+        _newDonorsThankYou.value = DemoDonors.forThankYou
+    }
+
+    fun showTestDonationDialog() {
+        _openDonationDialogRequested.value = true
+    }
+
+    fun resetDonationReminderTimers() {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsRepository.save(
+                current.copy(
+                    donationLastNudgeAt = DonationReminderScheduler.seedFirstRunNudgeAt(),
+                    donationLastNotifAt = 0L,
+                    donationLastDialogAt = 0L,
+                    donationReminderEnabled = true,
+                )
+            )
+            showTransientMessage("Donate reminder timers reset")
+        }
+    }
+
+    /**
+     * Fetches donors, toggles personal reminder after upgrades, and queues public thank-you
+     * for named donors not yet in last-seen.
+     */
+    fun syncDonors() {
+        viewModelScope.launch {
+            runCatching {
+                var current = settings.value
+                if (current.donationLastNudgeAt <= 0L) {
+                    current = current.copy(
+                        donationLastNudgeAt = DonationReminderScheduler.seedFirstRunNudgeAt()
+                    )
+                    settingsRepository.save(current)
+                }
+
+                val version = BuildConfig.VERSION_CODE
+                val lastReminderVersion = settingsRepository.lastDonationReminderVersionCode()
+                if (lastReminderVersion != null && version > lastReminderVersion) {
+                    current = current.copy(donationReminderEnabled = true)
+                    settingsRepository.save(current)
+                }
+                if (lastReminderVersion == null || version != lastReminderVersion) {
+                    settingsRepository.setLastDonationReminderVersionCode(version)
+                }
+
+                val file = donorListRepository.refresh(forceNetwork = true)
+                val isDonor = donorListRepository.containsSupportId(file, current.supportId)
+                if (isDonor && current.donationReminderEnabled) {
+                    settingsRepository.save(current.copy(donationReminderEnabled = false))
+                }
+
+                val lastSeen = settingsRepository.lastSeenDonorHashes()
+                val newcomers = donorListRepository.newDisplayableDonors(file, lastSeen)
+                if (newcomers.isNotEmpty()) {
+                    _newDonorsThankYou.value = newcomers
+                } else if (file.donors.isNotEmpty()) {
+                    val hashes = file.donors.map { it.normalizedHash }.filter { it.isNotEmpty() }
+                    settingsRepository.addLastSeenDonorHashes(hashes)
+                }
+
+                maybeShowEveningDonateReminder()
+            }
+        }
+    }
+
+    fun maybeShowEveningDonateReminder() {
+        val s = settings.value
+        if (_pendingEveningDonateReminder.value) {
+            val now = System.currentTimeMillis()
+            val hour = java.util.Calendar.getInstance().apply { timeInMillis = now }
+                .get(java.util.Calendar.HOUR_OF_DAY)
+            val gapOk = s.donationLastNotifAt <= 0L ||
+                now - s.donationLastNotifAt >= DonationReminderScheduler.MIN_GAP_MS
+            if (hour >= DonationReminderScheduler.DIALOG_HOUR && gapOk) {
+                _donationReminderVisible.value = true
+                _pendingEveningDonateReminder.value = false
+                return
+            }
+        }
+        if (DonationReminderScheduler.canShowEveningDialog(s)) {
+            _donationReminderVisible.value = true
+        }
+    }
+
     // --- Settings ---------------------------------------------------------------------------
 
     private val _hasSettingsSnapshot = MutableStateFlow(false)
@@ -635,6 +853,12 @@ class MainViewModel(
             .distinctUntilChanged()
             .onEach { refreshToToday() }
             .launchIn(viewModelScope)
+
+        viewModelScope.launch {
+            // Wait for first settings emission so Support ID / nudge seed see real prefs.
+            settingsRepository.settings.first()
+            syncDonors()
+        }
 
         viewModelScope.launch {
             val profile = repository.activeProfile.mapNotNull { it }.first()
@@ -661,8 +885,8 @@ class MainViewModel(
                 )
             }.getOrNull() ?: return@launch
 
-            repository.saveProfile(
-                profile.copy(
+            repository.saveProfileRecordingTargets(
+                profile = profile.copy(
                     dailyTargetCalories = plan.dailyTargetCalories,
                     targetProteinG = plan.targetProteinG,
                     targetCarbsG = plan.targetCarbsG,
@@ -671,7 +895,9 @@ class MainViewModel(
                     goalRationale = plan.rationale,
                     targetWeightKg = plan.targetWeightKg,
                     lastUpdatedTimestamp = System.currentTimeMillis()
-                )
+                ),
+                effectiveFromDate = DateUtils.today(),
+                recordNutritionTargets = true
             )
         }
     }
@@ -1205,8 +1431,13 @@ class MainViewModel(
     val dashboardState: StateFlow<DashboardUiState> =
         combine(repository.activeProfile, _selectedDate, weekSnapshots) { profile, date, snaps ->
             val snap = snaps[date] ?: DayLogSnapshot()
+            val targets = DashboardUiState.targetsFrom(profile, date)
             DashboardUiState(
                 profile = profile,
+                targetCalories = targets.calories,
+                targetProtein = targets.protein,
+                targetCarbs = targets.carbs,
+                targetFats = targets.fats,
                 consumedCalories = snap.consumedCalories,
                 burnedCalories = snap.burnedCalories,
                 consumedProtein = snap.consumedProtein,
@@ -1928,8 +2159,8 @@ class MainViewModel(
                     ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
             val existing = dashboardState.value.profile
             val applyNutritionTargets = appliedPlan.targetsChanged
-            repository.saveProfile(
-                UserProfile(
+            repository.saveProfileRecordingTargets(
+                profile = UserProfile(
                     id = 1,
                     age = age,
                     weightKg = weightKg,
@@ -1959,8 +2190,11 @@ class MainViewModel(
                     goal = appliedPlan.recommendedGoal.ifBlank { existing?.goal ?: "RECOMP" },
                     activityLevel = appliedPlan.recommendedActivityLevel ?: activityLevel,
                     goalRationale = appliedPlan.rationale,
-                    targetWeightKg = proposedTargetWeight
-                )
+                    targetWeightKg = proposedTargetWeight,
+                    nutritionTargetHistory = existing?.nutritionTargetHistory.orEmpty()
+                ),
+                effectiveFromDate = DateUtils.today(),
+                recordNutritionTargets = applyNutritionTargets
             )
             manualTargetsOverride = false
             _targetPlan.update {
@@ -3119,8 +3353,8 @@ class MainViewModel(
                         showPaidModelsByProvider = aiSettings.showPaidModelsByProvider
                     )
                 )
-                repository.saveProfile(
-                    UserProfile(
+                repository.saveProfileRecordingTargets(
+                    profile = UserProfile(
                         id = 1,
                         age = age,
                         weightKg = weightKg,
@@ -3133,7 +3367,9 @@ class MainViewModel(
                         sex = sex,
                         goal = goal,
                         activityLevel = activityLevel
-                    )
+                    ),
+                    effectiveFromDate = DateUtils.today(),
+                    recordNutritionTargets = false
                 )
                 val ts = System.currentTimeMillis()
                 repository.addMeasurement(
@@ -3189,8 +3425,8 @@ class MainViewModel(
                 )
             )
             val existing = dashboardState.value.profile
-            repository.saveProfile(
-                UserProfile(
+            repository.saveProfileRecordingTargets(
+                profile = UserProfile(
                     id = 1,
                     age = age,
                     weightKg = existing?.weightKg ?: 0.0,
@@ -3208,8 +3444,11 @@ class MainViewModel(
                     goal = existing?.goal ?: "RECOMP",
                     activityLevel = existing?.activityLevel ?: "MODERATE",
                     goalRationale = existing?.goalRationale,
-                    targetWeightKg = existing?.targetWeightKg
-                )
+                    targetWeightKg = existing?.targetWeightKg,
+                    nutritionTargetHistory = existing?.nutritionTargetHistory.orEmpty()
+                ),
+                effectiveFromDate = DateUtils.today(),
+                recordNutritionTargets = false
             )
             _analysisState.update { it.copy(userMessage = "Profile saved") }
         }
@@ -3248,8 +3487,8 @@ class MainViewModel(
                 repository.designTargets(context, planning.options)
             }
                 .onSuccess { plan ->
-                    repository.saveProfile(
-                        profile.copy(
+                    repository.saveProfileRecordingTargets(
+                        profile = profile.copy(
                             dailyTargetCalories = plan.dailyTargetCalories,
                             targetProteinG = plan.targetProteinG,
                             targetCarbsG = plan.targetCarbsG,
@@ -3274,7 +3513,9 @@ class MainViewModel(
                                         )
                                     },
                             lastUpdatedTimestamp = System.currentTimeMillis()
-                        )
+                        ),
+                        effectiveFromDate = DateUtils.today(),
+                        recordNutritionTargets = true
                     )
                     _analysisState.update {
                         it.copy(userMessage = "Your science-based targets are ready")
@@ -3385,7 +3626,8 @@ class MainViewModel(
                         dailyTargetCalories = dailyTargetCalories,
                         targetProteinG = targetProteinG,
                         targetCarbsG = targetCarbsG,
-                        targetFatsG = targetFatsG
+                        targetFatsG = targetFatsG,
+                        effectiveFromDate = DateUtils.today()
                     )
                 ) { "Complete your body profile before saving targets" }
                 repository.activeProfile.first { profile ->
@@ -3465,13 +3707,21 @@ class MainViewModel(
         val endDate = DateUtils.addDays(today, -1)
         val startDate = DateUtils.addDays(endDate, -(TARGET_NUTRITION_WINDOW_DAYS - 1))
         val summaries = repository.getFoodSummariesBetween(startDate, endDate).first()
+        val profile = dashboardState.value.profile
+        val fallback = profile?.currentTargetPeriod()
+        val averageTarget = NutritionTargetHistory.averageTargetCalories(
+            history = profile?.nutritionTargetHistory.orEmpty(),
+            dates = summaries.map { it.dateString },
+            fallback = fallback
+        )
         return NutritionTrendEvidence(
             windowDays = TARGET_NUTRITION_WINDOW_DAYS,
             loggedDays = summaries.size,
             averageCalories = summaries.takeIf { it.isNotEmpty() }
                 ?.map { it.totalCalories }
                 ?.average()
-                ?.roundToInt()
+                ?.roundToInt(),
+            averageTargetCalories = averageTarget
         )
     }
 
@@ -3602,8 +3852,13 @@ class MainViewModel(
             put("window_days", planning.nutritionTrend.windowDays)
             put("days_logged", planning.nutritionTrend.loggedDays)
             put("average_calories", planning.nutritionTrend.averageCalories ?: JSONObject.NULL)
+            put(
+                "average_target_calories",
+                planning.nutritionTrend.averageTargetCalories ?: JSONObject.NULL
+            )
             put("sufficient", planning.nutritionTrend.hasSufficientCoverage)
         })
+        put("target_history", targetHistoryJson(dashboardState.value.profile))
         put("default_candidate_id", planning.options.defaultCandidateId)
         put("safe_candidates", JSONArray().apply {
             planning.options.candidates.forEach { candidate ->
@@ -3664,8 +3919,8 @@ class MainViewModel(
             recentMeasurements.asReversed().forEach { put(measurementJson(it)) }
         }
         val priorBodyMonths = buildPriorMonthBodySeries(olderMeasurements)
-        val dailyFoodSeries = buildNutritionSeries(recentFood, burnedByDate)
-        val priorFoodMonths = buildPriorMonthNutritionSeries(olderFood, burnedByDate)
+        val dailyFoodSeries = buildNutritionSeries(recentFood, burnedByDate, profile)
+        val priorFoodMonths = buildPriorMonthNutritionSeries(olderFood, burnedByDate, profile)
         val dailyExerciseSeries = buildExerciseSeries(recentExercise)
         val priorExerciseMonths = buildPriorMonthExerciseSeries(olderExercise)
 
@@ -3685,15 +3940,22 @@ class MainViewModel(
             put("weight_kg", profile?.weightKg?.takeIf { it > 0 } ?: JSONObject.NULL)
             put("activity_level", profile?.activityLevel ?: JSONObject.NULL)
             put("goal", profile?.goal ?: JSONObject.NULL)
-            put("target_daily_calories", dashboardState.value.targetCalories)
-            put("target_protein_g", dashboardState.value.targetProtein)
-            put("target_carbs_g", dashboardState.value.targetCarbs)
-            put("target_fats_g", dashboardState.value.targetFats)
+            put("target_daily_calories", profile?.dailyTargetCalories
+                ?: DashboardUiState.DEFAULT_TARGET_CALORIES)
+            put("target_protein_g", profile?.targetProteinG
+                ?: DashboardUiState.DEFAULT_TARGET_PROTEIN)
+            put("target_carbs_g", profile?.targetCarbsG
+                ?: DashboardUiState.DEFAULT_TARGET_CARBS)
+            put("target_fats_g", profile?.targetFatsG
+                ?: DashboardUiState.DEFAULT_TARGET_FATS)
+            put("target_history", targetHistoryJson(profile))
             put(
                 "calorie_model_note",
                 "The daily target is a full-day TDEE estimate that already includes the selected " +
                     "average activity level. Compare it directly with calories eaten; logged " +
-                    "exercise is tracked separately and is not credited back a second time."
+                    "exercise is tracked separately and is not credited back a second time. " +
+                    "target_history / per-day target_* fields are the targets that were in force " +
+                    "on each date; header target_* values are the current live targets."
             )
             put(
                 "metrics_granularity_note",
@@ -3713,12 +3975,32 @@ class MainViewModel(
         }.toString()
     }
 
+    private fun targetHistoryJson(profile: UserProfile?): JSONArray {
+        val history = NutritionTargetHistory.ensureSeeded(
+            history = profile?.nutritionTargetHistory.orEmpty(),
+            fallbackCurrent = profile?.currentTargetPeriod()
+        )
+        return JSONArray().apply {
+            history.forEach { period ->
+                put(JSONObject().apply {
+                    put("effective_from", period.from)
+                    put("calories", period.kcal)
+                    put("protein_g", period.proteinG)
+                    put("carbs_g", period.carbsG)
+                    put("fats_g", period.fatsG)
+                })
+            }
+        }
+    }
+
     private fun buildNutritionSeries(
         food: List<FoodDailySummary>,
-        burnedByDate: Map<String, Int>
+        burnedByDate: Map<String, Int>,
+        profile: UserProfile?
     ): JSONArray = JSONArray().apply {
         food.asReversed().forEach { s ->
             val burned = burnedByDate[s.dateString] ?: 0
+            val dayTarget = profile?.targetsForDate(s.dateString)
             put(JSONObject().apply {
                 put("date", s.dateString)
                 put("calories", s.totalCalories)
@@ -3727,6 +4009,22 @@ class MainViewModel(
                 put("protein_g", s.totalProtein)
                 put("carbs_g", s.totalCarbs)
                 put("fats_g", s.totalFats)
+                put(
+                    "target_calories",
+                    dayTarget?.kcal ?: DashboardUiState.DEFAULT_TARGET_CALORIES
+                )
+                put(
+                    "target_protein_g",
+                    dayTarget?.proteinG ?: DashboardUiState.DEFAULT_TARGET_PROTEIN
+                )
+                put(
+                    "target_carbs_g",
+                    dayTarget?.carbsG ?: DashboardUiState.DEFAULT_TARGET_CARBS
+                )
+                put(
+                    "target_fats_g",
+                    dayTarget?.fatsG ?: DashboardUiState.DEFAULT_TARGET_FATS
+                )
             })
         }
     }
@@ -3744,7 +4042,8 @@ class MainViewModel(
     /** Calendar-month averages for food days older than the detailed window (oldest → newest). */
     private fun buildPriorMonthNutritionSeries(
         food: List<FoodDailySummary>,
-        burnedByDate: Map<String, Int>
+        burnedByDate: Map<String, Int>,
+        profile: UserProfile?
     ): JSONArray {
         if (food.isEmpty()) return JSONArray()
         val byMonth = food.groupBy { it.dateString.take(7) }.toSortedMap()
@@ -3752,10 +4051,15 @@ class MainViewModel(
             byMonth.forEach { (month, days) ->
                 val n = days.size
                 val burned = days.map { burnedByDate[it.dateString] ?: 0 }
+                val dayTargets = days.map {
+                    profile?.targetsForDate(it.dateString)?.kcal
+                        ?: DashboardUiState.DEFAULT_TARGET_CALORIES
+                }
                 put(JSONObject().apply {
                     put("month", month)
                     put("days_logged", n)
                     put("avg_calories", days.map { it.totalCalories }.average().roundToInt())
+                    put("avg_target_calories", dayTargets.average().roundToInt())
                     put("avg_protein_g", days.map { it.totalProtein }.average().roundToInt())
                     put("avg_carbs_g", days.map { it.totalCarbs }.average().roundToInt())
                     put("avg_fats_g", days.map { it.totalFats }.average().roundToInt())

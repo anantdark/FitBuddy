@@ -35,7 +35,9 @@ data class BodyTrendEvidence(
 data class NutritionTrendEvidence(
     val windowDays: Int,
     val loggedDays: Int,
-    val averageCalories: Int?
+    val averageCalories: Int?,
+    /** Mean of day-resolved targets over the same logged days (null if unknown). */
+    val averageTargetCalories: Int? = null
 ) {
     val hasSufficientCoverage: Boolean
         get() = loggedDays >= MIN_LOGGED_DAYS && averageCalories != null
@@ -298,8 +300,9 @@ object TargetPlanPersonalizer {
         if (bodyTrend.quality != BodyTrendQuality.SUFFICIENT) return 0
         if (!nutritionTrend.hasSufficientCoverage) return 0
         val averageCalories = nutritionTrend.averageCalories ?: return 0
-        val intakeTolerance = max(150.0, plan.dailyTargetCalories * 0.10)
-        if (abs(averageCalories - plan.dailyTargetCalories) > intakeTolerance) return 0
+        val adherenceBaseline = nutritionTrend.averageTargetCalories ?: plan.dailyTargetCalories
+        val intakeTolerance = max(150.0, adherenceBaseline * 0.10)
+        if (abs(averageCalories - adherenceBaseline) > intakeTolerance) return 0
         val weeklyRatePct = bodyTrend.weightChangePerWeekPct ?: return 0
 
         return when (plan.recommendedGoal) {

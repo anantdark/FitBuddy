@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.database
 
 import androidx.room.TypeConverter
 import com.anant.fitbuddy.data.model.LoggedIngredient
+import com.anant.fitbuddy.data.model.NutritionTargetPeriod
 import com.anant.fitbuddy.data.model.PresetMealFood
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
@@ -20,6 +21,10 @@ class Converters {
         Types.newParameterizedType(List::class.java, PresetMealFood::class.java)
     )
 
+    private val nutritionTargetHistoryAdapter = moshi.adapter<List<NutritionTargetPeriod>>(
+        Types.newParameterizedType(List::class.java, NutritionTargetPeriod::class.java)
+    )
+
     @TypeConverter
     fun ingredientsToJson(ingredients: List<LoggedIngredient>?): String? =
         ingredients?.let { ingredientsAdapter.toJson(it) }
@@ -35,4 +40,12 @@ class Converters {
     @TypeConverter
     fun jsonToPresetMealFoods(json: String?): List<PresetMealFood>? =
         json?.let { presetMealFoodsAdapter.fromJson(it) }
+
+    @TypeConverter
+    fun nutritionTargetHistoryToJson(history: List<NutritionTargetPeriod>?): String? =
+        history?.let { nutritionTargetHistoryAdapter.toJson(it) }
+
+    @TypeConverter
+    fun jsonToNutritionTargetHistory(json: String?): List<NutritionTargetPeriod>? =
+        json?.let { nutritionTargetHistoryAdapter.fromJson(it) } ?: emptyList()
 }

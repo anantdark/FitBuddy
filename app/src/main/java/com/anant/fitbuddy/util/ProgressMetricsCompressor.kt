@@ -33,8 +33,11 @@ object ProgressMetricsCompressor {
             "targets=kcal${context.optInt("target_daily_calories")} " +
                 "p${context.optInt("target_protein_g")} " +
                 "c${context.optInt("target_carbs_g")} " +
-                "f${context.optInt("target_fats_g")}"
+                "f${context.optInt("target_fats_g")} (current)"
         )
+        appendLine("TARGET_HIST from|kcal|p|c|f:")
+        context.optJSONArray("target_history")?.let { appendTargetHistory(it) }
+            ?: appendLine("(none)")
         context.optDouble("avg_daily_calories_eaten_recent").takeIf { !it.isNaN() }?.let {
             appendLine("avg_intake_kcal=${fmt(it)}")
         }
@@ -49,12 +52,12 @@ object ProgressMetricsCompressor {
         context.optJSONArray("body_prior_months")?.let { appendPriorBody(it) } ?: appendLine("(none)")
 
         appendLine()
-        appendLine("NUT30 d|in|burn|net|p|c|f (past month, daily):")
+        appendLine("NUT30 d|in|burn|net|p|c|f|tgt (past month, daily):")
         context.optJSONArray("nutrition_daily")?.let { appendNutrition(it) }
             ?: appendLine("(none)")
 
         appendLine()
-        appendLine("NUT_PRIOR month|days|avg_in|avg_burn|avg_net|avg_p|avg_c|avg_f|ex_days:")
+        appendLine("NUT_PRIOR month|days|avg_in|avg_tgt|avg_burn|avg_net|avg_p|avg_c|avg_f|ex_days:")
         context.optJSONArray("nutrition_prior_months")?.let { appendPriorNutrition(it) }
             ?: appendLine("(none)")
 
@@ -68,6 +71,23 @@ object ProgressMetricsCompressor {
         context.optJSONArray("exercise_prior_months")?.let { appendPriorExercise(it) }
             ?: appendLine("(none)")
     }.trim()
+
+    private fun StringBuilder.appendTargetHistory(array: JSONArray) {
+        if (array.length() == 0) {
+            appendLine("(none)")
+            return
+        }
+        for (i in 0 until array.length()) {
+            val p = array.getJSONObject(i)
+            appendLine(
+                "${p.optString("effective_from")}|" +
+                    p.optInt("calories") + "|" +
+                    p.optInt("protein_g") + "|" +
+                    p.optInt("carbs_g") + "|" +
+                    p.optInt("fats_g")
+            )
+        }
+    }
 
     private fun StringBuilder.appendBody(array: JSONArray) {
         if (array.length() == 0) {
@@ -120,7 +140,8 @@ object ProgressMetricsCompressor {
                     s.optInt("net_calories") + "|" +
                     s.optInt("protein_g") + "|" +
                     s.optInt("carbs_g") + "|" +
-                    s.optInt("fats_g")
+                    s.optInt("fats_g") + "|" +
+                    s.optInt("target_calories")
             )
         }
     }
@@ -136,6 +157,7 @@ object ProgressMetricsCompressor {
                 "${s.optString("month")}|" +
                     s.optInt("days_logged") + "|" +
                     s.optInt("avg_calories") + "|" +
+                    s.optInt("avg_target_calories") + "|" +
                     s.optInt("avg_calories_burned") + "|" +
                     s.optInt("avg_net_calories") + "|" +
                     s.optInt("avg_protein_g") + "|" +

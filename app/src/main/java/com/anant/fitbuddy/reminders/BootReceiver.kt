@@ -25,6 +25,7 @@ class BootReceiver : BroadcastReceiver() {
             (app as? FitBuddyApp)?.settingsRepository?.settings?.first()
         } ?: return
         ReminderScheduler.applyFromSettings(app, settings)
+        DonationReminderScheduler.applyFromSettings(app, settings)
         HeartbeatScheduler.schedule(app)
         MongoBackupScheduler.cancel(app)
     }

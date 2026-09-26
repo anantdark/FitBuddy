@@ -102,7 +102,7 @@ fun AnalyticsScreen(
     monthlyExercise: List<ExerciseDailySummary>,
     sixMonthExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
-    targetCalories: Int,
+    targetCaloriesForDate: (String) -> Int,
     targetWeightKg: Double? = null,
     /** Profile goal: LOSE_WEIGHT | GAIN_MUSCLE | RECOMP | AUTO */
     goal: String = "RECOMP",
@@ -186,7 +186,7 @@ fun AnalyticsScreen(
             ChartCard(title = "Calories Eaten vs Target") {
                 CustomLineChart(
                     foodSummaries = foodSummaries,
-                    targetCalories = targetCalories,
+                    targetCaloriesForDate = targetCaloriesForDate,
                     preferSurplus = preferSurplus,
                     modifier = Modifier
                         .fillMaxWidth()

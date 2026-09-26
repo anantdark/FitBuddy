@@ -70,6 +70,7 @@ class BackupSettingsTest {
                 dailyLogReminderEnabled = false,
                 dailyLogReminderHour = 21,
                 dailyLogReminderMinute = 30,
+                donationReminderEnabled = false,
                 developerModeUnlocked = true,
                 forceOfflineAiSimulator = true,
                 showRawAiJson = true,
@@ -116,6 +117,7 @@ class BackupSettingsTest {
                 dailyLogReminderEnabled = false,
                 dailyLogReminderHour = 21,
                 dailyLogReminderMinute = 30,
+                donationReminderEnabled = false,
                 supportId = "support-xyz",
                 cloudBackupEnabled = true
             )
@@ -129,6 +131,7 @@ class BackupSettingsTest {
         assertEquals(false, restored.dailyLogReminderEnabled)
         assertEquals(21, restored.dailyLogReminderHour)
         assertEquals(30, restored.dailyLogReminderMinute)
+        assertEquals(false, restored.donationReminderEnabled)
         assertEquals("support-xyz", restored.supportId)
         assertTrue(restored.cloudBackupEnabled)
     }

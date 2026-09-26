@@ -41,11 +41,13 @@ import com.anant.fitbuddy.ui.viewmodel.MainViewModelFactory
 class MainActivity : ComponentActivity() {
 
     private var openLogHubRequest by mutableStateOf(false)
+    private var openDonateReminderRequest by mutableStateOf(false)
     private var openRouterOAuthUri by mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openLogHubRequest = intent.consumeOpenLogHub()
+        openDonateReminderRequest = intent.consumeOpenDonateReminder()
         openRouterOAuthUri = intent.data.takeIf { OpenRouterOAuth.isCallback(it) }
         try {
             enableEdgeToEdge()
@@ -183,7 +185,9 @@ class MainActivity : ComponentActivity() {
                             MainScreen(
                                 viewModel = viewModel,
                                 openLogHubRequest = openLogHubRequest,
-                                onOpenLogHubConsumed = { openLogHubRequest = false }
+                                onOpenLogHubConsumed = { openLogHubRequest = false },
+                                openDonateReminderRequest = openDonateReminderRequest,
+                                onOpenDonateReminderConsumed = { openDonateReminderRequest = false },
                             )
                         }
                     }
@@ -198,6 +202,9 @@ class MainActivity : ComponentActivity() {
         if (intent.consumeOpenLogHub()) {
             openLogHubRequest = true
         }
+        if (intent.consumeOpenDonateReminder()) {
+            openDonateReminderRequest = true
+        }
         intent.data?.takeIf { OpenRouterOAuth.isCallback(it) }?.let {
             openRouterOAuthUri = it
         }
@@ -205,11 +212,18 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_LOG_HUB = "open_log_hub"
+        const val EXTRA_OPEN_DONATE_REMINDER = "open_donate_reminder"
     }
 }
 
 private fun Intent.consumeOpenLogHub(): Boolean {
     if (!getBooleanExtra(MainActivity.EXTRA_OPEN_LOG_HUB, false)) return false
     removeExtra(MainActivity.EXTRA_OPEN_LOG_HUB)
+    return true
+}
+
+private fun Intent.consumeOpenDonateReminder(): Boolean {
+    if (!getBooleanExtra(MainActivity.EXTRA_OPEN_DONATE_REMINDER, false)) return false
+    removeExtra(MainActivity.EXTRA_OPEN_DONATE_REMINDER)
     return true
 }
