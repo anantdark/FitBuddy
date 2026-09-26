@@ -1653,7 +1653,10 @@ class FitnessRepository(
                 weightKg = row.weightKg?.takeIf { it > 0 },
                 equipment = equipment,
                 durationMinutes = row.durationMinutes?.takeIf { it > 0 },
-                distanceKm = row.distanceKm?.takeIf { it > 0 }
+                distanceKm = row.distanceKm?.takeIf { it > 0 },
+                gifUrl = exerciseCatalogRepository.exercises.value
+                    .firstOrNull { it.name.equals(name, ignoreCase = true) }
+                    ?.gifUrl
             )
         }
     }

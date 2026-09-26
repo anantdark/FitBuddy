@@ -12,7 +12,9 @@ data class ExerciseDraft(
     val equipment: String = Equipment.OTHER,
     /** Populated for cardio (run/jog/bike, etc.); null for rep-based strength work. */
     val durationMinutes: Int? = null,
-    val distanceKm: Double? = null
+    val distanceKm: Double? = null,
+    /** Demo GIF from the exercise catalog when known; null for customs / offline seed. */
+    val gifUrl: String? = null
 ) {
     fun isCardio(): Boolean = equipment == Equipment.CARDIO
 }

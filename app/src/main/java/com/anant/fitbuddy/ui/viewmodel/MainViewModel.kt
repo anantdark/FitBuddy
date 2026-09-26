@@ -1872,6 +1872,11 @@ class MainViewModel(
             ?: dashboardState.value.profile?.weightKg?.takeIf { it > 0 }
             ?: 0.0
 
+    private fun catalogGifUrl(exerciseName: String): String? =
+        exercisePickerExercises.value
+            .firstOrNull { it.name.equals(exerciseName, ignoreCase = true) }
+            ?.gifUrl
+
     /** Saves a workout session and estimates calories burned with a local MET formula. */
     fun logWorkoutSession(draft: WorkoutDraft) {
         if (draft.exercises.isEmpty()) return
@@ -1928,7 +1933,8 @@ class MainViewModel(
                                 weightKg = it.weightKg,
                                 equipment = it.equipment,
                                 durationMinutes = it.durationMinutes,
-                                distanceKm = it.distanceKm
+                                distanceKm = it.distanceKm,
+                                gifUrl = catalogGifUrl(it.name)
                             )
                         }
                     )
@@ -1948,7 +1954,8 @@ class MainViewModel(
                                 sets = 1,
                                 reps = 1,
                                 equipment = Equipment.CARDIO,
-                                durationMinutes = log.durationMinutes.coerceAtLeast(1)
+                                durationMinutes = log.durationMinutes.coerceAtLeast(1),
+                                gifUrl = catalogGifUrl(log.activityName)
                             )
                         )
                     )
@@ -2989,7 +2996,8 @@ class MainViewModel(
                             weightKg = it.weightKg,
                             equipment = it.equipment,
                             durationMinutes = it.durationMinutes,
-                            distanceKm = it.distanceKm
+                            distanceKm = it.distanceKm,
+                            gifUrl = catalogGifUrl(it.name)
                         )
                     }
                 )
@@ -3003,7 +3011,8 @@ class MainViewModel(
                             sets = 1,
                             reps = 1,
                             equipment = Equipment.CARDIO,
-                            durationMinutes = log.durationMinutes.coerceAtLeast(1)
+                            durationMinutes = log.durationMinutes.coerceAtLeast(1),
+                            gifUrl = catalogGifUrl(log.activityName)
                         )
                     )
                 )

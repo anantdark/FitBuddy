@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -62,7 +62,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import coil.size.Size
-import com.anant.fitbuddy.util.GifFirstFrameDecoder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -233,11 +232,13 @@ fun ExercisePickerSheet(
         (if (selectedBodyPart != null) 1 else 0) + (if (selectedEquipment != null) 1 else 0)
 
     ModalBottomSheet(
-        onDismissRequest = {
-            if (preview != null) preview = null else onDismiss()
-        },
+        onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
+        // Dialog-scoped: must live inside the sheet so gesture/system back hits this first.
+        BackHandler(enabled = preview != null) {
+            preview = null
+        }
         val selected = preview
         if (selected != null) {
             ExercisePreviewPane(
@@ -623,14 +624,18 @@ private fun ExercisePreviewPane(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ExerciseGifThumb(
-                url = exercise.gifUrl,
-                animated = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(20.dp))
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                ExerciseGifThumb(
+                    url = exercise.gifUrl,
+                    animated = true,
+                    modifier = Modifier
+                        .size(240.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                )
+            }
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -837,18 +842,15 @@ fun ExerciseGifThumb(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
-            val sidePx = if (animated) 512 else 128
+            // Prefer Coil's ImageDecoder GIF path for both list + preview. The custom first-frame
+            // decoder was yielding empty/transparent bitmaps on device (dumbbell placeholders).
+            val sidePx = if (animated) 480 else 192
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(url)
                     .size(Size(sidePx, sidePx))
-                    .memoryCacheKey(if (animated) url else "$url-static-$sidePx")
-                    .diskCacheKey(if (animated) url else "$url-static-$sidePx")
-                    .apply {
-                        if (!animated) {
-                            setParameter(GifFirstFrameDecoder.PARAM_STATIC_GIF, true)
-                        }
-                    }
+                    .memoryCacheKey("$url-$sidePx-${if (animated) "a" else "s"}")
+                    .diskCacheKey(url)
                     .crossfade(false)
                     .build(),
                 contentDescription = null,

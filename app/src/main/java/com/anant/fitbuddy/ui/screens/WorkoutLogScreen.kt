@@ -24,14 +24,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
 import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.Card
@@ -50,7 +49,6 @@ import androidx.compose.material3.ModalBottomSheet
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
@@ -64,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -294,6 +293,10 @@ fun WorkoutLogDialog(
                     itemsIndexed(exercises, key = { index, _ -> index }) { index, exercise ->
                         ExerciseRow(
                             exercise = exercise,
+                            gifUrl = exercise.gifUrl
+                                ?: pickerExercises.firstOrNull {
+                                    it.name.equals(exercise.name, ignoreCase = true)
+                                }?.gifUrl,
                             onEdit = { updated -> exercises[index] = updated },
                             onDelete = { exercises.removeAt(index) }
                         )
@@ -351,9 +354,10 @@ fun WorkoutLogDialog(
             AddExerciseDetailsDialog(
                 exerciseName = exercise.name,
                 equipment = exercise.equipmentTag,
+                gifUrl = exercise.gifUrl,
                 onAdd = { draft ->
                     onRecordPick(exercise.name, exercise.exerciseId)
-                    exercises.add(draft)
+                    exercises.add(draft.copy(gifUrl = exercise.gifUrl))
                     pendingExercise = null
                 },
                 onDismiss = {
@@ -367,7 +371,12 @@ fun WorkoutLogDialog(
 }
 
 @Composable
-private fun ExerciseRow(exercise: ExerciseDraft, onEdit: (ExerciseDraft) -> Unit, onDelete: () -> Unit) {
+private fun ExerciseRow(
+    exercise: ExerciseDraft,
+    gifUrl: String?,
+    onEdit: (ExerciseDraft) -> Unit,
+    onDelete: () -> Unit
+) {
     var showEditDialog by remember { mutableStateOf(false) }
 
     Card(
@@ -381,19 +390,11 @@ private fun ExerciseRow(exercise: ExerciseDraft, onEdit: (ExerciseDraft) -> Unit
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.FitnessCenter,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-            }
+            ExerciseGifThumb(
+                url = gifUrl,
+                animated = false,
+                modifier = Modifier.size(48.dp)
+            )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(exercise.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
@@ -420,7 +421,7 @@ private fun ExerciseRow(exercise: ExerciseDraft, onEdit: (ExerciseDraft) -> Unit
 
     if (showEditDialog) {
         EditExerciseDialog(
-            exercise = exercise,
+            exercise = exercise.copy(gifUrl = gifUrl ?: exercise.gifUrl),
             onSave = { updated ->
                 onEdit(updated)
                 showEditDialog = false
@@ -449,7 +450,18 @@ private fun EditExerciseDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit ${exercise.name}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ExerciseGifThumb(
+                    url = exercise.gifUrl,
+                    animated = true,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                )
                 if (isCardio) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) {
@@ -532,6 +544,7 @@ private fun EditExerciseDialog(
 private fun AddExerciseDetailsDialog(
     exerciseName: String,
     equipment: String,
+    gifUrl: String? = null,
     onAdd: (ExerciseDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -547,7 +560,18 @@ private fun AddExerciseDetailsDialog(
         onDismissRequest = onDismiss,
         title = { Text(exerciseName) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ExerciseGifThumb(
+                    url = gifUrl,
+                    animated = true,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                )
                 if (isCardio) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) {
@@ -608,7 +632,8 @@ private fun AddExerciseDetailsDialog(
                                 reps = 1,
                                 equipment = equipment,
                                 durationMinutes = duration.toIntOrNull() ?: 1,
-                                distanceKm = distance.toDoubleOrNull()?.takeIf { it > 0 }
+                                distanceKm = distance.toDoubleOrNull()?.takeIf { it > 0 },
+                                gifUrl = gifUrl
                             )
                         )
                     } else {
@@ -618,7 +643,8 @@ private fun AddExerciseDetailsDialog(
                                 sets = sets.toIntOrNull() ?: 1,
                                 reps = reps.toIntOrNull() ?: 1,
                                 weightKg = weight.toDoubleOrNull(),
-                                equipment = equipment
+                                equipment = equipment,
+                                gifUrl = gifUrl
                             )
                         )
                     }
