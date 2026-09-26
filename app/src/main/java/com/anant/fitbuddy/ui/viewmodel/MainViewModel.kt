@@ -24,10 +24,10 @@ import com.anant.fitbuddy.data.model.ActivityLevelRecommender
 import com.anant.fitbuddy.data.model.BodyTrendAnalyzer
 import com.anant.fitbuddy.data.model.BodyTrendEvidence
 import com.anant.fitbuddy.data.model.BodyTrendReading
-import com.anant.fitbuddy.data.model.CommonExercise
+import com.anant.fitbuddy.data.model.CatalogExercise
+import com.anant.fitbuddy.data.model.COMMON_EXERCISES_SEED
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.Equipment
-import com.anant.fitbuddy.data.model.buildExercisePickerList
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.HealthTargetCalculator
@@ -1675,12 +1675,25 @@ class MainViewModel(
 
     // --- Exercise presets (workout picker) --------------------------------------------------
 
-    val exercisePickerExercises: StateFlow<List<CommonExercise>> =
-        repository.exercisePresets
-            .map { presets ->
-                buildExercisePickerList(presets.map { it.name to it.equipment })
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), buildExercisePickerList(emptyList()))
+    val exercisePickerExercises: StateFlow<List<CatalogExercise>> =
+        repository.exercisePickerExercises
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), COMMON_EXERCISES_SEED)
+
+    val exerciseUsages: StateFlow<List<com.anant.fitbuddy.data.database.ExerciseUsage>> =
+        repository.exerciseUsages
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exerciseCatalogBodyParts: StateFlow<List<String>> =
+        repository.exerciseCatalogBodyParts
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exerciseCatalogEquipments: StateFlow<List<String>> =
+        repository.exerciseCatalogEquipments
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exerciseCatalogLoading: StateFlow<Boolean> =
+        repository.exerciseCatalogLoading
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _customExerciseClassifying = MutableStateFlow(false)
     val customExerciseClassifying: StateFlow<Boolean> = _customExerciseClassifying.asStateFlow()
@@ -1688,13 +1701,22 @@ class MainViewModel(
     private val _workoutInferring = MutableStateFlow(false)
     val workoutInferring: StateFlow<Boolean> = _workoutInferring.asStateFlow()
 
+    /** Records a catalog/custom pick for Recent / Frequent ranking. */
+    fun recordExercisePick(name: String, exerciseId: String? = null) {
+        viewModelScope.launch {
+            runCatching { repository.recordExerciseUsage(name, exerciseId) }
+        }
+    }
+
     /** Normalises a custom exercise via AI/offline rules and saves it for future picker use. */
-    fun classifyCustomExercise(rawName: String, onResolved: (name: String, equipment: String) -> Unit) {
+    fun classifyCustomExercise(rawName: String, onResolved: (CatalogExercise) -> Unit) {
         if (_customExerciseClassifying.value || _workoutInferring.value) return
         _customExerciseClassifying.value = true
         viewModelScope.launch {
             runCatching { repository.classifyCustomExercise(rawName) }
-                .onSuccess { exercise -> onResolved(exercise.name, exercise.equipment) }
+                .onSuccess { exercise ->
+                    onResolved(exercise)
+                }
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(userMessage = e.message ?: "Couldn't recognise that exercise")

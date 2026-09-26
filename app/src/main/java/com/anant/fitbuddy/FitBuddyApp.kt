@@ -13,7 +13,13 @@ import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
+import com.anant.fitbuddy.data.remote.exercisedb.ExerciseCatalogRepository
 import com.anant.fitbuddy.data.repository.FitnessRepository
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import android.os.Build
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
@@ -33,7 +39,7 @@ import kotlinx.coroutines.runBlocking
  * Application-scoped service locator. Everything is created lazily and lives for the whole
  * process, which is exactly the lifetime we want for the DB and the repositories.
  */
-class FitBuddyApp : Application() {
+class FitBuddyApp : Application(), ImageLoaderFactory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -42,6 +48,10 @@ class FitBuddyApp : Application() {
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
     val updateChecker: UpdateChecker by lazy { UpdateChecker(NetworkModule.provideGithubApi()) }
+
+    val exerciseCatalogRepository: ExerciseCatalogRepository by lazy {
+        ExerciseCatalogRepository(this)
+    }
 
     val repository: FitnessRepository by lazy {
         FitnessRepository(
@@ -52,9 +62,11 @@ class FitBuddyApp : Application() {
             savedFoodDao = database.savedFoodDao(),
             mealPresetDao = database.mealPresetDao(),
             exercisePresetDao = database.exercisePresetDao(),
+            exerciseUsageDao = database.exerciseUsageDao(),
             bodyMeasurementDao = database.bodyMeasurementDao(),
             workoutSessionDao = database.workoutSessionDao(),
             workoutExerciseDao = database.workoutExerciseDao(),
+            exerciseCatalogRepository = exerciseCatalogRepository,
             remoteAiDataSource = RemoteAiDataSource(
                 api = NetworkModule.provideAiApi(),
                 moshi = NetworkModule.moshi
@@ -72,6 +84,7 @@ class FitBuddyApp : Application() {
                 savedFoodDao = database.savedFoodDao(),
                 mealPresetDao = database.mealPresetDao(),
                 exercisePresetDao = database.exercisePresetDao(),
+                exerciseUsageDao = database.exerciseUsageDao(),
                 bodyMeasurementDao = database.bodyMeasurementDao(),
                 workoutSessionDao = database.workoutSessionDao(),
                 workoutExerciseDao = database.workoutExerciseDao(),
@@ -81,6 +94,17 @@ class FitBuddyApp : Application() {
             )
         )
     }
+
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .components {
+                if (Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
 
     override fun onCreate() {
         super.onCreate()
@@ -110,6 +134,9 @@ class FitBuddyApp : Application() {
             restartSession = false
         )
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
+        appScope.launch {
+            runCatching { exerciseCatalogRepository.ensureLoaded() }
+        }
         ReminderReceiver.ensureChannel(this)
         DonationReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)

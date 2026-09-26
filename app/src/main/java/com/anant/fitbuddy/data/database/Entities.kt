@@ -171,6 +171,24 @@ data class ExercisePreset(
 )
 
 /**
+ * Tracks how often / how recently an exercise was picked into a workout, so the picker can
+ * surface Recent and Frequent sections above the full catalog.
+ */
+@JsonClass(generateAdapter = true)
+@Entity(
+    tableName = "exercise_usage",
+    indices = [Index(value = ["name"], unique = true)]
+)
+data class ExerciseUsage(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    /** ExerciseDB id when the pick came from the catalog; null for customs. */
+    val exerciseId: String? = null,
+    val lastUsedAt: Long,
+    val useCount: Int
+)
+
+/**
  * A timestamped body reading. FitBuddy actively supports weight, body-fat percentage, BMR,
  * and muscle mass. Legacy nullable columns remain Room-mapped so existing databases open without
  * destructive migration, but they are ignored by JSON and cleared on every write.

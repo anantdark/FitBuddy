@@ -17,11 +17,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MealPreset::class,
         ExerciseLog::class,
         ExercisePreset::class,
+        ExerciseUsage::class,
         BodyMeasurement::class,
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -33,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mealPresetDao(): MealPresetDao
     abstract fun exerciseLogDao(): ExerciseLogDao
     abstract fun exercisePresetDao(): ExercisePresetDao
+    abstract fun exerciseUsageDao(): ExerciseUsageDao
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun workoutExerciseDao(): WorkoutExerciseDao
@@ -158,7 +160,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_13_14,
                         MIGRATION_14_15,
                         MIGRATION_15_16,
-                        MIGRATION_16_17
+                        MIGRATION_16_17,
+                        MIGRATION_17_18
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -255,6 +258,24 @@ abstract class AppDatabase : RoomDatabase() {
             )
             db.execSQL("DROP TABLE user_profile")
             db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
+        }
+
+        /** Adds exercise_usage for recent/frequent workout picker ranking. */
+        val MIGRATION_17_18 = migration(17, 18) { db ->
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS exercise_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    exerciseId TEXT,
+                    lastUsedAt INTEGER NOT NULL,
+                    useCount INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_exercise_usage_name ON exercise_usage (name)"
+            )
         }
 
         /**

@@ -350,6 +350,27 @@ interface ExercisePresetDao {
 }
 
 @Dao
+interface ExerciseUsageDao {
+    @Query("SELECT * FROM exercise_usage ORDER BY lastUsedAt DESC")
+    fun getAll(): Flow<List<ExerciseUsage>>
+
+    @Query("SELECT * FROM exercise_usage ORDER BY lastUsedAt DESC")
+    suspend fun getAllOnce(): List<ExerciseUsage>
+
+    @Query("SELECT * FROM exercise_usage WHERE lower(name) = lower(:name) LIMIT 1")
+    suspend fun findByName(name: String): ExerciseUsage?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(usage: ExerciseUsage): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(usages: List<ExerciseUsage>): List<Long>
+
+    @Query("DELETE FROM exercise_usage")
+    suspend fun clearAll()
+}
+
+@Dao
 interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC")
     fun getAll(): Flow<List<WorkoutSession>>

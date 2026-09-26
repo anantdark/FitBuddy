@@ -154,6 +154,10 @@ fun MainScreen(
     val workoutLogState by viewModel.workoutLogState.collectAsStateWithLifecycle()
     val editingWorkout by viewModel.editingWorkout.collectAsStateWithLifecycle()
     val exercisePickerExercises by viewModel.exercisePickerExercises.collectAsStateWithLifecycle()
+    val exerciseUsages by viewModel.exerciseUsages.collectAsStateWithLifecycle()
+    val exerciseCatalogBodyParts by viewModel.exerciseCatalogBodyParts.collectAsStateWithLifecycle()
+    val exerciseCatalogEquipments by viewModel.exerciseCatalogEquipments.collectAsStateWithLifecycle()
+    val exerciseCatalogLoading by viewModel.exerciseCatalogLoading.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
@@ -1006,6 +1010,10 @@ fun MainScreen(
         WorkoutLogDialog(
             state = workoutLogState,
             pickerExercises = exercisePickerExercises,
+            exerciseUsages = exerciseUsages,
+            bodyPartFilters = exerciseCatalogBodyParts,
+            equipmentFilters = exerciseCatalogEquipments,
+            catalogLoading = exerciseCatalogLoading,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
             isNamingWorkout = workoutNaming,
@@ -1013,6 +1021,7 @@ fun MainScreen(
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
+            onRecordPick = viewModel::recordExercisePick,
             onSave = viewModel::logWorkoutSession,
             onDismiss = {
                 showWorkoutDialog = false
@@ -1026,6 +1035,10 @@ fun MainScreen(
             state = workoutLogState,
             initialDraft = editing.draft,
             pickerExercises = exercisePickerExercises,
+            exerciseUsages = exerciseUsages,
+            bodyPartFilters = exerciseCatalogBodyParts,
+            equipmentFilters = exerciseCatalogEquipments,
+            catalogLoading = exerciseCatalogLoading,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
             isNamingWorkout = workoutNaming,
@@ -1033,6 +1046,7 @@ fun MainScreen(
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
+            onRecordPick = viewModel::recordExercisePick,
             onSave = viewModel::saveEditingWorkout,
             onDismiss = viewModel::dismissWorkoutDetails
         )

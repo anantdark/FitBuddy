@@ -70,8 +70,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.anant.fitbuddy.data.model.CommonExercise
-import com.anant.fitbuddy.data.model.EXERCISE_EQUIPMENT_GROUPS
+import com.anant.fitbuddy.data.database.ExerciseUsage
+import com.anant.fitbuddy.data.model.CatalogExercise
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.WorkoutDraft
@@ -92,14 +92,19 @@ private val WEIGHT_PRESETS = listOf("5", "10", "15", "20")
 fun WorkoutLogDialog(
     state: WorkoutLogUiState,
     initialDraft: WorkoutDraft? = null,
-    pickerExercises: List<CommonExercise>,
+    pickerExercises: List<CatalogExercise>,
+    exerciseUsages: List<ExerciseUsage> = emptyList(),
+    bodyPartFilters: List<String> = emptyList(),
+    equipmentFilters: List<String> = emptyList(),
+    catalogLoading: Boolean = false,
     isClassifyingCustom: Boolean,
     isInferringExercises: Boolean,
     isNamingWorkout: Boolean,
     isAiOnline: Boolean,
-    onClassifyCustom: (rawName: String, onResolved: (name: String, equipment: String) -> Unit) -> Unit,
+    onClassifyCustom: (rawName: String, onResolved: (CatalogExercise) -> Unit) -> Unit,
     onInferExercises: (description: String, onResolved: (List<ExerciseDraft>) -> Unit) -> Unit,
     onSuggestName: (exerciseNames: List<String>, onResolved: (String) -> Unit) -> Unit,
+    onRecordPick: (name: String, exerciseId: String?) -> Unit = { _, _ -> },
     onSave: (WorkoutDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -120,7 +125,8 @@ fun WorkoutLogDialog(
         var durationTouched by remember { mutableStateOf(isEditing) }
         var showDurationEdit by remember { mutableStateOf(isEditing) }
         var showPicker by remember { mutableStateOf(false) }
-        var pendingExercise by remember { mutableStateOf<Pair<String, String>?>(null) }
+        var detailExercise by remember { mutableStateOf<CatalogExercise?>(null) }
+        var pendingExercise by remember { mutableStateOf<CatalogExercise?>(null) }
 
         val exerciseSnapshot = exercises.toList()
         LaunchedEffect(exerciseSnapshot, durationTouched) {
@@ -278,8 +284,8 @@ fun WorkoutLogDialog(
                 if (exercises.isEmpty()) {
                     item {
                         Text(
-                            "No exercises added yet. Tap below to add one from the common list " +
-                                "(dumbbell, bench, and more) or a custom exercise.",
+                            "No exercises added yet. Tap below to browse the exercise catalog " +
+                                "(with demo GIFs), filter by body part or equipment, or add with AI.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -311,17 +317,21 @@ fun WorkoutLogDialog(
         if (showPicker) {
             ExercisePickerSheet(
                 exercises = pickerExercises,
+                usages = exerciseUsages,
+                bodyPartFilters = bodyPartFilters,
+                equipmentFilters = equipmentFilters,
+                catalogLoading = catalogLoading,
                 isClassifyingCustom = isClassifyingCustom,
                 isInferringExercises = isInferringExercises,
                 isAiOnline = isAiOnline,
-                onPick = { name, equipment ->
+                onPick = { exercise ->
                     showPicker = false
-                    pendingExercise = name to equipment
+                    detailExercise = exercise
                 },
                 onClassifyCustom = { rawName ->
-                    onClassifyCustom(rawName) { name, equipment ->
+                    onClassifyCustom(rawName) { exercise ->
                         showPicker = false
-                        pendingExercise = name to equipment
+                        pendingExercise = exercise
                     }
                 },
                 onInferExercises = { description ->
@@ -334,11 +344,23 @@ fun WorkoutLogDialog(
             )
         }
 
-        pendingExercise?.let { (name, equipment) ->
+        detailExercise?.let { exercise ->
+            ExerciseDetailDialog(
+                exercise = exercise,
+                onContinue = {
+                    pendingExercise = exercise
+                    detailExercise = null
+                },
+                onDismiss = { detailExercise = null }
+            )
+        }
+
+        pendingExercise?.let { exercise ->
             AddExerciseDetailsDialog(
-                exerciseName = name,
-                equipment = equipment,
+                exerciseName = exercise.name,
+                equipment = exercise.equipmentTag,
                 onAdd = { draft ->
+                    onRecordPick(exercise.name, exercise.exerciseId)
                     exercises.add(draft)
                     pendingExercise = null
                 },
@@ -507,190 +529,6 @@ private fun EditExerciseDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
-}
-
-/** Picker listing the common + saved exercise library, plus custom text and AI inference. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExercisePickerSheet(
-    exercises: List<CommonExercise>,
-    isClassifyingCustom: Boolean,
-    isInferringExercises: Boolean,
-    isAiOnline: Boolean,
-    onPick: (name: String, equipment: String) -> Unit,
-    onClassifyCustom: (rawName: String) -> Unit,
-    onInferExercises: (description: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var query by remember { mutableStateOf("") }
-    var selectedEquipment by remember { mutableStateOf<String?>(null) }
-    val isBusy = isClassifyingCustom || isInferringExercises
-
-    val filtered = remember(query, selectedEquipment, exercises) {
-        exercises.filter { exercise ->
-            (selectedEquipment == null || exercise.equipment == selectedEquipment) &&
-                (query.isBlank() || exercise.name.contains(query.trim(), ignoreCase = true))
-        }
-    }
-    val trimmedQuery = query.trim()
-    val showCustomRow = trimmedQuery.isNotBlank() &&
-        !trimmedQuery.contains('\n') &&
-        filtered.none { it.name.equals(trimmedQuery, ignoreCase = true) }
-    val showInferButton = trimmedQuery.isNotBlank()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (imeVisible) Modifier.fillMaxHeight(0.92f) else Modifier)
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Add exercise",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Search or describe exercises") },
-                    placeholder = {
-                        Text("e.g. 4×8 bench press, 3×12 lateral raises")
-                    },
-                    minLines = 2,
-                    maxLines = 5,
-                    enabled = !isBusy,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (showInferButton) {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isBusy && isAiOnline,
-                        onClick = { onInferExercises(trimmedQuery) }
-                    ) {
-                        if (isInferringExercises) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Inferring…")
-                        } else {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Infer exercises with AI")
-                        }
-                    }
-                    if (!isAiOnline) {
-                        Text(
-                            "Connect an AI provider in Settings to infer from text.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    EXERCISE_EQUIPMENT_GROUPS.forEach { group ->
-                        FilterChip(
-                            selected = selectedEquipment == group,
-                            onClick = {
-                                selectedEquipment = if (selectedEquipment == group) null else group
-                            },
-                            label = { Text(group) },
-                            enabled = !isBusy
-                        )
-                    }
-                }
-                if (showCustomRow) {
-                    CustomExerciseRow(
-                        name = trimmedQuery,
-                        isLoading = isClassifyingCustom,
-                        onPick = { onClassifyCustom(trimmedQuery) }
-                    )
-                }
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (imeVisible) Modifier.weight(1f)
-                        else Modifier.heightIn(max = 360.dp)
-                    ),
-                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 16.dp)
-            ) {
-                items(filtered, key = { it.name }) { exercise ->
-                    ExercisePickerRow(
-                        exercise = exercise,
-                        enabled = !isBusy,
-                        onPick = { onPick(exercise.name, exercise.equipment) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExercisePickerRow(exercise: CommonExercise, enabled: Boolean, onPick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pressable(enabled = enabled, onClick = onPick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(exercise.name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                exercise.equipment,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Icon(Icons.Filled.Add, contentDescription = "Add ${exercise.name}")
-    }
-}
-
-@Composable
-private fun CustomExerciseRow(name: String, isLoading: Boolean, onPick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pressable(enabled = !isLoading, onClick = onPick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Filled.Add, contentDescription = null)
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (isLoading) "Recognising \"$name\"…" else "Add custom exercise \"$name\"",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
 }
 
 /** Sets/reps/weight for strength, or time/distance for cardio, before adding to the session. */
