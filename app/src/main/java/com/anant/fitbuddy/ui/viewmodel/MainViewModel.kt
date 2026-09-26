@@ -1872,7 +1872,7 @@ class MainViewModel(
             ?: dashboardState.value.profile?.weightKg?.takeIf { it > 0 }
             ?: 0.0
 
-    /** Saves a workout session and estimates calories burned (AI, or an offline fallback). */
+    /** Saves a workout session and estimates calories burned with a local MET formula. */
     fun logWorkoutSession(draft: WorkoutDraft) {
         if (draft.exercises.isEmpty()) return
         _workoutLog.update { WorkoutLogUiState(isSaving = true) }
@@ -1882,7 +1882,6 @@ class MainViewModel(
                 repository.logWorkoutSession(
                     draft,
                     weightKg,
-                    buildWorkoutContext(draft, weightKg),
                     timestamp = activeDayTimestamp()
                 )
             }
@@ -1987,7 +1986,6 @@ class MainViewModel(
                 repository.logWorkoutSession(
                     draft,
                     weightKg,
-                    buildWorkoutContext(draft, weightKg),
                     timestamp = todayTs
                 )
             }
@@ -2021,16 +2019,14 @@ class MainViewModel(
                     repository.upgradeExerciseLogToWorkout(
                         exerciseLogId = editing.exerciseLogId,
                         draft = draft,
-                        weightKg = weightKg,
-                        contextJson = buildWorkoutContext(draft, weightKg)
+                        weightKg = weightKg
                     )
                 } else {
                     repository.updateWorkoutSession(
                         sessionId = editing.sessionId,
                         exerciseLogId = editing.exerciseLogId,
                         draft = draft,
-                        weightKg = weightKg,
-                        contextJson = buildWorkoutContext(draft, weightKg)
+                        weightKg = weightKg
                     )
                 }
             }
@@ -2049,32 +2045,6 @@ class MainViewModel(
                     }
                 }
         }
-    }
-
-    private fun buildWorkoutContext(draft: WorkoutDraft, weightKg: Double): String {
-        val profile = dashboardState.value.profile
-        val exercisesJson = JSONArray().apply {
-            draft.exercises.forEach { ex ->
-                put(JSONObject().apply {
-                    put("name", ex.name)
-                    put("equipment", ex.equipment)
-                    put("sets", ex.sets)
-                    put("reps", ex.reps)
-                    put("weight_kg", ex.weightKg ?: JSONObject.NULL)
-                    put("duration_minutes", ex.durationMinutes ?: JSONObject.NULL)
-                    put("distance_km", ex.distanceKm ?: JSONObject.NULL)
-                })
-            }
-        }
-        return JSONObject().apply {
-            put("age", profile?.age ?: JSONObject.NULL)
-            put("sex", profile?.sex ?: JSONObject.NULL)
-            put("weight_kg", if (weightKg > 0) weightKg else JSONObject.NULL)
-            put("activity_level", profile?.activityLevel ?: JSONObject.NULL)
-            put("session_name", draft.name)
-            put("user_provided_duration_minutes", WorkoutDraft.estimateDurationMinutes(draft.exercises))
-            put("exercises", exercisesJson)
-        }.toString()
     }
 
     // --- Health target calculation -----------------------------------------------------------

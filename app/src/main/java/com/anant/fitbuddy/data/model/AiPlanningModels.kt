@@ -78,8 +78,7 @@ data class ProgressInsightResponse(
 )
 
 /**
- * AI-estimated energy expenditure for a logged workout session, personalised to the user's body
- * factors (weight, age, sex, activity level).
+ * MET-based energy expenditure for a logged workout session, personalised to body weight.
  */
 @JsonClass(generateAdapter = true)
 data class WorkoutCaloriesResponse(

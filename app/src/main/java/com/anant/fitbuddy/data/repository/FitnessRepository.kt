@@ -94,10 +94,10 @@ import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.FoodQuantityParser
+import com.anant.fitbuddy.util.WorkoutCalorieEstimator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlin.math.roundToInt
 
 class FitnessRepository(
     private val userProfileDao: UserProfileDao,
@@ -951,18 +951,16 @@ class FitnessRepository(
     }
 
     /**
-     * Persists a workout session + its exercises, estimates calories burned (AI when configured,
-     * else an offline MET-based estimate) using [contextJson] and [weightKg], then mirrors the
-     * result into [ExerciseLog] so it counts toward daily burn totals/dashboard/progress like any
-     * other exercise entry. Returns the estimate shown to the user.
+     * Persists a workout session + its exercises, estimates calories burned with a local MET
+     * formula using [weightKg], then mirrors the result into [ExerciseLog] so it counts toward
+     * daily burn totals/dashboard/progress like any other exercise entry.
      */
     suspend fun logWorkoutSession(
         draft: WorkoutDraft,
         weightKg: Double,
-        contextJson: String,
         timestamp: Long = System.currentTimeMillis()
     ): WorkoutCaloriesResponse {
-        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
 
         val dateString = DateUtils.format(timestamp)
 
@@ -1013,13 +1011,12 @@ class FitnessRepository(
         sessionId: Int,
         exerciseLogId: Int?,
         draft: WorkoutDraft,
-        weightKg: Double,
-        contextJson: String
+        weightKg: Double
     ): WorkoutCaloriesResponse {
         val existingSession = workoutSessionDao.getById(sessionId)
             ?: error("This workout no longer exists")
 
-        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
 
         workoutExerciseDao.deleteForSession(sessionId)
         workoutExerciseDao.insertAll(draft.exercises.toWorkoutExercises(sessionId))
@@ -1055,13 +1052,12 @@ class FitnessRepository(
     suspend fun upgradeExerciseLogToWorkout(
         exerciseLogId: Int,
         draft: WorkoutDraft,
-        weightKg: Double,
-        contextJson: String
+        weightKg: Double
     ): WorkoutCaloriesResponse {
         val existingLog = exerciseLogDao.getById(exerciseLogId)
             ?: error("This exercise log no longer exists")
 
-        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
 
         val sessionId = workoutSessionDao.insert(
             WorkoutSession(
@@ -1101,61 +1097,6 @@ class FitnessRepository(
                 distanceKm = ex.distanceKm
             )
         }
-
-    /**
-     * Estimates calories burned via AI when configured, otherwise uses the offline MET-based
-     * estimate. When a provider is configured, network/API failures are surfaced to the caller
-     * instead of silently falling back.
-     */
-    private suspend fun estimateWorkoutCalories(
-        draft: WorkoutDraft,
-        weightKg: Double,
-        contextJson: String
-    ): WorkoutCaloriesResponse {
-        val settings = settingsRepository.settings.first()
-        if (!settings.isConfigured) {
-            return estimateWorkoutCaloriesOffline(draft, weightKg)
-        }
-
-        val (aiResult, _) = try {
-            withAiFailover(settings) { s ->
-                remoteAiDataSource.estimateWorkoutCalories(s, contextJson)
-            }
-        } catch (e: Exception) {
-            throw IllegalStateException(formatAiConnectionError(e), e)
-        }
-
-        if (aiResult.caloriesBurned <= 0) {
-            throw IllegalStateException("The AI returned an invalid calorie estimate. Please try again.")
-        }
-        return aiResult
-    }
-
-    /**
-     * MET-based fallback used when no AI provider is configured, the AI call fails, or the AI
-     * returns a non-positive estimate: picks a representative MET (metabolic equivalent) for the
-     * session's dominant equipment type and scales by body weight and duration.
-     * kcal = MET * weight_kg * hours.
-     */
-    private fun estimateWorkoutCaloriesOffline(draft: WorkoutDraft, weightKg: Double): WorkoutCaloriesResponse {
-        val weight = weightKg.takeIf { it > 0 } ?: 70.0
-        val equipmentSet = draft.exercises.map { it.equipment }.toSet()
-        val met = when {
-            Equipment.CARDIO in equipmentSet -> 7.0
-            Equipment.BODYWEIGHT in equipmentSet && equipmentSet.size == 1 -> 5.0
-            else -> 4.0 // dumbbell/barbell/bench/machine resistance training, averaged incl. rest
-        }
-        val duration = WorkoutDraft.estimateDurationMinutes(draft.exercises)
-            .takeIf { draft.exercises.isNotEmpty() }
-            ?: draft.durationMinutes.takeIf { it > 0 }
-            ?: WorkoutDraft.DEFAULT_DURATION_MINUTES
-        val calories = (met * weight * (duration / 60.0)).roundToInt().coerceAtLeast(1)
-        return WorkoutCaloriesResponse(
-            caloriesBurned = calories,
-            durationMinutes = duration,
-            intensityNote = "Estimated offline (no AI provider connected)"
-        )
-    }
 
     /**
      * Single entry point used by the ViewModel. Sends the loose text (and optional photo)

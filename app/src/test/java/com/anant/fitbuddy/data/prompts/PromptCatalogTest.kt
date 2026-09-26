@@ -13,7 +13,6 @@ class PromptCatalogTest {
         "target",
         "progress",
         "progress_chat",
-        "workout_calories",
         "classify_exercise",
         "parse_workout",
         "workout_name",
