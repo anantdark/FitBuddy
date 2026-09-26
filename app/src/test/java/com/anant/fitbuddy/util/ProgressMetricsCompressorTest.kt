@@ -23,6 +23,17 @@ class ProgressMetricsCompressorTest {
             .put("target_protein_g", 150)
             .put("target_carbs_g", 200)
             .put("target_fats_g", 70)
+            .put(
+                "target_history",
+                JSONArray().put(
+                    JSONObject()
+                        .put("effective_from", "1970-01-01")
+                        .put("calories", 2200)
+                        .put("protein_g", 150)
+                        .put("carbs_g", 200)
+                        .put("fats_g", 70)
+                )
+            )
             .put("avg_daily_calories_eaten_recent", 1850.4)
             .put("calorie_model_note", "target includes average activity")
             .put(
@@ -61,6 +72,7 @@ class ProgressMetricsCompressorTest {
                         .put("protein_g", 140)
                         .put("carbs_g", 190)
                         .put("fats_g", 65)
+                        .put("target_calories", 2200)
                 )
             )
             .put(
@@ -70,6 +82,7 @@ class ProgressMetricsCompressorTest {
                         .put("month", "2026-05")
                         .put("days_logged", 20)
                         .put("avg_calories", 2000)
+                        .put("avg_target_calories", 2100)
                         .put("avg_calories_burned", 250)
                         .put("avg_net_calories", 1750)
                         .put("avg_protein_g", 130)
@@ -101,13 +114,15 @@ class ProgressMetricsCompressorTest {
 
         assertTrue(out.contains("profile=nameAnant age30 sexmale ht175cm wt72.5kg actmoderate"))
         assertTrue(out.contains("goal=lose fat"))
-        assertTrue(out.contains("targets=kcal2200 p150 c200 f70"))
+        assertTrue(out.contains("targets=kcal2200 p150 c200 f70 (current)"))
+        assertTrue(out.contains("TARGET_HIST"))
+        assertTrue(out.contains("1970-01-01|2200|150|200|70"))
         assertTrue(out.contains("avg_intake_kcal=1850.4"))
         assertTrue(out.contains("BODY30 "))
         assertTrue(out.contains("07-01|73.2|18.5|1650|55"))
         assertTrue(out.contains("2026-06|4|74|75|73.5|19|1660|54.5"))
-        assertTrue(out.contains("07-10|2100|300|1800|140|190|65"))
-        assertTrue(out.contains("2026-05|20|2000|250|1750|130|180|60|12"))
+        assertTrue(out.contains("07-10|2100|300|1800|140|190|65|2200"))
+        assertTrue(out.contains("2026-05|20|2000|2100|250|1750|130|180|60|12"))
         assertTrue(out.contains("07-10|300"))
         assertTrue(out.contains("2026-05|12|280|3360"))
         assertFalse(out.contains("body_measurements"))

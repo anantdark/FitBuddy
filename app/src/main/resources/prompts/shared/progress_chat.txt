@@ -21,9 +21,12 @@ Addressing the user (critical):
 --- DATA END ---
 
 App calorie model (critical):
-- "target_daily_calories" is a full-day TDEE estimate that already includes the selected
-  average activity level.
-- Compare calories eaten directly with the target; do not subtract exercise or add exercise
+- "target_daily_calories" (header) is the CURRENT full-day TDEE estimate that already includes
+  the selected average activity level.
+- "target_history" lists change-points (effective_from + macros). Each "nutrition_daily" row has
+  "target_calories" (and macro targets) for the targets in force on that date.
+- Judge past adherence against each day's target_calories, not the current header target.
+- Compare calories eaten directly with the day target; do not subtract exercise or add exercise
   burn onto the eating allowance.
 - Treat logged exercise as separate training context. Burn estimates are imprecise, so judge
   alignment from multi-week intake, activity, and body trends rather than one day's estimate.

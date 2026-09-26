@@ -175,11 +175,14 @@ fun calorieTargetPrefersSurplus(goal: String): Boolean =
  *
  * Values within ±100 kcal are green. Beyond that range, [preferSurplus] makes overages yellow
  * and shortfalls red; loss goals make shortfalls yellow and overages red.
+ *
+ * [targetCaloriesForDate] supplies the target that was in force on each summary day so history
+ * is not rewritten when the live profile target changes.
  */
 @Composable
 fun CustomLineChart(
     foodSummaries: List<FoodDailySummary>,
-    targetCalories: Int,
+    targetCaloriesForDate: (String) -> Int,
     modifier: Modifier = Modifier,
     /** True for GAIN_MUSCLE / RECOMP; false for LOSE_WEIGHT. */
     preferSurplus: Boolean = false,
@@ -194,6 +197,9 @@ fun CustomLineChart(
             summary.dateString to summary.totalCalories
         }.asReversed()
     }
+    val dayTargets = remember(foodSummaries) {
+        dataPoints.map { (date, _) -> targetCaloriesForDate(date) }
+    }
 
     if (dataPoints.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -202,7 +208,10 @@ fun CustomLineChart(
         return
     }
 
-    val rawMax = max(targetCalories, dataPoints.maxOf { it.second.coerceAtLeast(0) })
+    val rawMax = max(
+        dayTargets.maxOrNull() ?: 0,
+        dataPoints.maxOf { it.second.coerceAtLeast(0) }
+    )
     val maxVal = (rawMax * 1.18f).coerceAtLeast(1f)
     val minVal = 0f
 
@@ -243,8 +252,8 @@ fun CustomLineChart(
         return Offset(x, y)
     }
 
-    fun dayColor(net: Int): Color {
-        val difference = net - targetCalories
+    fun dayColor(net: Int, target: Int): Color {
+        val difference = net - target
         val cautionColor = Color(0xFFF59E0B)
         return when {
             difference in -100..100 -> goodColor
@@ -301,19 +310,47 @@ fun CustomLineChart(
                 )
             }
 
-            val targetY = topPad + graphHeight *
-                (1f - ((targetCalories - minVal) / range)).coerceIn(0f, 1f)
-            drawLine(
-                color = targetLineColor,
-                start = Offset(leftPad, targetY),
-                end = Offset(size.width - rightPad, targetY),
-                strokeWidth = 3f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f),
-            )
+            fun targetY(target: Int): Float =
+                topPad + graphHeight *
+                    (1f - ((target - minVal) / range)).coerceIn(0f, 1f)
+
+            for (i in dataPoints.indices) {
+                val target = dayTargets[i]
+                val x0 = if (dataPoints.size <= 1) leftPad else leftPad + i * stepX
+                val x1 = when {
+                    dataPoints.size <= 1 -> size.width - rightPad
+                    i == dataPoints.lastIndex -> size.width - rightPad
+                    else -> leftPad + (i + 1) * stepX
+                }
+                val y = targetY(target)
+                drawLine(
+                    color = targetLineColor,
+                    start = Offset(x0, y),
+                    end = Offset(x1, y),
+                    strokeWidth = 3f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f),
+                )
+                if (i < dataPoints.lastIndex && dayTargets[i + 1] != target) {
+                    drawLine(
+                        color = targetLineColor,
+                        start = Offset(x1, y),
+                        end = Offset(x1, targetY(dayTargets[i + 1])),
+                        strokeWidth = 3f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f),
+                    )
+                }
+            }
+            val labelTarget = dayTargets.lastOrNull() ?: dayTargets.first()
+            val labelY = targetY(labelTarget)
+            val targetLabel = if (dayTargets.distinct().size <= 1) {
+                "Target · $labelTarget"
+            } else {
+                "Target (varies)"
+            }
             drawText(
                 textMeasurer = textMeasurer,
-                text = "Target · $targetCalories",
-                topLeft = Offset(leftPad + 6f, targetY - 28f),
+                text = targetLabel,
+                topLeft = Offset(leftPad + 6f, labelY - 28f),
                 style = TextStyle(
                     color = targetLineColor,
                     fontSize = 10.sp,
@@ -357,11 +394,10 @@ fun CustomLineChart(
                     ),
                 )
 
-                // Colored straight segments (good/bad vs target); curve fill keeps the soft look.
                 for (i in 1 until pts.size) {
                     val endNet = dataPoints[i].second
                     drawLine(
-                        color = dayColor(endNet),
+                        color = dayColor(endNet, dayTargets[i]),
                         start = pts[i - 1],
                         end = pts[i],
                         strokeWidth = 7f,
@@ -372,7 +408,7 @@ fun CustomLineChart(
 
             pts.forEachIndexed { idx, point ->
                 val net = dataPoints[idx].second
-                val color = dayColor(net)
+                val color = dayColor(net, dayTargets[idx])
                 val isSelected = idx == selectedIndex
                 if (isSelected) {
                     drawLine(
@@ -395,8 +431,9 @@ fun CustomLineChart(
             val pair = dataPoints[selectedIndex]
             val pos = pointOffset(selectedIndex)
             val net = pair.second
-            val vsTarget = net - targetCalories
-            val statusColor = dayColor(net)
+            val dayTarget = dayTargets[selectedIndex]
+            val vsTarget = net - dayTarget
+            val statusColor = dayColor(net, dayTarget)
             val statusText = when {
                 vsTarget > 0 -> "Over by $vsTarget kcal"
                 vsTarget < 0 -> "Under by ${-vsTarget} kcal"
@@ -428,7 +465,7 @@ fun CustomLineChart(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "$net kcal net",
+                        "$net kcal · target $dayTarget",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

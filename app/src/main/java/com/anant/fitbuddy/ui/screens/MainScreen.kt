@@ -641,7 +641,10 @@ fun MainScreen(
                                 monthlyExercise = monthlyExercise,
                                 sixMonthExercise = sixMonthExercise,
                                 measurements = measurements,
-                                targetCalories = dashboardState.targetCalories,
+                                targetCaloriesForDate = { date ->
+                                    dashboardState.profile?.targetsForDate(date)?.kcal
+                                        ?: dashboardState.targetCalories
+                                },
                                 targetWeightKg = dashboardState.profile?.targetWeightKg,
                                 goal = dashboardState.profile?.goal ?: "RECOMP",
                                 monthlyEndDate = monthlyEndDate,

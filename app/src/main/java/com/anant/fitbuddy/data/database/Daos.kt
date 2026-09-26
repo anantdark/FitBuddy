@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.anant.fitbuddy.data.model.NutritionTargetPeriod
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -45,6 +46,7 @@ interface UserProfileDao {
             targetCarbsG = :targetCarbsG,
             targetFatsG = :targetFatsG,
             goalRationale = NULL,
+            nutritionTargetHistory = :nutritionTargetHistory,
             lastUpdatedTimestamp = :lastUpdatedTimestamp
         WHERE id = 1
     """)
@@ -53,6 +55,7 @@ interface UserProfileDao {
         targetProteinG: Int,
         targetCarbsG: Int,
         targetFatsG: Int,
+        nutritionTargetHistory: List<NutritionTargetPeriod>,
         lastUpdatedTimestamp: Long
     ): Int
 

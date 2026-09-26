@@ -5,6 +5,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.anant.fitbuddy.data.model.LoggedIngredient
+import com.anant.fitbuddy.data.model.NutritionTargetHistory
+import com.anant.fitbuddy.data.model.NutritionTargetPeriod
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -27,10 +29,39 @@ data class UserProfile(
     // Latest rationale for the calculated goal/targets (shown in Body).
     val goalRationale: String? = null,
     // Optional AI-recommended or manually entered body-weight target.
-    val targetWeightKg: Double? = null
+    val targetWeightKg: Double? = null,
+    /** Change-point timeline of nutrition targets; empty until seeded / first real save. */
+    val nutritionTargetHistory: List<NutritionTargetPeriod> = emptyList()
 ) {
     /** True once the user has completed first-run onboarding (age, height, weight). */
     fun hasBasicsConfigured(): Boolean = age > 0 && weightKg > 0 && heightCm > 0
+
+    fun currentTargetPeriod(): NutritionTargetPeriod = NutritionTargetHistory.period(
+        from = NutritionTargetHistory.EPOCH_START,
+        kcal = dailyTargetCalories,
+        proteinG = targetProteinG,
+        carbsG = targetCarbsG,
+        fatsG = targetFatsG
+    )
+
+    fun targetsForDate(date: String): NutritionTargetPeriod =
+        NutritionTargetHistory.forDate(
+            history = nutritionTargetHistory,
+            date = date,
+            fallback = currentTargetPeriod()
+        ) ?: currentTargetPeriod()
+
+    fun withSeededTargetHistory(): UserProfile {
+        if (nutritionTargetHistory.isNotEmpty()) return this
+        return copy(
+            nutritionTargetHistory = NutritionTargetHistory.seedFromCurrent(
+                kcal = dailyTargetCalories,
+                proteinG = targetProteinG,
+                carbsG = targetCarbsG,
+                fatsG = targetFatsG
+            )
+        )
+    }
 
     fun withoutObsoleteTargetMetadata(): UserProfile {
         val generated = goalRationale?.startsWith("Evidence-based v") == true

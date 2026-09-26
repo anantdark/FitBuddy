@@ -47,6 +47,7 @@ import com.anant.fitbuddy.data.model.COMMON_EXERCISES
 import com.anant.fitbuddy.data.model.CommonExercise
 import com.anant.fitbuddy.data.model.CustomExerciseResponse
 import com.anant.fitbuddy.data.model.Equipment
+import com.anant.fitbuddy.data.model.NutritionTargetHistory
 import com.anant.fitbuddy.data.model.buildExercisePickerList
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.FitnessTrackerResponse
@@ -772,18 +773,63 @@ class FitnessRepository(
         userProfileDao.insertOrUpdateProfileWithLatestWeight(profile)
     }
 
+    /**
+     * Persists [profile], recording a nutrition-target change-point for [effectiveFromDate]
+     * when [recordNutritionTargets] is true. Empty history is seeded from the prior profile
+     * (or [profile] if none) so past days keep pre-change values.
+     */
+    suspend fun saveProfileRecordingTargets(
+        profile: UserProfile,
+        effectiveFromDate: String,
+        recordNutritionTargets: Boolean
+    ) {
+        val existing = userProfileDao.getProfileOnce()
+        val priorHistory = existing?.nutritionTargetHistory.orEmpty()
+        val priorFallback = existing?.currentTargetPeriod() ?: profile.currentTargetPeriod()
+        val withHistory = when {
+            recordNutritionTargets -> profile.copy(
+                nutritionTargetHistory = NutritionTargetHistory.recordChange(
+                    history = priorHistory,
+                    effectiveFromDate = effectiveFromDate,
+                    kcal = profile.dailyTargetCalories,
+                    proteinG = profile.targetProteinG,
+                    carbsG = profile.targetCarbsG,
+                    fatsG = profile.targetFatsG,
+                    fallbackCurrent = priorFallback
+                )
+            )
+            priorHistory.isNotEmpty() -> profile.copy(nutritionTargetHistory = priorHistory)
+            else -> profile.withSeededTargetHistory()
+        }
+        userProfileDao.insertOrUpdateProfileWithLatestWeight(withHistory)
+    }
+
     suspend fun updateDailyTargets(
         dailyTargetCalories: Int,
         targetProteinG: Int,
         targetCarbsG: Int,
-        targetFatsG: Int
-    ): Boolean = userProfileDao.updateDailyTargets(
-        dailyTargetCalories = dailyTargetCalories,
-        targetProteinG = targetProteinG,
-        targetCarbsG = targetCarbsG,
-        targetFatsG = targetFatsG,
-        lastUpdatedTimestamp = System.currentTimeMillis()
-    ) > 0
+        targetFatsG: Int,
+        effectiveFromDate: String
+    ): Boolean {
+        val existing = userProfileDao.getProfileOnce() ?: return false
+        val history = NutritionTargetHistory.recordChange(
+            history = existing.nutritionTargetHistory,
+            effectiveFromDate = effectiveFromDate,
+            kcal = dailyTargetCalories,
+            proteinG = targetProteinG,
+            carbsG = targetCarbsG,
+            fatsG = targetFatsG,
+            fallbackCurrent = existing.currentTargetPeriod()
+        )
+        return userProfileDao.updateDailyTargets(
+            dailyTargetCalories = dailyTargetCalories,
+            targetProteinG = targetProteinG,
+            targetCarbsG = targetCarbsG,
+            targetFatsG = targetFatsG,
+            nutritionTargetHistory = history,
+            lastUpdatedTimestamp = System.currentTimeMillis()
+        ) > 0
+    }
 
     suspend fun updateBodyProfile(
         targetWeightKg: Double?,

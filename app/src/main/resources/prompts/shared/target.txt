@@ -18,6 +18,11 @@ must not be reinterpreted. Logged workouts cannot capture occupation or unlogged
 Logged exercise is already represented by the full-day activity level and is never credited back a
 second time.
 
+"target_history" is the change-point timeline of prior nutrition targets the user has applied.
+"nutrition_coverage.average_target_calories" is the mean of the targets that were in force on
+logged days in the window (not necessarily the current target). You may mention prior target
+changes only from these fields when writing rationale. Still never invent or alter numbers.
+
 Write rationale as one short, optional regional coaching note with no numbers. Explain the selected
 trend direction or the need for more consistent data without making medical claims. You may draw
 only from the supplied evidence and regional guidance. {{TARGET_COACH_NOTES}}
