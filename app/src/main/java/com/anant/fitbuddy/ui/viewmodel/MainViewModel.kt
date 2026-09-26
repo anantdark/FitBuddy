@@ -1708,6 +1708,13 @@ class MainViewModel(
         }
     }
 
+    /** Favourites or unfavourites an exercise in the workout picker. */
+    fun setExerciseFavorite(name: String, exerciseId: String?, favorite: Boolean) {
+        viewModelScope.launch {
+            runCatching { repository.setExerciseFavorite(name, exerciseId, favorite) }
+        }
+    }
+
     /** Normalises a custom exercise via AI/offline rules and saves it for future picker use. */
     fun classifyCustomExercise(rawName: String, onResolved: (CatalogExercise) -> Unit) {
         if (_customExerciseClassifying.value || _workoutInferring.value) return

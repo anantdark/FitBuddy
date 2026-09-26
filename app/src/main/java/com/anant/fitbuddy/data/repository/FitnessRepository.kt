@@ -166,7 +166,37 @@ class FitnessRepository(
                     name = trimmed,
                     exerciseId = exerciseId,
                     lastUsedAt = now,
-                    useCount = 1
+                    useCount = 1,
+                    isFavorite = false
+                )
+            )
+        }
+    }
+
+    /** Toggles favourite for an exercise (creates a usage row if needed). */
+    suspend fun setExerciseFavorite(
+        name: String,
+        exerciseId: String? = null,
+        favorite: Boolean
+    ) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val existing = exerciseUsageDao.findByName(trimmed)
+        if (existing != null) {
+            exerciseUsageDao.insert(
+                existing.copy(
+                    exerciseId = exerciseId ?: existing.exerciseId,
+                    isFavorite = favorite
+                )
+            )
+        } else {
+            exerciseUsageDao.insert(
+                ExerciseUsage(
+                    name = trimmed,
+                    exerciseId = exerciseId,
+                    lastUsedAt = 0L,
+                    useCount = 0,
+                    isFavorite = favorite
                 )
             )
         }

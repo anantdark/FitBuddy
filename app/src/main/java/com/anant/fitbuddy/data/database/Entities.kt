@@ -171,8 +171,8 @@ data class ExercisePreset(
 )
 
 /**
- * Tracks how often / how recently an exercise was picked into a workout, so the picker can
- * surface Recent and Frequent sections above the full catalog.
+ * Tracks how often / how recently an exercise was picked into a workout, plus whether the user
+ * favourited it, so the picker can surface Favourites, Recent, and Frequent sections.
  */
 @JsonClass(generateAdapter = true)
 @Entity(
@@ -185,7 +185,8 @@ data class ExerciseUsage(
     /** ExerciseDB id when the pick came from the catalog; null for customs. */
     val exerciseId: String? = null,
     val lastUsedAt: Long,
-    val useCount: Int
+    val useCount: Int,
+    val isFavorite: Boolean = false
 )
 
 /**

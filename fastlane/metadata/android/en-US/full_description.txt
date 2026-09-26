@@ -6,7 +6,7 @@ Features:
 • Region packs — personalise AI prompts, staples, portion language, and log examples to your region
 • Smart logging — photo or text; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc
-• Editable workouts — structured sessions with a 1,500+ exercise catalog (demo GIFs via CDN), body-part/equipment filters, recent & frequent picks, AI session names, and upgrade for simple logs
+• Editable workouts — structured sessions with a 1,500+ exercise catalog (demo GIFs via CDN), favourites, body-part/equipment filters, recent & frequent picks, AI session names, and upgrade for simple logs
 • Presets — searchable saved foods and meals; recently used on top; one-tap log
 • Barcode scan — look up packaged foods; save or log them, and contribute missing products through Open Food Facts
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown

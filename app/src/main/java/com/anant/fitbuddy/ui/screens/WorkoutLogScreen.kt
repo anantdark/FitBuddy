@@ -105,6 +105,7 @@ fun WorkoutLogDialog(
     onInferExercises: (description: String, onResolved: (List<ExerciseDraft>) -> Unit) -> Unit,
     onSuggestName: (exerciseNames: List<String>, onResolved: (String) -> Unit) -> Unit,
     onRecordPick: (name: String, exerciseId: String?) -> Unit = { _, _ -> },
+    onToggleFavorite: (name: String, exerciseId: String?, favorite: Boolean) -> Unit = { _, _, _ -> },
     onSave: (WorkoutDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -125,7 +126,6 @@ fun WorkoutLogDialog(
         var durationTouched by remember { mutableStateOf(isEditing) }
         var showDurationEdit by remember { mutableStateOf(isEditing) }
         var showPicker by remember { mutableStateOf(false) }
-        var detailExercise by remember { mutableStateOf<CatalogExercise?>(null) }
         var pendingExercise by remember { mutableStateOf<CatalogExercise?>(null) }
 
         val exerciseSnapshot = exercises.toList()
@@ -326,7 +326,10 @@ fun WorkoutLogDialog(
                 isAiOnline = isAiOnline,
                 onPick = { exercise ->
                     showPicker = false
-                    detailExercise = exercise
+                    pendingExercise = exercise
+                },
+                onToggleFavorite = { exercise, favorite ->
+                    onToggleFavorite(exercise.name, exercise.exerciseId, favorite)
                 },
                 onClassifyCustom = { rawName ->
                     onClassifyCustom(rawName) { exercise ->
@@ -344,17 +347,6 @@ fun WorkoutLogDialog(
             )
         }
 
-        detailExercise?.let { exercise ->
-            ExerciseDetailDialog(
-                exercise = exercise,
-                onContinue = {
-                    pendingExercise = exercise
-                    detailExercise = null
-                },
-                onDismiss = { detailExercise = null }
-            )
-        }
-
         pendingExercise?.let { exercise ->
             AddExerciseDetailsDialog(
                 exerciseName = exercise.name,
@@ -364,7 +356,11 @@ fun WorkoutLogDialog(
                     exercises.add(draft)
                     pendingExercise = null
                 },
-                onDismiss = { pendingExercise = null }
+                onDismiss = {
+                    // Return to the catalog after canceling sets/reps entry.
+                    pendingExercise = null
+                    showPicker = true
+                }
             )
         }
     }

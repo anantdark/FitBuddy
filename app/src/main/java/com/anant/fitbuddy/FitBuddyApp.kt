@@ -19,7 +19,10 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import android.os.Build
+import com.anant.fitbuddy.util.GifFirstFrameDecoder
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
@@ -97,7 +100,22 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
 
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
+            .crossfade(false)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.20)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("coil_image_cache"))
+                    .maxSizeBytes(64L * 1024L * 1024L)
+                    .build()
+            }
             .components {
+                // First-frame GIF decoder must be registered before the animated ones so
+                // list thumbs that set PARAM_STATIC_GIF stay static.
+                add(GifFirstFrameDecoder.Factory())
                 if (Build.VERSION.SDK_INT >= 28) {
                     add(ImageDecoderDecoder.Factory())
                 } else {

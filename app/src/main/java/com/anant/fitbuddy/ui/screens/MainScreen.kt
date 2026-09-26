@@ -1022,6 +1022,7 @@ fun MainScreen(
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
+            onToggleFavorite = viewModel::setExerciseFavorite,
             onSave = viewModel::logWorkoutSession,
             onDismiss = {
                 showWorkoutDialog = false
@@ -1047,6 +1048,7 @@ fun MainScreen(
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
+            onToggleFavorite = viewModel::setExerciseFavorite,
             onSave = viewModel::saveEditingWorkout,
             onDismiss = viewModel::dismissWorkoutDetails
         )

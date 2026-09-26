@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -161,7 +161,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_14_15,
                         MIGRATION_15_16,
                         MIGRATION_16_17,
-                        MIGRATION_17_18
+                        MIGRATION_17_18,
+                        MIGRATION_18_19
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -275,6 +276,13 @@ abstract class AppDatabase : RoomDatabase() {
             )
             db.execSQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS index_exercise_usage_name ON exercise_usage (name)"
+            )
+        }
+
+        /** Favourites flag on exercise_usage for the workout picker. */
+        val MIGRATION_18_19 = migration(18, 19) { db ->
+            db.execSQL(
+                "ALTER TABLE exercise_usage ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0"
             )
         }
 
