@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
@@ -36,15 +37,21 @@ private class FakeAiApi(
         private set
     var probeCallCount = 0
         private set
+    var lastChatRequest: ChatRequest? = null
+        private set
+    var lastChatRequestPlain: ChatRequestPlain? = null
+        private set
 
     override suspend fun chatCompletion(url: String, authorization: String?, request: ChatRequest): ChatResponse {
         callCount++
+        lastChatRequest = request
         check(responses.isNotEmpty()) { "no fake response queued for call #$callCount" }
         return responses.removeAt(0)
     }
 
     override suspend fun chatCompletionPlain(url: String, authorization: String?, request: ChatRequestPlain): ChatResponse {
         callCount++
+        lastChatRequestPlain = request
         check(responses.isNotEmpty()) { "no fake response queued for call #$callCount" }
         return responses.removeAt(0)
     }
@@ -404,5 +411,79 @@ class RemoteAiDataSourceTest {
 
         assertEquals(listOf("ok-model", "rate-limited"), result.map { it.id })
         assertEquals(5, api.probeCallCount)
+    }
+
+    private val successJson =
+        """{"status":"SUCCESS","clarification_message":null,"food_analysis":{"dish_name":"Idli","macros":{"calories":100,"protein_g":2,"carbs_g":20,"fats_g":1},"ingredients":null},"exercise_analysis":null}"""
+
+    @Test
+    fun `analyze sends enable_thinking false for CUSTOM alias models`() = runTest {
+        val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
+        val source = RemoteAiDataSource(api, moshi)
+        val custom = AppSettings(
+            provider = AiProvider.CUSTOM,
+            customBaseUrl = "https://llm.example.com",
+            customApiKey = "k",
+            customModel = "fitbutler",
+            customTextModel = "fitbutler"
+        )
+
+        source.analyze(custom, "idli", "{}", null)
+
+        assertEquals(false, api.lastChatRequest?.enableThinking)
+    }
+
+    @Test
+    fun `analyze sends enable_thinking false for OLLAMA regardless of model id`() = runTest {
+        val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
+        val source = RemoteAiDataSource(api, moshi)
+        val ollama = AppSettings(
+            provider = AiProvider.OLLAMA,
+            ollamaBaseUrl = "http://192.168.1.10:11434",
+            ollamaModel = "llama3.2",
+            ollamaTextModel = "llama3.2"
+        )
+
+        source.analyze(ollama, "idli", "{}", null)
+
+        assertEquals(false, api.lastChatRequest?.enableThinking)
+    }
+
+    @Test
+    fun `analyze sends enable_thinking false for OpenRouter qwen3 path-style ids`() = runTest {
+        val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
+        val source = RemoteAiDataSource(api, moshi)
+        val openRouter = settings.copy(
+            openRouterModel = "/home/verelias/models/Qwen3.6-35B-A3B.gguf",
+            openRouterTextModel = "/home/verelias/models/Qwen3.6-35B-A3B.gguf"
+        )
+
+        source.analyze(openRouter, "idli", "{}", null)
+
+        assertEquals(false, api.lastChatRequest?.enableThinking)
+    }
+
+    @Test
+    fun `analyze sends enable_thinking false for OpenRouter org-slash qwen3 ids`() = runTest {
+        val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
+        val source = RemoteAiDataSource(api, moshi)
+        val openRouter = settings.copy(
+            openRouterModel = "qwen/qwen3-32b:free",
+            openRouterTextModel = "qwen/qwen3-32b:free"
+        )
+
+        source.analyze(openRouter, "idli", "{}", null)
+
+        assertEquals(false, api.lastChatRequest?.enableThinking)
+    }
+
+    @Test
+    fun `analyze omits enable_thinking for ordinary OpenRouter models`() = runTest {
+        val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
+        val source = RemoteAiDataSource(api, moshi)
+
+        source.analyze(settings, "idli", "{}", null)
+
+        assertNull(api.lastChatRequest?.enableThinking)
     }
 }

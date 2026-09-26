@@ -44,6 +44,7 @@ import kotlinx.coroutines.sync.withPermit
 import okio.Buffer
 import retrofit2.HttpException
 import java.io.IOException
+import java.net.SocketTimeoutException
 
 /**
  * Talks to the multimodal LLM. Responsible for prompt assembly, image attachment and
@@ -272,7 +273,7 @@ class RemoteAiDataSource(
             messages = listOf(ChatMessage(role = "user", content = contentParts)),
             responseFormat = if (includeResponseFormat) ResponseFormat() else null,
             temperature = temperature,
-            enableThinking = disableThinkingForModel(settings.modelFor(hasImage))
+            enableThinking = disableThinkingForModel(settings.provider, settings.modelFor(hasImage))
         )
         return chatWithRetry { api.chatCompletion(settings.chatUrl, settings.authHeader, request) }
     }
@@ -286,7 +287,7 @@ class RemoteAiDataSource(
             model = settings.modelFor(false),
             messages = listOf(ChatMessagePlain(role = "user", content = promptText)),
             temperature = temperature,
-            enableThinking = disableThinkingForModel(settings.modelFor(false))
+            enableThinking = disableThinkingForModel(settings.provider, settings.modelFor(false))
         )
         return chatWithRetry { api.chatCompletionPlain(settings.chatUrl, settings.authHeader, request) }
     }
@@ -353,16 +354,19 @@ class RemoteAiDataSource(
 
     /**
      * Thinking models on OpenAI-compatible gateways often return an empty `content` for
-     * FitBuddy's non-streaming JSON calls unless thinking is disabled.
+     * FitBuddy's non-streaming JSON calls unless thinking is disabled. Self-hosted providers
+     * (CUSTOM / OLLAMA) often expose aliases that hide the real model id, so always send
+     * `enable_thinking: false` there; gateways that ignore the field are unaffected.
      */
-    private fun disableThinkingForModel(modelId: String): Boolean? {
+    private fun disableThinkingForModel(provider: AiProvider, modelId: String): Boolean? {
+        if (provider == AiProvider.CUSTOM || provider == AiProvider.OLLAMA) return false
         if (!isLikelyThinkingModel(modelId)) return null
         return false
     }
 
     private fun isLikelyThinkingModel(modelId: String): Boolean {
         val id = modelId.lowercase()
-        return id.startsWith("qwen3") ||
+        return id.contains("qwen3") ||
             id.contains("deepseek") ||
             id.contains("-thinking") ||
             id.contains("reasoner")
@@ -442,7 +446,13 @@ class RemoteAiDataSource(
                 if (e.code() == 400) throw AiBadRequestException(friendly, e)
                 throw IllegalStateException(friendly, e)
             } catch (e: IOException) {
-                val msg = "Network error: ${e.message ?: "check your connection"}"
+                val msg = when (e) {
+                    is SocketTimeoutException ->
+                        "Network error: timed out waiting for the model. " +
+                            "Local or proxied thinking models can be slow — try a faster model, " +
+                            "or disable thinking on the host for non-streaming requests."
+                    else -> "Network error: ${e.message ?: "check your connection"}"
+                }
                 DiagnosticLogger.log(
                     "http",
                     "network_error",
