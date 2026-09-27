@@ -8,18 +8,15 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.anant.fitbuddy.BuildConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
-
 /** Reads/writes [AppSettings] via DataStore. First-run defaults seed from BuildConfig (local.properties). */
 class SettingsRepository(context: Context) {
 
-    private val dataStore = context.applicationContext.settingsDataStore
+    private val dataStore: DataStore<Preferences> = SettingsDataStore.create(context)
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
         val orKeys = parseApiKeys(

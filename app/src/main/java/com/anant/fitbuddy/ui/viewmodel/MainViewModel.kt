@@ -2624,13 +2624,7 @@ class MainViewModel(
                 )
                 CrashReporter.setSupportId(reusedId)
                 val after = settingsRepository.settings.first()
-                if (!after.isConfigured) {
-                    _forceAiSetup.value = true
-                    return@runCatching
-                }
-                runCatching { probeAiCredentials(after) }
-                    .onFailure { _forceAiSetup.value = true }
-                    .onSuccess { _forceAiSetup.value = false }
+                applyRestoredAiCredentialGate(after)
             }
             _onboardingRestoring.value = false
             result
@@ -2678,13 +2672,7 @@ class MainViewModel(
                 if (after.supportId.isNotBlank()) {
                     CrashReporter.setSupportId(after.supportId)
                 }
-                if (!after.isConfigured) {
-                    _forceAiSetup.value = true
-                    return@runCatching
-                }
-                runCatching { probeAiCredentials(after) }
-                    .onFailure { _forceAiSetup.value = true }
-                    .onSuccess { _forceAiSetup.value = false }
+                applyRestoredAiCredentialGate(after)
             }
             _onboardingRestoring.value = false
             result
@@ -3540,6 +3528,23 @@ class MainViewModel(
         }
     }
 
+    /**
+     * After FitBuddy cloud/file restore: force AI-only onboarding when keys are absent or
+     * the provider rejects them. Transient network/host errors keep restored keys and let
+     * the user continue (they can fix connectivity in Settings).
+     */
+    private suspend fun applyRestoredAiCredentialGate(after: AppSettings) {
+        if (!after.isConfigured) {
+            _forceAiSetup.value = true
+            return
+        }
+        runCatching { probeAiCredentials(after) }
+            .onSuccess { _forceAiSetup.value = false }
+            .onFailure { e ->
+                _forceAiSetup.value = isCredentialAuthFailure(e)
+            }
+    }
+
     /** Hits the provider's model-list endpoint to confirm credentials work. */
     private suspend fun probeAiCredentials(settings: AppSettings) {
         when (settings.provider) {
@@ -3579,6 +3584,14 @@ class MainViewModel(
                 repository.fetchOpenAiVisionModels(key)
             }
         }
+    }
+
+    private fun isCredentialAuthFailure(error: Throwable): Boolean {
+        val message = (error.message ?: "").lowercase()
+        return message.contains("authentication failed") ||
+            message.contains("unauthorized") ||
+            message.contains("http 401") ||
+            message.contains("http 403")
     }
 
     fun saveProfile(
