@@ -1695,6 +1695,27 @@ class MainViewModel(
         repository.exerciseCatalogLoading
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /** Long-pressed workout filter chips (front of row); empty = default order only. */
+    val pinnedWorkoutBodyPartFilters: StateFlow<List<String>> =
+        settingsRepository.pinnedWorkoutBodyPartFilters
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val pinnedWorkoutEquipmentFilters: StateFlow<List<String>> =
+        settingsRepository.pinnedWorkoutEquipmentFilters
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun promoteWorkoutBodyPartFilter(label: String) {
+        viewModelScope.launch {
+            settingsRepository.promoteWorkoutBodyPartFilter(label)
+        }
+    }
+
+    fun promoteWorkoutEquipmentFilter(label: String) {
+        viewModelScope.launch {
+            settingsRepository.promoteWorkoutEquipmentFilter(label)
+        }
+    }
+
     private val _customExerciseClassifying = MutableStateFlow(false)
     val customExerciseClassifying: StateFlow<Boolean> = _customExerciseClassifying.asStateFlow()
 

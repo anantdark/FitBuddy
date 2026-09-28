@@ -95,6 +95,8 @@ fun WorkoutLogDialog(
     exerciseUsages: List<ExerciseUsage> = emptyList(),
     bodyPartFilters: List<String> = emptyList(),
     equipmentFilters: List<String> = emptyList(),
+    pinnedBodyPartFilters: List<String> = emptyList(),
+    pinnedEquipmentFilters: List<String> = emptyList(),
     catalogLoading: Boolean = false,
     isClassifyingCustom: Boolean,
     isInferringExercises: Boolean,
@@ -105,6 +107,8 @@ fun WorkoutLogDialog(
     onSuggestName: (exerciseNames: List<String>, onResolved: (String) -> Unit) -> Unit,
     onRecordPick: (name: String, exerciseId: String?) -> Unit = { _, _ -> },
     onToggleFavorite: (name: String, exerciseId: String?, favorite: Boolean) -> Unit = { _, _, _ -> },
+    onPromoteBodyPartFilter: (String) -> Unit = {},
+    onPromoteEquipmentFilter: (String) -> Unit = {},
     onSave: (WorkoutDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -323,6 +327,8 @@ fun WorkoutLogDialog(
                 usages = exerciseUsages,
                 bodyPartFilters = bodyPartFilters,
                 equipmentFilters = equipmentFilters,
+                pinnedBodyPartFilters = pinnedBodyPartFilters,
+                pinnedEquipmentFilters = pinnedEquipmentFilters,
                 catalogLoading = catalogLoading,
                 isClassifyingCustom = isClassifyingCustom,
                 isInferringExercises = isInferringExercises,
@@ -334,6 +340,8 @@ fun WorkoutLogDialog(
                 onToggleFavorite = { exercise, favorite ->
                     onToggleFavorite(exercise.name, exercise.exerciseId, favorite)
                 },
+                onPromoteBodyPartFilter = onPromoteBodyPartFilter,
+                onPromoteEquipmentFilter = onPromoteEquipmentFilter,
                 onClassifyCustom = { rawName ->
                     onClassifyCustom(rawName) { exercise ->
                         showPicker = false

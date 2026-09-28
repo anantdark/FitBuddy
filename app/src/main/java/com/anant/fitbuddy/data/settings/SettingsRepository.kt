@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.model.WorkoutFilterOrdering
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -549,7 +550,46 @@ class SettingsRepository(context: Context) {
         return verifier
     }
 
+    /**
+     * Workout picker filter chips the user long-pressed to the front (most recent first).
+     * Device-local UI preference — not part of cloud backup payloads.
+     */
+    val pinnedWorkoutBodyPartFilters: Flow<List<String>> =
+        dataStore.data.map { decodePinnedFilters(it[KEY_PINNED_WORKOUT_BODY_PARTS]) }
+
+    val pinnedWorkoutEquipmentFilters: Flow<List<String>> =
+        dataStore.data.map { decodePinnedFilters(it[KEY_PINNED_WORKOUT_EQUIPMENTS]) }
+
+    suspend fun promoteWorkoutBodyPartFilter(label: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_PINNED_WORKOUT_BODY_PARTS] = encodePinnedFilters(
+                WorkoutFilterOrdering.promotePin(
+                    decodePinnedFilters(prefs[KEY_PINNED_WORKOUT_BODY_PARTS]),
+                    label
+                )
+            )
+        }
+    }
+
+    suspend fun promoteWorkoutEquipmentFilter(label: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_PINNED_WORKOUT_EQUIPMENTS] = encodePinnedFilters(
+                WorkoutFilterOrdering.promotePin(
+                    decodePinnedFilters(prefs[KEY_PINNED_WORKOUT_EQUIPMENTS]),
+                    label
+                )
+            )
+        }
+    }
+
     private companion object {
+        fun decodePinnedFilters(raw: String?): List<String> {
+            if (raw.isNullOrBlank()) return emptyList()
+            return raw.split('\u001e').map { it.trim() }.filter { it.isNotEmpty() }
+        }
+
+        fun encodePinnedFilters(labels: List<String>): String =
+            labels.joinToString("\u001e")
         val KEY_PROVIDER = stringPreferencesKey("ai_provider")
         val KEY_OR_KEY = stringPreferencesKey("openrouter_api_key")
         val KEY_OR_OAUTH_KEY = stringPreferencesKey("openrouter_oauth_key")
@@ -662,5 +702,7 @@ class SettingsRepository(context: Context) {
         // Device-local only — not in BackupSettings / BackupData v5.
         val KEY_FIRST_NAME = stringPreferencesKey("user_first_name")
         val KEY_LAST_NAME = stringPreferencesKey("user_last_name")
+        val KEY_PINNED_WORKOUT_BODY_PARTS = stringPreferencesKey("pinned_workout_body_parts")
+        val KEY_PINNED_WORKOUT_EQUIPMENTS = stringPreferencesKey("pinned_workout_equipments")
     }
 }

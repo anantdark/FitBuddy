@@ -1,8 +1,17 @@
 package com.anant.fitbuddy.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +45,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -57,17 +65,24 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import coil.size.Size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,7 +90,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.anant.fitbuddy.data.database.ExerciseUsage
 import com.anant.fitbuddy.data.model.CatalogExercise
-import com.anant.fitbuddy.data.model.Equipment
+import com.anant.fitbuddy.data.model.WorkoutFilterOrdering
 import com.anant.fitbuddy.ui.components.IconButton
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.pressable
@@ -90,12 +105,16 @@ fun ExercisePickerSheet(
     usages: List<ExerciseUsage>,
     bodyPartFilters: List<String>,
     equipmentFilters: List<String>,
+    pinnedBodyPartFilters: List<String> = emptyList(),
+    pinnedEquipmentFilters: List<String> = emptyList(),
     catalogLoading: Boolean,
     isClassifyingCustom: Boolean,
     isInferringExercises: Boolean,
     isAiOnline: Boolean,
     onPick: (CatalogExercise) -> Unit,
     onToggleFavorite: (CatalogExercise, favorite: Boolean) -> Unit,
+    onPromoteBodyPartFilter: (String) -> Unit = {},
+    onPromoteEquipmentFilter: (String) -> Unit = {},
     onClassifyCustom: (rawName: String) -> Unit,
     onInferExercises: (description: String) -> Unit,
     onDismiss: () -> Unit
@@ -116,31 +135,19 @@ fun ExercisePickerSheet(
         usages.associate { it.name.lowercase() to it.useCount }
     }
 
-    // Rank chips from usage rows only (not a full catalog scan) for snappy first open.
-    val rankedBodyParts = remember(bodyPartFilters, usages, exercises) {
-        rankFilterLabelsFromUsages(bodyPartFilters, usages, exercises) { it.bodyParts }
+    val rankedBodyParts = remember(bodyPartFilters, pinnedBodyPartFilters) {
+        WorkoutFilterOrdering.orderLabels(
+            available = WorkoutFilterOrdering.displayBodyParts(bodyPartFilters),
+            defaultOrder = WorkoutFilterOrdering.DEFAULT_BODY_PARTS,
+            pinned = pinnedBodyPartFilters,
+        )
     }
-    val defaultEquip = listOf(
-        Equipment.DUMBBELL,
-        Equipment.BARBELL,
-        Equipment.BODYWEIGHT,
-        Equipment.MACHINE,
-        Equipment.CARDIO,
-        Equipment.BENCH,
-        Equipment.OTHER
-    )
-    val rankedEquipment = remember(equipmentFilters, usages, exercises) {
-        rankFilterLabelsFromUsages(
-            labels = equipmentFilters.ifEmpty { defaultEquip },
-            usages = usages,
-            exercises = exercises
-        ) { ex ->
-            buildList {
-                addAll(ex.equipments)
-                add(ex.equipmentTag)
-                add(ex.primaryEquipmentLabel)
-            }
-        }
+    val rankedEquipment = remember(equipmentFilters, pinnedEquipmentFilters) {
+        WorkoutFilterOrdering.orderLabels(
+            available = equipmentFilters,
+            defaultOrder = WorkoutFilterOrdering.DEFAULT_EQUIPMENTS,
+            pinned = pinnedEquipmentFilters,
+        )
     }
 
     val filterQuery = debouncedQuery.trim()
@@ -148,13 +155,15 @@ fun ExercisePickerSheet(
         if (filterQuery.isEmpty() && selectedBodyPart == null && selectedEquipment == null) {
             exercises
         } else {
+            val bodyPart = selectedBodyPart
+            val equipment = selectedEquipment
             exercises.filter { exercise ->
-                val bodyOk = selectedBodyPart == null ||
-                    exercise.bodyParts.any { it.equals(selectedBodyPart, ignoreCase = true) }
-                val equipOk = selectedEquipment == null ||
-                    exercise.equipments.any { it.equals(selectedEquipment, ignoreCase = true) } ||
-                    exercise.equipmentTag.equals(selectedEquipment, ignoreCase = true) ||
-                    exercise.primaryEquipmentLabel.equals(selectedEquipment, ignoreCase = true)
+                val bodyOk = bodyPart == null ||
+                    WorkoutFilterOrdering.matchesBodyPart(exercise.bodyParts, bodyPart)
+                val equipOk = equipment == null ||
+                    exercise.equipments.any { it.equals(equipment, ignoreCase = true) } ||
+                    exercise.equipmentTag.equals(equipment, ignoreCase = true) ||
+                    exercise.primaryEquipmentLabel.equals(equipment, ignoreCase = true)
                 val queryOk = filterQuery.isEmpty() ||
                     exercise.name.contains(filterQuery, ignoreCase = true)
                 bodyOk && equipOk && queryOk
@@ -354,18 +363,22 @@ fun ExercisePickerSheet(
                                 enabled = !isBusy,
                                 onSelect = {
                                     selectedBodyPart = if (selectedBodyPart == it) null else it
-                                }
+                                },
+                                onPromote = onPromoteBodyPartFilter
                             )
                         }
-                        FilterSection(
-                            title = "Equipment",
-                            labels = rankedEquipment,
-                            selected = selectedEquipment,
-                            enabled = !isBusy,
-                            onSelect = {
-                                selectedEquipment = if (selectedEquipment == it) null else it
-                            }
-                        )
+                        if (rankedEquipment.isNotEmpty()) {
+                            FilterSection(
+                                title = "Equipment",
+                                labels = rankedEquipment,
+                                selected = selectedEquipment,
+                                enabled = !isBusy,
+                                onSelect = {
+                                    selectedEquipment = if (selectedEquipment == it) null else it
+                                },
+                                onPromote = onPromoteEquipmentFilter
+                            )
+                        }
 
                         if (activeFilterCount > 0) {
                             Row(
@@ -499,41 +512,14 @@ fun ExercisePickerSheet(
     }
 }
 
-/**
- * Ranks filter chips from favourited/used exercises only (not a full 1500-item scan).
- */
-private fun rankFilterLabelsFromUsages(
-    labels: List<String>,
-    usages: List<ExerciseUsage>,
-    exercises: List<CatalogExercise>,
-    tagsOf: (CatalogExercise) -> List<String>
-): List<String> {
-    if (labels.isEmpty()) return emptyList()
-    if (usages.isEmpty()) return labels
-    val byName = exercises.associateBy { it.name.lowercase() }
-    val scores = mutableMapOf<String, Int>()
-    for (usage in usages) {
-        val weight = usage.useCount.coerceAtLeast(if (usage.isFavorite) 1 else 0)
-        if (weight <= 0) continue
-        val exercise = byName[usage.name.lowercase()] ?: continue
-        for (tag in tagsOf(exercise)) {
-            val match = labels.firstOrNull { it.equals(tag, ignoreCase = true) } ?: continue
-            scores[match] = (scores[match] ?: 0) + weight
-        }
-    }
-    return labels.sortedWith(
-        compareByDescending<String> { scores[it] ?: 0 }
-            .thenBy { it.lowercase() }
-    )
-}
-
 @Composable
 private fun FilterSection(
     title: String,
     labels: List<String>,
     selected: String?,
     enabled: Boolean,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    onPromote: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
@@ -548,18 +534,131 @@ private fun FilterSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             labels.forEach { label ->
-                FilterChip(
-                    selected = selected == label,
-                    onClick = { onSelect(label) },
-                    label = { Text(label) },
-                    enabled = enabled,
-                    shape = RoundedCornerShape(20.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                key(label) {
+                    HaloGrowFilterChip(
+                        label = label,
+                        selected = selected == label,
+                        enabled = enabled,
+                        onSelect = { onSelect(label) },
+                        onPromote = { onPromote(label) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Soft halo that charges/grows while held, then peaks and fades on long-press promote.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HaloGrowFilterChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onSelect: () -> Unit,
+    onPromote: () -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+    val longPressTimeout = LocalViewConfiguration.current.longPressTimeoutMillis
+    val scope = rememberCoroutineScope()
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val halo = remember { Animatable(0f) }
+    var finishing by remember { mutableStateOf(false) }
+    val primary = MaterialTheme.colorScheme.primary
+    val progress = halo.value
+
+    LaunchedEffect(pressed, finishing, longPressTimeout) {
+        when {
+            finishing -> Unit // long-press finish owns the halo
+            pressed -> {
+                halo.snapTo(0f)
+                halo.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = longPressTimeout.toInt().coerceAtLeast(1),
+                        easing = LinearEasing
                     )
                 )
             }
+            else -> {
+                if (halo.value > 0f) {
+                    halo.animateTo(0f, tween(durationMillis = 120))
+                }
+            }
+        }
+    }
+
+    Box(contentAlignment = Alignment.Center) {
+        if (progress > 0.001f) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val grow = 1f + progress * 0.42f
+                        scaleX = grow
+                        scaleY = grow
+                        alpha = (0.55f * (1f - progress * 0.35f)).coerceIn(0.12f, 0.55f)
+                    }
+                    .background(primary.copy(alpha = 0.28f), RoundedCornerShape(22.dp))
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val grow = 1f + progress * 0.75f
+                        scaleX = grow
+                        scaleY = grow
+                        alpha = (0.4f * (1f - progress)).coerceIn(0f, 0.4f)
+                    }
+                    .background(primary.copy(alpha = 0.18f), RoundedCornerShape(24.dp))
+            )
+        }
+        FilterChip(
+            selected = selected,
+            onClick = {},
+            label = { Text(label) },
+            enabled = enabled,
+            shape = RoundedCornerShape(20.dp),
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        )
+        if (enabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        enabled = !finishing,
+                        onClick = onSelect,
+                        onLongClick = {
+                            finishing = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onPromote()
+                            scope.launch {
+                                try {
+                                    halo.snapTo(halo.value.coerceAtLeast(0.85f))
+                                    halo.animateTo(
+                                        1f,
+                                        tween(
+                                            durationMillis = 140,
+                                            easing = FastOutLinearInEasing
+                                        )
+                                    )
+                                    halo.animateTo(0f, tween(durationMillis = 220))
+                                } finally {
+                                    halo.snapTo(0f)
+                                    finishing = false
+                                }
+                            }
+                        }
+                    )
+            )
         }
     }
 }

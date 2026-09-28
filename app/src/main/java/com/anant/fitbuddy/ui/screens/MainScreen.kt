@@ -157,6 +157,8 @@ fun MainScreen(
     val exerciseUsages by viewModel.exerciseUsages.collectAsStateWithLifecycle()
     val exerciseCatalogBodyParts by viewModel.exerciseCatalogBodyParts.collectAsStateWithLifecycle()
     val exerciseCatalogEquipments by viewModel.exerciseCatalogEquipments.collectAsStateWithLifecycle()
+    val pinnedWorkoutBodyPartFilters by viewModel.pinnedWorkoutBodyPartFilters.collectAsStateWithLifecycle()
+    val pinnedWorkoutEquipmentFilters by viewModel.pinnedWorkoutEquipmentFilters.collectAsStateWithLifecycle()
     val exerciseCatalogLoading by viewModel.exerciseCatalogLoading.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
@@ -1013,6 +1015,8 @@ fun MainScreen(
             exerciseUsages = exerciseUsages,
             bodyPartFilters = exerciseCatalogBodyParts,
             equipmentFilters = exerciseCatalogEquipments,
+            pinnedBodyPartFilters = pinnedWorkoutBodyPartFilters,
+            pinnedEquipmentFilters = pinnedWorkoutEquipmentFilters,
             catalogLoading = exerciseCatalogLoading,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
@@ -1023,6 +1027,8 @@ fun MainScreen(
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
             onToggleFavorite = viewModel::setExerciseFavorite,
+            onPromoteBodyPartFilter = viewModel::promoteWorkoutBodyPartFilter,
+            onPromoteEquipmentFilter = viewModel::promoteWorkoutEquipmentFilter,
             onSave = viewModel::logWorkoutSession,
             onDismiss = {
                 showWorkoutDialog = false
@@ -1039,6 +1045,8 @@ fun MainScreen(
             exerciseUsages = exerciseUsages,
             bodyPartFilters = exerciseCatalogBodyParts,
             equipmentFilters = exerciseCatalogEquipments,
+            pinnedBodyPartFilters = pinnedWorkoutBodyPartFilters,
+            pinnedEquipmentFilters = pinnedWorkoutEquipmentFilters,
             catalogLoading = exerciseCatalogLoading,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
@@ -1049,6 +1057,8 @@ fun MainScreen(
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
             onToggleFavorite = viewModel::setExerciseFavorite,
+            onPromoteBodyPartFilter = viewModel::promoteWorkoutBodyPartFilter,
+            onPromoteEquipmentFilter = viewModel::promoteWorkoutEquipmentFilter,
             onSave = viewModel::saveEditingWorkout,
             onDismiss = viewModel::dismissWorkoutDetails
         )
