@@ -1,0 +1,4 @@
+• fix: disable thinking for local OpenAI-compatible models
+• fix: keep nutrition target history column non-null
+• feat: keep past calorie targets when goals change
+• feat: public donor thank-you
