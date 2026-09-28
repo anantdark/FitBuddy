@@ -24,10 +24,10 @@ import com.anant.fitbuddy.data.model.ActivityLevelRecommender
 import com.anant.fitbuddy.data.model.BodyTrendAnalyzer
 import com.anant.fitbuddy.data.model.BodyTrendEvidence
 import com.anant.fitbuddy.data.model.BodyTrendReading
-import com.anant.fitbuddy.data.model.CommonExercise
+import com.anant.fitbuddy.data.model.CatalogExercise
+import com.anant.fitbuddy.data.model.COMMON_EXERCISES_SEED
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.Equipment
-import com.anant.fitbuddy.data.model.buildExercisePickerList
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.HealthTargetCalculator
@@ -55,7 +55,9 @@ import com.anant.fitbuddy.data.donors.DonorEntry
 import com.anant.fitbuddy.data.donors.DonorListRepository
 import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
+import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.data.remote.UpdateChecker
+import com.anant.fitbuddy.util.FdroidUpdateLauncher
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuthCallbackServer
@@ -387,8 +389,7 @@ class MainViewModel(
 
     /** Manual or automatic check; [silent] skips status text for up-to-date / network errors. */
     fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
-        // F-Droid owns updates for that build; never point it at the github flavor's releases.
-        if (BuildConfig.IS_FDROID) return
+        // github → GitHub Releases; fdroid → f-droid.org (never mixes channels).
         if (_updateState.value.isChecking) return
         viewModelScope.launch {
             _updateState.update {
@@ -628,9 +629,43 @@ class MainViewModel(
                     downloadUrl = "https://example.invalid/fitbuddy-test-update.apk",
                     releaseNotes = "- Test update prompt for backup-before-update UI\n" +
                         "- Browser open will fail (invalid host)",
-                    htmlUrl = ""
+                    htmlUrl = "",
+                    channel = if (BuildConfig.IS_FDROID) {
+                        UpdateChannel.FDROID
+                    } else {
+                        UpdateChannel.GITHUB
+                    },
                 ),
                 statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
+
+    /** F-Droid channel: open F-Droid client(s) / website, then dismiss the prompt. */
+    fun openFdroidUpdate(context: Context) {
+        val destination = runCatching { FdroidUpdateLauncher.open(context) }
+            .getOrElse { e ->
+                failOpenUpdateDownload(
+                    e.message ?: "Couldn't open F-Droid. Visit f-droid.org/packages/com.anant.fitbuddy"
+                )
+                return
+            }
+        val status = when (destination) {
+            "app picker" -> "Choose an app to update"
+            "website" -> "Opened update on the website"
+            else -> "Opened update in $destination"
+        }
+        _updateState.update {
+            it.copy(
+                updateInfo = null,
+                statusMessage = status,
                 statusIsError = false,
                 backupCompleted = false,
                 isExportingBackup = false,
@@ -1675,12 +1710,46 @@ class MainViewModel(
 
     // --- Exercise presets (workout picker) --------------------------------------------------
 
-    val exercisePickerExercises: StateFlow<List<CommonExercise>> =
-        repository.exercisePresets
-            .map { presets ->
-                buildExercisePickerList(presets.map { it.name to it.equipment })
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), buildExercisePickerList(emptyList()))
+    val exercisePickerExercises: StateFlow<List<CatalogExercise>> =
+        repository.exercisePickerExercises
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), COMMON_EXERCISES_SEED)
+
+    val exerciseUsages: StateFlow<List<com.anant.fitbuddy.data.database.ExerciseUsage>> =
+        repository.exerciseUsages
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exerciseCatalogBodyParts: StateFlow<List<String>> =
+        repository.exerciseCatalogBodyParts
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exerciseCatalogEquipments: StateFlow<List<String>> =
+        repository.exerciseCatalogEquipments
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exerciseCatalogLoading: StateFlow<Boolean> =
+        repository.exerciseCatalogLoading
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Long-pressed workout filter chips (front of row); empty = default order only. */
+    val pinnedWorkoutBodyPartFilters: StateFlow<List<String>> =
+        settingsRepository.pinnedWorkoutBodyPartFilters
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val pinnedWorkoutEquipmentFilters: StateFlow<List<String>> =
+        settingsRepository.pinnedWorkoutEquipmentFilters
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun promoteWorkoutBodyPartFilter(label: String) {
+        viewModelScope.launch {
+            settingsRepository.promoteWorkoutBodyPartFilter(label)
+        }
+    }
+
+    fun promoteWorkoutEquipmentFilter(label: String) {
+        viewModelScope.launch {
+            settingsRepository.promoteWorkoutEquipmentFilter(label)
+        }
+    }
 
     private val _customExerciseClassifying = MutableStateFlow(false)
     val customExerciseClassifying: StateFlow<Boolean> = _customExerciseClassifying.asStateFlow()
@@ -1688,13 +1757,29 @@ class MainViewModel(
     private val _workoutInferring = MutableStateFlow(false)
     val workoutInferring: StateFlow<Boolean> = _workoutInferring.asStateFlow()
 
+    /** Records a catalog/custom pick for Recent / Frequent ranking. */
+    fun recordExercisePick(name: String, exerciseId: String? = null) {
+        viewModelScope.launch {
+            runCatching { repository.recordExerciseUsage(name, exerciseId) }
+        }
+    }
+
+    /** Favourites or unfavourites an exercise in the workout picker. */
+    fun setExerciseFavorite(name: String, exerciseId: String?, favorite: Boolean) {
+        viewModelScope.launch {
+            runCatching { repository.setExerciseFavorite(name, exerciseId, favorite) }
+        }
+    }
+
     /** Normalises a custom exercise via AI/offline rules and saves it for future picker use. */
-    fun classifyCustomExercise(rawName: String, onResolved: (name: String, equipment: String) -> Unit) {
+    fun classifyCustomExercise(rawName: String, onResolved: (CatalogExercise) -> Unit) {
         if (_customExerciseClassifying.value || _workoutInferring.value) return
         _customExerciseClassifying.value = true
         viewModelScope.launch {
             runCatching { repository.classifyCustomExercise(rawName) }
-                .onSuccess { exercise -> onResolved(exercise.name, exercise.equipment) }
+                .onSuccess { exercise ->
+                    onResolved(exercise)
+                }
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(userMessage = e.message ?: "Couldn't recognise that exercise")
@@ -1843,7 +1928,12 @@ class MainViewModel(
             ?: dashboardState.value.profile?.weightKg?.takeIf { it > 0 }
             ?: 0.0
 
-    /** Saves a workout session and estimates calories burned (AI, or an offline fallback). */
+    private fun catalogGifUrl(exerciseName: String): String? =
+        exercisePickerExercises.value
+            .firstOrNull { it.name.equals(exerciseName, ignoreCase = true) }
+            ?.gifUrl
+
+    /** Saves a workout session and estimates calories burned with a local MET formula. */
     fun logWorkoutSession(draft: WorkoutDraft) {
         if (draft.exercises.isEmpty()) return
         _workoutLog.update { WorkoutLogUiState(isSaving = true) }
@@ -1853,7 +1943,6 @@ class MainViewModel(
                 repository.logWorkoutSession(
                     draft,
                     weightKg,
-                    buildWorkoutContext(draft, weightKg),
                     timestamp = activeDayTimestamp()
                 )
             }
@@ -1900,7 +1989,8 @@ class MainViewModel(
                                 weightKg = it.weightKg,
                                 equipment = it.equipment,
                                 durationMinutes = it.durationMinutes,
-                                distanceKm = it.distanceKm
+                                distanceKm = it.distanceKm,
+                                gifUrl = catalogGifUrl(it.name)
                             )
                         }
                     )
@@ -1920,7 +2010,8 @@ class MainViewModel(
                                 sets = 1,
                                 reps = 1,
                                 equipment = Equipment.CARDIO,
-                                durationMinutes = log.durationMinutes.coerceAtLeast(1)
+                                durationMinutes = log.durationMinutes.coerceAtLeast(1),
+                                gifUrl = catalogGifUrl(log.activityName)
                             )
                         )
                     )
@@ -1958,7 +2049,6 @@ class MainViewModel(
                 repository.logWorkoutSession(
                     draft,
                     weightKg,
-                    buildWorkoutContext(draft, weightKg),
                     timestamp = todayTs
                 )
             }
@@ -1992,16 +2082,14 @@ class MainViewModel(
                     repository.upgradeExerciseLogToWorkout(
                         exerciseLogId = editing.exerciseLogId,
                         draft = draft,
-                        weightKg = weightKg,
-                        contextJson = buildWorkoutContext(draft, weightKg)
+                        weightKg = weightKg
                     )
                 } else {
                     repository.updateWorkoutSession(
                         sessionId = editing.sessionId,
                         exerciseLogId = editing.exerciseLogId,
                         draft = draft,
-                        weightKg = weightKg,
-                        contextJson = buildWorkoutContext(draft, weightKg)
+                        weightKg = weightKg
                     )
                 }
             }
@@ -2020,32 +2108,6 @@ class MainViewModel(
                     }
                 }
         }
-    }
-
-    private fun buildWorkoutContext(draft: WorkoutDraft, weightKg: Double): String {
-        val profile = dashboardState.value.profile
-        val exercisesJson = JSONArray().apply {
-            draft.exercises.forEach { ex ->
-                put(JSONObject().apply {
-                    put("name", ex.name)
-                    put("equipment", ex.equipment)
-                    put("sets", ex.sets)
-                    put("reps", ex.reps)
-                    put("weight_kg", ex.weightKg ?: JSONObject.NULL)
-                    put("duration_minutes", ex.durationMinutes ?: JSONObject.NULL)
-                    put("distance_km", ex.distanceKm ?: JSONObject.NULL)
-                })
-            }
-        }
-        return JSONObject().apply {
-            put("age", profile?.age ?: JSONObject.NULL)
-            put("sex", profile?.sex ?: JSONObject.NULL)
-            put("weight_kg", if (weightKg > 0) weightKg else JSONObject.NULL)
-            put("activity_level", profile?.activityLevel ?: JSONObject.NULL)
-            put("session_name", draft.name)
-            put("user_provided_duration_minutes", WorkoutDraft.estimateDurationMinutes(draft.exercises))
-            put("exercises", exercisesJson)
-        }.toString()
     }
 
     // --- Health target calculation -----------------------------------------------------------
@@ -2618,13 +2680,7 @@ class MainViewModel(
                 )
                 CrashReporter.setSupportId(reusedId)
                 val after = settingsRepository.settings.first()
-                if (!after.isConfigured) {
-                    _forceAiSetup.value = true
-                    return@runCatching
-                }
-                runCatching { probeAiCredentials(after) }
-                    .onFailure { _forceAiSetup.value = true }
-                    .onSuccess { _forceAiSetup.value = false }
+                applyRestoredAiCredentialGate(after)
             }
             _onboardingRestoring.value = false
             result
@@ -2672,13 +2728,7 @@ class MainViewModel(
                 if (after.supportId.isNotBlank()) {
                     CrashReporter.setSupportId(after.supportId)
                 }
-                if (!after.isConfigured) {
-                    _forceAiSetup.value = true
-                    return@runCatching
-                }
-                runCatching { probeAiCredentials(after) }
-                    .onFailure { _forceAiSetup.value = true }
-                    .onSuccess { _forceAiSetup.value = false }
+                applyRestoredAiCredentialGate(after)
             }
             _onboardingRestoring.value = false
             result
@@ -2990,7 +3040,8 @@ class MainViewModel(
                             weightKg = it.weightKg,
                             equipment = it.equipment,
                             durationMinutes = it.durationMinutes,
-                            distanceKm = it.distanceKm
+                            distanceKm = it.distanceKm,
+                            gifUrl = catalogGifUrl(it.name)
                         )
                     }
                 )
@@ -3004,7 +3055,8 @@ class MainViewModel(
                             sets = 1,
                             reps = 1,
                             equipment = Equipment.CARDIO,
-                            durationMinutes = log.durationMinutes.coerceAtLeast(1)
+                            durationMinutes = log.durationMinutes.coerceAtLeast(1),
+                            gifUrl = catalogGifUrl(log.activityName)
                         )
                     )
                 )
@@ -3532,6 +3584,23 @@ class MainViewModel(
         }
     }
 
+    /**
+     * After FitBuddy cloud/file restore: force AI-only onboarding when keys are absent or
+     * the provider rejects them. Transient network/host errors keep restored keys and let
+     * the user continue (they can fix connectivity in Settings).
+     */
+    private suspend fun applyRestoredAiCredentialGate(after: AppSettings) {
+        if (!after.isConfigured) {
+            _forceAiSetup.value = true
+            return
+        }
+        runCatching { probeAiCredentials(after) }
+            .onSuccess { _forceAiSetup.value = false }
+            .onFailure { e ->
+                _forceAiSetup.value = isCredentialAuthFailure(e)
+            }
+    }
+
     /** Hits the provider's model-list endpoint to confirm credentials work. */
     private suspend fun probeAiCredentials(settings: AppSettings) {
         when (settings.provider) {
@@ -3571,6 +3640,14 @@ class MainViewModel(
                 repository.fetchOpenAiVisionModels(key)
             }
         }
+    }
+
+    private fun isCredentialAuthFailure(error: Throwable): Boolean {
+        val message = (error.message ?: "").lowercase()
+        return message.contains("authentication failed") ||
+            message.contains("unauthorized") ||
+            message.contains("http 401") ||
+            message.contains("http 403")
     }
 
     fun saveProfile(

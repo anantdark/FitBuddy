@@ -6,6 +6,7 @@ import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.BodyMeasurementDao
 import com.anant.fitbuddy.data.database.ExerciseLogDao
 import com.anant.fitbuddy.data.database.ExercisePresetDao
+import com.anant.fitbuddy.data.database.ExerciseUsageDao
 import com.anant.fitbuddy.data.database.FoodLogDao
 import com.anant.fitbuddy.data.database.LibraryRecency
 import com.anant.fitbuddy.data.database.MealFoodDao
@@ -33,6 +34,7 @@ class BackupManager(
     private val savedFoodDao: SavedFoodDao,
     private val mealPresetDao: MealPresetDao,
     private val exercisePresetDao: ExercisePresetDao,
+    private val exerciseUsageDao: ExerciseUsageDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val workoutExerciseDao: WorkoutExerciseDao,
@@ -59,7 +61,7 @@ class BackupManager(
         val foods = legacyFoodCount ?: data.savedFoods.size
         return data.measurements.size + data.foodLogs.size + data.mealFoods.size +
             data.exerciseLogs.size + foods + data.mealPresets.size +
-            data.exercisePresets.size + data.workoutSessions.size +
+            data.exercisePresets.size + data.exerciseUsages.size + data.workoutSessions.size +
             data.workoutExercises.size + if (data.settings != null) 1 else 0
     }
 
@@ -196,6 +198,7 @@ class BackupManager(
             savedFoods = savedFoodDao.getAllOnce(),
             mealPresets = mealPresetDao.getAllOnce(),
             exercisePresets = exercisePresetDao.getAllOnce(),
+            exerciseUsages = exerciseUsageDao.getAllOnce(),
             workoutSessions = workoutSessionDao.getAllOnce(),
             workoutExercises = workoutExerciseDao.getAllOnce(),
             settings = BackupSettings.from(settings)
@@ -214,6 +217,7 @@ class BackupManager(
         savedFoodDao.clearAll()
         mealPresetDao.clearAll()
         exercisePresetDao.clearAll()
+        exerciseUsageDao.clearAll()
         workoutExerciseDao.clearAll()
         workoutSessionDao.clearAll()
 
@@ -245,6 +249,7 @@ class BackupManager(
             }
         )
         exercisePresetDao.insertAll(data.exercisePresets.map { it.copy(id = 0) })
+        exerciseUsageDao.insertAll(data.exerciseUsages.map { it.copy(id = 0) })
 
         val mealLogIdMap = BackupIdRemapper.idMap(
             oldIds = data.foodLogs.map { it.id },

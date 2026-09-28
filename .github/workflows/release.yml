@@ -97,6 +97,24 @@ jobs:
       - name: Prepare release notes
         id: notes
         run: |
+          # Commits since the previous CI sideload tag only — not a rolling last-N window
+          # (that made in-app "What's new" repeat older changes on every update).
+          PREV_TAG=$(git tag --list 'v*-build*' --sort=-creatordate | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD~15..HEAD"
+          fi
+          # User-facing types only (matches AGENTS.md / F-Droid changelog rules).
+          NOTES=$(
+            git log "$RANGE" --pretty=format:'- %s (%h)' --no-merges \
+              | grep -Eiv '^- (chore|ci|build|refactor|style|test)(\(|:| )' \
+              | head -20 \
+              || true
+          )
+          if [ -z "$NOTES" ]; then
+            NOTES="- Bug fixes and improvements"
+          fi
           {
             echo "notes<<EOF"
             echo "## FitBuddy ${VERSION_NAME} (build ${BUILD_NUMBER})"
@@ -104,8 +122,8 @@ jobs:
             echo "**Version code:** ${VERSION_CODE}"
             echo "**Commit:** [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})"
             echo
-            echo "### Recent commits"
-            git log -10 --pretty=format:'- %s (%h)' --no-merges
+            echo "### What's new"
+            echo "$NOTES"
             echo
             echo "EOF"
           } >> "$GITHUB_OUTPUT"

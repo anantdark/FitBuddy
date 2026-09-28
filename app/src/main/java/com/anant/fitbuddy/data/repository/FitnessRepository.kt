@@ -37,18 +37,19 @@ import com.anant.fitbuddy.data.database.SavedFoodDao
 import com.anant.fitbuddy.data.database.FoodTotals
 import com.anant.fitbuddy.data.database.ExercisePreset
 import com.anant.fitbuddy.data.database.ExercisePresetDao
+import com.anant.fitbuddy.data.database.ExerciseUsage
+import com.anant.fitbuddy.data.database.ExerciseUsageDao
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.database.UserProfileDao
 import com.anant.fitbuddy.data.database.WorkoutExercise
 import com.anant.fitbuddy.data.database.WorkoutExerciseDao
 import com.anant.fitbuddy.data.database.WorkoutSession
 import com.anant.fitbuddy.data.database.WorkoutSessionDao
-import com.anant.fitbuddy.data.model.COMMON_EXERCISES
-import com.anant.fitbuddy.data.model.CommonExercise
+import com.anant.fitbuddy.data.model.CatalogExercise
 import com.anant.fitbuddy.data.model.CustomExerciseResponse
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.NutritionTargetHistory
-import com.anant.fitbuddy.data.model.buildExercisePickerList
+import com.anant.fitbuddy.data.model.mergeCatalogWithCustoms
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.FitnessTrackerResponse
 import com.anant.fitbuddy.data.model.ExerciseAnalysis
@@ -80,6 +81,7 @@ import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
+import com.anant.fitbuddy.data.remote.exercisedb.ExerciseCatalogRepository
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
@@ -92,9 +94,10 @@ import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.FoodQuantityParser
+import com.anant.fitbuddy.util.WorkoutCalorieEstimator
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlin.math.roundToInt
 
 class FitnessRepository(
     private val userProfileDao: UserProfileDao,
@@ -104,9 +107,11 @@ class FitnessRepository(
     private val savedFoodDao: SavedFoodDao,
     private val mealPresetDao: MealPresetDao,
     private val exercisePresetDao: ExercisePresetDao,
+    private val exerciseUsageDao: ExerciseUsageDao,
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val workoutExerciseDao: WorkoutExerciseDao,
+    private val exerciseCatalogRepository: ExerciseCatalogRepository,
     private val remoteAiDataSource: RemoteAiDataSource,
     private val openFoodFactsDataSource: OpenFoodFactsDataSource,
     private val settingsRepository: SettingsRepository,
@@ -123,6 +128,79 @@ class FitnessRepository(
     val savedFoods: Flow<List<SavedFood>> = savedFoodDao.getAll()
     val mealPresets: Flow<List<MealPreset>> = mealPresetDao.getAll()
     val exercisePresets: Flow<List<ExercisePreset>> = exercisePresetDao.getAllPresets()
+    val exerciseUsages: Flow<List<ExerciseUsage>> = exerciseUsageDao.getAll()
+
+    /** Full picker list: ExerciseDB catalog (or offline seed) merged with AI customs. */
+    val exercisePickerExercises: Flow<List<CatalogExercise>> = combine(
+        exerciseCatalogRepository.exercises,
+        exercisePresets
+    ) { catalog, presets ->
+        mergeCatalogWithCustoms(catalog, presets.map { it.name to it.equipment })
+    }
+
+    val exerciseCatalogBodyParts: Flow<List<String>> = exerciseCatalogRepository.bodyParts
+    val exerciseCatalogEquipments: Flow<List<String>> = exerciseCatalogRepository.equipments
+    val exerciseCatalogLoading: Flow<Boolean> = exerciseCatalogRepository.isLoading
+
+    suspend fun ensureExerciseCatalogLoaded(forceRefresh: Boolean = false) {
+        exerciseCatalogRepository.ensureLoaded(forceRefresh)
+    }
+
+    /** Records a pick so Recent / Frequent sections stay accurate. */
+    suspend fun recordExerciseUsage(name: String, exerciseId: String? = null) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val existing = exerciseUsageDao.findByName(trimmed)
+        if (existing != null) {
+            exerciseUsageDao.insert(
+                existing.copy(
+                    exerciseId = exerciseId ?: existing.exerciseId,
+                    lastUsedAt = now,
+                    useCount = existing.useCount + 1
+                )
+            )
+        } else {
+            exerciseUsageDao.insert(
+                ExerciseUsage(
+                    name = trimmed,
+                    exerciseId = exerciseId,
+                    lastUsedAt = now,
+                    useCount = 1,
+                    isFavorite = false
+                )
+            )
+        }
+    }
+
+    /** Toggles favourite for an exercise (creates a usage row if needed). */
+    suspend fun setExerciseFavorite(
+        name: String,
+        exerciseId: String? = null,
+        favorite: Boolean
+    ) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val existing = exerciseUsageDao.findByName(trimmed)
+        if (existing != null) {
+            exerciseUsageDao.insert(
+                existing.copy(
+                    exerciseId = exerciseId ?: existing.exerciseId,
+                    isFavorite = favorite
+                )
+            )
+        } else {
+            exerciseUsageDao.insert(
+                ExerciseUsage(
+                    name = trimmed,
+                    exerciseId = exerciseId,
+                    lastUsedAt = 0L,
+                    useCount = 0,
+                    isFavorite = favorite
+                )
+            )
+        }
+    }
 
     // --- Body measurements ------------------------------------------------------------------
 
@@ -873,18 +951,16 @@ class FitnessRepository(
     }
 
     /**
-     * Persists a workout session + its exercises, estimates calories burned (AI when configured,
-     * else an offline MET-based estimate) using [contextJson] and [weightKg], then mirrors the
-     * result into [ExerciseLog] so it counts toward daily burn totals/dashboard/progress like any
-     * other exercise entry. Returns the estimate shown to the user.
+     * Persists a workout session + its exercises, estimates calories burned with a local MET
+     * formula using [weightKg], then mirrors the result into [ExerciseLog] so it counts toward
+     * daily burn totals/dashboard/progress like any other exercise entry.
      */
     suspend fun logWorkoutSession(
         draft: WorkoutDraft,
         weightKg: Double,
-        contextJson: String,
         timestamp: Long = System.currentTimeMillis()
     ): WorkoutCaloriesResponse {
-        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
 
         val dateString = DateUtils.format(timestamp)
 
@@ -935,13 +1011,12 @@ class FitnessRepository(
         sessionId: Int,
         exerciseLogId: Int?,
         draft: WorkoutDraft,
-        weightKg: Double,
-        contextJson: String
+        weightKg: Double
     ): WorkoutCaloriesResponse {
         val existingSession = workoutSessionDao.getById(sessionId)
             ?: error("This workout no longer exists")
 
-        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
 
         workoutExerciseDao.deleteForSession(sessionId)
         workoutExerciseDao.insertAll(draft.exercises.toWorkoutExercises(sessionId))
@@ -977,13 +1052,12 @@ class FitnessRepository(
     suspend fun upgradeExerciseLogToWorkout(
         exerciseLogId: Int,
         draft: WorkoutDraft,
-        weightKg: Double,
-        contextJson: String
+        weightKg: Double
     ): WorkoutCaloriesResponse {
         val existingLog = exerciseLogDao.getById(exerciseLogId)
             ?: error("This exercise log no longer exists")
 
-        val result = estimateWorkoutCalories(draft, weightKg, contextJson)
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
 
         val sessionId = workoutSessionDao.insert(
             WorkoutSession(
@@ -1023,61 +1097,6 @@ class FitnessRepository(
                 distanceKm = ex.distanceKm
             )
         }
-
-    /**
-     * Estimates calories burned via AI when configured, otherwise uses the offline MET-based
-     * estimate. When a provider is configured, network/API failures are surfaced to the caller
-     * instead of silently falling back.
-     */
-    private suspend fun estimateWorkoutCalories(
-        draft: WorkoutDraft,
-        weightKg: Double,
-        contextJson: String
-    ): WorkoutCaloriesResponse {
-        val settings = settingsRepository.settings.first()
-        if (!settings.isConfigured) {
-            return estimateWorkoutCaloriesOffline(draft, weightKg)
-        }
-
-        val (aiResult, _) = try {
-            withAiFailover(settings) { s ->
-                remoteAiDataSource.estimateWorkoutCalories(s, contextJson)
-            }
-        } catch (e: Exception) {
-            throw IllegalStateException(formatAiConnectionError(e), e)
-        }
-
-        if (aiResult.caloriesBurned <= 0) {
-            throw IllegalStateException("The AI returned an invalid calorie estimate. Please try again.")
-        }
-        return aiResult
-    }
-
-    /**
-     * MET-based fallback used when no AI provider is configured, the AI call fails, or the AI
-     * returns a non-positive estimate: picks a representative MET (metabolic equivalent) for the
-     * session's dominant equipment type and scales by body weight and duration.
-     * kcal = MET * weight_kg * hours.
-     */
-    private fun estimateWorkoutCaloriesOffline(draft: WorkoutDraft, weightKg: Double): WorkoutCaloriesResponse {
-        val weight = weightKg.takeIf { it > 0 } ?: 70.0
-        val equipmentSet = draft.exercises.map { it.equipment }.toSet()
-        val met = when {
-            Equipment.CARDIO in equipmentSet -> 7.0
-            Equipment.BODYWEIGHT in equipmentSet && equipmentSet.size == 1 -> 5.0
-            else -> 4.0 // dumbbell/barbell/bench/machine resistance training, averaged incl. rest
-        }
-        val duration = WorkoutDraft.estimateDurationMinutes(draft.exercises)
-            .takeIf { draft.exercises.isNotEmpty() }
-            ?: draft.durationMinutes.takeIf { it > 0 }
-            ?: WorkoutDraft.DEFAULT_DURATION_MINUTES
-        val calories = (met * weight * (duration / 60.0)).roundToInt().coerceAtLeast(1)
-        return WorkoutCaloriesResponse(
-            caloriesBurned = calories,
-            durationMinutes = duration,
-            intensityNote = "Estimated offline (no AI provider connected)"
-        )
-    }
 
     /**
      * Single entry point used by the ViewModel. Sends the loose text (and optional photo)
@@ -1569,16 +1588,14 @@ class FitnessRepository(
      * Normalises [rawName] via AI when configured (else offline heuristics), saves it for the
      * workout picker if new, and returns the canonical exercise entry.
      */
-    suspend fun classifyCustomExercise(rawName: String): CommonExercise {
+    suspend fun classifyCustomExercise(rawName: String): CatalogExercise {
         val trimmed = rawName.trim()
         require(trimmed.isNotBlank()) { "Exercise name is required" }
 
         findKnownExercise(trimmed)?.let { return it }
 
         val settings = settingsRepository.settings.first()
-        val knownNames = buildExercisePickerList(
-            exercisePresetDao.getAllOnce().map { it.name to it.equipment }
-        ).map { it.name }
+        val knownNames = exercisePickerExercises.first().map { it.name }
 
         val classified = if (settings.isConfigured) {
             runCatching {
@@ -1593,7 +1610,7 @@ class FitnessRepository(
 
         val name = classified.canonicalName.trim().ifBlank { trimmed }.let(::titleCaseExerciseName)
         val equipment = normaliseEquipment(classified.equipment)
-        val exercise = CommonExercise(name, equipment)
+        val exercise = CatalogExercise(name = name, equipmentTag = equipment)
 
         findKnownExercise(name)?.let { return it }
 
@@ -1614,9 +1631,7 @@ class FitnessRepository(
             "Connect an AI provider in Settings to infer exercises from text."
         }
 
-        val knownNames = buildExercisePickerList(
-            exercisePresetDao.getAllOnce().map { it.name to it.equipment }
-        ).map { it.name }
+        val knownNames = exercisePickerExercises.first().map { it.name }
 
         val (parsed, _) = withAiFailover(settings) { s ->
             remoteAiDataSource.parseWorkoutDescription(s, trimmed, knownNames)
@@ -1629,6 +1644,7 @@ class FitnessRepository(
             val name = titleCaseExerciseName(row.name.trim().ifBlank { "Exercise" })
             val equipment = normaliseEquipment(row.equipment)
             ensureExercisePreset(name, equipment)
+            recordExerciseUsage(name)
             val isCardio = equipment == Equipment.CARDIO
             ExerciseDraft(
                 name = name,
@@ -1637,7 +1653,10 @@ class FitnessRepository(
                 weightKg = row.weightKg?.takeIf { it > 0 },
                 equipment = equipment,
                 durationMinutes = row.durationMinutes?.takeIf { it > 0 },
-                distanceKm = row.distanceKm?.takeIf { it > 0 }
+                distanceKm = row.distanceKm?.takeIf { it > 0 },
+                gifUrl = exerciseCatalogRepository.exercises.value
+                    .firstOrNull { it.name.equals(name, ignoreCase = true) }
+                    ?.gifUrl
             )
         }
     }
@@ -1660,7 +1679,7 @@ class FitnessRepository(
 
     private suspend fun ensureExercisePreset(name: String, equipment: String) {
         if (exercisePresetDao.findByName(name) == null &&
-            COMMON_EXERCISES.none { it.name.equals(name, ignoreCase = true) }
+            exerciseCatalogRepository.exercises.value.none { it.name.equals(name, ignoreCase = true) }
         ) {
             exercisePresetDao.insertPreset(
                 ExercisePreset(
@@ -1677,9 +1696,13 @@ class FitnessRepository(
             word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
         }
 
-    private suspend fun findKnownExercise(name: String): CommonExercise? {
-        COMMON_EXERCISES.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { return it }
-        exercisePresetDao.findByName(name)?.let { return CommonExercise(it.name, it.equipment) }
+    private suspend fun findKnownExercise(name: String): CatalogExercise? {
+        exerciseCatalogRepository.exercises.value
+            .firstOrNull { it.name.equals(name, ignoreCase = true) }
+            ?.let { return it }
+        exercisePresetDao.findByName(name)?.let {
+            return CatalogExercise(name = it.name, equipmentTag = it.equipment)
+        }
         return null
     }
 

@@ -69,7 +69,7 @@ data class BackupSettings(
     val loadingAnimationChoice: String = "",
     /** Legacy boolean; used only when all choice fields are blank. */
     val animationsEnabled: Boolean = true,
-    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
+    val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     val supportId: String = "",
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /** Empty on older backups — import leaves region unset so the region page can collect it. */
@@ -169,10 +169,8 @@ data class BackupSettings(
                     analyzing != AppSettings.LOADING_ANIM_OFF ||
                         insight != AppSettings.LOADING_ANIM_OFF
                 },
-                // Never trust a restored value here: a backup made on a github build (or from
-                // before the distribution flavor split) would otherwise silently re-enable the
-                // GitHub auto-updater on an F-Droid install, which owns updates for that build.
-                autoCheckUpdates = autoCheckUpdates && !BuildConfig.IS_FDROID,
+                // Both flavors have an in-app checker (GitHub Releases vs f-droid.org).
+                autoCheckUpdates = autoCheckUpdates,
                 supportId = supportId,
                 crashReportingEnabled = crashReportingEnabled,
                 region = region.trim(),

@@ -13,7 +13,16 @@ import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
+import com.anant.fitbuddy.data.remote.exercisedb.ExerciseCatalogRepository
 import com.anant.fitbuddy.data.repository.FitnessRepository
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import android.os.Build
+import com.anant.fitbuddy.util.GifFirstFrameDecoder
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
@@ -33,7 +42,7 @@ import kotlinx.coroutines.runBlocking
  * Application-scoped service locator. Everything is created lazily and lives for the whole
  * process, which is exactly the lifetime we want for the DB and the repositories.
  */
-class FitBuddyApp : Application() {
+class FitBuddyApp : Application(), ImageLoaderFactory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -41,7 +50,17 @@ class FitBuddyApp : Application() {
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
-    val updateChecker: UpdateChecker by lazy { UpdateChecker(NetworkModule.provideGithubApi()) }
+    val updateChecker: UpdateChecker by lazy {
+        UpdateChecker(
+            githubApi = NetworkModule.provideGithubApi(),
+            fdroidApi = NetworkModule.provideFdroidApi(),
+            okHttpClient = NetworkModule.okHttpClient(),
+        )
+    }
+
+    val exerciseCatalogRepository: ExerciseCatalogRepository by lazy {
+        ExerciseCatalogRepository(this)
+    }
 
     val repository: FitnessRepository by lazy {
         FitnessRepository(
@@ -52,9 +71,11 @@ class FitBuddyApp : Application() {
             savedFoodDao = database.savedFoodDao(),
             mealPresetDao = database.mealPresetDao(),
             exercisePresetDao = database.exercisePresetDao(),
+            exerciseUsageDao = database.exerciseUsageDao(),
             bodyMeasurementDao = database.bodyMeasurementDao(),
             workoutSessionDao = database.workoutSessionDao(),
             workoutExerciseDao = database.workoutExerciseDao(),
+            exerciseCatalogRepository = exerciseCatalogRepository,
             remoteAiDataSource = RemoteAiDataSource(
                 api = NetworkModule.provideAiApi(),
                 moshi = NetworkModule.moshi
@@ -72,6 +93,7 @@ class FitBuddyApp : Application() {
                 savedFoodDao = database.savedFoodDao(),
                 mealPresetDao = database.mealPresetDao(),
                 exercisePresetDao = database.exercisePresetDao(),
+                exerciseUsageDao = database.exerciseUsageDao(),
                 bodyMeasurementDao = database.bodyMeasurementDao(),
                 workoutSessionDao = database.workoutSessionDao(),
                 workoutExerciseDao = database.workoutExerciseDao(),
@@ -81,6 +103,32 @@ class FitBuddyApp : Application() {
             )
         )
     }
+
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .crossfade(false)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.20)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("coil_image_cache"))
+                    .maxSizeBytes(64L * 1024L * 1024L)
+                    .build()
+            }
+            .components {
+                // First-frame GIF decoder must be registered before the animated ones so
+                // list thumbs that set PARAM_STATIC_GIF stay static.
+                add(GifFirstFrameDecoder.Factory())
+                if (Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
 
     override fun onCreate() {
         super.onCreate()
@@ -110,6 +158,9 @@ class FitBuddyApp : Application() {
             restartSession = false
         )
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
+        appScope.launch {
+            runCatching { exerciseCatalogRepository.ensureLoaded() }
+        }
         ReminderReceiver.ensureChannel(this)
         DonationReminderReceiver.ensureChannel(this)
         ReminderScheduler.applyFromSettings(this, settings)

@@ -8,18 +8,16 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.model.WorkoutFilterOrdering
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
-
 /** Reads/writes [AppSettings] via DataStore. First-run defaults seed from BuildConfig (local.properties). */
 class SettingsRepository(context: Context) {
 
-    private val dataStore = context.applicationContext.settingsDataStore
+    private val dataStore: DataStore<Preferences> = SettingsDataStore.create(context)
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
         val orKeys = parseApiKeys(
@@ -147,7 +145,7 @@ class SettingsRepository(context: Context) {
             insightAnimationChoice = insightAnim,
             animationsEnabled = analyzingAnim != AppSettings.LOADING_ANIM_OFF ||
                 insightAnim != AppSettings.LOADING_ANIM_OFF,
-            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
+            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             diagnosticLoggingEnabled = prefs[KEY_DIAGNOSTIC_LOGGING] ?: false,
@@ -172,8 +170,9 @@ class SettingsRepository(context: Context) {
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
             forceSentryProxyMode = prefs[KEY_FORCE_SENTRY_PROXY] ?: false,
             forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
-            cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false,
-            cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
+            // Debug builds never sync to cloud (including after restore / Auto Backup).
+            cloudBackupEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
+            cloudAutoUploadEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true),
             cloudBackupPasswordSet = prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] ?: false,
             mongoDbName = prefs[KEY_MONGO_DB_NAME]?.ifBlank { null }
                 ?: AppSettings.DEFAULT_MONGO_DB_NAME,
@@ -403,8 +402,8 @@ class SettingsRepository(context: Context) {
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
             prefs[KEY_FORCE_SENTRY_PROXY] = settings.forceSentryProxyMode
             prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
-            prefs[KEY_CLOUD_BACKUP_ENABLED] = settings.cloudBackupEnabled
-            prefs[KEY_CLOUD_AUTO_UPLOAD] = settings.cloudAutoUploadEnabled
+            prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
+            prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
             prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = settings.cloudBackupPasswordSet
             prefs[KEY_MONGO_DB_NAME] = settings.mongoDbName.ifBlank {
                 AppSettings.DEFAULT_MONGO_DB_NAME
@@ -552,7 +551,46 @@ class SettingsRepository(context: Context) {
         return verifier
     }
 
+    /**
+     * Workout picker filter chips the user long-pressed to the front (most recent first).
+     * Device-local UI preference — not part of cloud backup payloads.
+     */
+    val pinnedWorkoutBodyPartFilters: Flow<List<String>> =
+        dataStore.data.map { decodePinnedFilters(it[KEY_PINNED_WORKOUT_BODY_PARTS]) }
+
+    val pinnedWorkoutEquipmentFilters: Flow<List<String>> =
+        dataStore.data.map { decodePinnedFilters(it[KEY_PINNED_WORKOUT_EQUIPMENTS]) }
+
+    suspend fun promoteWorkoutBodyPartFilter(label: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_PINNED_WORKOUT_BODY_PARTS] = encodePinnedFilters(
+                WorkoutFilterOrdering.promotePin(
+                    decodePinnedFilters(prefs[KEY_PINNED_WORKOUT_BODY_PARTS]),
+                    label
+                )
+            )
+        }
+    }
+
+    suspend fun promoteWorkoutEquipmentFilter(label: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_PINNED_WORKOUT_EQUIPMENTS] = encodePinnedFilters(
+                WorkoutFilterOrdering.promotePin(
+                    decodePinnedFilters(prefs[KEY_PINNED_WORKOUT_EQUIPMENTS]),
+                    label
+                )
+            )
+        }
+    }
+
     private companion object {
+        fun decodePinnedFilters(raw: String?): List<String> {
+            if (raw.isNullOrBlank()) return emptyList()
+            return raw.split('\u001e').map { it.trim() }.filter { it.isNotEmpty() }
+        }
+
+        fun encodePinnedFilters(labels: List<String>): String =
+            labels.joinToString("\u001e")
         val KEY_PROVIDER = stringPreferencesKey("ai_provider")
         val KEY_OR_KEY = stringPreferencesKey("openrouter_api_key")
         val KEY_OR_OAUTH_KEY = stringPreferencesKey("openrouter_oauth_key")
@@ -665,5 +703,7 @@ class SettingsRepository(context: Context) {
         // Device-local only — not in BackupSettings / BackupData v5.
         val KEY_FIRST_NAME = stringPreferencesKey("user_first_name")
         val KEY_LAST_NAME = stringPreferencesKey("user_last_name")
+        val KEY_PINNED_WORKOUT_BODY_PARTS = stringPreferencesKey("pinned_workout_body_parts")
+        val KEY_PINNED_WORKOUT_EQUIPMENTS = stringPreferencesKey("pinned_workout_equipments")
     }
 }

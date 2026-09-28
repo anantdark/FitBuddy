@@ -8,7 +8,6 @@ import com.anant.fitbuddy.data.model.ParsedWorkoutResponse
 import com.anant.fitbuddy.data.model.ProgressChatTurn
 import com.anant.fitbuddy.data.model.ProgressInsightResponse
 import com.anant.fitbuddy.data.model.TargetPlanDecision
-import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutNameResponse
 import com.anant.fitbuddy.data.model.normalized
 import com.anant.fitbuddy.data.prompts.PromptCatalog
@@ -57,7 +56,6 @@ class RemoteAiDataSource(
     private val responseAdapter = moshi.adapter(FitnessTrackerResponse::class.java)
     private val targetPlanDecisionAdapter = moshi.adapter(TargetPlanDecision::class.java)
     private val progressInsightAdapter = moshi.adapter(ProgressInsightResponse::class.java)
-    private val workoutCaloriesAdapter = moshi.adapter(WorkoutCaloriesResponse::class.java)
     private val customExerciseAdapter = moshi.adapter(CustomExerciseResponse::class.java)
     private val parsedWorkoutAdapter = moshi.adapter(ParsedWorkoutResponse::class.java)
     private val workoutNameAdapter = moshi.adapter(WorkoutNameResponse::class.java)
@@ -153,18 +151,6 @@ class RemoteAiDataSource(
         return extractPlainContent(
             chatWithRetry { api.chatCompletionPlain(settings.chatUrl, settings.authHeader, request) }
         )
-    }
-
-    /**
-     * Estimates calories burned for a logged workout session (exercises + sets/reps/weight)
-     * personalised to the user's body factors. Text-only completion.
-     */
-    suspend fun estimateWorkoutCalories(
-        settings: AppSettings,
-        contextJson: String
-    ): WorkoutCaloriesResponse {
-        val json = completeToJson(settings, PromptCatalog.workoutCaloriesPrompt(contextJson), null)
-        return parseJson(workoutCaloriesAdapter, json)
     }
 
     /**

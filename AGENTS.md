@@ -47,13 +47,14 @@ progress charts, editable meal review, and reusable food presets.
 - `FitBuddyApp.kt` — Application/service locator; builds `SettingsRepository` + `FitnessRepository`.
 - `MainActivity.kt` — sets Compose content; reads `dynamicColor` before theming.
 - `data/database/`
-  - `Entities.kt` — `UserProfile`, `FoodLog`, `ExerciseLog`, `FoodPreset`.
+  - `Entities.kt` — `UserProfile`, `FoodLog`, `ExerciseLog`, `ExercisePreset`, `ExerciseUsage`,
+    workout session tables.
   - `Daos.kt` — DAOs + result rows (`FoodDailySummary`, `ExerciseDailySummary`, `FoodTotals`).
-  - `AppDatabase.kt` — Room DB **version 2**, `fallbackToDestructiveMigration(dropAllTables=true)`
-    (schema changes wipe local data — fine for dev, add real migrations before shipping).
+  - `AppDatabase.kt` — Room DB with explicit migrations from production v11+ (current **version 18**).
 - `data/model/` — Moshi API models (`FitnessTrackerModels.kt`: `FitnessTrackerResponse`,
   `FoodAnalysis`, `Ingredient`, `Macros`, `ExerciseAnalysis`), plus domain models `FoodDraft`/
-  `IngredientDraft` (editable meal; macros stored as per-100g rates for live rescaling) and `ModelOption`.
+  `IngredientDraft` (editable meal; macros stored as per-100g rates for live rescaling),
+  `CatalogExercise` / `COMMON_EXERCISES_SEED` (workout picker), and `ModelOption`.
 - `data/remote/`
   - `AiApi.kt` — Retrofit: `chatCompletion` (@Url + nullable Authorization), `listModels`
     (OpenRouter), `listGeminiModels` (@Url with `?key=`).
@@ -61,6 +62,8 @@ progress charts, editable meal review, and reusable food presets.
   - `RemoteAiDataSource.kt` — calls [PromptCatalog] for prompt text, image attach, JSON parse,
     `fetchFreeVisionModels` (OpenRouter, free+vision), `fetchGeminiVisionModels` (Gemini free
     Flash, ladder-ordered).
+  - `exercisedb/` — `ExerciseCatalogRepository` loads ~1500 exercises + GIF URLs from jsDelivr
+    (`cdn.jsdelivr.net/gh/anantdark/exercisedb-api@main/...`), disk-caches JSON for offline.
   - `dto/` — `ChatDtos.kt`, `ModelsDtos.kt` (OpenRouter `ModelDto` + Gemini `GeminiModelDto`).
 - `data/prompts/` — `PromptCatalog.kt` loads LLM templates from
   `app/src/main/resources/prompts/` (`shared/` shells + `region/{india,us,europe,latin_america}/`
@@ -84,7 +87,8 @@ progress charts, editable meal review, and reusable food presets.
   analytics, presets, analysis flow, provider-aware `loadFreeVisionModels(provider, apiKey, force)`.
 - `ui/screens/` — `MainScreen` (scaffold, tabs, input sheet, dialogs), `DashboardScreen`,
   `AnalyticsScreen`, `ProfileScreen`, `SettingsScreen`, `FoodReviewScreen` (`FoodReviewDialog`),
-  `PresetPickerSheet`.
+  `PresetPickerSheet`, `WorkoutLogScreen` + `ExercisePickerComponents` (catalog GIFs, filters,
+  recent/frequent).
 - `ui/components/CustomCharts.kt` — `CalorieRing`, line/stacked-bar charts.
 - `util/` — `DateUtils` (yyyy-MM-dd), `ImageUtils` (bitmap→scaled JPEG bytes).
 

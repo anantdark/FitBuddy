@@ -2,7 +2,7 @@ package com.anant.fitbuddy.reminders
 
 import java.util.concurrent.ThreadLocalRandom
 
-/** Rotating cheeky labels for the weekly donate reminder dialog. */
+/** Rotating cheeky labels for the donate reminder dialog. */
 object DonationReminderCopy {
 
     val softDismiss: List<String> = listOf(
@@ -58,7 +58,7 @@ object DonationReminderCopy {
         this[ThreadLocalRandom.current().nextInt(size)]
 }
 
-/** Title + body pairs for the weekly donate notification. */
+/** Title + body pairs for the donate notification. */
 object DonationNotificationCopy {
 
     private val MESSAGES = listOf(

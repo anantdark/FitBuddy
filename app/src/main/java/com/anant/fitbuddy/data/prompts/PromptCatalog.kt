@@ -108,12 +108,6 @@ object PromptCatalog {
             )
         )
 
-    fun workoutCaloriesPrompt(contextJson: String): String =
-        render(
-            load("prompts/shared/workout_calories.txt"),
-            mapOf("CONTEXT_JSON" to contextJson)
-        )
-
     fun classifyExercisePrompt(rawName: String, knownExerciseNames: List<String>): String {
         val knownList = knownExerciseNames.joinToString("\n") { "- $it" }
         return render(

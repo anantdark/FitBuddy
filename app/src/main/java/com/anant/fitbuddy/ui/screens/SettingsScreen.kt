@@ -106,14 +106,15 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.util.DiagnosticLogger
+import com.anant.fitbuddy.util.ReleaseNotes
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
@@ -885,7 +886,7 @@ fun SettingsScreen(
                     "Default time is 8:00 PM."
             )
             SettingToggleRow(
-                title = "Weekly donate reminder",
+                title = "Donate reminder",
                 checked = settings.donationReminderEnabled,
                 onCheckedChange = { enabled ->
                     if (!enabled) {
@@ -900,8 +901,8 @@ fun SettingsScreen(
                     }
                     onSave(settings.copy(donationReminderEnabled = true))
                 },
-                hintTitle = "Weekly donate reminder",
-                hint = "Optional morning notification and evening dialog once a week. " +
+                hintTitle = "Donate reminder",
+                hint = "Optional morning notification and evening dialog every 3–8 days. " +
                     "Turns off automatically if your Support ID is on the donor list."
             )
             if (settings.dailyLogReminderEnabled) {
@@ -1234,57 +1235,42 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (BuildConfig.IS_FDROID) {
-                val uriHandler = LocalUriHandler.current
+            SettingToggleRow(
+                title = "Check for updates automatically",
+                checked = settings.autoCheckUpdates,
+                onCheckedChange = onAutoCheckUpdatesChange,
+                hintTitle = "Automatic updates",
+                hint = if (BuildConfig.IS_FDROID) {
+                    "Looks for a newer build on f-droid.org shortly after startup."
+                } else {
+                    "Looks for a newer GitHub release shortly after startup."
+                }
+            )
+            OutlinedButton(
+                onClick = onCheckForUpdates,
+                enabled = !updateState.isChecking,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (updateState.isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Checking...")
+                } else {
+                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Check for Updates")
+                }
+            }
+            updateState.statusMessage?.let { message ->
                 Text(
-                    text = "Updates are handled by F-Droid.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "To get in-app updates, install from GitHub releases",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    textDecoration = TextDecoration.Underline,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable {
-                        uriHandler.openUri("https://github.com/anantdark/FitBuddy/releases")
-                    }
-                )
-            } else {
-                SettingToggleRow(
-                    title = "Check for updates automatically",
-                    checked = settings.autoCheckUpdates,
-                    onCheckedChange = onAutoCheckUpdatesChange,
-                    hintTitle = "Automatic updates",
-                    hint = "Looks for a newer GitHub release shortly after startup."
-                )
-                OutlinedButton(
-                    onClick = onCheckForUpdates,
-                    enabled = !updateState.isChecking,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (updateState.isChecking) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Checking...")
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (updateState.statusIsError) {
+                        MaterialTheme.colorScheme.error
                     } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Check for Updates")
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     }
-                }
-                updateState.statusMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (updateState.statusIsError) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
+                )
             }
             SettingToggleRow(
                 title = "Send crash reports",
@@ -1678,7 +1664,7 @@ fun SettingsScreen(
                         Text("Reset donate reminder timers")
                     }
                     Text(
-                        text = "Donate test actions bypass the weekly schedule. Demo thank-you does not change last-seen donors.",
+                        text = "Donate test actions bypass the 3–8 day schedule. Demo thank-you does not change last-seen donors.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1829,12 +1815,15 @@ fun UpdatePromptDialogs(
     cloudBackupEnabled: Boolean,
     onDismissUpdatePrompt: () -> Unit,
     onExportBackupAndUpdate: (downloadUrl: String) -> Unit,
-    onSkipBackupAndUpdate: (downloadUrl: String) -> Unit
+    onSkipBackupAndUpdate: (downloadUrl: String) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
 
     updateState.updateInfo?.let { info ->
-        val highlights = remember(info.releaseNotes) { releaseNoteHighlights(info.releaseNotes) }
+        val isFdroidChannel = info.channel == UpdateChannel.FDROID
+        val highlights = remember(info.releaseNotes) {
+            ReleaseNotes.highlights(info.releaseNotes)
+        }
         val busy = updateState.isExportingBackup ||
             updateState.isAwaitingBackupFilePick
         var skipCountdownSec by remember(info.versionCode, info.downloadUrl) { mutableIntStateOf(5) }
@@ -1899,14 +1888,21 @@ fun UpdatePromptDialogs(
                             onClick = { uriHandler.openUri(info.htmlUrl) },
                             modifier = Modifier.padding(start = 0.dp)
                         ) {
-                            Text("View on GitHub")
+                            Text(if (isFdroidChannel) "View on f-droid.org" else "View on GitHub")
                         }
                     }
                     Text(
-                        text = if (cloudBackupEnabled) {
-                            "Back up your data to the cloud before updating."
-                        } else {
-                            "Export a local backup before updating."
+                        text = buildString {
+                            append(
+                                if (cloudBackupEnabled) {
+                                    "Back up your data to the cloud before updating."
+                                } else {
+                                    "Export a local backup before updating."
+                                }
+                            )
+                            if (isFdroidChannel) {
+                                append(" Then opens F-Droid to install the update.")
+                            }
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1956,21 +1952,6 @@ fun UpdatePromptDialogs(
         )
     }
 }
-
-/** Pull commit bullets from CI release notes; drop headers / metadata noise. */
-private fun releaseNoteHighlights(raw: String, limit: Int = 6): List<String> =
-    raw.lineSequence()
-        .map { it.trim() }
-        .filter { it.startsWith("- ") }
-        .map { line ->
-            line.removePrefix("- ")
-                .replace(Regex("""\s*\([0-9a-f]{7,40}\)\s*$"""), "")
-                .trim()
-        }
-        .filter { it.isNotBlank() }
-        .distinct()
-        .take(limit)
-        .toList()
 
 /**
  * Read-only exposed-dropdown listing vision-capable models for the active [provider] (free-only

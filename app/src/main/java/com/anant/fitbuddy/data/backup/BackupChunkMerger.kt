@@ -16,6 +16,7 @@ object BackupChunkMerger {
         val deletedSavedFood = linkedSetOf<Int>()
         val deletedMealPreset = linkedSetOf<Int>()
         val deletedExercisePreset = linkedSetOf<Int>()
+        val deletedExerciseUsage = linkedSetOf<Int>()
         val deletedSession = linkedSetOf<Int>()
         val deletedWorkoutExercise = linkedSetOf<Int>()
 
@@ -28,6 +29,7 @@ object BackupChunkMerger {
             deletedSavedFood += chunk.deletedSavedFoodIds
             deletedMealPreset += chunk.deletedMealPresetIds
             deletedExercisePreset += chunk.deletedExercisePresetIds
+            deletedExerciseUsage += chunk.deletedExerciseUsageIds
             deletedSession += chunk.deletedWorkoutSessionIds
             deletedWorkoutExercise += chunk.deletedWorkoutExerciseIds
         }
@@ -46,6 +48,7 @@ object BackupChunkMerger {
             presets = acc.presets.filterNot { it.id in deletedSavedFood },
             mealPresets = acc.mealPresets.filterNot { it.id in deletedMealPreset },
             exercisePresets = acc.exercisePresets.filterNot { it.id in deletedExercisePreset },
+            exerciseUsages = acc.exerciseUsages.filterNot { it.id in deletedExerciseUsage },
             workoutSessions = acc.workoutSessions.filterNot { it.id in deletedSession },
             workoutExercises = acc.workoutExercises.filterNot { it.id in deletedWorkoutExercise },
             deletedFoodLogIds = emptyList(),
@@ -55,6 +58,7 @@ object BackupChunkMerger {
             deletedSavedFoodIds = emptyList(),
             deletedMealPresetIds = emptyList(),
             deletedExercisePresetIds = emptyList(),
+            deletedExerciseUsageIds = emptyList(),
             deletedWorkoutSessionIds = emptyList(),
             deletedWorkoutExerciseIds = emptyList()
         )
@@ -74,6 +78,7 @@ object BackupChunkMerger {
         presets = emptyList(),
         mealPresets = mergeById(base.mealPresets, next.mealPresets) { it.id },
         exercisePresets = mergeById(base.exercisePresets, next.exercisePresets) { it.id },
+        exerciseUsages = mergeById(base.exerciseUsages, next.exerciseUsages) { it.id },
         workoutSessions = mergeById(base.workoutSessions, next.workoutSessions) { it.id },
         workoutExercises = mergeById(base.workoutExercises, next.workoutExercises) { it.id }
     )

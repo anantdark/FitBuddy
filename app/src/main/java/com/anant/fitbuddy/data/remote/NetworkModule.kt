@@ -106,4 +106,14 @@ object NetworkModule {
     }
 
     fun provideGithubApi(): GithubApi = githubRetrofit.create(GithubApi::class.java)
+
+    private val fdroidRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://f-droid.org/")
+            .client(sharedOkHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
+    fun provideFdroidApi(): FdroidApi = fdroidRetrofit.create(FdroidApi::class.java)
 }

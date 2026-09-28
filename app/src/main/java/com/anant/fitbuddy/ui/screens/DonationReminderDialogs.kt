@@ -61,7 +61,7 @@ internal fun DonationReminderDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "FitBuddy is free and open source. Optional tips keep the chai " +
-                        "(and the features) flowing. No guilt, just a weekly nudge.",
+                        "(and the features) flowing. No guilt, just an occasional nudge.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Button(

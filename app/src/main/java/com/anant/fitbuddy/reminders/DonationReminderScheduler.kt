@@ -10,7 +10,12 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import java.util.Calendar
 
 /**
- * Schedules the weekly donate reminder notification at 09:00 local on the next due morning.
+ * Schedules the donate reminder notification at 09:00 local on the next due morning.
+ *
+ * Gap after each completed nudge ([AppSettings.donationLastNudgeAt]) is a stable value in
+ * [MIN_INTERVAL_DAYS]..[MAX_INTERVAL_DAYS], derived from that timestamp (not re-rolled on every
+ * check) so [isDue] and [nextMorningTriggerMillis] always agree — avoids both spam and
+ * never-firing schedules.
  */
 object DonationReminderScheduler {
 
@@ -23,9 +28,16 @@ object DonationReminderScheduler {
     const val DIALOG_HOUR = 19
     /** Minimum gap between notification and in-app dialog (and vice versa). */
     const val MIN_GAP_MS = 6L * 60L * 60L * 1000L
-    const val WEEK_MS = 7L * 24L * 60L * 60L * 1000L
-    /** First-run grace before the weekly donate nudge can fire. */
-    const val FIRST_RUN_GRACE_MS = 3L * 24L * 60L * 60L * 1000L
+
+    const val MIN_INTERVAL_DAYS = 3
+    const val MAX_INTERVAL_DAYS = 8
+    const val DAY_MS = 24L * 60L * 60L * 1000L
+
+    /** Inclusive span of random-but-stable interval days. */
+    private const val INTERVAL_SPAN = MAX_INTERVAL_DAYS - MIN_INTERVAL_DAYS + 1
+
+    /** First-run grace before the donate nudge can fire (matches minimum interval). */
+    const val FIRST_RUN_GRACE_MS = MIN_INTERVAL_DAYS * DAY_MS
 
     fun applyFromSettings(context: Context, settings: AppSettings) {
         if (settings.donationReminderEnabled) {
@@ -65,11 +77,24 @@ object DonationReminderScheduler {
         alarmManager.cancel(pendingIntent(app))
     }
 
+    /**
+     * Stable gap in whole days for the cycle that started at [lastNudgeAt].
+     * Same input always yields the same day count in [MIN_INTERVAL_DAYS]..[MAX_INTERVAL_DAYS].
+     */
+    fun intervalDaysFor(lastNudgeAt: Long): Int {
+        // Mix bits so nearby timestamps don't all land on the same day bucket.
+        val mixed = lastNudgeAt xor (lastNudgeAt ushr 33) xor (lastNudgeAt shl 11)
+        val idx = floorMod(mixed, INTERVAL_SPAN)
+        return MIN_INTERVAL_DAYS + idx
+    }
+
+    fun intervalMsFor(lastNudgeAt: Long): Long = intervalDaysFor(lastNudgeAt) * DAY_MS
+
     fun isDue(settings: AppSettings, nowMillis: Long = System.currentTimeMillis()): Boolean {
         if (!settings.donationReminderEnabled) return false
         val last = settings.donationLastNudgeAt
         if (last <= 0L) return false // not seeded yet
-        return nowMillis - last >= WEEK_MS
+        return nowMillis - last >= intervalMsFor(last)
     }
 
     fun canShowMorningNotification(
@@ -83,6 +108,7 @@ object DonationReminderScheduler {
         ) {
             return false
         }
+        // Already notified in this cycle (before lastNudgeAt advances on dialog dismiss).
         if (settings.donationLastNotifAt > settings.donationLastNudgeAt) return false
         return true
     }
@@ -98,17 +124,21 @@ object DonationReminderScheduler {
         ) {
             return false
         }
+        // Already showed the dialog in this cycle.
         if (settings.donationLastDialogAt > settings.donationLastNudgeAt) return false
         return true
     }
 
-    /** Next 09:00 on/after [donationLastNudgeAt] + 7 days (or next 09:00 if already due). */
+    /**
+     * Next 09:00 on/after [donationLastNudgeAt] + that cycle's interval
+     * (or after [FIRST_RUN_GRACE_MS] when not yet seeded).
+     */
     fun nextMorningTriggerMillis(
         settings: AppSettings,
         nowMillis: Long = System.currentTimeMillis(),
     ): Long {
         val earliest = if (settings.donationLastNudgeAt > 0L) {
-            settings.donationLastNudgeAt + WEEK_MS
+            settings.donationLastNudgeAt + intervalMsFor(settings.donationLastNudgeAt)
         } else {
             nowMillis + FIRST_RUN_GRACE_MS
         }
@@ -117,11 +147,13 @@ object DonationReminderScheduler {
     }
 
     /**
-     * Seeds [AppSettings.donationLastNudgeAt] so the first real nudge is after
-     * [FIRST_RUN_GRACE_MS] (not a full week). Call once when the field is still 0.
+     * Seeds [AppSettings.donationLastNudgeAt] so the first real nudge is after this install's
+     * stable interval (at least [FIRST_RUN_GRACE_MS] / [MIN_INTERVAL_DAYS] days).
+     *
+     * Uses [nowMillis] as the baseline: [isDue] becomes true only after
+     * [intervalMsFor] `(nowMillis)` elapses — never sooner than 3 days, never later than 8.
      */
-    fun seedFirstRunNudgeAt(nowMillis: Long = System.currentTimeMillis()): Long =
-        nowMillis - WEEK_MS + FIRST_RUN_GRACE_MS
+    fun seedFirstRunNudgeAt(nowMillis: Long = System.currentTimeMillis()): Long = nowMillis
 
     fun nextHourOccurrence(hour: Int, nowMillis: Long): Long {
         val cal = Calendar.getInstance().apply {
@@ -141,6 +173,12 @@ object DonationReminderScheduler {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         return alarmManager.canScheduleExactAlarms()
+    }
+
+    private fun floorMod(value: Long, modulus: Int): Int {
+        val m = modulus.toLong()
+        val r = value % m
+        return (if (r < 0) r + m else r).toInt()
     }
 
     private fun hourOfDay(nowMillis: Long): Int =

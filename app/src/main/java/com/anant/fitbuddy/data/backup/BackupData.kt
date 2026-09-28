@@ -3,6 +3,7 @@ package com.anant.fitbuddy.data.backup
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseLog
 import com.anant.fitbuddy.data.database.ExercisePreset
+import com.anant.fitbuddy.data.database.ExerciseUsage
 import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.MealFood
 import com.anant.fitbuddy.data.database.MealPreset
@@ -26,6 +27,8 @@ data class BackupData(
     val savedFoods: List<SavedFood> = emptyList(),
     val mealPresets: List<MealPreset> = emptyList(),
     val exercisePresets: List<ExercisePreset> = emptyList(),
+    /** v7+: recent/frequent exercise picker ranking. Missing on older backups → empty. */
+    val exerciseUsages: List<ExerciseUsage> = emptyList(),
     val workoutSessions: List<WorkoutSession> = emptyList(),
     val workoutExercises: List<WorkoutExercise> = emptyList(),
     /** Null on pre-v5 backups — import leaves current Settings untouched. */
@@ -38,11 +41,12 @@ data class BackupData(
     val deletedSavedFoodIds: List<Int> = emptyList(),
     val deletedMealPresetIds: List<Int> = emptyList(),
     val deletedExercisePresetIds: List<Int> = emptyList(),
+    val deletedExerciseUsageIds: List<Int> = emptyList(),
     val deletedWorkoutSessionIds: List<Int> = emptyList(),
     val deletedWorkoutExerciseIds: List<Int> = emptyList()
 ) {
     companion object {
-        const val CURRENT_VERSION = 6
+        const val CURRENT_VERSION = 7
         /** Largest sealed tip payload before rollover (UTF-8 byte length of envelope JSON). */
         const val MAX_TIP_SEALED_BYTES = 3 * 1024 * 1024
     }

@@ -13,7 +13,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
-    <!-- Android 11+ package visibility: Custom Tabs + FreeScale measurement bridge. -->
+    <!-- Android 11+ package visibility: Custom Tabs, FreeScale, F-Droid clients. -->
     <queries>
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
@@ -23,10 +23,19 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="fdroid.app" />
+        </intent>
         <!-- Needed so resolveActivity can see camera apps before TakePicturePreview. -->
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
+        <!-- F-Droid update redirect (Update via F-Droid). -->
+        <package android:name="org.fdroid.fdroid" />
+        <package android:name="org.fdroid.basic" />
+        <package android:name="com.looker.droidify" />
         <package android:name="com.anant.freescale" />
         <package android:name="com.anant.freescale.debug" />
         <provider android:authorities="com.anant.freescale.bridge.measurements" />

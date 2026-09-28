@@ -62,7 +62,8 @@ object BackupTipBuilder {
             deletedWorkoutExerciseIds = (workoutExFrozen - roomWorkoutExIds).sorted(),
             deletedSavedFoodIds = emptyList(),
             deletedMealPresetIds = emptyList(),
-            deletedExercisePresetIds = emptyList()
+            deletedExercisePresetIds = emptyList(),
+            deletedExerciseUsageIds = emptyList()
         )
     }
 
@@ -100,6 +101,7 @@ object BackupTipBuilder {
                 presets = tip.presets,
                 mealPresets = tip.mealPresets,
                 exercisePresets = tip.exercisePresets,
+                exerciseUsages = tip.exerciseUsages,
                 deletedFoodLogIds = tip.deletedFoodLogIds,
                 deletedMealFoodIds = tip.deletedMealFoodIds,
                 deletedExerciseLogIds = tip.deletedExerciseLogIds,
@@ -107,6 +109,7 @@ object BackupTipBuilder {
                 deletedSavedFoodIds = tip.deletedSavedFoodIds,
                 deletedMealPresetIds = tip.deletedMealPresetIds,
                 deletedExercisePresetIds = tip.deletedExercisePresetIds,
+                deletedExerciseUsageIds = tip.deletedExerciseUsageIds,
                 deletedWorkoutSessionIds = tip.deletedWorkoutSessionIds,
                 deletedWorkoutExerciseIds = tip.deletedWorkoutExerciseIds
             )
@@ -153,6 +156,7 @@ object BackupTipBuilder {
             presets = emptyList(),
             mealPresets = emptyList(),
             exercisePresets = emptyList(),
+            exerciseUsages = emptyList(),
             deletedFoodLogIds = emptyList(),
             deletedMealFoodIds = emptyList(),
             deletedExerciseLogIds = emptyList(),
@@ -160,6 +164,7 @@ object BackupTipBuilder {
             deletedSavedFoodIds = emptyList(),
             deletedMealPresetIds = emptyList(),
             deletedExercisePresetIds = emptyList(),
+            deletedExerciseUsageIds = emptyList(),
             deletedWorkoutSessionIds = emptyList(),
             deletedWorkoutExerciseIds = emptyList()
         )
@@ -170,6 +175,7 @@ object BackupTipBuilder {
             presets = tip.presets,
             mealPresets = tip.mealPresets,
             exercisePresets = tip.exercisePresets,
+            exerciseUsages = tip.exerciseUsages,
             deletedFoodLogIds = tip.deletedFoodLogIds,
             deletedMealFoodIds = tip.deletedMealFoodIds,
             deletedExerciseLogIds = tip.deletedExerciseLogIds,
@@ -177,6 +183,7 @@ object BackupTipBuilder {
             deletedSavedFoodIds = tip.deletedSavedFoodIds,
             deletedMealPresetIds = tip.deletedMealPresetIds,
             deletedExercisePresetIds = tip.deletedExercisePresetIds,
+            deletedExerciseUsageIds = tip.deletedExerciseUsageIds,
             deletedWorkoutSessionIds = tip.deletedWorkoutSessionIds,
             deletedWorkoutExerciseIds = tip.deletedWorkoutExerciseIds
         )

@@ -65,6 +65,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.model.FoodEntryDraft
@@ -154,6 +155,12 @@ fun MainScreen(
     val workoutLogState by viewModel.workoutLogState.collectAsStateWithLifecycle()
     val editingWorkout by viewModel.editingWorkout.collectAsStateWithLifecycle()
     val exercisePickerExercises by viewModel.exercisePickerExercises.collectAsStateWithLifecycle()
+    val exerciseUsages by viewModel.exerciseUsages.collectAsStateWithLifecycle()
+    val exerciseCatalogBodyParts by viewModel.exerciseCatalogBodyParts.collectAsStateWithLifecycle()
+    val exerciseCatalogEquipments by viewModel.exerciseCatalogEquipments.collectAsStateWithLifecycle()
+    val pinnedWorkoutBodyPartFilters by viewModel.pinnedWorkoutBodyPartFilters.collectAsStateWithLifecycle()
+    val pinnedWorkoutEquipmentFilters by viewModel.pinnedWorkoutEquipmentFilters.collectAsStateWithLifecycle()
+    val exerciseCatalogLoading by viewModel.exerciseCatalogLoading.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
@@ -1006,6 +1013,12 @@ fun MainScreen(
         WorkoutLogDialog(
             state = workoutLogState,
             pickerExercises = exercisePickerExercises,
+            exerciseUsages = exerciseUsages,
+            bodyPartFilters = exerciseCatalogBodyParts,
+            equipmentFilters = exerciseCatalogEquipments,
+            pinnedBodyPartFilters = pinnedWorkoutBodyPartFilters,
+            pinnedEquipmentFilters = pinnedWorkoutEquipmentFilters,
+            catalogLoading = exerciseCatalogLoading,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
             isNamingWorkout = workoutNaming,
@@ -1013,6 +1026,10 @@ fun MainScreen(
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
+            onRecordPick = viewModel::recordExercisePick,
+            onToggleFavorite = viewModel::setExerciseFavorite,
+            onPromoteBodyPartFilter = viewModel::promoteWorkoutBodyPartFilter,
+            onPromoteEquipmentFilter = viewModel::promoteWorkoutEquipmentFilter,
             onSave = viewModel::logWorkoutSession,
             onDismiss = {
                 showWorkoutDialog = false
@@ -1026,6 +1043,12 @@ fun MainScreen(
             state = workoutLogState,
             initialDraft = editing.draft,
             pickerExercises = exercisePickerExercises,
+            exerciseUsages = exerciseUsages,
+            bodyPartFilters = exerciseCatalogBodyParts,
+            equipmentFilters = exerciseCatalogEquipments,
+            pinnedBodyPartFilters = pinnedWorkoutBodyPartFilters,
+            pinnedEquipmentFilters = pinnedWorkoutEquipmentFilters,
+            catalogLoading = exerciseCatalogLoading,
             isClassifyingCustom = customExerciseClassifying,
             isInferringExercises = workoutInferring,
             isNamingWorkout = workoutNaming,
@@ -1033,6 +1056,10 @@ fun MainScreen(
             onClassifyCustom = viewModel::classifyCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
+            onRecordPick = viewModel::recordExercisePick,
+            onToggleFavorite = viewModel::setExerciseFavorite,
+            onPromoteBodyPartFilter = viewModel::promoteWorkoutBodyPartFilter,
+            onPromoteEquipmentFilter = viewModel::promoteWorkoutEquipmentFilter,
             onSave = viewModel::saveEditingWorkout,
             onDismiss = viewModel::dismissWorkoutDetails
         )
@@ -1415,8 +1442,12 @@ fun MainScreen(
         )
     }
 
-    /** Open the APK browser_download_url so the system browser starts the download. */
-    fun startUpdateDownload(downloadUrl: String) {
+    /** GitHub: open APK download URL. F-Droid: open client / website. */
+    fun proceedWithUpdate(downloadUrl: String) {
+        if (updateState.updateInfo?.channel == UpdateChannel.FDROID) {
+            viewModel.openFdroidUpdate(context)
+            return
+        }
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl)).apply {
                 addCategory(Intent.CATEGORY_BROWSABLE)
@@ -1431,7 +1462,7 @@ fun MainScreen(
         }
     }
 
-    // After Export backup & update succeeds with a fresh backup timestamp, open the APK URL.
+    // After Export backup & update succeeds with a fresh backup timestamp, continue the update.
     LaunchedEffect(
         updateState.backupCompleted,
         updateState.pendingDownloadUrlAfterBackup,
@@ -1440,7 +1471,7 @@ fun MainScreen(
         val url = updateState.pendingDownloadUrlAfterBackup ?: return@LaunchedEffect
         if (!updateState.backupCompleted) return@LaunchedEffect
         if (!settings.hasFreshSuccessfulBackup()) return@LaunchedEffect
-        startUpdateDownload(url)
+        proceedWithUpdate(url)
     }
 
     UpdatePromptDialogs(
@@ -1450,7 +1481,7 @@ fun MainScreen(
         onExportBackupAndUpdate = { downloadUrl ->
             viewModel.beginExportBackupAndUpdate(context, downloadUrl)
         },
-        onSkipBackupAndUpdate = ::startUpdateDownload
+        onSkipBackupAndUpdate = ::proceedWithUpdate,
     )
 }
 
