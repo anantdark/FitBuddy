@@ -145,7 +145,7 @@ class SettingsRepository(context: Context) {
             insightAnimationChoice = insightAnim,
             animationsEnabled = analyzingAnim != AppSettings.LOADING_ANIM_OFF ||
                 insightAnim != AppSettings.LOADING_ANIM_OFF,
-            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
+            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             diagnosticLoggingEnabled = prefs[KEY_DIAGNOSTIC_LOGGING] ?: false,
@@ -170,8 +170,9 @@ class SettingsRepository(context: Context) {
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
             forceSentryProxyMode = prefs[KEY_FORCE_SENTRY_PROXY] ?: false,
             forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
-            cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false,
-            cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
+            // Debug builds never sync to cloud (including after restore / Auto Backup).
+            cloudBackupEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
+            cloudAutoUploadEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true),
             cloudBackupPasswordSet = prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] ?: false,
             mongoDbName = prefs[KEY_MONGO_DB_NAME]?.ifBlank { null }
                 ?: AppSettings.DEFAULT_MONGO_DB_NAME,
@@ -401,8 +402,8 @@ class SettingsRepository(context: Context) {
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
             prefs[KEY_FORCE_SENTRY_PROXY] = settings.forceSentryProxyMode
             prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
-            prefs[KEY_CLOUD_BACKUP_ENABLED] = settings.cloudBackupEnabled
-            prefs[KEY_CLOUD_AUTO_UPLOAD] = settings.cloudAutoUploadEnabled
+            prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
+            prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
             prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = settings.cloudBackupPasswordSet
             prefs[KEY_MONGO_DB_NAME] = settings.mongoDbName.ifBlank {
                 AppSettings.DEFAULT_MONGO_DB_NAME

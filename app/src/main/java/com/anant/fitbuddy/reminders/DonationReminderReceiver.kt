@@ -17,7 +17,7 @@ import com.anant.fitbuddy.R
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
-/** Fires the weekly donate reminder notification and re-arms the next alarm. */
+/** Fires the donate reminder notification and re-arms the next alarm. */
 class DonationReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -61,7 +61,7 @@ class DonationReminderReceiver : BroadcastReceiver() {
                 "Donate reminders",
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Optional weekly reminder to support FitBuddy development"
+                description = "Optional reminder every few days to support FitBuddy development"
                 enableVibration(true)
                 vibrationPattern = VIBRATION_PATTERN
                 enableLights(true)

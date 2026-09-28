@@ -50,7 +50,13 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
-    val updateChecker: UpdateChecker by lazy { UpdateChecker(NetworkModule.provideGithubApi()) }
+    val updateChecker: UpdateChecker by lazy {
+        UpdateChecker(
+            githubApi = NetworkModule.provideGithubApi(),
+            fdroidApi = NetworkModule.provideFdroidApi(),
+            okHttpClient = NetworkModule.okHttpClient(),
+        )
+    }
 
     val exerciseCatalogRepository: ExerciseCatalogRepository by lazy {
         ExerciseCatalogRepository(this)

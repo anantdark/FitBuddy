@@ -94,8 +94,8 @@ android {
         buildConfigField("String", "MONGO_DB_NAME", "\"$mongoDbNameEscaped\"")
     }
 
-    // github flavor: in-app update checker/downloader active. fdroid flavor: F-Droid owns
-    // updates, so the checker is disabled and Settings points users at GitHub releases instead.
+    // github flavor: checks GitHub Releases and downloads the APK. fdroid flavor: checks
+    // f-droid.org and opens F-Droid / Droid-ify / the website (never GitHub APKs).
     flavorDimensions += "distribution"
     productFlavors {
         create("github") {

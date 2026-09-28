@@ -55,7 +55,9 @@ import com.anant.fitbuddy.data.donors.DonorEntry
 import com.anant.fitbuddy.data.donors.DonorListRepository
 import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
+import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.data.remote.UpdateChecker
+import com.anant.fitbuddy.util.FdroidUpdateLauncher
 import com.anant.fitbuddy.data.remote.UpdateCheckResult
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuthCallbackServer
@@ -387,8 +389,7 @@ class MainViewModel(
 
     /** Manual or automatic check; [silent] skips status text for up-to-date / network errors. */
     fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
-        // F-Droid owns updates for that build; never point it at the github flavor's releases.
-        if (BuildConfig.IS_FDROID) return
+        // github → GitHub Releases; fdroid → f-droid.org (never mixes channels).
         if (_updateState.value.isChecking) return
         viewModelScope.launch {
             _updateState.update {
@@ -628,9 +629,43 @@ class MainViewModel(
                     downloadUrl = "https://example.invalid/fitbuddy-test-update.apk",
                     releaseNotes = "- Test update prompt for backup-before-update UI\n" +
                         "- Browser open will fail (invalid host)",
-                    htmlUrl = ""
+                    htmlUrl = "",
+                    channel = if (BuildConfig.IS_FDROID) {
+                        UpdateChannel.FDROID
+                    } else {
+                        UpdateChannel.GITHUB
+                    },
                 ),
                 statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                isAwaitingBackupFilePick = false,
+                pendingDownloadUrlAfterBackup = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false
+            )
+        }
+    }
+
+    /** F-Droid channel: open F-Droid client(s) / website, then dismiss the prompt. */
+    fun openFdroidUpdate(context: Context) {
+        val destination = runCatching { FdroidUpdateLauncher.open(context) }
+            .getOrElse { e ->
+                failOpenUpdateDownload(
+                    e.message ?: "Couldn't open F-Droid. Visit f-droid.org/packages/com.anant.fitbuddy"
+                )
+                return
+            }
+        val status = when (destination) {
+            "app picker" -> "Choose an app to update"
+            "website" -> "Opened update on the website"
+            else -> "Opened update in $destination"
+        }
+        _updateState.update {
+            it.copy(
+                updateInfo = null,
+                statusMessage = status,
                 statusIsError = false,
                 backupCompleted = false,
                 isExportingBackup = false,
