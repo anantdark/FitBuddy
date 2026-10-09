@@ -106,6 +106,35 @@ class BackupSettingsTest {
     }
 
     @Test
+    fun withAiCredentialsPreferringNonEmpty_keepsLocalKeysWhenBackupEmpty() {
+        val local = AppSettings.withKeys(
+            openRouterKeys = listOf("live-key"),
+            geminiKeys = listOf("gem-live"),
+            base = AppSettings(
+                provider = AiProvider.OPENROUTER,
+                openRouterOAuthKey = "oauth-live",
+            ),
+        )
+        val fromBackup = AppSettings(
+            provider = AiProvider.GEMINI,
+            geminiModel = "gemini-2.5-flash",
+        )
+        val merged = fromBackup.withAiCredentialsPreferringNonEmpty(local)
+        assertEquals(listOf("live-key"), merged.openRouterApiKeys)
+        assertEquals(listOf("gem-live"), merged.geminiApiKeys)
+        assertEquals("oauth-live", merged.openRouterOAuthKey)
+        assertEquals(AiProvider.GEMINI, merged.provider)
+    }
+
+    @Test
+    fun withAiCredentialsPreferringNonEmpty_prefersBackupKeysWhenPresent() {
+        val local = AppSettings.withKeys(openRouterKeys = listOf("old-key"))
+        val fromBackup = AppSettings.withKeys(openRouterKeys = listOf("backup-key"))
+        val merged = fromBackup.withAiCredentialsPreferringNonEmpty(local)
+        assertEquals(listOf("backup-key"), merged.openRouterApiKeys)
+    }
+
+    @Test
     fun roundTrip_preservesAiKeysAndReminder() {
         val original = AppSettings.withKeys(
             openRouterKeys = listOf("or-key-1", "or-key-2"),

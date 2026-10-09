@@ -286,13 +286,17 @@ class BackupManager(
 
         data.settings?.let { backupSettings ->
             // firstName/lastName/cloudBackupPasswordSet are device-local (not in BackupData v5) — keep current values.
+            // Prefer non-empty local AI credentials when the backup omitted keys (older exports /
+            // accidental empty uploads) so restore never blanks a working provider.
             val current = settingsRepository.settings.first()
             settingsRepository.save(
-                backupSettings.toAppSettings().copy(
-                    firstName = current.firstName,
-                    lastName = current.lastName,
-                    cloudBackupPasswordSet = current.cloudBackupPasswordSet
-                )
+                backupSettings.toAppSettings()
+                    .withAiCredentialsPreferringNonEmpty(current)
+                    .copy(
+                        firstName = current.firstName,
+                        lastName = current.lastName,
+                        cloudBackupPasswordSet = current.cloudBackupPasswordSet,
+                    )
             )
         }
 

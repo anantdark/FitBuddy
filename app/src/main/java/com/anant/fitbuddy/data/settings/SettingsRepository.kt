@@ -309,6 +309,24 @@ class SettingsRepository(context: Context) {
         dataStore.edit { prefs -> prefs[KEY_DONATION_REMINDER_VERSION] = versionCode }
     }
 
+    /** Patch-only — never rewrite the full settings blob (avoids wiping AI keys). */
+    suspend fun setDonationReminderEnabled(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[KEY_DONATION_REMINDER] = enabled }
+    }
+
+    /** Patch-only — never rewrite the full settings blob (avoids wiping AI keys). */
+    suspend fun setDonationLastNudgeAt(atMillis: Long) {
+        dataStore.edit { prefs -> prefs[KEY_DONATION_LAST_NUDGE_AT] = atMillis }
+    }
+
+    /**
+     * Read-modify-write using the latest DataStore snapshot (not a possibly-stale
+     * ViewModel [StateFlow] default). Prefer this over `save(settings.value.copy(...))`.
+     */
+    suspend fun update(transform: (AppSettings) -> AppSettings) {
+        save(transform(settings.first()))
+    }
+
     /** Active model cooldowns (expired entries already pruned). Survives process death. */
     suspend fun modelCooldowns(): Map<String, Long> {
         val prefs = dataStore.data.first()

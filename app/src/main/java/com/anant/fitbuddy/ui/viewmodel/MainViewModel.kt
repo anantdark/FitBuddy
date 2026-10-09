@@ -891,19 +891,21 @@ class MainViewModel(
     fun syncDonors() {
         viewModelScope.launch {
             runCatching {
-                var current = settings.value
+                // Always read DataStore — never settings.value (StateFlow defaults to empty
+                // AppSettings and a full save() would wipe AI keys on upgrade).
+                var current = settingsRepository.settings.first()
                 if (current.donationLastNudgeAt <= 0L) {
-                    current = current.copy(
-                        donationLastNudgeAt = DonationReminderScheduler.seedFirstRunNudgeAt()
+                    settingsRepository.setDonationLastNudgeAt(
+                        DonationReminderScheduler.seedFirstRunNudgeAt()
                     )
-                    settingsRepository.save(current)
+                    current = settingsRepository.settings.first()
                 }
 
                 val version = BuildConfig.VERSION_CODE
                 val lastReminderVersion = settingsRepository.lastDonationReminderVersionCode()
                 if (lastReminderVersion != null && version > lastReminderVersion) {
-                    current = current.copy(donationReminderEnabled = true)
-                    settingsRepository.save(current)
+                    settingsRepository.setDonationReminderEnabled(true)
+                    current = settingsRepository.settings.first()
                 }
                 if (lastReminderVersion == null || version != lastReminderVersion) {
                     settingsRepository.setLastDonationReminderVersionCode(version)
@@ -912,7 +914,8 @@ class MainViewModel(
                 val file = donorListRepository.refresh(forceNetwork = true)
                 val isDonor = donorListRepository.containsSupportId(file, current.supportId)
                 if (isDonor && current.donationReminderEnabled) {
-                    settingsRepository.save(current.copy(donationReminderEnabled = false))
+                    settingsRepository.setDonationReminderEnabled(false)
+                    current = settingsRepository.settings.first()
                 }
 
                 val lastSeenDate = settingsRepository.lastSeenDonorDonationDate()
@@ -1254,7 +1257,7 @@ class MainViewModel(
 
     fun resetEasterEggData() {
         viewModelScope.launch {
-            settingsRepository.save(settings.value.copy(easterEggDiscovered = false))
+            settingsRepository.update { it.copy(easterEggDiscovered = false) }
         }
     }
 
@@ -1572,8 +1575,11 @@ class MainViewModel(
             repository.activeProfile,
             settings,
             _forceAiSetup,
-            _forceFullOnboarding
-        ) { profile, appSettings, forceAi, forceFull ->
+            _forceFullOnboarding,
+            hasSettingsSnapshot,
+        ) { profile, appSettings, forceAi, forceFull, hasSnapshot ->
+            // Wait for real DataStore prefs — settings StateFlow starts as empty AppSettings.
+            if (!hasSnapshot) return@combine null
             when {
                 forceFull -> true
                 // Room may emit null before first read settles; treat missing/incomplete as onboard.
@@ -1589,9 +1595,10 @@ class MainViewModel(
             repository.activeProfile,
             settings,
             _forceAiSetup,
-            _forceFullOnboarding
-        ) { profile, appSettings, forceAi, forceFull ->
-            if (forceFull) return@combine false
+            _forceFullOnboarding,
+            hasSettingsSnapshot,
+        ) { profile, appSettings, forceAi, forceFull, hasSnapshot ->
+            if (!hasSnapshot || forceFull) return@combine false
             val basicsOk = profile != null && profile.hasBasicsConfigured()
             basicsOk && (forceAi || !appSettings.isConfigured)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -2719,7 +2726,7 @@ class MainViewModel(
 
     fun setCloudAutoUploadEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsRepository.save(settings.value.copy(cloudAutoUploadEnabled = enabled))
+            settingsRepository.update { it.copy(cloudAutoUploadEnabled = enabled) }
         }
     }
 
@@ -2833,30 +2840,31 @@ class MainViewModel(
         _onboardingSaving.value = true
         viewModelScope.launch {
             runCatching {
-                val merged = settings.value.copy(
+                val current = settingsRepository.settings.first()
+                val merged = current.copy(
                     provider = aiSettings.provider,
                     openRouterApiKeys = aiSettings.openRouterApiKeys,
                     openRouterApiKey = aiSettings.openRouterApiKey,
                     openRouterOAuthKey = aiSettings.openRouterOAuthKey.ifBlank {
-                        settings.value.openRouterOAuthKey
+                        current.openRouterOAuthKey
                     },
                     openRouterModel = aiSettings.openRouterModel.ifBlank {
-                        settings.value.openRouterModel
+                        current.openRouterModel
                     },
                     openRouterTextModel = aiSettings.openRouterTextModel,
                     geminiApiKeys = aiSettings.geminiApiKeys,
                     geminiApiKey = aiSettings.geminiApiKey,
-                    geminiModel = aiSettings.geminiModel.ifBlank { settings.value.geminiModel },
+                    geminiModel = aiSettings.geminiModel.ifBlank { current.geminiModel },
                     geminiTextModel = aiSettings.geminiTextModel,
                     ollamaBaseUrl = aiSettings.ollamaBaseUrl,
-                    ollamaModel = aiSettings.ollamaModel.ifBlank { settings.value.ollamaModel },
+                    ollamaModel = aiSettings.ollamaModel.ifBlank { current.ollamaModel },
                     ollamaTextModel = aiSettings.ollamaTextModel,
                     ollamaUseCloud = aiSettings.ollamaUseCloud,
                     ollamaApiKeys = aiSettings.ollamaApiKeys,
                     ollamaApiKey = aiSettings.ollamaApiKey,
                     openAiApiKeys = aiSettings.openAiApiKeys,
                     openAiApiKey = aiSettings.openAiApiKey,
-                    openAiModel = aiSettings.openAiModel.ifBlank { settings.value.openAiModel },
+                    openAiModel = aiSettings.openAiModel.ifBlank { current.openAiModel },
                     openAiTextModel = aiSettings.openAiTextModel,
                     customBaseUrl = aiSettings.customBaseUrl,
                     customModel = aiSettings.customModel,
