@@ -1,0 +1,9 @@
+• feat: thank supporters with flip cards and stop reminders
+• feat: check for F-Droid updates in the app
+• feat: smarter workout filter order with long-press pin
+• fix: keep AI credentials after reinstall restore
+• fix: restore exercise demo GIFs and show them when editing
+• feat: calculate workout calorie burn offline with MET formula
+• feat: favourite exercises and smoother workout picker
+• fix: disable thinking for local OpenAI-compatible models
+• feat: add 1500-exercise cat
