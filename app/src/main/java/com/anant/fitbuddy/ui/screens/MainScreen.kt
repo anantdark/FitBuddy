@@ -169,6 +169,8 @@ fun MainScreen(
     val alreadyPaidPromptVisible by viewModel.alreadyPaidPromptVisible.collectAsStateWithLifecycle()
     val openDonationDialogRequested by viewModel.openDonationDialogRequested.collectAsStateWithLifecycle()
     val newDonorsThankYou by viewModel.newDonorsThankYou.collectAsStateWithLifecycle()
+    val donorGallery by viewModel.donorGallery.collectAsStateWithLifecycle()
+    val lastSeenDonorDonationDate by viewModel.lastSeenDonorDonationDate.collectAsStateWithLifecycle()
 
     val keepScreenAwake = analysisState.isLoading ||
         analysisState.isReanalyzing ||
@@ -493,10 +495,19 @@ fun MainScreen(
                 },
                 onShowTestDonateReminderDialog = viewModel::showTestDonationReminderDialog,
                 onShowTestNewDonorsThankYou = viewModel::showTestNewDonorsThankYou,
+                onShowTestDonorGallery = {
+                    showSettings = false
+                    viewModel.showTestDonorGallery()
+                },
                 onShowTestDonationDialog = {
                     showSettings = false
                     viewModel.showTestDonationDialog()
                 },
+                lastSeenDonorDonationDate = lastSeenDonorDonationDate,
+                onRefreshLastSeenDonorDonationDate = viewModel::refreshLastSeenDonorDonationDate,
+                onClearLastSeenDonorDonationDate = viewModel::clearLastSeenDonorDonationDate,
+                onSetLastSeenDonorDonationDateToLatest = viewModel::setLastSeenDonorDonationDateToLatest,
+                onSetLastSeenDonorDonationDate = viewModel::setLastSeenDonorDonationDate,
                 onResetDonateReminderTimers = viewModel::resetDonationReminderTimers,
                 onRestartOnboarding = viewModel::restartOnboardingForTesting,
                 onTestNotificationSent = { ok ->
@@ -983,6 +994,10 @@ fun MainScreen(
     if (showDonationDialog) {
         DonationDialog(
             onDismiss = { showDonationDialog = false },
+            onShowDonors = {
+                showDonationDialog = false
+                viewModel.openDonorGallery()
+            },
         )
     }
 
@@ -1006,6 +1021,13 @@ fun MainScreen(
         NewDonorsThankYouDialog(
             donors = newDonorsThankYou,
             onDismiss = viewModel::dismissNewDonorsThankYou,
+        )
+    }
+
+    donorGallery?.let { donors ->
+        DonorsGalleryDialog(
+            donors = donors,
+            onDismiss = viewModel::dismissDonorGallery,
         )
     }
 

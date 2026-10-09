@@ -14,13 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -68,10 +66,10 @@ private const val UPI_PAYMENT_URI =
         "tn=Payment%20To%20Anantdark&tr=TaiXaWZZm9gukCqrv2"
 internal const val DEVELOPER_EMAIL = "fitbuddy31@proton.me"
 private const val UPI_QR_ASPECT_RATIO = 674f / 1644f
-private const val DONATION_BODY_HEIGHT_FRACTION = 0.52f
+/** Tall enough for the region step (incl. Show donors) without scrolling. */
+private const val DONATION_BODY_HEIGHT_FRACTION = 0.72f
 private val DONATION_DIALOG_MAX_WIDTH = 560.dp
-private val DONATION_BODY_MIN_HEIGHT = 240.dp
-private val DONATION_BODY_MAX_HEIGHT = 440.dp
+private val DONATION_BODY_MAX_HEIGHT = 640.dp
 private val DONATION_HEART_COLORS = listOf(
     Color(0xFFE91E63),
     Color(0xFFFF5722),
@@ -113,6 +111,7 @@ internal fun MainTopBarActions(
 @Composable
 internal fun DonationDialog(
     onDismiss: () -> Unit,
+    onShowDonors: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var step by rememberSaveable { mutableStateOf(DonationStep.REGION) }
@@ -149,6 +148,7 @@ internal fun DonationDialog(
                         context = context,
                         onIndia = { step = DonationStep.INDIA },
                         onInternational = { step = DonationStep.INTERNATIONAL },
+                        onShowDonors = onShowDonors,
                     )
                     DonationStep.INDIA -> IndiaDonationContent(
                         context = context,
@@ -185,6 +185,7 @@ private fun DonationRegionContent(
     context: Context,
     onIndia: () -> Unit,
     onInternational: () -> Unit,
+    onShowDonors: () -> Unit,
 ) {
     DonationInfoCard(
         icon = Icons.Filled.Favorite,
@@ -222,6 +223,14 @@ private fun DonationRegionContent(
         Icon(Icons.Filled.ContentCopy, contentDescription = null)
         Spacer(Modifier.size(8.dp))
         Text("Copy email")
+    }
+    OutlinedButton(
+        onClick = onShowDonors,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(Icons.Filled.Favorite, contentDescription = null)
+        Spacer(Modifier.size(8.dp))
+        Text("Show donors")
     }
 }
 
@@ -325,15 +334,14 @@ private fun UpiDonationContent(
 
 @Composable
 private fun DonationDialogContent(content: @Composable ColumnScope.() -> Unit) {
-    val height = (LocalConfiguration.current.screenHeightDp * DONATION_BODY_HEIGHT_FRACTION)
+    val maxHeight = (LocalConfiguration.current.screenHeightDp * DONATION_BODY_HEIGHT_FRACTION)
         .dp
-        .coerceIn(DONATION_BODY_MIN_HEIGHT, DONATION_BODY_MAX_HEIGHT)
+        .coerceAtMost(DONATION_BODY_MAX_HEIGHT)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(height)
-            .verticalScroll(rememberScrollState()),
+            .heightIn(max = maxHeight),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )
