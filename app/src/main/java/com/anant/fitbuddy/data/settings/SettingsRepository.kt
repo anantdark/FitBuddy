@@ -263,22 +263,38 @@ class SettingsRepository(context: Context) {
         dataStore.edit { prefs -> prefs[KEY_CACHED_DONORS_JSON] = json }
     }
 
-    suspend fun lastSeenDonorHashes(): Set<String> {
-        val raw = dataStore.data.first()[KEY_LAST_SEEN_DONOR_HASHES].orEmpty()
-        if (raw.isBlank()) return emptySet()
-        return raw.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
+    /**
+     * ISO `yyyy-MM-dd` of the latest donor donation the user has already been shown.
+     * Thank-you uses donations strictly after this date. Blank = never advanced.
+     */
+    suspend fun lastSeenDonorDonationDate(): String? {
+        val raw = dataStore.data.first()[KEY_LAST_SEEN_DONOR_DONATION_DATE].orEmpty().trim()
+        return raw.takeIf { it.isNotEmpty() }
     }
 
-    suspend fun addLastSeenDonorHashes(hashes: Collection<String>) {
-        if (hashes.isEmpty()) return
+    suspend fun setLastSeenDonorDonationDate(isoDate: String) {
+        val normalized = isoDate.trim()
+        if (normalized.isEmpty()) return
         dataStore.edit { prefs ->
-            val current = prefs[KEY_LAST_SEEN_DONOR_HASHES].orEmpty()
-                .split(',')
-                .map { it.trim().lowercase() }
-                .filter { it.isNotEmpty() }
-                .toMutableSet()
-            current.addAll(hashes.map { it.trim().lowercase() }.filter { it.isNotEmpty() })
-            prefs[KEY_LAST_SEEN_DONOR_HASHES] = current.sorted().joinToString(",")
+            prefs[KEY_LAST_SEEN_DONOR_DONATION_DATE] = normalized
+        }
+    }
+
+    suspend fun clearLastSeenDonorDonationDate() {
+        dataStore.edit { prefs ->
+            prefs.remove(KEY_LAST_SEEN_DONOR_DONATION_DATE)
+        }
+    }
+
+    /** Advances last-seen to [isoDate] only when it is strictly later than the stored value. */
+    suspend fun advanceLastSeenDonorDonationDate(isoDate: String) {
+        val next = isoDate.trim()
+        if (next.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = prefs[KEY_LAST_SEEN_DONOR_DONATION_DATE].orEmpty().trim()
+            if (current.isEmpty() || next > current) {
+                prefs[KEY_LAST_SEEN_DONOR_DONATION_DATE] = next
+            }
         }
     }
 
@@ -677,7 +693,8 @@ class SettingsRepository(context: Context) {
         val KEY_DONATION_LAST_NOTIF_AT = longPreferencesKey("donation_last_notif_at")
         val KEY_DONATION_LAST_DIALOG_AT = longPreferencesKey("donation_last_dialog_at")
         val KEY_CACHED_DONORS_JSON = stringPreferencesKey("cached_donors_json")
-        val KEY_LAST_SEEN_DONOR_HASHES = stringPreferencesKey("last_seen_donor_hashes")
+        val KEY_LAST_SEEN_DONOR_DONATION_DATE =
+            stringPreferencesKey("last_seen_donor_donation_date")
         val KEY_DONATION_REMINDER_VERSION = intPreferencesKey("donation_reminder_version_code")
         val KEY_DAY_CHANGE_HOUR = intPreferencesKey("day_change_hour")
         val KEY_DEVELOPER_UNLOCKED = booleanPreferencesKey("developer_mode_unlocked")

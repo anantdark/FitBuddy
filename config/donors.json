@@ -1,4 +1,18 @@
 {
-  "updatedAt": "2026-03-21",
-  "donors": []
+  "updatedAt": "2026-10-09",
+  "donors": [
+    {
+      "hash": "146a345312644c125e4ae4aae2ceec64fe10e2da99f451bf8d12e656d4ca460b",
+      "name": "Philautian",
+      "photoUrl": "https://raw.githubusercontent.com/anantdark/FitBuddy/main/config/donors/philautian.jpg",
+      "linkUrl": "https://www.instagram.com/philautian_art/",
+      "tags": ["og"],
+      "donations": [
+        {
+          "amountUsd": 1.0,
+          "at": "2026-10-09"
+        }
+      ]
+    }
+  ]
 }

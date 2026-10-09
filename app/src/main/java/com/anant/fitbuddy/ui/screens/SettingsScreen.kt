@@ -205,7 +205,13 @@ fun SettingsScreen(
     onShowTestDonateNotification: () -> Unit = {},
     onShowTestDonateReminderDialog: () -> Unit = {},
     onShowTestNewDonorsThankYou: () -> Unit = {},
+    onShowTestDonorGallery: () -> Unit = {},
     onShowTestDonationDialog: () -> Unit = {},
+    lastSeenDonorDonationDate: String? = null,
+    onRefreshLastSeenDonorDonationDate: () -> Unit = {},
+    onClearLastSeenDonorDonationDate: () -> Unit = {},
+    onSetLastSeenDonorDonationDateToLatest: () -> Unit = {},
+    onSetLastSeenDonorDonationDate: (isoDate: String) -> Unit = {},
     onResetDonateReminderTimers: () -> Unit = {},
     onRestartOnboarding: () -> Unit = {},
     onTestNotificationSent: (ok: Boolean) -> Unit = {},
@@ -273,6 +279,9 @@ fun SettingsScreen(
     var versionTapCount by remember { mutableIntStateOf(0) }
     var packageTapCount by remember { mutableIntStateOf(0) }
     val developerUnlocked = settings.developerModeUnlocked
+    LaunchedEffect(developerUnlocked) {
+        if (developerUnlocked) onRefreshLastSeenDonorDonationDate()
+    }
     var confettiKey by remember { mutableIntStateOf(0) }
     var showConfetti by remember { mutableStateOf(false) }
     var showReminderTimePicker by remember { mutableStateOf(false) }
@@ -1652,11 +1661,50 @@ fun SettingsScreen(
                         Text("Show new-donors thank-you")
                     }
                     OutlinedButton(
+                        onClick = onShowTestDonorGallery,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Show donors")
+                    }
+                    Text(
+                        text = "Opens the supporters gallery with demo donor cards.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
                         onClick = onShowTestDonationDialog,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Open donation dialog")
                     }
+                    Text(
+                        text = "Donor last-seen: ${lastSeenDonorDonationDate ?: "(cleared)"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(
+                        onClick = onClearLastSeenDonorDonationDate,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Clear donor last-seen date")
+                    }
+                    OutlinedButton(
+                        onClick = onSetLastSeenDonorDonationDateToLatest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Set donor last-seen to latest")
+                    }
+                    OutlinedButton(
+                        onClick = { onSetLastSeenDonorDonationDate("2020-01-01") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Set donor last-seen to 2020-01-01")
+                    }
+                    Text(
+                        text = "Clear / old date → thank-you can show again. Latest → mark all current donations seen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     OutlinedButton(
                         onClick = onResetDonateReminderTimers,
                         modifier = Modifier.fillMaxWidth()

@@ -51,6 +51,7 @@ import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.data.donors.DemoDonors
+import com.anant.fitbuddy.data.donors.DonorBadgeRules
 import com.anant.fitbuddy.data.donors.DonorEntry
 import com.anant.fitbuddy.data.donors.DonorListRepository
 import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
@@ -693,6 +694,10 @@ class MainViewModel(
     private val _newDonorsThankYou = MutableStateFlow<List<DonorEntry>>(emptyList())
     val newDonorsThankYou: StateFlow<List<DonorEntry>> = _newDonorsThankYou.asStateFlow()
 
+    /** Null = gallery closed; empty list = open with no named donors. */
+    private val _donorGallery = MutableStateFlow<List<DonorEntry>?>(null)
+    val donorGallery: StateFlow<List<DonorEntry>?> = _donorGallery.asStateFlow()
+
     private val _pendingEveningDonateReminder = MutableStateFlow(false)
 
     fun consumeOpenDonationDialogRequest() {
@@ -776,8 +781,79 @@ class MainViewModel(
         if (shown.any { it.hash.startsWith("demo-hash") }) return
         viewModelScope.launch {
             val file = donorListRepository.cachedOrEmpty()
-            val hashes = file.donors.map { it.normalizedHash }.filter { it.isNotEmpty() }
-            settingsRepository.addLastSeenDonorHashes(hashes)
+            DonorBadgeRules.latestDonationDate(file)?.let { latest ->
+                settingsRepository.advanceLastSeenDonorDonationDate(latest)
+            }
+        }
+    }
+
+    fun dismissDonorGallery() {
+        _donorGallery.value = null
+    }
+
+    fun openDonorGallery() {
+        viewModelScope.launch {
+            val file = runCatching { donorListRepository.refresh(forceNetwork = true) }
+                .getOrElse { donorListRepository.cachedOrEmpty() }
+            _donorGallery.value = donorListRepository.allDisplayableDonors(file)
+        }
+    }
+
+    /** Developer: gallery with hard-coded demo supporters (does not touch last-seen). */
+    fun showTestDonorGallery() {
+        _donorGallery.value = DemoDonors.forGallery
+    }
+
+    private val _lastSeenDonorDonationDate = MutableStateFlow<String?>(null)
+    val lastSeenDonorDonationDate: StateFlow<String?> = _lastSeenDonorDonationDate.asStateFlow()
+
+    fun refreshLastSeenDonorDonationDate() {
+        viewModelScope.launch {
+            _lastSeenDonorDonationDate.value = settingsRepository.lastSeenDonorDonationDate()
+        }
+    }
+
+    /** Developer: clear so every donation after empty floor shows in thank-you. */
+    fun clearLastSeenDonorDonationDate() {
+        viewModelScope.launch {
+            settingsRepository.clearLastSeenDonorDonationDate()
+            _lastSeenDonorDonationDate.value = null
+            showTransientMessage("Donor last-seen cleared")
+        }
+    }
+
+    /** Developer: mark everything currently in the roster as already seen. */
+    fun setLastSeenDonorDonationDateToLatest() {
+        viewModelScope.launch {
+            val file = runCatching { donorListRepository.refresh(forceNetwork = true) }
+                .getOrElse { donorListRepository.cachedOrEmpty() }
+            val latest = DonorBadgeRules.latestDonationDate(file)
+                ?: DonorBadgeRules.latestDonationDate(
+                    com.anant.fitbuddy.data.donors.DonorsFile(donors = DemoDonors.all),
+                )
+            if (latest == null) {
+                showTransientMessage("No donation dates found")
+                return@launch
+            }
+            settingsRepository.setLastSeenDonorDonationDate(latest)
+            _lastSeenDonorDonationDate.value = latest
+            showTransientMessage("Donor last-seen set to $latest")
+        }
+    }
+
+    /** Developer: set an explicit ISO date (`yyyy-MM-dd`). */
+    fun setLastSeenDonorDonationDate(isoDate: String) {
+        viewModelScope.launch {
+            val normalized = isoDate.trim()
+            if (normalized.isEmpty()) {
+                settingsRepository.clearLastSeenDonorDonationDate()
+                _lastSeenDonorDonationDate.value = null
+                showTransientMessage("Donor last-seen cleared")
+                return@launch
+            }
+            settingsRepository.setLastSeenDonorDonationDate(normalized)
+            _lastSeenDonorDonationDate.value = normalized
+            showTransientMessage("Donor last-seen set to $normalized")
         }
     }
 
@@ -810,7 +886,7 @@ class MainViewModel(
 
     /**
      * Fetches donors, toggles personal reminder after upgrades, and queues public thank-you
-     * for named donors not yet in last-seen.
+     * for named donors with donations after the last-seen donation date.
      */
     fun syncDonors() {
         viewModelScope.launch {
@@ -839,13 +915,14 @@ class MainViewModel(
                     settingsRepository.save(current.copy(donationReminderEnabled = false))
                 }
 
-                val lastSeen = settingsRepository.lastSeenDonorHashes()
-                val newcomers = donorListRepository.newDisplayableDonors(file, lastSeen)
+                val lastSeenDate = settingsRepository.lastSeenDonorDonationDate()
+                val newcomers = donorListRepository.newDisplayableDonors(file, lastSeenDate)
                 if (newcomers.isNotEmpty()) {
                     _newDonorsThankYou.value = newcomers
-                } else if (file.donors.isNotEmpty()) {
-                    val hashes = file.donors.map { it.normalizedHash }.filter { it.isNotEmpty() }
-                    settingsRepository.addLastSeenDonorHashes(hashes)
+                } else {
+                    DonorBadgeRules.latestDonationDate(file)?.let { latest ->
+                        settingsRepository.advanceLastSeenDonorDonationDate(latest)
+                    }
                 }
 
                 maybeShowEveningDonateReminder()

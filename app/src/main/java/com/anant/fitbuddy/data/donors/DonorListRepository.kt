@@ -12,7 +12,7 @@ import okhttp3.Request
 
 /**
  * Fetches the public donors list from GitHub and caches the last successful payload.
- * Matching uses [SupportIdHasher]; thank-you diffs use [SettingsRepository] last-seen hashes.
+ * Matching uses [SupportIdHasher]; thank-you diffs use last-seen donation date.
  */
 class DonorListRepository(
     private val settingsRepository: SettingsRepository,
@@ -56,19 +56,23 @@ class DonorListRepository(
     }
 
     /**
-     * Named (or otherwise displayable) donors whose hash is not in [lastSeenHashes].
+     * Named donors with at least one donation strictly after [lastSeenDonationDate].
+     * Preserves [DonorsFile.donors] array order.
      */
     fun newDisplayableDonors(
         file: DonorsFile,
-        lastSeenHashes: Set<String>,
+        lastSeenDonationDate: String?,
     ): List<DonorEntry> {
-        val seen = lastSeenHashes.map { it.trim().lowercase() }.toSet()
+        val floor = DonorDates.normalizeOrNull(lastSeenDonationDate)
         return file.donors.filter { entry ->
             entry.normalizedHash.isNotEmpty() &&
                 entry.hasDisplayInfo &&
-                entry.normalizedHash !in seen
+                DonorBadgeRules.hasDonationAfter(entry, floor)
         }
     }
+
+    fun allDisplayableDonors(file: DonorsFile): List<DonorEntry> =
+        file.donors.filter { it.hasDisplayInfo && it.normalizedHash.isNotEmpty() }
 
     private fun fetchRemote(): DonorsFile? {
         return runCatching {
@@ -87,7 +91,7 @@ class DonorListRepository(
     }
 
     private fun parse(json: String): DonorsFile? =
-        runCatching { adapter.fromJson(json) }.getOrNull()
+        runCatching { adapter.fromJson(json)?.withRosterIndices() }.getOrNull()
 
     companion object {
         const val DONORS_URL =
