@@ -586,4 +586,22 @@ data class AppSettings(
             customApiKey = customKeys.firstOrNull().orEmpty()
         )
     }
+
+    /**
+     * Keep local AI credentials when a restore/backup payload omitted them.
+     * Never replace a non-empty key list / OAuth token with empty.
+     */
+    fun withAiCredentialsPreferringNonEmpty(local: AppSettings): AppSettings = withKeys(
+        openRouterKeys = keysFor(AiProvider.OPENROUTER)
+            .ifEmpty { local.keysFor(AiProvider.OPENROUTER) },
+        geminiKeys = keysFor(AiProvider.GEMINI).ifEmpty { local.keysFor(AiProvider.GEMINI) },
+        ollamaKeys = keysFor(AiProvider.OLLAMA).ifEmpty { local.keysFor(AiProvider.OLLAMA) },
+        openAiKeys = keysFor(AiProvider.OPENAI).ifEmpty { local.keysFor(AiProvider.OPENAI) },
+        customKeys = keysFor(AiProvider.CUSTOM).ifEmpty { local.keysFor(AiProvider.CUSTOM) },
+        base = copy(
+            openRouterOAuthKey = openRouterOAuthKey.ifBlank { local.openRouterOAuthKey },
+            ollamaBaseUrl = ollamaBaseUrl.ifBlank { local.ollamaBaseUrl },
+            customBaseUrl = customBaseUrl.ifBlank { local.customBaseUrl },
+        ),
+    )
 }
