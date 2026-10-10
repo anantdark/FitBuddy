@@ -31,7 +31,10 @@
       <a href="#ai">AI &amp; keys</a>
       <a href="#region">Region</a>
       <a href="#logging">Logging</a>
+      <a href="#workouts">Workouts</a>
+      <a href="#targets">Targets</a>
       <a href="#reminders">Reminders</a>
+      <a href="#support">Support</a>
       <a href="#backup">Backups</a>
       <a href="#updates">Updates</a>
     </aside>
@@ -47,7 +50,7 @@
           <dt>Do I need an API key?</dt>
           <dd>For real AI logging, yes — OpenRouter sign-in, or a key for Gemini / OpenAI / Ollama Cloud. Local Ollama needs a reachable URL. Without a provider, the offline simulator still demos the UI.</dd>
           <dt>Which provider should I pick?</dt>
-          <dd><strong>OpenRouter</strong> is easiest for free vision models. <strong>Gemini</strong> if you have a Google AI Studio key. <strong>Ollama</strong> for local / LAN. <strong>OpenAI</strong> for direct gpt-4o access (paid).</dd>
+          <dd><strong>OpenRouter</strong> is easiest for free vision models. <strong>Gemini</strong> if you have a Google AI Studio key. <strong>Ollama</strong> for local / LAN or Ollama Cloud. <strong>OpenAI-compatible</strong> for official OpenAI or hosts like LM Studio, vLLM, LocalAI, Together, or Groq.</dd>
           <dt>What does Auto failover do?</dt>
           <dd>On failure it tries other keys/models on the <em>same</em> provider — it never jumps platforms for you.</dd>
         </dl>
@@ -75,14 +78,36 @@
         <dl class="faq">
           <dt>How accurate are calorie estimates?</dt>
           <dd>They’re model estimates, not lab measurements — especially for mixed plates. Always review weights. Weigh ingredients when precision matters.</dd>
+          <dt>Can I edit a meal or workout later?</dt>
+          <dd>Yes. Open it from the day log. Meals support live macro rescale; workouts support sets/reps/weight, demo GIFs when editing, and AI session names.</dd>
+          <dt>Barcode not found?</dt>
+          <dd>Lookups use Open Food Facts after on-device decode. FitBuddy can help you contribute a missing product; otherwise describe the food with photo or text.</dd>
+          <dt>What does “Monthly” mean on Progress?</dt>
+          <dd>A rolling 30-day window ending on the day you select — not a calendar month. The six-month burn view is a compact heatmap of exercise calories.</dd>
+        </dl>
+      </section>
+
+      <section id="workouts">
+        <h2>Workouts</h2>
+        <dl class="faq">
+          <dt>Where do exercises and GIFs come from?</dt>
+          <dd>FitBuddy ships a searchable catalog of roughly 1,500 exercises (ExerciseDB via CDN). Demo GIFs load when you pick or edit a move; the JSON catalog is cached on disk for offline picking.</dd>
+          <dt>How is workout calorie burn calculated?</dt>
+          <dd>Structured sessions use an on-device MET formula (intensity × duration × body weight). You don’t need AI online just to estimate burn for those workouts.</dd>
+          <dt>Can I favourite exercises or pin filters?</dt>
+          <dd>Yes — star exercises you reuse, and long-press a filter chip to pin it so the picker stays ordered the way you train.</dd>
+        </dl>
+      </section>
+
+      <section id="targets">
+        <h2>Targets</h2>
+        <dl class="faq">
           <dt>How are calorie and macro targets calculated?</dt>
           <dd>FitBuddy calculates adult target candidates deterministically on-device from your profile, activity, and goal. Consistent body and food history may support one bounded adjustment; optional AI can only select an exact local candidate. Read the full <a href="health-target-methodology.html">health target methodology</a>.</dd>
-          <dt>Can I edit a meal or workout later?</dt>
-          <dd>Yes. Open it from the day log. Meals support live macro rescale; workouts support sets/reps/weight and AI session names.</dd>
-          <dt>Barcode not found?</dt>
-          <dd>Lookups use Open Food Facts after on-device decode. Regional products may be missing — describe the food instead.</dd>
-          <dt>What does “Monthly” mean on Progress?</dt>
-          <dd>A rolling 30-day window ending on the day you select — not a calendar month.</dd>
+          <dt>Can I set targets myself?</dt>
+          <dd>Yes — save calorie and macro targets manually anytime. Calculated plans remain available when you want a fresh proposal.</dd>
+          <dt>Why didn’t my old days’ targets change when I updated my goal?</dt>
+          <dd>By design. Past log days keep the targets that applied then so Progress history stays accurate.</dd>
         </dl>
       </section>
 
@@ -91,6 +116,16 @@
         <dl class="faq">
           <dt>How do daily reminders work?</dt>
           <dd>Settings → Daily log reminder. Allow notifications; for timely delivery also allow Alarms &amp; reminders.</dd>
+        </dl>
+      </section>
+
+      <section id="support">
+        <h2>Support</h2>
+        <dl class="faq">
+          <dt>How do donations work?</dt>
+          <dd>Optional. India installs are offered Razorpay (UPI/cards); other regions use GitHub Sponsors. Payment apps open only when you choose them.</dd>
+          <dt>What are supporter thank-you cards?</dt>
+          <dd>Named public supporters can appear on flip thank-you cards in the app. Optional support reminders stop once your Support ID is on that public list.</dd>
         </dl>
       </section>
 
@@ -109,8 +144,10 @@
         <dl class="faq">
           <dt>F-Droid vs GitHub APK?</dt>
           <dd>Same codebase, different signing keys. Don’t install one over the other expecting a seamless update — pick a channel and stay on it.</dd>
+          <dt>How do F-Droid updates work?</dt>
+          <dd>F-Droid delivers updates through the F-Droid client. FitBuddy’s F-Droid build can also check for a newer package and point you at F-Droid when one is available.</dd>
           <dt>How do GitHub updates work?</dt>
-          <dd>Update checks open the APK download in your browser. FitBuddy does not sideload installers itself.</dd>
+          <dd>Update checks open the APK download in your browser. FitBuddy does not sideload installers itself. The GitHub checker is disabled on the F-Droid flavor.</dd>
         </dl>
       </section>
 

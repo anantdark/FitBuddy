@@ -34,9 +34,11 @@
       <a href="#first">First-run setup</a>
       <a href="#log">Log food</a>
       <a href="#workout">Log workouts</a>
+      <a href="#targets">Targets</a>
       <a href="#progress">Progress</a>
       <a href="#ai">AI providers</a>
       <a href="#backup">Backups</a>
+      <a href="#support">Support</a>
       <a href="#tips">Tips</a>
     </aside>
 
@@ -99,29 +101,55 @@
         <ol>
           <li>Tap the log / + action and choose food.</li>
           <li>
-            Take a photo of the plate <em>or</em> type a freeform description
-            (hints match your region pack).
+            Take a photo of the plate, type a freeform description (hints match your
+            region pack), or <strong>scan a barcode</strong> for packaged foods.
           </li>
           <li>Wait for analysis, then open <strong>meal review</strong>.</li>
           <li>Fix the dish name, drag ingredient weights, confirm macros feel right.</li>
           <li>Save. Bookmark as a <strong>preset</strong> if you’ll eat it again.</li>
         </ol>
+        <p>
+          Barcode lookups use Open Food Facts after on-device decode. If a product is
+          missing, FitBuddy can walk you through contributing it so later scans succeed.
+        </p>
         <p>You can always edit a past entry from the day log.</p>
       </section>
 
       <section id="workout">
         <h2>Log workouts</h2>
         <p>
-          Log a session with AI (e.g. “45 min walk”) or build a structured workout with
-          sets, reps, and weight. Simple AI logs can be upgraded into full editable sessions later.
+          Log a session with AI (e.g. “45 min walk”) or build a structured workout from the
+          <strong>1,500+ exercise catalog</strong> — demo GIFs, favourites, body-part and
+          equipment filters, recent and frequent picks, and long-press to pin filter order.
+        </p>
+        <p>
+          Structured sessions estimate calorie burn <strong>offline</strong> with a MET
+          formula (your body weight × intensity × duration). Simple AI logs can be upgraded
+          into full editable sessions later; editing still shows the demo GIF when available.
+        </p>
+      </section>
+
+      <section id="targets">
+        <h2>Calorie &amp; macro targets</h2>
+        <p>
+          Enter targets manually, or calculate adult candidates on-device from your profile,
+          activity, and goal. Consistent body and nutrition trends may support one bounded
+          adjustment; optional AI can only pick an exact local candidate.
+        </p>
+        <p>
+          When you change a goal, <strong>past days keep the targets they had</strong> —
+          history charts stay honest. Full formulas:
+          <a href="../health-target-methodology.html">health target methodology</a>.
         </p>
       </section>
 
       <section id="progress">
         <h2>Progress</h2>
         <p>
-          The Progress tab shows trends over a rolling window — weight, calories, macros —
-          drawn on-device. Optional Progress Coach can summarize patterns using your AI provider.
+          The Progress tab shows weekly or rolling 30-day calorie intake vs target,
+          body charts toward your target weight, and a compact six-month calorie-burn
+          heatmap — all drawn on-device. Optional Progress Coach can summarize patterns
+          using your AI provider.
         </p>
       </section>
 
@@ -133,8 +161,8 @@
           <tbody>
             <tr><td>OpenRouter</td><td>Free vision models; optional account sign-in</td></tr>
             <tr><td>Gemini</td><td>Google AI Studio key</td></tr>
-            <tr><td>OpenAI</td><td>Direct API key</td></tr>
-            <tr><td>Ollama / compatible</td><td>Local or any OpenAI-compatible host</td></tr>
+            <tr><td>Ollama</td><td>Local LAN or Ollama Cloud</td></tr>
+            <tr><td>OpenAI-compatible</td><td>Official OpenAI, LM Studio, vLLM, LocalAI, Together, Groq, etc.</td></tr>
           </tbody>
         </table>
         <p>Keys stay in on-device DataStore. They are only sent to the provider you selected when you run an analysis.</p>
@@ -148,12 +176,23 @@
         </p>
       </section>
 
+      <section id="support">
+        <h2>Support the developer</h2>
+        <p>
+          Optional donations route by region — Razorpay (UPI/cards) in India, GitHub Sponsors
+          internationally. Named supporters appear on thank-you cards. An occasional support
+          reminder turns off automatically when your Support ID is on the public supporter list.
+        </p>
+      </section>
+
       <section id="tips">
         <h2>Tips</h2>
         <ul>
           <li>Well-lit photos of the whole plate work better than close-ups of one bowl.</li>
           <li>Presets beat re-analyzing the same breakfast every day.</li>
+          <li>Favourite exercises and pin filters once — the workout picker gets out of the way.</li>
           <li>Pick the region pack that matches your usual meals for better priors and portion language.</li>
+          <li>F-Droid installs can check for updates from inside the app; GitHub APKs use the release checker.</li>
           <li>Turn on reminders in Settings if you forget to log.</li>
           <li>Crash reports are optional and anonymous — opt out anytime.</li>
         </ul>

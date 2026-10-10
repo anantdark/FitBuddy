@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FitBuddy — AI health tracker with region-aware diets</title>
-  <meta name="description" content="Log meals with a photo or freeform text. FitBuddy estimates calories and macros — region-aware packs, offline-capable, open source for Android." />
+  <meta name="description" content="Log meals with a photo, text, or barcode. FitBuddy estimates calories and macros — region packs, 1,500+ exercise catalog, offline-capable, open source for Android." />
   <meta property="og:title" content="FitBuddy — Log the plate. Track the burn." />
-  <meta property="og:description" content="AI-powered Android health tracker with region-aware diets. Photo or text in, calories and macros out." />
+  <meta property="og:description" content="AI-powered Android health tracker with region-aware diets, barcode lookup, and a full workout catalog. Photo or text in, calories and macros out." />
   <meta property="og:image" content="https://anantdark.github.io/FitBuddy/assets/hero.jpg" />
   <meta property="og:url" content="https://anantdark.github.io/FitBuddy/" />
   <link rel="canonical" href="https://anantdark.github.io/FitBuddy/" />
@@ -24,6 +24,7 @@
     <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <nav id="site-nav">
       <a href="#how">How it works</a>
+      <a href="#whats-new">What’s new</a>
       <a href="docs/">Guide</a>
       <a href="faq.html">FAQ</a>
       <a href="#download">Download</a>
@@ -75,7 +76,7 @@
 
     <section class="features">
       <h2>Built for how you actually eat.</h2>
-      <p class="section-lede">Home cooking, takeout, leftovers — freeform text and photos both work.</p>
+      <p class="section-lede">Home cooking, takeout, leftovers — freeform text, photos, and barcodes all work.</p>
       <ul class="feature-list">
         <li>
           <h3>Region packs</h3>
@@ -83,23 +84,57 @@
         </li>
         <li>
           <h3>Smart logging</h3>
-          <p>Photo or loose text. Your chosen AI estimates calories and macros for the foods you actually eat.</p>
+          <p>Photo, loose text, or barcode scan. Your chosen AI estimates calories and macros; packaged foods look up Open Food Facts.</p>
         </li>
         <li>
           <h3>Meal review</h3>
           <p>Edit the dish name, tweak ingredient weights, watch macros update live. Save presets for next time.</p>
         </li>
         <li>
-          <h3>Workouts that stick</h3>
-          <p>Structured sessions with sets and reps, or upgrade a simple AI log into a full workout.</p>
+          <h3>Exercise catalog</h3>
+          <p>Build structured sessions from 1,500+ moves with demo GIFs, favourites, body-part and equipment filters, and pinned filter order. Offline MET estimates calorie burn without a network call.</p>
         </li>
         <li>
           <h3>Private by default</h3>
-          <p>Logs live on-device. Encrypted backups optional. Bring your own AI key — OpenRouter, Gemini, OpenAI, or Ollama.</p>
+          <p>Logs live on-device. Encrypted backups optional. Bring your own AI key — OpenRouter, Gemini, Ollama, or any OpenAI-compatible host.</p>
         </li>
         <li>
           <h3>Transparent targets</h3>
-          <p>Calorie and macro candidates are calculated on-device with published rules, bounded trend feedback, and optional constrained AI selection. <a href="health-target-methodology.html">Read the methodology</a>.</p>
+          <p>Set calorie and macro targets by hand, or calculate on-device with published rules, bounded trend feedback, and optional constrained AI selection. Past daily targets stay put when your goal changes. <a href="health-target-methodology.html">Read the methodology</a>.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section class="strip" id="whats-new">
+      <h2>What’s new</h2>
+      <p class="section-lede">
+        Shipped since the last site update — also covered in the
+        <a href="docs/">guide</a> and <a href="faq.html">FAQ</a>.
+      </p>
+      <ul class="feature-list">
+        <li>
+          <h3>Workout picker</h3>
+          <p>Full ExerciseDB catalog with CDN demo GIFs, favourites, recent/frequent picks, smarter filter order, and long-press to pin filters you use most.</p>
+        </li>
+        <li>
+          <h3>Offline burn estimates</h3>
+          <p>Structured workouts estimate calories on-device with a MET formula — no AI round-trip required for burn numbers.</p>
+        </li>
+        <li>
+          <h3>Barcode contributions</h3>
+          <p>When a packaged product is missing, FitBuddy helps you add it through Open Food Facts so the next scan finds it.</p>
+        </li>
+        <li>
+          <h3>Manual targets &amp; history</h3>
+          <p>Save your own calorie and macro targets. Changing a goal no longer rewrites past days — history keeps the targets you had then.</p>
+        </li>
+        <li>
+          <h3>Progress heatmap</h3>
+          <p>A compact six-month calorie-burn heatmap on Progress, alongside weekly and rolling 30-day intake charts.</p>
+        </li>
+        <li>
+          <h3>Updates &amp; support</h3>
+          <p>F-Droid builds can check for updates in-app. Donations route by region (UPI/cards in India, GitHub Sponsors elsewhere). Named supporters get thank-you cards; support reminders stop once your Support ID is on the public list.</p>
         </li>
       </ul>
     </section>
