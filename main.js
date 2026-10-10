@@ -24,7 +24,7 @@
   // Scroll reveal for major sections
   if (!reduce) {
     const targets = document.querySelectorAll(
-      ".strip, .features, .steps, .compare, .feature-list li, .step-list li"
+      ".strip, .features, .steps, .compare, .feature-list li, .step-list li, .supporter-grid"
     );
     targets.forEach((el) => el.classList.add("reveal"));
     const io = new IntersectionObserver(
