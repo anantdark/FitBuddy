@@ -1,0 +1,4 @@
+• fix: prevent Android 14 accessibility startup crashes
+• fix: prevent progress heatmap accessibility crash
+• fix: keep body goals synced with latest readings
+• feat: allow manual calorie and macro targets
