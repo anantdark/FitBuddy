@@ -141,6 +141,18 @@ class SettingsRepository(context: Context) {
                 if (prov != null && raw.isNotBlank() && !isPlausibleModelIdFor(prov, raw)) "" else raw
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
+            colorTheme = prefs[KEY_COLOR_THEME]?.let {
+                runCatching { AppColorTheme.valueOf(it) }.getOrNull()
+            } ?: AppColorTheme.BRAND,
+            fontOption = prefs[KEY_FONT_OPTION]?.let {
+                runCatching { AppFontOption.valueOf(it) }.getOrNull()
+            } ?: AppFontOption.DEFAULT,
+            componentStyle = prefs[KEY_COMPONENT_STYLE]?.let { raw ->
+                when (raw) {
+                    "BLOCK" -> AppComponentStyle.MAKO // renamed Block → Mako
+                    else -> runCatching { AppComponentStyle.valueOf(raw) }.getOrNull()
+                }
+            } ?: AppComponentStyle.MATERIAL,
             analyzingAnimationChoice = analyzingAnim,
             insightAnimationChoice = insightAnim,
             animationsEnabled = analyzingAnim != AppSettings.LOADING_ANIM_OFF ||
@@ -407,6 +419,9 @@ class SettingsRepository(context: Context) {
                 prefs[showPaidKey(p)] = settings.showPaidFor(p)
             }
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
+            prefs[KEY_COLOR_THEME] = settings.colorTheme.name
+            prefs[KEY_FONT_OPTION] = settings.fontOption.name
+            prefs[KEY_COMPONENT_STYLE] = settings.componentStyle.name
             prefs[KEY_ANALYZING_ANIMATION_CHOICE] = settings.analyzingAnimationChoice
             prefs[KEY_INSIGHT_ANIMATION_CHOICE] = settings.insightAnimationChoice
             prefs[KEY_ANIMATIONS_ENABLED] =
@@ -657,6 +672,9 @@ class SettingsRepository(context: Context) {
         val KEY_ACTIVE_PHOTO_MODEL = stringPreferencesKey("active_photo_model")
         val KEY_ACTIVE_TEXT_MODEL = stringPreferencesKey("active_text_model")
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val KEY_COLOR_THEME = stringPreferencesKey("color_theme")
+        val KEY_FONT_OPTION = stringPreferencesKey("font_option")
+        val KEY_COMPONENT_STYLE = stringPreferencesKey("component_style")
         val KEY_ANALYZING_ANIMATION_CHOICE = stringPreferencesKey("analyzing_animation_choice")
         val KEY_INSIGHT_ANIMATION_CHOICE = stringPreferencesKey("insight_animation_choice")
         /** Legacy single-choice key; read for migration only. */

@@ -34,7 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -319,7 +319,7 @@ fun ExercisePickerSheet(
                                     }
                                 }
                             },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = appShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -602,7 +602,7 @@ private fun HaloGrowFilterChip(
                         scaleY = grow
                         alpha = (0.55f * (1f - progress * 0.35f)).coerceIn(0.12f, 0.55f)
                     }
-                    .background(primary.copy(alpha = 0.28f), RoundedCornerShape(22.dp))
+                    .background(primary.copy(alpha = 0.28f), appShape(22.dp))
             )
             Box(
                 modifier = Modifier
@@ -613,7 +613,7 @@ private fun HaloGrowFilterChip(
                         scaleY = grow
                         alpha = (0.4f * (1f - progress)).coerceIn(0f, 0.4f)
                     }
-                    .background(primary.copy(alpha = 0.18f), RoundedCornerShape(24.dp))
+                    .background(primary.copy(alpha = 0.18f), appShape(24.dp))
             )
         }
         FilterChip(
@@ -621,7 +621,7 @@ private fun HaloGrowFilterChip(
             onClick = {},
             label = { Text(label) },
             enabled = enabled,
-            shape = RoundedCornerShape(20.dp),
+            shape = appShape(20.dp),
             colors = FilterChipDefaults.filterChipColors(
                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                 selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -732,7 +732,7 @@ private fun ExercisePreviewPane(
                     animated = true,
                     modifier = Modifier
                         .size(240.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(appShape(16.dp))
                 )
             }
 
@@ -785,7 +785,7 @@ private fun ExercisePreviewPane(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(14.dp)
+            shape = appShape(14.dp)
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
@@ -819,7 +819,7 @@ fun ExercisePickerRow(
         modifier = Modifier
             .fillMaxWidth()
             .pressable(enabled = enabled, onClick = onPick),
-        shape = RoundedCornerShape(16.dp),
+        shape = appShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
@@ -897,7 +897,7 @@ fun CustomExerciseRow(name: String, isLoading: Boolean, onPick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .pressable(enabled = !isLoading, onClick = onPick),
-        shape = RoundedCornerShape(16.dp),
+        shape = appShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Row(
@@ -930,7 +930,7 @@ fun ExerciseGifThumb(
     val context = LocalContext.current
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(appShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {

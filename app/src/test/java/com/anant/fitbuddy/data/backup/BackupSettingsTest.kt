@@ -14,6 +14,9 @@ import com.anant.fitbuddy.data.model.LoggedIngredient
 import com.anant.fitbuddy.data.model.PresetMealFood
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.settings.AiProvider
+import com.anant.fitbuddy.data.settings.AppColorTheme
+import com.anant.fitbuddy.data.settings.AppComponentStyle
+import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,6 +61,9 @@ class BackupSettingsTest {
                 activePhotoModel = "gemini-2.5-flash",
                 activeTextModel = "gemini-2.5-flash-lite",
                 dynamicColor = false,
+                colorTheme = AppColorTheme.CATPPUCCIN_MOCHA,
+                fontOption = AppFontOption.JERSEY_25,
+                componentStyle = AppComponentStyle.MAKO,
                 analyzingAnimationChoice = AppSettings.LOADING_ANIM_OFF,
                 insightAnimationChoice = AppSettings.LOADING_ANIM_OFF,
                 animationsEnabled = false,

@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -30,12 +29,9 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,8 +51,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.R
+import com.anant.fitbuddy.ui.components.Button
+import com.anant.fitbuddy.ui.components.FilledTonalButton
 import com.anant.fitbuddy.ui.components.IconButton
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.TextButton
+import com.anant.fitbuddy.ui.theme.appShape
 import com.anant.fitbuddy.util.SystemToast
 
 private const val RAZORPAY_DONATION_URL = "https://rzp.io/rzp/fitbuddy"
@@ -322,7 +322,7 @@ private fun UpiDonationContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(UPI_QR_ASPECT_RATIO)
-                .clip(RoundedCornerShape(12.dp)),
+                .clip(appShape(12.dp)),
         )
         Text(
             "Before paying, verify that the recipient is Anantdark.",
@@ -355,7 +355,7 @@ private fun DonationInfoCard(
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = RoundedCornerShape(16.dp),
+        shape = appShape(16.dp),
     ) {
         Row(
             modifier = Modifier

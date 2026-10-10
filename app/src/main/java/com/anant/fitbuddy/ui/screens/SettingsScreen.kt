@@ -12,7 +12,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
@@ -23,6 +23,7 @@ import com.anant.fitbuddy.R
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
@@ -77,7 +78,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
@@ -89,11 +89,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -108,6 +110,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.util.SystemToast
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -120,6 +123,9 @@ import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.settings.AiProvider
+import com.anant.fitbuddy.data.settings.AppColorTheme
+import com.anant.fitbuddy.data.settings.AppComponentStyle
+import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
@@ -127,6 +133,7 @@ import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
 import com.anant.fitbuddy.data.settings.parseApiKeys
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
+import com.anant.fitbuddy.ui.components.AppSwitch
 import com.anant.fitbuddy.ui.components.Button
 import com.anant.fitbuddy.ui.components.ConfettiOverlay
 import com.anant.fitbuddy.ui.components.CraftedWithLoveCredit
@@ -228,6 +235,9 @@ fun SettingsScreen(
     onRegenerateSupportId: () -> Unit = {},
     /** Settings-only: ♥ double-tap also sends a Sentry heartbeat (when reporting is on). */
     onHeartDoubleTapHeartbeat: () -> Unit = {},
+    /** Themes section unlock — true when this install's Support ID is on the donors list. */
+    isSupporter: Boolean = false,
+    onDonate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -864,7 +874,195 @@ fun SettingsScreen(
             }
         }
 
-        // --- Preferences (reminders + appearance + region) -------------------------------
+        // --- Themes (colors + fonts) — supporters only ------------------------------------
+        var themesLockToastAt by remember { mutableLongStateOf(0L) }
+        var showThemesSupportDialog by remember { mutableStateOf(false) }
+        SettingsCard(
+            title = "Themes",
+            initiallyExpanded = false,
+            // Force Sentry proxy (dev) unlocks for local testing; shipping UI stays supporter-gated.
+            unlocked = isSupporter || settings.forceSentryProxyMode,
+            onLockedExpandAttempt = {
+                val now = SystemClock.elapsedRealtime()
+                if (themesLockToastAt > 0L && now - themesLockToastAt < 5_000L) {
+                    showThemesSupportDialog = true
+                } else {
+                    themesLockToastAt = now
+                    SystemToast.show(context, "Available for supporters")
+                }
+            },
+        ) {
+            SettingToggleRow(
+                title = "Material You",
+                checked = settings.dynamicColor,
+                onCheckedChange = onDynamicColorChange,
+                hintTitle = "Material You",
+                hint = "Use wallpaper-based dynamic colors (Android 12+). " +
+                    "Turn off to pick a static FitBuddy or Catppuccin palette."
+            )
+            if (!settings.dynamicColor) {
+                var themeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = themeExpanded,
+                    onExpandedChange = { themeExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = settings.colorTheme.displayName(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Color theme") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = themeExpanded)
+                        },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = themeExpanded,
+                        onDismissRequest = { themeExpanded = false }
+                    ) {
+                        AppColorTheme.entries.forEach { theme ->
+                            DropdownMenuItem(
+                                text = { Text(theme.displayName()) },
+                                onClick = {
+                                    onSaveQuiet(settings.copy(colorTheme = theme))
+                                    themeExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "FitBuddy follows system light/dark. Catppuccin Latte is light; " +
+                        "Frappé, Macchiato, and Mocha are dark.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            HorizontalDivider()
+            Text(
+                text = "Components",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            var componentExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = componentExpanded,
+                onExpandedChange = { componentExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = settings.componentStyle.displayName(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Component style") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = componentExpanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = componentExpanded,
+                    onDismissRequest = { componentExpanded = false }
+                ) {
+                    AppComponentStyle.entries.forEach { style ->
+                        DropdownMenuItem(
+                            text = { Text(style.displayName()) },
+                            onClick = {
+                                onSaveQuiet(settings.copy(componentStyle = style))
+                                componentExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Material keeps soft rounded corners. Mako uses sharp, flat panels " +
+                    "and mixes with any color theme or font.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            HorizontalDivider()
+            Text(
+                text = "Font",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            var fontExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = fontExpanded,
+                onExpandedChange = { fontExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = settings.fontOption.displayName(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("App font") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = fontExpanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = fontExpanded,
+                    onDismissRequest = { fontExpanded = false }
+                ) {
+                    AppFontOption.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.displayName()) },
+                            onClick = {
+                                onSaveQuiet(settings.copy(fontOption = option))
+                                fontExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Applies app-wide. The Mako font pairs well with Mako components.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (showThemesSupportDialog) {
+            AlertDialog(
+                onDismissRequest = { showThemesSupportDialog = false },
+                title = { Text("Themes") },
+                text = {
+                    Text(
+                        "Themes are available exclusively for supporters. " +
+                            "Donate to get access.",
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showThemesSupportDialog = false
+                            onDonate()
+                        },
+                    ) {
+                        Text("Donate")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showThemesSupportDialog = false }) {
+                        Text("Not now")
+                    }
+                },
+            )
+        }
+
+        // --- Preferences (reminders + animations + region) -------------------------------
         SettingsCard(title = "Preferences", initiallyExpanded = false) {
             SettingToggleRow(
                 title = "Daily log reminder",
@@ -893,26 +1091,6 @@ fun SettingsScreen(
                 hintTitle = "Daily log reminder",
                 hint = "Local notification once a day (no Google Play Services). " +
                     "Default time is 8:00 PM."
-            )
-            SettingToggleRow(
-                title = "Donate reminder",
-                checked = settings.donationReminderEnabled,
-                onCheckedChange = { enabled ->
-                    if (!enabled) {
-                        onSave(settings.copy(donationReminderEnabled = false))
-                        return@SettingToggleRow
-                    }
-                    if (
-                        needsNotificationPermission &&
-                        !notificationPermission.status.isGranted
-                    ) {
-                        notificationPermission.launchPermissionRequest()
-                    }
-                    onSave(settings.copy(donationReminderEnabled = true))
-                },
-                hintTitle = "Donate reminder",
-                hint = "Optional morning notification and evening dialog every 3–8 days. " +
-                    "Turns off automatically if your Support ID is on the donor list."
             )
             if (settings.dailyLogReminderEnabled) {
                 val hour12 = settings.dailyLogReminderHour % 12
@@ -970,13 +1148,6 @@ fun SettingsScreen(
                     ) { Text("Allow exact alarms") }
                 }
             }
-            SettingToggleRow(
-                title = "Material You",
-                checked = settings.dynamicColor,
-                onCheckedChange = onDynamicColorChange,
-                hintTitle = "Material You",
-                hint = "Use wallpaper-based dynamic colors (Android 12+)."
-            )
             SettingToggleRow(
                 title = "Loading animations",
                 checked = settings.animationsEnabled,
@@ -2229,14 +2400,40 @@ private fun SettingsCard(
     initiallyExpanded: Boolean = true,
     hintTitle: String? = null,
     hint: String? = null,
+    /** When false, header is greyed and expand taps call [onLockedExpandAttempt] instead. */
+    unlocked: Boolean = true,
+    onLockedExpandAttempt: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded || !collapsible) }
+    LaunchedEffect(unlocked) {
+        if (!unlocked) expanded = false
+    }
+
+    fun onHeaderClick() {
+        if (!unlocked) {
+            onLockedExpandAttempt?.invoke()
+            return
+        }
+        if (collapsible) expanded = !expanded
+    }
+
+    val locked = !unlocked
+    val cardColors = if (locked) {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
+            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
+    } else {
+        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (locked) Modifier.alpha(0.72f) else Modifier),
+        colors = cardColors,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (locked) 0.dp else 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -2252,28 +2449,38 @@ private fun SettingsCard(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = if (locked) {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (collapsible) {
-                                Modifier.clickable { expanded = !expanded }
+                            if (collapsible || locked) {
+                                Modifier.clickable(onClick = ::onHeaderClick)
                             } else {
                                 Modifier
                             }
                         )
                 )
-                if (hint != null && hintTitle != null) {
+                if (hint != null && hintTitle != null && unlocked) {
                     HintIconButton(title = hintTitle, message = hint)
                 }
                 if (collapsible) {
                     Icon(
                         imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                         contentDescription = if (expanded) "Collapse" else "Expand",
-                        modifier = Modifier.clickable { expanded = !expanded }
+                        tint = if (locked) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.clickable(onClick = ::onHeaderClick)
                     )
                 }
             }
-            AnimatedVisibility(visible = expanded || !collapsible) {
+            AnimatedVisibility(visible = (expanded || !collapsible) && unlocked) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     content()
                 }
@@ -2360,7 +2567,7 @@ private fun SettingToggleRow(
         if (hint != null && hintTitle != null) {
             HintIconButton(title = hintTitle, message = hint)
         }
-        Switch(
+        AppSwitch(
             checked = checked,
             onCheckedChange = { dismiss(); onCheckedChange(it) },
             enabled = enabled
@@ -2649,7 +2856,7 @@ private fun RainbowCreditBadge(name: String, onClick: () -> Unit) {
             .border(
                 width = 1.5.dp,
                 brush = rainbowBorderBrush(hue),
-                shape = RoundedCornerShape(8.dp)
+                shape = appShape(8.dp)
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 3.dp)
@@ -2953,7 +3160,7 @@ internal fun <T> ProviderSelectorGrid(
     modifier: Modifier = Modifier,
     columns: Int = 2
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = appShape(20.dp)
     val outline = MaterialTheme.colorScheme.outline
     Column(
         modifier = modifier

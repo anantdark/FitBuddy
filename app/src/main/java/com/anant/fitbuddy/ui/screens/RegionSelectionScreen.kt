@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -119,7 +119,7 @@ fun RegionSelectionScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(140.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(appShape(16.dp))
                     ) {
                         RegionFlagCanvas(
                             region = selectedRegion,
@@ -316,7 +316,7 @@ private fun RegionOptionCard(region: AppRegion, selected: Boolean, onClick: () -
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(appShape(8.dp))
                 ) {
                     RegionFlagThumbnail(region = region, modifier = Modifier.fillMaxSize())
                 }

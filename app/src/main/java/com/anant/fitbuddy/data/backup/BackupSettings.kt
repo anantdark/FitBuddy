@@ -2,6 +2,9 @@ package com.anant.fitbuddy.data.backup
 
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.settings.AiProvider
+import com.anant.fitbuddy.data.settings.AppColorTheme
+import com.anant.fitbuddy.data.settings.AppComponentStyle
+import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.JsonClass
 
@@ -61,6 +64,9 @@ data class BackupSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
+    val colorTheme: String = AppColorTheme.BRAND.name,
+    val fontOption: String = AppFontOption.DEFAULT.name,
+    val componentStyle: String = AppComponentStyle.MATERIAL.name,
     /** Empty = absent; restore falls back to [loadingAnimationChoice] / [animationsEnabled]. */
     val analyzingAnimationChoice: String = "",
     /** Empty = absent; restore falls back to [loadingAnimationChoice] / [animationsEnabled]. */
@@ -161,6 +167,15 @@ data class BackupSettings(
                 activePhotoModel = activePhotoModel,
                 activeTextModel = activeTextModel,
                 dynamicColor = dynamicColor,
+                colorTheme = runCatching { AppColorTheme.valueOf(colorTheme) }
+                    .getOrDefault(AppColorTheme.BRAND),
+                fontOption = runCatching { AppFontOption.valueOf(fontOption) }
+                    .getOrDefault(AppFontOption.DEFAULT),
+                componentStyle = when (componentStyle) {
+                    "BLOCK" -> AppComponentStyle.MAKO
+                    else -> runCatching { AppComponentStyle.valueOf(componentStyle) }
+                        .getOrDefault(AppComponentStyle.MATERIAL)
+                },
                 analyzingAnimationChoice = resolvedSlotChoice(analyzingAnimationChoice, analyzingSlot = true),
                 insightAnimationChoice = resolvedSlotChoice(insightAnimationChoice, analyzingSlot = false),
                 animationsEnabled = run {
@@ -233,6 +248,9 @@ data class BackupSettings(
             activePhotoModel = settings.activePhotoModel,
             activeTextModel = settings.activeTextModel,
             dynamicColor = settings.dynamicColor,
+            colorTheme = settings.colorTheme.name,
+            fontOption = settings.fontOption.name,
+            componentStyle = settings.componentStyle.name,
             analyzingAnimationChoice = settings.analyzingAnimationChoice,
             insightAnimationChoice = settings.insightAnimationChoice,
             loadingAnimationChoice = "",

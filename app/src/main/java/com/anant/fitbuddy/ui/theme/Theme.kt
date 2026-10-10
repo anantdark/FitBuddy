@@ -3,13 +3,11 @@ package com.anant.fitbuddy.ui.theme
 import android.content.res.Resources
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.RippleAlpha
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RippleConfiguration
-import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -18,8 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.crash.CrashReporter
+import com.anant.fitbuddy.data.settings.AppColorTheme
+import com.anant.fitbuddy.data.settings.AppComponentStyle
+import com.anant.fitbuddy.data.settings.AppFontOption
 
 private val DarkColorScheme = darkColorScheme(
     primary = GreenPrimaryDark,
@@ -35,15 +35,6 @@ private val LightColorScheme = lightColorScheme(
     secondary = GreenSecondary,
     tertiary = TealTertiary,
     error = WarmError
-)
-
-// Softer, more modern rounded corners app-wide (cards, buttons, sheets, dialogs).
-private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(28.dp),
-    extraLarge = RoundedCornerShape(36.dp)
 )
 
 /**
@@ -62,26 +53,45 @@ private val PrimarySparkleRippleAlpha = RippleAlpha(
 fun FitBuddyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Material You on by default: pull wallpaper-based dynamic color on Android 12+.
-    // Falls back to FitBuddy green brand scheme on older devices.
+    // Falls back to [colorTheme] (brand or Catppuccin) when off / unavailable.
     dynamicColor: Boolean = true,
+    colorTheme: AppColorTheme = AppColorTheme.BRAND,
+    fontOption: AppFontOption = AppFontOption.DEFAULT,
+    componentStyle: AppComponentStyle = AppComponentStyle.MATERIAL,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val brandScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val systemDark = isSystemInDarkTheme()
+    // Material You follows system day/night. Static themes: Catppuccin Latte is light,
+    // other Catppuccin flavors are dark; FitBuddy brand follows [darkTheme]/system.
+    val useDark = when {
+        dynamicColor -> systemDark
+        else -> colorTheme.forcesDark() ?: darkTheme
+    }
+
+    val brandScheme = if (useDark) DarkColorScheme else LightColorScheme
     val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val colorScheme = remember(useDynamic, darkTheme, context) {
-        if (!useDynamic) return@remember brandScheme
-        // Some device/OS builds fail to resolve the framework system_* accent palette
-        // (android res package 0x0106xxxx) and throw NotFoundException from getColor,
-        // crashing at startup. Fall back to the brand scheme and leave a breadcrumb so
-        // the failure is observable without swallowing unrelated errors.
-        try {
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        } catch (e: Resources.NotFoundException) {
-            CrashReporter.breadcrumb("theme", "dynamic color unavailable, using brand scheme")
-            brandScheme
+    val colorScheme = remember(useDynamic, useDark, colorTheme, context) {
+        if (useDynamic) {
+            // Some device/OS builds fail to resolve the framework system_* accent palette
+            // (android res package 0x0106xxxx) and throw NotFoundException from getColor,
+            // crashing at startup. Fall back to the brand scheme and leave a breadcrumb so
+            // the failure is observable without swallowing unrelated errors.
+            try {
+                if (useDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } catch (e: Resources.NotFoundException) {
+                CrashReporter.breadcrumb("theme", "dynamic color unavailable, using brand scheme")
+                brandScheme
+            }
+        } else {
+            Catppuccin.colorScheme(colorTheme) ?: brandScheme
         }
     }
+
+    val typography = remember(fontOption) {
+        appTypography(appFontFamily(fontOption))
+    }
+    val shapes = remember(componentStyle) { shapesFor(componentStyle) }
 
     // Tint Material sparkle ripples with dynamic primary (wallpaper green when
     // Material You is on). Platform RippleDrawable supplies the sparkle on API 31+.
@@ -94,10 +104,13 @@ fun FitBuddyTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
-        shapes = AppShapes
+        typography = typography,
+        shapes = shapes
     ) {
-        CompositionLocalProvider(LocalRippleConfiguration provides primaryRipple) {
+        CompositionLocalProvider(
+            LocalRippleConfiguration provides primaryRipple,
+            LocalComponentStyle provides componentStyle
+        ) {
             content()
         }
     }
