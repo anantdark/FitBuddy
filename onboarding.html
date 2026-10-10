@@ -2,12 +2,480 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="refresh" content="0; url=docs/" />
-  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/docs/" />
-  <title>Redirecting…</title>
-  <script>location.replace("docs/");</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Onboarding guide — FitBuddy</title>
+  <meta name="description" content="Step-by-step FitBuddy first-run setup: choose an AI provider, create API keys for OpenRouter, Gemini, Ollama, or OpenAI, and finish profile setup." />
+  <link rel="canonical" href="https://anantdark.github.io/FitBuddy/onboarding.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <p><a href="docs/">Continue to the FitBuddy guide</a>.</p>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="./">FitBuddy</a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <nav id="site-nav">
+      <a href="./#download">Download</a>
+      <a href="onboarding.html" aria-current="page">Onboarding</a>
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout docs-layout-wide">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Onboarding</p>
+      <a href="#start">Start here</a>
+      <a href="#path">Fresh start or restore</a>
+      <a href="#pick">Pick a provider</a>
+      <a href="#openrouter">OpenRouter keys</a>
+      <a href="#gemini">Gemini keys</a>
+      <a href="#ollama">Ollama</a>
+      <a href="#openai">OpenAI-compatible</a>
+      <a href="#paste">Paste &amp; verify</a>
+      <a href="#profile">Profile &amp; region</a>
+      <a href="#first-log">First meal log</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#help">Stuck?</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Opened from the FitBuddy app</p>
+      <h1>Onboarding guide:<br /><em>API keys without the stress</em></h1>
+      <p class="lede">
+        FitBuddy is free and open source, but meal photos and smart estimates need an AI
+        provider you control. This page walks you through the whole first-run flow —
+        especially creating and pasting API keys safely.
+      </p>
+
+      <div class="callout">
+        <p><strong>Recommended for most people:</strong> <a href="#openrouter">OpenRouter</a> —
+        free vision models, optional one-tap sign-in in the app, or a pasted API key.</p>
+      </div>
+
+      <section id="start">
+        <h2>What you’ll do</h2>
+        <ol class="checklist">
+          <li>Open FitBuddy and choose <strong>Start fresh</strong> or restore a backup.</li>
+          <li>Connect an AI provider (this is the step that needs an API key or sign-in).</li>
+          <li>Enter age, height, weight, goal, and activity.</li>
+          <li>Optional crash-reporting choice (F-Droid / debug builds).</li>
+          <li>Pick your <strong>region pack</strong> for food language and portion priors.</li>
+          <li>Land on Today and log your first meal.</li>
+        </ol>
+        <p>
+          Needs <strong>Android 10+</strong>. Install from
+          <a href="https://f-droid.org/en/packages/com.anant.fitbuddy/">F-Droid</a>,
+          <a href="https://www.openapk.net/fitbuddy/com.anant.fitbuddy/">OpenAPK</a>, or
+          <a href="https://github.com/anantdark/FitBuddy/releases/latest/download/FitBuddy-latest.apk">GitHub</a>
+          — pick one channel and stick to it.
+        </p>
+      </section>
+
+      <section id="path">
+        <h2>Fresh start or restore</h2>
+        <p>On the first screen you can:</p>
+        <ul>
+          <li><strong>Start fresh</strong> — continue to Connect an AI.</li>
+          <li><strong>Restore from cloud</strong> — enter your Support ID + backup password (if you used FitBuddy cloud backup before).</li>
+          <li><strong>Restore from local backup</strong> — pick an encrypted JSON export from Files.</li>
+        </ul>
+        <p>
+          After a restore, FitBuddy may ask only for AI credentials again if keys weren’t in the
+          backup. Your food log stays intact.
+        </p>
+      </section>
+
+      <section id="pick">
+        <h2>Pick a provider</h2>
+        <p>
+          On <strong>Connect an AI</strong>, choose one platform. FitBuddy never creates an
+          account for you — you bring a key (or OpenRouter sign-in) from that provider.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Provider</th><th>Best when…</th><th>Jump to</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>OpenRouter</th>
+              <td>You want free vision models with the least friction</td>
+              <td><a href="#openrouter">Setup</a></td>
+            </tr>
+            <tr>
+              <th>Gemini</th>
+              <td>You already use Google AI Studio</td>
+              <td><a href="#gemini">Setup</a></td>
+            </tr>
+            <tr>
+              <th>Ollama</th>
+              <td>You run models on your LAN, or want Ollama Cloud</td>
+              <td><a href="#ollama">Setup</a></td>
+            </tr>
+            <tr>
+              <th>OpenAI-compatible</th>
+              <td>Official OpenAI, LM Studio, Groq, Together, vLLM, …</td>
+              <td><a href="#openai">Setup</a></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="fine">
+          Photos always need a configured provider. Without a key, FitBuddy can still demo the
+          UI with the offline simulator — but real food analysis won’t run.
+        </p>
+      </section>
+
+      <!-- ───────── OpenRouter ───────── -->
+      <section id="openrouter">
+        <h2>OpenRouter — create a key</h2>
+        <p>
+          OpenRouter is the easiest free path for FitBuddy. You can either tap
+          <strong>Continue with OpenRouter</strong> in the app (browser sign-in, no paste) or
+          create an API key and paste it.
+        </p>
+
+        <h3>Option A — Sign in from the app (no key paste)</h3>
+        <ol>
+          <li>In FitBuddy, select <strong>OpenRouter</strong>.</li>
+          <li>Tap <strong>Continue with OpenRouter</strong>.</li>
+          <li>Create an account or sign in (Google / email) in the browser tab that opens.</li>
+          <li>Approve access. FitBuddy receives a key automatically when the tab finishes.</li>
+        </ol>
+        <p>
+          Official OAuth docs:
+          <a href="https://openrouter.ai/docs/guides/overview/auth/oauth" rel="noopener">openrouter.ai/docs/…/oauth</a>.
+        </p>
+
+        <h3>Option B — Create an API key yourself (recommended if sign-in fails)</h3>
+        <ol class="checklist">
+          <li>
+            Open
+            <a href="https://openrouter.ai/" rel="noopener">openrouter.ai</a>
+            → <strong>Sign up</strong> (Google is fine).
+          </li>
+          <li>
+            Go to
+            <a href="https://openrouter.ai/keys" rel="noopener">openrouter.ai/keys</a>
+            (also linked as <strong>Get API Key</strong> after login).
+          </li>
+          <li>Click <strong>Create Key</strong>. Name it something like <code>FitBuddy</code>.</li>
+          <li>
+            <strong>Copy the key immediately</strong> — OpenRouter shows the full secret only once.
+            Store it in a password manager if you like.
+          </li>
+          <li>
+            Back in FitBuddy → OpenRouter → expand <strong>API keys</strong> → paste → add the chip.
+          </li>
+          <li>Tap Continue. FitBuddy validates by listing models.</li>
+        </ol>
+
+        <div class="link-row">
+          <a class="btn primary" href="https://openrouter.ai/keys" rel="noopener">Open Keys page</a>
+          <a class="btn ghost" href="https://openrouter.ai/docs/api/reference/authentication" rel="noopener">Official auth docs</a>
+          <a class="btn ghost" href="https://openrouter.zendesk.com/hc/en-us/articles/55891135524379-Creating-an-API-key" rel="noopener">Creating a key (help)</a>
+        </div>
+
+        <div class="video-card">
+          <p class="video-label">Video — How to get an OpenRouter API key (2026)</p>
+          <div class="video-frame">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/ZELx_OzYAQo"
+              title="How to Get API Key from OpenRouter"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+            ></iframe>
+          </div>
+          <p class="fine">
+            Extra walkthrough (free models overview):
+            <a href="https://www.youtube.com/watch?v=YMKCYu0aD1Y" rel="noopener">Integrate AI for free with OpenRouter</a>.
+          </p>
+        </div>
+
+        <div class="callout">
+          <p>
+            Free models are enough for FitBuddy. You don’t need to add billing unless you choose
+            paid models later. Keep <strong>Auto failover</strong> on so FitBuddy can rotate free
+            models when one is rate-limited.
+          </p>
+        </div>
+      </section>
+
+      <!-- ───────── Gemini ───────── -->
+      <section id="gemini">
+        <h2>Gemini — Google AI Studio key</h2>
+        <p>
+          FitBuddy talks to Gemini through Google’s OpenAI-compatible endpoint. You need an API
+          key from <strong>Google AI Studio</strong> (same Google account is fine).
+        </p>
+        <ol class="checklist">
+          <li>
+            Open
+            <a href="https://aistudio.google.com/" rel="noopener">aistudio.google.com</a>
+            and sign in with Google.
+          </li>
+          <li>Accept the Terms of Service if prompted.</li>
+          <li>
+            Open the
+            <a href="https://aistudio.google.com/apikey" rel="noopener">API Keys</a>
+            page (or use <strong>Get API key</strong> in the sidebar).
+          </li>
+          <li>
+            New accounts often get a default project + key automatically — copy it.
+            Otherwise click <strong>Create API key</strong>, pick or import a Cloud project, create, copy.
+          </li>
+          <li>In FitBuddy → Gemini → paste into <strong>API keys</strong> → Continue.</li>
+        </ol>
+
+        <div class="link-row">
+          <a class="btn primary" href="https://aistudio.google.com/apikey" rel="noopener">Open AI Studio keys</a>
+          <a class="btn ghost" href="https://ai.google.dev/gemini-api/docs/api-key" rel="noopener">Official API key docs</a>
+        </div>
+
+        <div class="video-card">
+          <p class="video-label">Video — Get your Gemini API key in Google AI Studio</p>
+          <div class="video-frame">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/8g3OXzM5UHQ"
+              title="How To Get Your Gemini API Key in Google AI Studio"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+
+        <div class="callout">
+          <p>
+            Free Gemini quotas can rate-limit. If analysis fails, wait a bit, add a second key, or
+            switch to OpenRouter. Never share your key or commit it to a repo.
+          </p>
+        </div>
+      </section>
+
+      <!-- ───────── Ollama ───────── -->
+      <section id="ollama">
+        <h2>Ollama — local or cloud</h2>
+        <p>
+          In FitBuddy, toggle <strong>Local</strong> or <strong>Cloud</strong> under Ollama.
+        </p>
+
+        <h3 id="ollama-local">Local (LAN)</h3>
+        <ol class="checklist">
+          <li>
+            Install Ollama on a computer from
+            <a href="https://ollama.com/download" rel="noopener">ollama.com/download</a>
+            or follow
+            <a href="https://docs.ollama.com/quickstart" rel="noopener">docs.ollama.com/quickstart</a>.
+          </li>
+          <li>Pull a vision-capable model you intend to use (see Ollama’s model library).</li>
+          <li>
+            Make sure the phone can reach the machine (same Wi‑Fi). Enter the base URL in FitBuddy,
+            typically <code>http://&lt;computer-lan-ip&gt;:11434</code> — FitBuddy uses the
+            OpenAI-compatible <code>/v1</code> paths on that host.
+          </li>
+          <li>Local Ollama usually needs <strong>no API key</strong>. Leave keys empty and Continue.</li>
+        </ol>
+        <p class="fine">
+          Android blocks cleartext HTTP unless the app allows it — FitBuddy does for local AI hosts.
+          Prefer a stable LAN IP; VPNs and guest Wi‑Fi often break reachability.
+        </p>
+
+        <h3 id="ollama-cloud">Cloud</h3>
+        <ol class="checklist">
+          <li>
+            Create an account at
+            <a href="https://ollama.com" rel="noopener">ollama.com</a>.
+          </li>
+          <li>
+            Open
+            <a href="https://ollama.com/settings/keys" rel="noopener">ollama.com/settings/keys</a>
+            and create an API key. Copy it once.
+          </li>
+          <li>In FitBuddy → Ollama → <strong>Cloud</strong> → paste the key → Continue.</li>
+        </ol>
+
+        <div class="link-row">
+          <a class="btn primary" href="https://ollama.com/settings/keys" rel="noopener">Ollama Cloud keys</a>
+          <a class="btn ghost" href="https://docs.ollama.com/cloud" rel="noopener">Cloud docs</a>
+          <a class="btn ghost" href="https://docs.ollama.com/api/authentication" rel="noopener">Auth docs</a>
+        </div>
+
+        <div class="video-card">
+          <p class="video-label">Video — Install Ollama locally (+ cloud overview)</p>
+          <div class="video-frame">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/AGAETsxjg0o"
+              title="Learn Ollama in 10 Minutes - Run LLMs Locally"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────── OpenAI-compatible ───────── -->
+      <section id="openai">
+        <h2>OpenAI-compatible</h2>
+        <p>
+          One FitBuddy option covers <strong>official OpenAI</strong> and any host that speaks
+          OpenAI’s <code>/v1/models</code> + <code>/v1/chat/completions</code> API
+          (LM Studio, vLLM, LocalAI, Together, Groq, gateways, …).
+        </p>
+
+        <h3>Official OpenAI (paid)</h3>
+        <ol class="checklist">
+          <li>
+            Create / sign in at
+            <a href="https://platform.openai.com/" rel="noopener">platform.openai.com</a>.
+          </li>
+          <li>
+            Open
+            <a href="https://platform.openai.com/api-keys" rel="noopener">API keys</a>
+            → <strong>Create new secret key</strong> → name it → copy once.
+          </li>
+          <li>
+            Add billing / credits under
+            <a href="https://platform.openai.com/settings/organization/billing" rel="noopener">Billing</a>
+            if the account is new — keys alone aren’t enough without usage credit.
+          </li>
+          <li>
+            In FitBuddy, leave Base URL as
+            <code>https://api.openai.com</code> (default), paste the key, Continue.
+          </li>
+        </ol>
+
+        <div class="link-row">
+          <a class="btn primary" href="https://platform.openai.com/api-keys" rel="noopener">OpenAI API keys</a>
+          <a class="btn ghost" href="https://help.openai.com/en/articles/4936850" rel="noopener">Where is my key?</a>
+          <a class="btn ghost" href="https://developers.openai.com/api/docs/quickstart" rel="noopener">Developer quickstart</a>
+        </div>
+
+        <div class="video-card">
+          <p class="video-label">Video — Create an OpenAI key, billing &amp; spending limits</p>
+          <div class="video-frame">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/vRE_JO54usU"
+              title="How to Create OpenAI API Key, Add Billing and Set Spending Limits"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+            ></iframe>
+          </div>
+          <p class="fine">
+            Shorter key-only clip:
+            <a href="https://www.youtube.com/watch?v=Lj43aSwNpog" rel="noopener">OpenAI: How To Generate API Keys</a>.
+          </p>
+        </div>
+
+        <h3>Other compatible hosts</h3>
+        <ol>
+          <li>Change <strong>Base URL</strong> to your host (no trailing path beyond the API root FitBuddy expects — usually the host that serves <code>/v1/…</code>).</li>
+          <li>Paste a key if the host requires one; many local servers leave this empty.</li>
+          <li>Continue — FitBuddy lists models from <code>GET {url}/v1/models</code>.</li>
+        </ol>
+      </section>
+
+      <section id="paste">
+        <h2>Paste into FitBuddy &amp; verify</h2>
+        <ol>
+          <li>Return to the <strong>Connect an AI</strong> step (don’t close the app while copying if you can help it).</li>
+          <li>Paste the key into the chips field and confirm it appears as a chip (not left half-typed).</li>
+          <li>Tap <strong>Continue</strong>. FitBuddy calls the provider’s model list to validate.</li>
+          <li>On success you move to profile. On failure, read the red error — wrong key, no network, or rate limit are the usual causes.</li>
+        </ol>
+        <div class="callout">
+          <p>
+            <strong>Never</strong> screenshot your full key into chat apps or GitHub Issues.
+            If a key leaks, revoke it on the provider’s site and create a new one.
+          </p>
+        </div>
+      </section>
+
+      <section id="profile">
+        <h2>Profile, crash opt-in, region</h2>
+        <ol>
+          <li>
+            <strong>About you</strong> — age, height, weight, sex (optional), goal, activity.
+            These feed on-device calorie targets (see
+            <a href="health-target-methodology.html">methodology</a>).
+          </li>
+          <li>
+            <strong>Crash reports</strong> (F-Droid / debug) — optional anonymous Sentry. Off by
+            default; you can change later in Settings.
+          </li>
+          <li>
+            <strong>Region pack</strong> — picks staples, portion language, and AI food priors.
+            Change anytime under Settings → Preferences.
+          </li>
+        </ol>
+      </section>
+
+      <section id="first-log">
+        <h2>First meal log</h2>
+        <ol>
+          <li>On <strong>Today</strong>, tap the log / + action → food.</li>
+          <li>Photo of the whole plate <em>or</em> a freeform description (hints match your region).</li>
+          <li>Wait for analysis → review ingredients → tweak weights → Save.</li>
+          <li>Bookmark as a preset if you’ll eat it again.</li>
+        </ol>
+        <p>
+          More day-to-day tips:
+          <a href="docs/">Beginner guide</a> ·
+          <a href="faq.html">FAQ</a>.
+        </p>
+      </section>
+
+      <section id="privacy">
+        <h2>Where your key and meals go</h2>
+        <ul>
+          <li>API keys live in on-device DataStore. FitBuddy does not upload them to a FitBuddy server.</li>
+          <li>When you analyze a meal, the photo/text (and needed profile bits) go only to the provider you selected.</li>
+          <li>Logs, presets, and body readings stay on the phone unless you export a backup or enable optional cloud backup.</li>
+        </ul>
+        <p>Full details: <a href="privacy.html">Privacy</a> · <a href="encryption.html">Encryption</a>.</p>
+      </section>
+
+      <section id="help">
+        <h2>Stuck?</h2>
+        <dl class="faq">
+          <dt>“Couldn’t list models” / validation failed</dt>
+          <dd>Double-check the key has no spaces, the phone is online, and (for OpenAI) billing is set up. For local Ollama, confirm the LAN URL from the phone’s browser.</dd>
+          <dt>OpenRouter sign-in didn’t return to the app</dt>
+          <dd>Use Option B — create a key at <a href="https://openrouter.ai/keys">openrouter.ai/keys</a> and paste it instead.</dd>
+          <dt>Rate limited</dt>
+          <dd>Wait, try another free model, or add a second key. Auto failover helps on OpenRouter/Gemini.</dd>
+          <dt>Still blocked?</dt>
+          <dd>
+            Settings → optional diagnostic AI log (no meals/keys) · GitHub
+            <a href="https://github.com/anantdark/FitBuddy/issues">Issues</a>.
+            Include your Support ID if crash reporting is on.
+          </dd>
+        </dl>
+      </section>
+
+      <p class="docs-end">
+        <a class="btn primary" href="./#download">Get FitBuddy</a>
+        · <a href="docs/">Full guide</a>
+        · <a href="faq.html">FAQ</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">FitBuddy</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/anantdark/FitBuddy">GitHub</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
 </body>
 </html>

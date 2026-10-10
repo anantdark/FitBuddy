@@ -569,6 +569,111 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
+.docs-main h3 {
+  margin: 1.75rem 0 0.65rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 5rem;
+}
+
+.docs-main .checklist {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.docs-main .checklist li {
+  position: relative;
+  margin: 0;
+  padding: 0.85rem 0.95rem 0.85rem 2.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.02);
+  counter-increment: onboard-step;
+}
+
+.docs-main .checklist {
+  counter-reset: onboard-step;
+}
+
+.docs-main .checklist li::before {
+  content: counter(onboard-step);
+  position: absolute;
+  left: 0.75rem;
+  top: 0.85rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--amber);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.callout {
+  margin: 1.25rem 0;
+  padding: 1rem 1.1rem;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 0.45rem 0.45rem 0;
+  background: rgba(255, 159, 67, 0.08);
+}
+
+.callout p {
+  margin: 0;
+  color: var(--paper);
+}
+
+.link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 1.1rem 0 1.4rem;
+}
+
+.video-card {
+  margin: 1.25rem 0 1.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--ink-2);
+}
+
+.video-label {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0.45rem;
+  overflow: hidden;
+  background: #000;
+}
+
+.video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.video-card .fine {
+  margin: 0.75rem 0 0;
+}
+
 /* ── Motion ───────────────────────────────────────── */
 
 @keyframes rise {
