@@ -30,7 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 private const val OPENROUTER_API_KEY_DOCS_URL =
-    "https://openrouter.ai/docs/api/reference/authentication"
+    "https://anantdark.github.io/FitBuddy/onboarding.html#openrouter"
 
 /**
  * OpenRouter connect UI: primary OAuth button, collapsed API-key editor below.

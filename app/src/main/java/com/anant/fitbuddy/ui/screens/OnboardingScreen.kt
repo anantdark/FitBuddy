@@ -99,27 +99,32 @@ private val SEX_OPTIONS = listOf(
 )
 private val ACTIVITY_OPTIONS = ActivityLevels.options
 
-/** Per-provider "how to get set up" doc, linked from the onboarding AI step. */
+/** Per-provider setup on the FitBuddy onboarding site (API key walkthroughs + videos). */
 private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
     AiProvider.OPENROUTER to (
-        "How to create an OpenRouter API key" to "https://openrouter.ai/docs/api/reference/authentication"
+        "How to create an OpenRouter API key" to
+            "https://anantdark.github.io/FitBuddy/onboarding.html#openrouter"
     ),
     AiProvider.GEMINI to (
-        "How to create a Gemini API key" to "https://ai.google.dev/gemini-api/docs/api-key"
+        "How to create a Gemini API key" to
+            "https://anantdark.github.io/FitBuddy/onboarding.html#gemini"
     ),
     AiProvider.OLLAMA to (
-        "Ollama install & setup guide" to "https://docs.ollama.com/quickstart"
+        "Ollama install & setup guide" to
+            "https://anantdark.github.io/FitBuddy/onboarding.html#ollama"
     ),
     AiProvider.CUSTOM to (
-        "OpenAI API keys & compatible APIs" to "https://platform.openai.com/api-keys"
+        "OpenAI API keys & compatible APIs" to
+            "https://anantdark.github.io/FitBuddy/onboarding.html#openai"
     )
 )
 
-private val OLLAMA_CLOUD_KEYS_URL = "https://ollama.com/settings/keys"
+private val OLLAMA_CLOUD_KEYS_URL =
+    "https://anantdark.github.io/FitBuddy/onboarding.html#ollama-cloud"
 
-/** Beginner / first-run guide on the FitBuddy gh-pages site. */
+/** First-run / API-key handholding page on the FitBuddy gh-pages site. */
 private const val ONBOARDING_GUIDE_URL =
-    "https://anantdark.github.io/FitBuddy/docs/#first"
+    "https://anantdark.github.io/FitBuddy/onboarding.html"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
