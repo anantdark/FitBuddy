@@ -162,11 +162,39 @@ updates over that install will succeed.
 
 Bug reports and feature requests: [Issues](https://github.com/anantdark/FitBuddy/issues).
 
+## Supporters
+
+Named public supporters appear here and as flip trading cards in the app (and on the
+[docs site](https://anantdark.github.io/FitBuddy/#supporters)). Donation amounts stay private —
+only the card tier chrome and crests are shown.
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="260">
+      <a href="https://www.instagram.com/philautian_art/">
+        <img src="https://raw.githubusercontent.com/anantdark/FitBuddy/main/config/donors/philautian.jpg" width="200" height="200" alt="Philautian" />
+      </a>
+      <br />
+      <strong>PHILAUTIAN</strong>
+      <br />
+      <code>No. 1001 · OG SUPPORTER</code>
+      <br />
+      <sub>FitBuddy · Origin circle</sub>
+      <br />
+      <sub>⚔ OG Supporter</sub>
+    </td>
+  </tr>
+</table>
+
+Thank you for keeping FitBuddy free and open. Roster source:
+[`config/donors.json`](config/donors.json).
+
 ## Support development
 
 If FitBuddy helps you, support its continued development through
 [GitHub Sponsors](https://github.com/sponsors/anantdark). Indian users can also use the heart
-button in the app for UPI or card contributions.
+button in the app for UPI or card contributions. Named gifts (with your Support ID) can unlock
+a public thank-you card like the ones above.
 
 ## License
 
