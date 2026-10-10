@@ -1,6 +1,7 @@
 package com.anant.fitbuddy
 
 import android.app.Application
+import androidx.work.Configuration
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
@@ -9,6 +10,7 @@ import com.anant.fitbuddy.data.backup.BackupManager
 import com.anant.fitbuddy.data.backup.crypto.BackupCrypto
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
+import com.anant.fitbuddy.data.pcsync.PcSyncManager
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
@@ -42,11 +44,15 @@ import kotlinx.coroutines.runBlocking
  * Application-scoped service locator. Everything is created lazily and lives for the whole
  * process, which is exactly the lifetime we want for the DB and the repositories.
  */
-class FitBuddyApp : Application(), ImageLoaderFactory {
+class FitBuddyApp : Application(), ImageLoaderFactory, Configuration.Provider {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val database by lazy { AppDatabase.getDatabase(this) }
+
+    // Lets WorkManager initialize on demand (also under Robolectric, where startup providers don't run).
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
@@ -101,6 +107,21 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
                 crypto = BackupCrypto(NetworkModule.moshi),
                 moshi = NetworkModule.moshi
             )
+        )
+    }
+
+    val pcSync: PcSyncManager by lazy {
+        PcSyncManager(
+            app = this,
+            repository = repository,
+            dataChanges = database.invalidationTracker.createFlow(
+                "user_profile", "food_logs", "meal_foods", "exercise_logs", "saved_foods",
+                "meal_presets", "exercise_presets", "body_measurements", "workout_sessions",
+                "workout_exercises",
+                emitInitialState = false
+            ),
+            moshi = NetworkModule.moshi,
+            scope = appScope
         )
     }
 
@@ -219,6 +240,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
+        pcSync.start(this)
         // Update heartbeat (one-shot on upgrade) runs immediately; daily heartbeat is
         // scheduled via an inexact alarm around UTC midnight.
         Thread({

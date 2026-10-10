@@ -1237,6 +1237,17 @@ fun SettingsScreen(
             }
         }
 
+        // --- PC sync ---------------------------------------------------------------------
+        SettingsCard(
+            title = "PC sync",
+            initiallyExpanded = false,
+            hintTitle = "PC sync",
+            hint = "Uploads your logs to FitBuddy Desktop and saves entries you added on the PC. " +
+                "Your AI settings and API keys stay on this phone."
+        ) {
+            PcSyncSettingsContent()
+        }
+
         // --- Updates & support (updates + crash reports) ---------------------------------
         SettingsCard(title = "Updates & support", initiallyExpanded = false) {
             Text(

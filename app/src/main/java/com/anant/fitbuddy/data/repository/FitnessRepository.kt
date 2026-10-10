@@ -931,6 +931,46 @@ class FitnessRepository(
         exerciseLogDao.deleteExerciseLog(log)
     }
 
+    // --- PC sync ----------------------------------------------------------------------------
+
+    /** Full data snapshot for the desktop companion; settings (API keys) never leave the phone. */
+    suspend fun buildPcSyncSnapshot(): BackupData =
+        backupManager.buildBackupData().copy(settings = null)
+
+    suspend fun insertMealFromPc(log: FoodLog, foods: List<MealFood>) {
+        val mealId = foodLogDao.insertFoodLogReturningId(log.copy(id = 0)).toInt()
+        mealFoodDao.insertAll(
+            foods.mapIndexed { index, food -> food.copy(id = 0, mealLogId = mealId, orderIndex = index) }
+        )
+    }
+
+    suspend fun insertExerciseFromPc(log: ExerciseLog) {
+        exerciseLogDao.insertAll(listOf(log.copy(id = 0)))
+    }
+
+    /** Returns true when a row was deleted; [expectedTimestamp] guards against reused ids. */
+    suspend fun deleteFoodById(id: Int, expectedTimestamp: Long?): Boolean {
+        val log = foodLogDao.getById(id)?.takeIf { expectedTimestamp == null || it.timestamp == expectedTimestamp }
+            ?: return false
+        foodLogDao.deleteFoodLog(log)
+        return true
+    }
+
+    suspend fun deleteExerciseById(id: Int, expectedTimestamp: Long?): Boolean {
+        val log = exerciseLogDao.getById(id)?.takeIf { expectedTimestamp == null || it.timestamp == expectedTimestamp }
+            ?: return false
+        deleteExercise(log)
+        return true
+    }
+
+    suspend fun deleteMeasurementById(id: Int, expectedTimestamp: Long?): Boolean {
+        val measurement = bodyMeasurementDao.getAllOnce()
+            .firstOrNull { it.id == id && (expectedTimestamp == null || it.timestamp == expectedTimestamp) }
+            ?: return false
+        deleteMeasurement(measurement)
+        return true
+    }
+
     // --- Workout sessions -------------------------------------------------------------------
 
     /** A previously logged workout session plus its exercises, for viewing/editing. */
