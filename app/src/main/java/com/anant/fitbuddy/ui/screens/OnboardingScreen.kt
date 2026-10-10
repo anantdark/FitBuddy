@@ -133,6 +133,8 @@ fun OnboardingScreen(
     isValidating: Boolean,
     isRestoring: Boolean = false,
     aiOnly: Boolean = false,
+    /** Developer throwaway walkthrough — must not persist crash-reporting toggles. */
+    previewMode: Boolean = false,
     /**
      * Build default for crash reporting. When this is false (F-Droid / debug), an opt-in
      * page is inserted before the region step.
@@ -255,10 +257,46 @@ fun OnboardingScreen(
     var customKeys by remember { mutableStateOf(emptyList<String>()) }
     var aiValidated by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
+    /** After Continue on AI / profile steps, empty required fields also turn red. */
+    var aiAttempted by remember { mutableStateOf(false) }
+    var profileAttempted by remember { mutableStateOf(false) }
 
     val openRouterOAuthConnected = openRouterOAuthKey.isNotBlank()
     // Debug builds skip the name fields so local testing can move through setup faster.
     val skipNameInOnboarding = BuildConfig.DEBUG
+    val firstNameError = onboardingRequiredTextError(
+        value = firstName,
+        attempted = profileAttempted && !skipNameInOnboarding,
+        blankMessage = "Enter your first name",
+    )
+    val lastNameError = onboardingRequiredTextError(
+        value = lastName,
+        attempted = profileAttempted && !skipNameInOnboarding,
+        blankMessage = "Enter your last name",
+    )
+    val ageError = onboardingIntRangeError(
+        value = age,
+        range = 18..120,
+        attempted = profileAttempted,
+        label = "Age",
+    )
+    val heightError = onboardingDoubleRangeError(
+        value = height,
+        min = 100.0,
+        max = 250.0,
+        attempted = profileAttempted,
+        label = "Height",
+        unit = "cm",
+    )
+    val weightError = onboardingDoubleRangeError(
+        value = weight,
+        min = 25.0,
+        max = 400.0,
+        attempted = profileAttempted,
+        label = "Weight",
+        unit = "kg",
+    )
+    // Completeness for Continue (independent of whether red hints are visible yet).
     val stepOneValid = (skipNameInOnboarding ||
         (firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty())) &&
         (age.toIntOrNull() ?: 0) in 18..120 &&
@@ -281,6 +319,34 @@ fun OnboardingScreen(
                 else -> true
             }
         }
+    }
+    val showAiFieldErrors = aiAttempted || aiError != null
+    val aiKeysMissing = when (aiProvider) {
+        AiProvider.OPENROUTER -> apiKeys.isEmpty() && !openRouterOAuthConnected
+        AiProvider.GEMINI -> apiKeys.isEmpty()
+        AiProvider.OLLAMA -> ollamaUseCloud && ollamaKeys.isEmpty()
+        AiProvider.OPENAI -> customKeys.isEmpty()
+        AiProvider.CUSTOM -> AppSettings.isOfficialOpenAiBaseUrl(customUrl) && customKeys.isEmpty()
+    }
+    val aiKeysError = if (showAiFieldErrors && aiKeysMissing) {
+        when (aiProvider) {
+            AiProvider.OPENROUTER -> "Add an API key or continue with OpenRouter sign-in"
+            AiProvider.OLLAMA -> "Add an Ollama Cloud API key"
+            AiProvider.CUSTOM, AiProvider.OPENAI -> "Add an API key"
+            else -> "Add an API key"
+        }
+    } else {
+        null
+    }
+    val ollamaUrlError = when {
+        aiProvider != AiProvider.OLLAMA || ollamaUseCloud -> null
+        ollamaUrl.isBlank() -> if (showAiFieldErrors) "Enter your Ollama server URL" else null
+        else -> null
+    }
+    val customUrlError = when {
+        aiProvider != AiProvider.CUSTOM && aiProvider != AiProvider.OPENAI -> null
+        customUrl.isBlank() -> if (showAiFieldErrors) "Enter a base URL" else null
+        else -> null
     }
 
     fun buildAiSettings(): AppSettings {
@@ -339,6 +405,7 @@ fun OnboardingScreen(
     fun invalidateAi() {
         aiValidated = false
         aiError = null
+        // Keep aiAttempted so corrected fields clear red while missing ones stay marked.
     }
 
     LaunchedEffect(openRouterOAuthKey) {
@@ -430,7 +497,10 @@ fun OnboardingScreen(
             onContinue = { enabled ->
                 crashReportingChoice = enabled
                 // Apply immediately so region-request send works before onboarding finishes.
-                CrashReporter.setReportingEnabled(enabled)
+                // Skip in developer preview — must not change the real reporting preference.
+                if (!previewMode) {
+                    CrashReporter.setReportingEnabled(enabled)
+                }
                 step = stepRegion
             },
             onBack = { step = 2 },
@@ -557,15 +627,17 @@ fun OnboardingScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Support ID") },
                                 singleLine = true,
-                                enabled = !busy
+                                enabled = !busy,
+                                isError = cloudError != null,
+                                supportingText = cloudError?.let { message ->
+                                    {
+                                        Text(
+                                            text = message,
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                },
                             )
-                            cloudError?.let { message ->
-                                Text(
-                                    text = message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
                         }
 
                         onPathPicker -> {
@@ -676,7 +748,9 @@ fun OnboardingScreen(
                                             onKeysChange = {
                                                 apiKeys = it
                                                 invalidateAi()
-                                            }
+                                            },
+                                            isError = aiKeysError != null || aiError != null,
+                                            errorMessage = aiKeysError,
                                         )
                                     }
                                 }
@@ -691,7 +765,9 @@ fun OnboardingScreen(
                                         onKeysChange = {
                                             apiKeys = it
                                             invalidateAi()
-                                        }
+                                        },
+                                        isError = aiKeysError != null || aiError != null,
+                                        errorMessage = aiKeysError,
                                     )
                                 }
 
@@ -728,13 +804,17 @@ fun OnboardingScreen(
                                             onKeysChange = {
                                                 ollamaKeys = it
                                                 invalidateAi()
-                                            }
+                                            },
+                                            isError = aiKeysError != null || aiError != null,
+                                            errorMessage = aiKeysError,
                                         )
                                     } else {
                                         OnboardingTextField(
                                             label = "Server URL",
                                             value = ollamaUrl,
-                                            keyboardType = KeyboardType.Uri
+                                            keyboardType = KeyboardType.Uri,
+                                            isError = ollamaUrlError != null || aiError != null,
+                                            errorMessage = ollamaUrlError,
                                         ) {
                                             ollamaUrl = it
                                             invalidateAi()
@@ -756,7 +836,9 @@ fun OnboardingScreen(
                                     OnboardingTextField(
                                         label = "Base URL",
                                         value = customUrl,
-                                        keyboardType = KeyboardType.Uri
+                                        keyboardType = KeyboardType.Uri,
+                                        isError = customUrlError != null || aiError != null,
+                                        errorMessage = customUrlError,
                                     ) {
                                         customUrl = it
                                         invalidateAi()
@@ -771,7 +853,9 @@ fun OnboardingScreen(
                                         onKeysChange = {
                                             customKeys = it
                                             invalidateAi()
-                                        }
+                                        },
+                                        isError = aiKeysError != null || aiError != null,
+                                        errorMessage = aiKeysError,
                                     )
                                 }
                             }
@@ -798,14 +882,39 @@ fun OnboardingScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             if (!skipNameInOnboarding) {
-                                OnboardingTextField("First name", firstName) { firstName = it }
-                                OnboardingTextField("Last name", lastName) { lastName = it }
+                                OnboardingTextField(
+                                    label = "First name",
+                                    value = firstName,
+                                    isError = firstNameError != null,
+                                    errorMessage = firstNameError,
+                                ) { firstName = it }
+                                OnboardingTextField(
+                                    label = "Last name",
+                                    value = lastName,
+                                    isError = lastNameError != null,
+                                    errorMessage = lastNameError,
+                                ) { lastName = it }
                             }
-                            OnboardingNumberField("Age", age) { age = it }
-                            OnboardingNumberField("Height (cm)", height, decimal = true) { height = it }
-                            OnboardingNumberField("Current weight (kg)", weight, decimal = true) {
-                                weight = it
-                            }
+                            OnboardingNumberField(
+                                label = "Age",
+                                value = age,
+                                isError = ageError != null,
+                                errorMessage = ageError,
+                            ) { age = it }
+                            OnboardingNumberField(
+                                label = "Height (cm)",
+                                value = height,
+                                decimal = true,
+                                isError = heightError != null,
+                                errorMessage = heightError,
+                            ) { height = it }
+                            OnboardingNumberField(
+                                label = "Current weight (kg)",
+                                value = weight,
+                                decimal = true,
+                                isError = weightError != null,
+                                errorMessage = weightError,
+                            ) { weight = it }
                             OnboardingDropdown("Sex", sex, SEX_OPTIONS) { sex = it }
                         }
 
@@ -896,15 +1005,23 @@ fun OnboardingScreen(
                         }
                         Button(
                             modifier = Modifier.weight(1f),
-                            enabled = when (step) {
-                                0 -> aiConfigValid && !busy
-                                1 -> stepOneValid && !busy
-                                else -> !busy
-                            },
+                            enabled = !busy,
                             onClick = {
                                 when (step) {
-                                    0 -> advanceFromAiStep()
-                                    1 -> step = 2
+                                    0 -> {
+                                        if (!aiConfigValid) {
+                                            aiAttempted = true
+                                        } else {
+                                            advanceFromAiStep()
+                                        }
+                                    }
+                                    1 -> {
+                                        if (!stepOneValid) {
+                                            profileAttempted = true
+                                        } else {
+                                            step = 2
+                                        }
+                                    }
                                     else -> step = if (showCrashStep) stepCrash else stepRegion
                                 }
                             }
@@ -1047,6 +1164,8 @@ private fun OnboardingNumberField(
     label: String,
     value: String,
     decimal: Boolean = false,
+    isError: Boolean = false,
+    errorMessage: String? = null,
     onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
@@ -1057,6 +1176,15 @@ private fun OnboardingNumberField(
         },
         label = { Text(label) },
         singleLine = true,
+        isError = isError,
+        supportingText = errorMessage?.let { message ->
+            {
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
         keyboardOptions = KeyboardOptions(
             keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number
         ),
@@ -1070,6 +1198,8 @@ private fun OnboardingTextField(
     value: String,
     isSecret: Boolean = false,
     keyboardType: KeyboardType = KeyboardType.Text,
+    isError: Boolean = false,
+    errorMessage: String? = null,
     onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
@@ -1077,10 +1207,75 @@ private fun OnboardingTextField(
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
+        isError = isError,
+        supportingText = errorMessage?.let { message ->
+            {
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
         visualTransformation = if (isSecret) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+private fun onboardingRequiredTextError(
+    value: String,
+    attempted: Boolean,
+    blankMessage: String,
+): String? {
+    val trimmed = value.trim()
+    return when {
+        trimmed.isEmpty() -> if (attempted) blankMessage else null
+        else -> null
+    }
+}
+
+private fun onboardingIntRangeError(
+    value: String,
+    range: IntRange,
+    attempted: Boolean,
+    label: String,
+): String? {
+    val trimmed = value.trim()
+    if (trimmed.isEmpty()) {
+        return if (attempted) "$label is required (${range.first}–${range.last})" else null
+    }
+    val parsed = trimmed.toIntOrNull()
+        ?: return "Enter a whole number"
+    return if (parsed in range) {
+        null
+    } else {
+        "Must be between ${range.first} and ${range.last}"
+    }
+}
+
+private fun onboardingDoubleRangeError(
+    value: String,
+    min: Double,
+    max: Double,
+    attempted: Boolean,
+    label: String,
+    unit: String,
+): String? {
+    val trimmed = value.trim()
+    if (trimmed.isEmpty()) {
+        return if (attempted) {
+            "$label is required (${min.toInt()}–${max.toInt()} $unit)"
+        } else {
+            null
+        }
+    }
+    val parsed = trimmed.toDoubleOrNull()
+        ?: return "Enter a valid number"
+    return if (parsed in min..max) {
+        null
+    } else {
+        "Must be between ${min.toInt()} and ${max.toInt()} $unit"
+    }
 }
 
 /** Soft gradient help card — visually separate from Start Fresh / Restore actions. */

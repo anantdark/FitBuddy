@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     val needsRegionSelection by viewModel.needsRegionSelection.collectAsStateWithLifecycle()
                     val regionSelectionSaving by viewModel.regionSelectionSaving.collectAsStateWithLifecycle()
                     val onboardingAiOnly by viewModel.onboardingAiOnly.collectAsStateWithLifecycle()
+                    val onboardingPreviewMode by viewModel.onboardingPreviewMode.collectAsStateWithLifecycle()
                     val onboardingSaving by viewModel.onboardingSaving.collectAsStateWithLifecycle()
                     val onboardingValidating by viewModel.onboardingValidating.collectAsStateWithLifecycle()
                     val onboardingRestoring by viewModel.onboardingRestoring.collectAsStateWithLifecycle()
@@ -113,6 +114,7 @@ class MainActivity : ComponentActivity() {
                                 isValidating = onboardingValidating,
                                 isRestoring = onboardingRestoring,
                                 aiOnly = onboardingAiOnly,
+                                previewMode = onboardingPreviewMode,
                                 initialCrashReportingEnabled = settings.crashReportingEnabled,
                                 supportId = settings.supportId,
                                 regionRequestAlreadySent = settings.regionRequestSentAt > 0L,

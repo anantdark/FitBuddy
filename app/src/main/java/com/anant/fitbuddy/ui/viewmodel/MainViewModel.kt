@@ -1095,6 +1095,7 @@ class MainViewModel(
 
     /** Records a successful custom-region Sentry send (one allowed per install / supportId). */
     fun markRegionRequestSent() {
+        if (_forceFullOnboarding.value) return
         viewModelScope.launch {
             val current = settings.value
             if (current.regionRequestSentAt > 0L) return@launch
@@ -1105,26 +1106,23 @@ class MainViewModel(
     }
 
     /**
-     * Developer: reopen the full onboarding flow (path picker through region). Keeps food/workout
-     * logs and profile; clears region and resets crash-reporting to the build default so the
-     * crash opt-in step appears when this build defaults it off.
+     * Developer: show the full onboarding UI as an in-memory preview.
+     * Does not clear region, crash reporting, profile, AI keys, or logs. Completing the flow
+     * (or killing the process) returns to the dashboard with data unchanged — the flag is not
+     * persisted, so a cold start always lands on home.
      */
     fun restartOnboardingForTesting() {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsRepository.save(
-                current.copy(
-                    region = "",
-                    crashReportingEnabled = AppSettings().crashReportingEnabled
-                )
-            )
-            CrashReporter.setReportingEnabled(AppSettings().crashReportingEnabled)
-            _forceAiSetup.value = false
-            _forceFullOnboarding.value = true
-            _analysisState.update {
-                it.copy(userMessage = "Onboarding restarted for testing")
-            }
+        _forceAiSetup.value = false
+        _forceFullOnboarding.value = true
+        _analysisState.update {
+            it.copy(userMessage = "Onboarding preview — no data will be saved")
         }
+    }
+
+    private fun finishOnboardingPreview(message: String = "Onboarding preview closed — no data changed") {
+        _forceFullOnboarding.value = false
+        _forceAiSetup.value = false
+        _analysisState.update { it.copy(userMessage = message) }
     }
 
     /**
@@ -1585,6 +1583,9 @@ class MainViewModel(
 
     /** Developer: re-show the full onboarding path (path picker → … → region) without wiping logs. */
     private val _forceFullOnboarding = MutableStateFlow(false)
+
+    /** True while Developer → Restart onboarding is showing a throwaway walkthrough. */
+    val onboardingPreviewMode: StateFlow<Boolean> = _forceFullOnboarding.asStateFlow()
 
     val needsOnboarding: StateFlow<Boolean?> =
         combine(
@@ -2748,6 +2749,7 @@ class MainViewModel(
 
     /** Guest path: ensure a Support ID exists before the AI/profile steps. */
     fun startGuestOnboarding() {
+        if (_forceFullOnboarding.value) return // preview — do not mint / touch Support ID
         viewModelScope.launch {
             settingsRepository.ensureSupportId()
         }
@@ -2762,6 +2764,10 @@ class MainViewModel(
         passwordProvider: suspend () -> CharArray? = { null },
         onResult: (Boolean, String?) -> Unit
     ) {
+        if (_forceFullOnboarding.value) {
+            onResult(false, "Preview mode — restore is disabled")
+            return
+        }
         if (_onboardingRestoring.value) return
         _onboardingRestoring.value = true
         viewModelScope.launch {
@@ -2801,6 +2807,10 @@ class MainViewModel(
         passwordProvider: suspend () -> CharArray? = { null },
         onResult: (Boolean, String?) -> Unit
     ) {
+        if (_forceFullOnboarding.value) {
+            onResult(false, "Preview mode — restore is disabled")
+            return
+        }
         if (_onboardingRestoring.value) return
         _onboardingRestoring.value = true
         viewModelScope.launch {
@@ -2853,6 +2863,10 @@ class MainViewModel(
 
     /** AI-only onboarding finish: persist keys and clear the force-AI flag. */
     fun completeAiSetupOnly(aiSettings: AppSettings) {
+        if (_forceFullOnboarding.value) {
+            finishOnboardingPreview()
+            return
+        }
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
         viewModelScope.launch {
@@ -3323,6 +3337,12 @@ class MainViewModel(
 
     /** Opens OpenRouter OAuth PKCE via loopback callback + Custom Tab / browser. */
     fun startOpenRouterOAuth(context: Context) {
+        if (_forceFullOnboarding.value) {
+            _analysisState.update {
+                it.copy(userMessage = "Preview mode — OpenRouter sign-in is disabled")
+            }
+            return
+        }
         if (_openRouterOAuthBusy.value) return
         val appContext = context.applicationContext
         val verifier = OpenRouterPkce.generateVerifier()
@@ -3415,6 +3435,12 @@ class MainViewModel(
     }
 
     fun disconnectOpenRouterOAuth() {
+        if (_forceFullOnboarding.value) {
+            _analysisState.update {
+                it.copy(userMessage = "Preview mode — OpenRouter disconnect is disabled")
+            }
+            return
+        }
         viewModelScope.launch {
             pendingOpenRouterCodeVerifier = null
             openRouterOAuthCallbackServer?.stop()
@@ -3460,6 +3486,10 @@ class MainViewModel(
         region: AppRegion,
         crashReportingEnabled: Boolean
     ) {
+        if (_forceFullOnboarding.value) {
+            finishOnboardingPreview()
+            return
+        }
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
         viewModelScope.launch {

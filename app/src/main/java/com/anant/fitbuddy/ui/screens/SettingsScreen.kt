@@ -1891,11 +1891,12 @@ fun SettingsScreen(
                         onClick = onRestartOnboarding,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Restart onboarding flow")
+                        Text("Preview onboarding flow")
                     }
                     Text(
-                        text = "Reopens the full first-run path (including region). Keeps logs; " +
-                            "clears region and resets crash reporting to this build's default.",
+                        text = "Opens the full first-run UI as a throwaway preview. Does not change " +
+                            "profile, AI keys, region, or crash reporting. Force-stop the app to " +
+                            "return home, or finish the preview — nothing is saved.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2647,7 +2648,9 @@ fun ApiKeyChipEditor(
     label: String,
     keys: List<String>,
     onKeysChange: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    errorMessage: String? = null,
 ) {
     var draft by remember { mutableStateOf("") }
 
@@ -2663,6 +2666,11 @@ fun ApiKeyChipEditor(
             Text(
                 label,
                 style = MaterialTheme.typography.bodyMedium,
+                color = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 modifier = Modifier.weight(1f)
             )
             HintIconButton(
@@ -2719,6 +2727,7 @@ fun ApiKeyChipEditor(
                     },
                     label = { Text("Add key (paste several)") },
                     singleLine = true,
+                    isError = isError && keys.isEmpty(),
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.weight(1f)
                 )
@@ -2728,6 +2737,13 @@ fun ApiKeyChipEditor(
                     if (commitRaw(draft)) draft = ""
                 }
             ) { Text("Add") }
+        }
+        if (isError && !errorMessage.isNullOrBlank()) {
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
