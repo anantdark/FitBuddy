@@ -30,14 +30,16 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.anant.fitbuddy.ui.theme.appControlShape
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.components.AppNavigationBarItem
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -171,6 +173,7 @@ fun MainScreen(
     val newDonorsThankYou by viewModel.newDonorsThankYou.collectAsStateWithLifecycle()
     val donorGallery by viewModel.donorGallery.collectAsStateWithLifecycle()
     val lastSeenDonorDonationDate by viewModel.lastSeenDonorDonationDate.collectAsStateWithLifecycle()
+    val isSupporter by viewModel.isSupporter.collectAsStateWithLifecycle()
 
     val keepScreenAwake = analysisState.isLoading ||
         analysisState.isReanalyzing ||
@@ -503,6 +506,11 @@ fun MainScreen(
                     showSettings = false
                     viewModel.showTestDonationDialog()
                 },
+                isSupporter = isSupporter,
+                onDonate = {
+                    showSettings = false
+                    showDonationDialog = true
+                },
                 lastSeenDonorDonationDate = lastSeenDonorDonationDate,
                 onRefreshLastSeenDonorDonationDate = viewModel::refreshLastSeenDonorDonationDate,
                 onClearLastSeenDonorDonationDate = viewModel::clearLastSeenDonorDonationDate,
@@ -593,14 +601,14 @@ fun MainScreen(
             bottomBar = {
                 NavigationBar {
                     Tab.entries.forEach { tab ->
-                        NavigationBarItem(
+                        AppNavigationBarItem(
                             selected = selectedTab == tab,
                             onClick = {
                                 dismissKeyboard()
                                 selectedTab = tab
                             },
                             icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) }
+                            label = { Text(tab.label) },
                         )
                     }
                 }
@@ -613,7 +621,10 @@ fun MainScreen(
                             showLogHub = true
                         },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                        text = { Text("Log") }
+                        text = { Text("Log") },
+                        shape = appControlShape(
+                            FloatingActionButtonDefaults.extendedFabShape
+                        )
                     )
                 }
             }
@@ -746,7 +757,10 @@ fun MainScreen(
                                 showLogHub = true
                             },
                             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                            text = { Text("Log") }
+                            text = { Text("Log") },
+                            shape = appControlShape(
+                                FloatingActionButtonDefaults.extendedFabShape
+                            )
                         )
                     }
                 ) { innerPadding ->

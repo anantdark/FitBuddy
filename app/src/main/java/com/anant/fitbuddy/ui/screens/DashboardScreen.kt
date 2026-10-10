@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -47,7 +46,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import com.anant.fitbuddy.ui.theme.appShape
+import com.anant.fitbuddy.ui.theme.isMakoStyle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,6 +75,9 @@ import kotlinx.coroutines.launch
 private val ProteinColor = MacroProteinColor
 private val CarbsColor = MacroCarbsColor
 private val FatsColor = MacroFatsColor
+
+/** Space under the last log row so calories clear the Scaffold +Log FAB. */
+private val LogFabClearance = 80.dp
 
 @androidx.compose.runtime.Immutable
 private data class LogRowItem(
@@ -120,7 +125,13 @@ fun DashboardHomeScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        // Extra bottom inset so the last log calories clear the +Log FAB and stay scrollable.
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp + LogFabClearance,
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -286,6 +297,7 @@ private fun MacroCard(
     modifier: Modifier = Modifier
 ) {
     val progress = if (target <= 0) 0f else (consumed.toFloat() / target).coerceIn(0f, 1f)
+    val barCap = if (isMakoStyle()) StrokeCap.Butt else StrokeCap.Round
 
     // Animate Y-rotation: 0° = front, 180° = back
     val rotation by animateFloatAsState(
@@ -342,9 +354,10 @@ private fun MacroCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .clip(CircleShape),
+                        .clip(appShape(3.dp)),
                     color = color,
-                    trackColor = color.copy(alpha = 0.2f)
+                    trackColor = color.copy(alpha = 0.2f),
+                    strokeCap = barCap,
                 )
             }
         } else {
@@ -380,9 +393,10 @@ private fun MacroCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .clip(CircleShape),
+                        .clip(appShape(3.dp)),
                     color = color,
-                    trackColor = color.copy(alpha = 0.2f)
+                    trackColor = color.copy(alpha = 0.2f),
+                    strokeCap = barCap,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -452,7 +466,12 @@ fun WeekHistoryScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp + LogFabClearance,
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -598,7 +617,7 @@ private fun LegendDot(label: String, color: Color) {
     ) {
         Surface(
             modifier = Modifier.size(10.dp),
-            shape = CircleShape,
+            shape = appShape(5.dp),
             color = color
         ) {}
         Text(
@@ -826,7 +845,7 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
                 MaterialTheme.colorScheme.tertiary
             }
             Surface(
-                shape = CircleShape,
+                shape = appShape(20.dp),
                 color = accent.copy(alpha = 0.15f),
                 modifier = Modifier.size(40.dp)
             ) {

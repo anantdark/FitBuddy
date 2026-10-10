@@ -4,6 +4,58 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 
+/** Static color palette when Material You (dynamic color) is off. */
+enum class AppColorTheme {
+    BRAND,
+    CATPPUCCIN_LATTE,
+    CATPPUCCIN_FRAPPE,
+    CATPPUCCIN_MACCHIATO,
+    CATPPUCCIN_MOCHA;
+
+    fun displayName(): String = when (this) {
+        BRAND -> "FitBuddy"
+        CATPPUCCIN_LATTE -> "Catppuccin Latte"
+        CATPPUCCIN_FRAPPE -> "Catppuccin Frappé"
+        CATPPUCCIN_MACCHIATO -> "Catppuccin Macchiato"
+        CATPPUCCIN_MOCHA -> "Catppuccin Mocha"
+    }
+
+    /** Latte is light; other Catppuccin flavors are dark. Brand follows the system. */
+    fun forcesDark(): Boolean? = when (this) {
+        BRAND -> null
+        CATPPUCCIN_LATTE -> false
+        CATPPUCCIN_FRAPPE,
+        CATPPUCCIN_MACCHIATO,
+        CATPPUCCIN_MOCHA -> true
+    }
+}
+
+/** App-wide typeface preference. */
+enum class AppFontOption {
+    DEFAULT,
+    JERSEY_25;
+
+    fun displayName(): String = when (this) {
+        DEFAULT -> "System default"
+        JERSEY_25 -> "Mako"
+    }
+}
+
+/**
+ * Component chrome (corners / silhouette). Independent of color theme and font —
+ * e.g. Catppuccin + Mako font + Mako components, or Material You + system font + Material.
+ * Mako is sharp, flat panels and controls.
+ */
+enum class AppComponentStyle {
+    MATERIAL,
+    MAKO;
+
+    fun displayName(): String = when (this) {
+        MATERIAL -> "Material"
+        MAKO -> "Mako"
+    }
+}
+
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
     OPENROUTER,
@@ -90,6 +142,18 @@ data class AppSettings(
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
     /**
+     * Static palette when [dynamicColor] is off. Ignored while Material You is enabled.
+     * Defaults to FitBuddy brand greens.
+     */
+    val colorTheme: AppColorTheme = AppColorTheme.BRAND,
+    /** App-wide font; [AppFontOption.DEFAULT] uses the platform sans-serif. */
+    val fontOption: AppFontOption = AppFontOption.DEFAULT,
+    /**
+     * Corner/silhouette style for cards, buttons, sheets, chips, etc.
+     * Mixable with [dynamicColor] / [colorTheme] / [fontOption].
+     */
+    val componentStyle: AppComponentStyle = AppComponentStyle.MATERIAL,
+    /**
      * Analyzing-banner wait UI: [LOADING_ANIM_OFF], [LOADING_ANIM_RANDOM], or a registered
      * animation id that supports the analyzing slot.
      */
@@ -147,8 +211,8 @@ data class AppSettings(
     val dailyLogReminderHour: Int = DEFAULT_REMINDER_HOUR,
     val dailyLogReminderMinute: Int = DEFAULT_REMINDER_MINUTE,
     /**
-     * Weekly optional donate nudge (morning notification + evening dialog). Re-enabled on
-     * app update, then turned off again if this install's Support ID is on the donors list.
+     * Weekly optional donate nudge (morning notification + evening dialog).
+     * Kept on automatically unless this install's Support ID is on the donors list.
      */
     val donationReminderEnabled: Boolean = true,
     /** Epoch ms of last soft-dismiss / cycle close; 0 until first-run seed. */

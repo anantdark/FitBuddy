@@ -31,7 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Favorite
@@ -87,8 +87,6 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
-
-private val CardShape = RoundedCornerShape(18.dp)
 
 private data class CardPalette(
     val frame: List<Color>,
@@ -409,12 +407,12 @@ private fun DonorCardFront(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clip(CardShape)
+            .clip(appShape(18.dp))
             .background(Brush.verticalGradient(listOf(palette.shellTop, palette.shellBottom)))
             .border(
                 width = 2.5.dp,
                 brush = Brush.linearGradient(palette.frame),
-                shape = CardShape,
+                shape = appShape(18.dp),
             )
             .drawWithContent {
                 drawContent()
@@ -447,7 +445,7 @@ private fun DonorCardFront(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(appShape(12.dp))
                 .background(palette.inner)
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -455,7 +453,7 @@ private fun DonorCardFront(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(appShape(8.dp))
                     .background(Brush.horizontalGradient(palette.frame))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
@@ -488,9 +486,9 @@ private fun DonorCardFront(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(appShape(10.dp))
                     .background(palette.ink.copy(alpha = 0.08f))
-                    .border(1.dp, palette.accent.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                    .border(1.dp, palette.accent.copy(alpha = 0.45f), appShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (!showLetter && photo.isNotEmpty()) {
@@ -619,7 +617,7 @@ private fun DonorInsightRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(appShape(8.dp))
             .background(ink.copy(alpha = 0.06f))
             .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -658,12 +656,12 @@ private fun DonorCardBack(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clip(CardShape)
+            .clip(appShape(18.dp))
             .background(Brush.verticalGradient(listOf(palette.shellTop, palette.shellBottom)))
             .border(
                 width = 2.5.dp,
                 brush = Brush.linearGradient(palette.frame),
-                shape = CardShape,
+                shape = appShape(18.dp),
             )
             .padding(16.dp),
     ) {
@@ -717,7 +715,7 @@ private fun DonorCardBack(
                 }
                 if (linkUrl != null) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = appShape(12.dp),
                         color = palette.accent.copy(alpha = 0.18f),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1078,7 +1076,7 @@ private fun AnimeRankCrest(
         Box(
             modifier = Modifier
                 .padding(top = 2.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(appShape(6.dp))
                 .background(Brush.horizontalGradient(theme.aura))
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
@@ -1161,7 +1159,7 @@ private fun DonorProfileDestinationPanel(
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            shape = CardShape,
+            shape = appShape(18.dp),
             tonalElevation = 8.dp,
             shadowElevation = 10.dp,
             modifier = Modifier
@@ -1220,7 +1218,7 @@ private fun DonorProfileDestinationPanel(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = appShape(14.dp),
                         color = Color.White.copy(alpha = 0.18f),
                         modifier = Modifier
                             .fillMaxWidth()

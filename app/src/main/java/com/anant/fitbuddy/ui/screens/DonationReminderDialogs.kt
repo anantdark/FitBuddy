@@ -19,8 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import com.anant.fitbuddy.ui.theme.appControlShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.AlertDialog
@@ -292,7 +293,7 @@ private fun SupportersListDialog(
                 )
             }
             Surface(
-                shape = RoundedCornerShape(28.dp),
+                shape = appShape(28.dp),
                 tonalElevation = 6.dp,
                 shadowElevation = 10.dp,
                 modifier = Modifier
@@ -368,7 +369,7 @@ private fun SupportersListDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = appShape(14.dp),
                         ) {
                             Text(
                                 text = if (canDismiss || lockSeconds <= 0) {
@@ -403,7 +404,7 @@ internal fun DonorRow(
     var showLetterAvatar by remember(photo) { mutableStateOf(photo.isEmpty()) }
 
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = appShape(16.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         modifier = Modifier
@@ -415,10 +416,11 @@ internal fun DonorRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val avatarShape = appControlShape(CircleShape)
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(CircleShape),
+                    .clip(avatarShape),
                 contentAlignment = Alignment.Center,
             ) {
                 if (!showLetterAvatar && photo.isNotEmpty()) {
@@ -428,7 +430,7 @@ internal fun DonorRow(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(CircleShape),
+                            .clip(avatarShape),
                         onState = { state ->
                             if (state is AsyncImagePainter.State.Error) {
                                 showLetterAvatar = true
@@ -438,7 +440,7 @@ internal fun DonorRow(
                 }
                 if (showLetterAvatar) {
                     Surface(
-                        shape = CircleShape,
+                        shape = avatarShape,
                         color = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.fillMaxSize(),
@@ -496,7 +498,7 @@ internal fun DemoDonorsPreview(donors: List<DonorEntry>) {
                 )
             } else {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = appShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
                 ) {

@@ -60,7 +60,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             // Read dynamic-color preference before theming so Material You toggles live.
             val settings by app.settingsRepository.settings.collectAsStateWithLifecycle(AppSettings())
-            FitBuddyTheme(dynamicColor = settings.dynamicColor) {
+            FitBuddyTheme(
+                dynamicColor = settings.dynamicColor,
+                colorTheme = settings.colorTheme,
+                fontOption = settings.fontOption,
+                componentStyle = settings.componentStyle,
+            ) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
                     val viewModel: MainViewModel = viewModel(
                         factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)

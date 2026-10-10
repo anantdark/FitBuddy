@@ -24,7 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appCornerRadiusPx
+import com.anant.fitbuddy.ui.theme.appShape
+import com.anant.fitbuddy.ui.theme.isMakoStyle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
@@ -51,6 +53,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -93,41 +96,74 @@ fun CalorieRing(
     topText: String? = null,
     strokeWidth: Float = 36f,
     progressColor: Color = MaterialTheme.colorScheme.primary,
-    trackColor: Color = MaterialTheme.colorScheme.surfaceVariant
+    // Faint fill color — not surfaceVariant (Catppuccin mapped that equal to the
+    // calorie card's surfaceContainerHigh, so an empty ring vanished into the card).
+    trackColor: Color = progressColor.copy(alpha = 0.22f),
 ) {
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceAtLeast(0f),
         animationSpec = tween(durationMillis = 800),
         label = "progress"
     )
+    val mako = isMakoStyle()
+    val pathMeasure = remember { PathMeasure() }
+    val progressPath = remember { Path() }
 
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val radius = (size.minDimension - strokeWidth) / 2
+            val half = (size.minDimension - strokeWidth) / 2
             val center = Offset(size.width / 2, size.height / 2)
+            val strokeCap = if (mako) StrokeCap.Butt else StrokeCap.Round
+            val stroke = Stroke(width = strokeWidth, cap = strokeCap)
 
-            // Track circle
-            drawCircle(
-                color = trackColor,
-                radius = radius,
-                center = center,
-                style = Stroke(width = strokeWidth)
-            )
-
-            // Progress arc starting from top (-90 degrees)
-            val sweepAngle = (animatedProgress * 360f).coerceAtMost(360f)
-            drawArc(
-                color = progressColor,
-                startAngle = -90f,
-                sweepAngle = sweepAngle,
-                useCenter = false,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = Size(radius * 2, radius * 2)
-            )
+            if (mako) {
+                // Square track + perimeter progress (starts at top-center, clockwise).
+                val left = center.x - half
+                val top = center.y - half
+                val right = center.x + half
+                val bottom = center.y + half
+                val trackPath = Path().apply {
+                    moveTo(center.x, top)
+                    lineTo(right, top)
+                    lineTo(right, bottom)
+                    lineTo(left, bottom)
+                    lineTo(left, top)
+                    close()
+                }
+                drawPath(path = trackPath, color = trackColor, style = stroke)
+                val frac = animatedProgress.coerceAtMost(1f)
+                if (frac > 0f) {
+                    pathMeasure.setPath(trackPath, forceClosed = false)
+                    progressPath.reset()
+                    pathMeasure.getSegment(
+                        startDistance = 0f,
+                        stopDistance = pathMeasure.length * frac,
+                        destination = progressPath,
+                        startWithMoveTo = true
+                    )
+                    drawPath(path = progressPath, color = progressColor, style = stroke)
+                }
+            } else {
+                drawCircle(
+                    color = trackColor,
+                    radius = half,
+                    center = center,
+                    style = Stroke(width = strokeWidth)
+                )
+                val sweepAngle = (animatedProgress * 360f).coerceAtMost(360f)
+                drawArc(
+                    color = progressColor,
+                    startAngle = -90f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = stroke,
+                    topLeft = Offset(center.x - half, center.y - half),
+                    size = Size(half * 2, half * 2)
+                )
+            }
         }
 
         // Labels in center
@@ -450,7 +486,7 @@ fun CustomLineChart(
                 modifier = Modifier
                     .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
                     .padding(horizontal = 4.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = appShape(12.dp),
                 tonalElevation = 3.dp,
                 shadowElevation = 4.dp,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -557,6 +593,10 @@ fun WeekMacroBarChart(
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     val selectedHue = MaterialTheme.colorScheme.primary
     val emptyBarColor = MaterialTheme.colorScheme.surfaceVariant
+    val barCornerPx = appCornerRadiusPx(12f)
+    val glowCornerPx = appCornerRadiusPx(18f)
+    val glowInnerCornerPx = appCornerRadiusPx(14f)
+    val stubCornerPx = appCornerRadiusPx(6f)
 
     val maxCalories = remember(days) {
         days.maxOfOrNull { it.calories }?.coerceAtLeast(1)?.toFloat()?.times(1.15f) ?: 2000f
@@ -603,7 +643,7 @@ fun WeekMacroBarChart(
             val graphHeight = size.height - paddingTop - paddingBottom
             val stepX = graphWidth / days.size
             val barWidth = (stepX * 0.55f).coerceIn(8f, 56f)
-            val corner = CornerRadius(12f, 12f)
+            val corner = CornerRadius(barCornerPx, barCornerPx)
             val barAlpha = 0.88f
 
             // Y-axis grid (calories)
@@ -643,13 +683,13 @@ fun WeekMacroBarChart(
                         color = selectedHue.copy(alpha = 0.10f),
                         topLeft = Offset(left - 10f, baseY - glowH - 10f),
                         size = Size(barWidth + 20f, glowH + 20f),
-                        cornerRadius = CornerRadius(18f, 18f)
+                        cornerRadius = CornerRadius(glowCornerPx, glowCornerPx)
                     )
                     drawRoundRect(
                         color = selectedHue.copy(alpha = 0.18f),
                         topLeft = Offset(left - 5f, baseY - glowH - 5f),
                         size = Size(barWidth + 10f, glowH + 10f),
-                        cornerRadius = CornerRadius(14f, 14f)
+                        cornerRadius = CornerRadius(glowInnerCornerPx, glowInnerCornerPx)
                     )
                 }
 
@@ -659,7 +699,7 @@ fun WeekMacroBarChart(
                         color = emptyBarColor.copy(alpha = barAlpha),
                         topLeft = Offset(left, baseY - stub),
                         size = Size(barWidth, stub),
-                        cornerRadius = CornerRadius(6f, 6f)
+                        cornerRadius = CornerRadius(stubCornerPx, stubCornerPx)
                     )
                 } else {
                     val pCal = day.proteinG * 4f
@@ -768,7 +808,7 @@ private fun MacroFloatPopup(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onDismiss),
-        shape = RoundedCornerShape(10.dp),
+        shape = appShape(10.dp),
         tonalElevation = 4.dp,
         shadowElevation = 6.dp,
         color = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -810,7 +850,7 @@ private fun MacroSwatch(color: Color, value: String) {
             modifier = Modifier
                 .width(8.dp)
                 .height(8.dp)
-                .background(color, RoundedCornerShape(2.dp))
+                .background(color, appShape(2.dp))
         )
         Text(
             text = value,
@@ -1070,7 +1110,7 @@ fun MetricLineChart(
                 modifier = Modifier
                     .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
                     .padding(horizontal = 4.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = appShape(12.dp),
                 tonalElevation = 3.dp,
                 shadowElevation = 4.dp,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1285,7 +1325,7 @@ fun CaloriesBurnedHeatmap(
     val cellSizePx = with(density) { cellSize.toPx() }
     val cellStridePx = with(density) { cellStride.toPx() }
     val monthLabelHeightPx = with(density) { monthLabelHeight.toPx() }
-    val cornerRadiusPx = with(density) { 2.dp.toPx() }
+    val cornerRadiusPx = appCornerRadiusPx(with(density) { 2.dp.toPx() })
     val selectedStrokePx = with(density) { 1.5.dp.toPx() }
     val monthLabelStyle = MaterialTheme.typography.labelSmall.copy(
         color = colorScheme.onSurfaceVariant,
@@ -1439,7 +1479,7 @@ fun CaloriesBurnedHeatmap(
                         "${DateUtils.displayDateSubtitle(it.date)}, ${it.calories} calories burned"
                     } ?: "No heatmap day selected"
                 },
-            shape = RoundedCornerShape(10.dp),
+            shape = appShape(10.dp),
             color = baseColor
         ) {
             if (selectedDay == null) {
@@ -1483,7 +1523,7 @@ fun CaloriesBurnedHeatmap(
                 Box(
                     Modifier
                         .size(10.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .clip(appShape(2.dp))
                         .background(color)
                 )
             }

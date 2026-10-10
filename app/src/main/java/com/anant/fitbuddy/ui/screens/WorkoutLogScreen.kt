@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -468,7 +468,7 @@ private fun EditExerciseDialog(
                     animated = true,
                     modifier = Modifier
                         .size(120.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(appShape(14.dp))
                 )
                 if (isCardio) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -578,7 +578,7 @@ private fun AddExerciseDetailsDialog(
                     animated = true,
                     modifier = Modifier
                         .size(120.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(appShape(14.dp))
                 )
                 if (isCardio) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

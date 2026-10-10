@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
@@ -125,7 +125,7 @@ private fun MealPresetRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = CircleShape,
+            shape = appShape(20.dp),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
             modifier = Modifier.size(40.dp)
         ) {

@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -1086,7 +1086,7 @@ private fun OnboardingGuideCard(
     modifier: Modifier = Modifier
 ) {
     val scheme = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(18.dp)
+    val shape = appShape(18.dp)
     val wash = remember(scheme.primaryContainer, scheme.secondaryContainer, scheme.tertiaryContainer) {
         Brush.linearGradient(
             colors = listOf(
@@ -1124,7 +1124,7 @@ private fun OnboardingGuideCard(
                 Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(appShape(14.dp))
                         .background(scheme.surface.copy(alpha = 0.72f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1160,7 +1160,7 @@ private fun OnboardingGuideCard(
                 Spacer(modifier = Modifier.width(10.dp))
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
+                        .clip(appShape(999.dp))
                         .background(scheme.primary.copy(alpha = 0.14f))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,

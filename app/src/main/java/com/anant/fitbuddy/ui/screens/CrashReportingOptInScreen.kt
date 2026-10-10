@@ -14,7 +14,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.ui.components.AppSwitch
 import com.anant.fitbuddy.ui.components.Button
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
@@ -114,7 +114,7 @@ fun CrashReportingOptInScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(
+                    AppSwitch(
                         checked = enabled,
                         onCheckedChange = { enabled = it }
                     )

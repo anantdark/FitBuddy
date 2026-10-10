@@ -19,7 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -42,6 +42,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
+import com.anant.fitbuddy.ui.theme.isMakoStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -152,12 +153,21 @@ fun AnalyticsScreen(
         }
 
         item {
+            val segmentBase = if (isMakoStyle()) {
+                RoundedCornerShape(0.dp)
+            } else {
+                SegmentedButtonDefaults.baseShape
+            }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 options.forEachIndexed { index, label ->
                     SegmentedButton(
                         selected = selectedRange == index,
                         onClick = { selectedRange = index },
-                        shape = SegmentedButtonDefaults.itemShape(index, options.size)
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = options.size,
+                            baseShape = segmentBase
+                        )
                     ) {
                         Text(label)
                     }

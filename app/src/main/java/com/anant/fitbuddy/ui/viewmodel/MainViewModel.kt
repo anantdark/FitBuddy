@@ -700,6 +700,16 @@ class MainViewModel(
 
     private val _pendingEveningDonateReminder = MutableStateFlow(false)
 
+    /** True when this install's Support ID is on the public donors list. */
+    private val _isSupporter = MutableStateFlow(false)
+    val isSupporter: StateFlow<Boolean> = _isSupporter.asStateFlow()
+
+    private suspend fun refreshSupporterStatus(supportId: String? = null) {
+        val id = supportId ?: settingsRepository.settings.first().supportId
+        val file = donorListRepository.cachedOrEmpty()
+        _isSupporter.value = donorListRepository.containsSupportId(file, id)
+    }
+
     fun consumeOpenDonationDialogRequest() {
         _openDonationDialogRequested.value = false
     }
@@ -913,8 +923,13 @@ class MainViewModel(
 
                 val file = donorListRepository.refresh(forceNetwork = true)
                 val isDonor = donorListRepository.containsSupportId(file, current.supportId)
+                _isSupporter.value = isDonor
+                // No Settings toggle — always on for everyone except known donors.
                 if (isDonor && current.donationReminderEnabled) {
                     settingsRepository.setDonationReminderEnabled(false)
+                    current = settingsRepository.settings.first()
+                } else if (!isDonor && !current.donationReminderEnabled) {
+                    settingsRepository.setDonationReminderEnabled(true)
                     current = settingsRepository.settings.first()
                 }
 
@@ -972,6 +987,7 @@ class MainViewModel(
         viewModelScope.launch {
             // Wait for first settings emission so Support ID / nudge seed see real prefs.
             settingsRepository.settings.first()
+            refreshSupporterStatus()
             syncDonors()
         }
 
@@ -2828,6 +2844,7 @@ class MainViewModel(
         viewModelScope.launch {
             val id = settingsRepository.regenerateSupportId()
             CrashReporter.setSupportId(id)
+            refreshSupporterStatus(id)
             _analysisState.update {
                 it.copy(userMessage = "New Support ID generated — copy it from Backup settings")
             }
