@@ -84,7 +84,11 @@ data class ProgressInsightResponse(
 data class WorkoutCaloriesResponse(
     @Json(name = "calories_burned") val caloriesBurned: Int,
     @Json(name = "duration_minutes") val durationMinutes: Int,
-    @Json(name = "intensity_note") val intensityNote: String? = null
+    @Json(name = "intensity_note") val intensityNote: String? = null,
+    /** [LogIconTopic] id derived from exercises (body part / cardio). */
+    @Json(name = "icon_topic") val iconTopic: String? = null,
+    /** Final session title after optional AI naming (local only; not from the model). */
+    @Json(ignore = true) val sessionName: String? = null
 )
 
 /** AI-normalised name + equipment for a user-typed custom exercise. */

@@ -70,6 +70,7 @@ import com.anant.fitbuddy.data.model.toSingleFoodMeal
 import com.anant.fitbuddy.data.model.Ingredient
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.LoggedIngredient
+import com.anant.fitbuddy.data.model.LogIconTopic
 import com.anant.fitbuddy.data.model.Macros
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.ProgressChatTurn
@@ -960,29 +961,33 @@ class FitnessRepository(
         weightKg: Double,
         timestamp: Long = System.currentTimeMillis()
     ): WorkoutCaloriesResponse {
-        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
+        val named = resolveWorkoutNameIfDefault(draft)
+        val enriched = enrichWorkoutDraftBodyParts(named)
+        val result = WorkoutCalorieEstimator.estimate(enriched, weightKg)
+            .copy(sessionName = enriched.name)
 
         val dateString = DateUtils.format(timestamp)
 
         val sessionId = workoutSessionDao.insert(
             WorkoutSession(
-                name = draft.name,
+                name = enriched.name,
                 timestamp = timestamp,
                 dateString = dateString,
-                durationMinutes = draft.durationMinutes
+                durationMinutes = enriched.durationMinutes
             )
         ).toInt()
 
-        workoutExerciseDao.insertAll(draft.exercises.toWorkoutExercises(sessionId))
+        workoutExerciseDao.insertAll(enriched.exercises.toWorkoutExercises(sessionId))
 
         val exerciseLogId = exerciseLogDao.insertAll(
             listOf(
                 ExerciseLog(
-                    activityName = draft.name,
+                    activityName = enriched.name,
                     timestamp = timestamp,
                     dateString = dateString,
                     caloriesBurned = result.caloriesBurned,
-                    durationMinutes = result.durationMinutes
+                    durationMinutes = result.durationMinutes,
+                    iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
                 )
             )
         ).first().toInt()
@@ -990,7 +995,7 @@ class FitnessRepository(
         workoutSessionDao.insert(
             WorkoutSession(
                 id = sessionId,
-                name = draft.name,
+                name = enriched.name,
                 timestamp = timestamp,
                 dateString = dateString,
                 durationMinutes = result.durationMinutes,
@@ -1016,14 +1021,17 @@ class FitnessRepository(
         val existingSession = workoutSessionDao.getById(sessionId)
             ?: error("This workout no longer exists")
 
-        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
+        val named = resolveWorkoutNameIfDefault(draft)
+        val enriched = enrichWorkoutDraftBodyParts(named)
+        val result = WorkoutCalorieEstimator.estimate(enriched, weightKg)
+            .copy(sessionName = enriched.name)
 
         workoutExerciseDao.deleteForSession(sessionId)
-        workoutExerciseDao.insertAll(draft.exercises.toWorkoutExercises(sessionId))
+        workoutExerciseDao.insertAll(enriched.exercises.toWorkoutExercises(sessionId))
 
         workoutSessionDao.insert(
             existingSession.copy(
-                name = draft.name,
+                name = enriched.name,
                 durationMinutes = result.durationMinutes,
                 caloriesBurned = result.caloriesBurned
             )
@@ -1033,9 +1041,10 @@ class FitnessRepository(
             exerciseLogDao.getById(exerciseLogId)?.let { existingLog ->
                 exerciseLogDao.insertExerciseLog(
                     existingLog.copy(
-                        activityName = draft.name,
+                        activityName = enriched.name,
                         caloriesBurned = result.caloriesBurned,
-                        durationMinutes = result.durationMinutes
+                        durationMinutes = result.durationMinutes,
+                        iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
                     )
                 )
             }
@@ -1057,11 +1066,14 @@ class FitnessRepository(
         val existingLog = exerciseLogDao.getById(exerciseLogId)
             ?: error("This exercise log no longer exists")
 
-        val result = WorkoutCalorieEstimator.estimate(draft, weightKg)
+        val named = resolveWorkoutNameIfDefault(draft)
+        val enriched = enrichWorkoutDraftBodyParts(named)
+        val result = WorkoutCalorieEstimator.estimate(enriched, weightKg)
+            .copy(sessionName = enriched.name)
 
         val sessionId = workoutSessionDao.insert(
             WorkoutSession(
-                name = draft.name,
+                name = enriched.name,
                 timestamp = existingLog.timestamp,
                 dateString = existingLog.dateString,
                 durationMinutes = result.durationMinutes,
@@ -1070,17 +1082,52 @@ class FitnessRepository(
             )
         ).toInt()
 
-        workoutExerciseDao.insertAll(draft.exercises.toWorkoutExercises(sessionId))
+        workoutExerciseDao.insertAll(enriched.exercises.toWorkoutExercises(sessionId))
 
         exerciseLogDao.insertExerciseLog(
             existingLog.copy(
-                activityName = draft.name,
+                activityName = enriched.name,
                 caloriesBurned = result.caloriesBurned,
-                durationMinutes = result.durationMinutes
+                durationMinutes = result.durationMinutes,
+                iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
             )
         )
 
         return result
+    }
+
+    /** Fills missing [ExerciseDraft.bodyParts] from the ExerciseDB catalog by name. */
+    private fun enrichWorkoutDraftBodyParts(draft: WorkoutDraft): WorkoutDraft {
+        val catalog = exerciseCatalogRepository.exercises.value
+        if (catalog.isEmpty()) return draft
+        val byName = catalog.associateBy { it.name.lowercase() }
+        return draft.copy(
+            exercises = draft.exercises.map { ex ->
+                if (ex.bodyParts.isNotEmpty()) return@map ex
+                val hit = byName[ex.name.lowercase()] ?: return@map ex
+                ex.copy(
+                    bodyParts = hit.bodyParts,
+                    gifUrl = ex.gifUrl ?: hit.gifUrl
+                )
+            }
+        )
+    }
+
+    /**
+     * When the session title is still the placeholder [WorkoutDraft.DEFAULT_NAME], ask AI for
+     * a short name from the exercise list. Keeps the default if AI is offline / fails.
+     */
+    private suspend fun resolveWorkoutNameIfDefault(draft: WorkoutDraft): WorkoutDraft {
+        if (!draft.hasDefaultName() || draft.exercises.isEmpty()) return draft
+        val settings = settingsRepository.settings.first()
+        if (!settings.isConfigured) return draft
+        val suggested = runCatching {
+            suggestWorkoutName(draft.exercises.map { it.name })
+        }.getOrNull()?.trim().orEmpty()
+        if (suggested.isBlank() || suggested.equals(WorkoutDraft.DEFAULT_NAME, ignoreCase = true)) {
+            return draft
+        }
+        return draft.copy(name = suggested)
     }
 
     private fun List<ExerciseDraft>.toWorkoutExercises(sessionId: Int) =
@@ -1239,7 +1286,8 @@ class FitnessRepository(
                         timestamp = timestamp,
                         dateString = dateString,
                         caloriesBurned = caloriesBurned,
-                        durationMinutes = durationMinutes
+                        durationMinutes = durationMinutes,
+                        iconTopic = LogIconTopic.normalizeExercise(exercise.iconTopic)
                     )
                 )
                 AnalysisOutcome.ExerciseSaved(activityName, caloriesBurned)
@@ -1293,7 +1341,12 @@ class FitnessRepository(
                 )
             )
         // Dish-level macros are ignored; FoodDraft totals are the sum of ingredients.
-        return FoodDraft(dishName = food.dishName, timestamp = timestamp, ingredients = ingredients)
+        return FoodDraft(
+            dishName = food.dishName,
+            timestamp = timestamp,
+            ingredients = ingredients,
+            iconTopic = LogIconTopic.normalizeFood(food.iconTopic)
+        )
     }
 
     /** OpenRouter vision models for the Settings dropdown (free, or free+paid). */
@@ -1377,7 +1430,8 @@ class FitnessRepository(
             calories = draft.totalCalories,
             proteinG = draft.totalProtein,
             carbsG = draft.totalCarbs,
-            fatsG = draft.totalFats
+            fatsG = draft.totalFats,
+            iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
         )
         val mealId = if (id != 0) {
             foodLogDao.insertFoodLog(mealLog)
@@ -1416,7 +1470,8 @@ class FitnessRepository(
         return MealDraft(
             name = log.dishName,
             timestamp = log.timestamp,
-            foods = entries
+            foods = entries,
+            iconTopic = log.iconTopic
         )
     }
 
@@ -1490,7 +1545,8 @@ class FitnessRepository(
                 fatsG = draft.totalFats,
                 createdAt = now,
                 ingredients = draft.ingredients.map { LoggedIngredient.fromIngredientDraft(it) },
-                lastUsedAt = now
+                lastUsedAt = now,
+                iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
             )
         )
     }
@@ -1507,7 +1563,8 @@ class FitnessRepository(
                 fatsG = draft.totalFats,
                 createdAt = now,
                 foods = draft.foods.map { it.toPresetMealFood() },
-                lastUsedAt = now
+                lastUsedAt = now,
+                iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
             )
         )
     }
@@ -1646,6 +1703,8 @@ class FitnessRepository(
             ensureExercisePreset(name, equipment)
             recordExerciseUsage(name)
             val isCardio = equipment == Equipment.CARDIO
+            val catalogHit = exerciseCatalogRepository.exercises.value
+                .firstOrNull { it.name.equals(name, ignoreCase = true) }
             ExerciseDraft(
                 name = name,
                 sets = if (isCardio) 1 else row.sets.coerceAtLeast(1),
@@ -1654,9 +1713,8 @@ class FitnessRepository(
                 equipment = equipment,
                 durationMinutes = row.durationMinutes?.takeIf { it > 0 },
                 distanceKm = row.distanceKm?.takeIf { it > 0 },
-                gifUrl = exerciseCatalogRepository.exercises.value
-                    .firstOrNull { it.name.equals(name, ignoreCase = true) }
-                    ?.gifUrl
+                gifUrl = catalogHit?.gifUrl,
+                bodyParts = catalogHit?.bodyParts.orEmpty()
             )
         }
     }
@@ -1674,7 +1732,7 @@ class FitnessRepository(
         val (result, _) = withAiFailover(settings) { s ->
             remoteAiDataSource.suggestWorkoutName(s, exerciseNames)
         }
-        return result.name.trim().ifBlank { "Workout" }
+        return result.name.trim().ifBlank { WorkoutDraft.DEFAULT_NAME }
     }
 
     private suspend fun ensureExercisePreset(name: String, equipment: String) {
@@ -1757,7 +1815,8 @@ class FitnessRepository(
             MealDraft(
                 name = food.name,
                 timestamp = timestamp,
-                foods = listOf(food.toFoodEntry())
+                foods = listOf(food.toFoodEntry()),
+                iconTopic = food.iconTopic
             )
         )
         touchSavedFood(food)
@@ -1949,19 +2008,25 @@ class FitnessRepository(
                     foodAnalysis = FoodAnalysis(
                         dishName = dish,
                         macros = Macros(c, p, cr, f),
-                        ingredients = buildSimIngredients(input, query, c, p, cr, f)
+                        ingredients = buildSimIngredients(input, query, c, p, cr, f),
+                        iconTopic = simulateFoodIconTopic(query)
                     ),
                     exerciseAnalysis = null
                 )
             }
             "EXERCISE_LOGGED" -> {
-                val (act, burn, dur) = when {
-                    "walk" in query || "walked" in query -> Triplet("Brisk Walk", 180, 40)
-                    "run" in query || "jog" in query || "jogged" in query -> Triplet("Outdoor Running", 450, 35)
-                    "gym" in query || "weight" in query || "lifting" in query -> Triplet("Weight Training", 240, 45)
-                    "yoga" in query -> Triplet("Surya Namaskar & Yoga", 150, 30)
-                    "cricket" in query || "play" in query -> Triplet("Cricket Match Play", 320, 60)
-                    else -> Triplet("Cardio Workout", 280, 30)
+                val (act, burn, dur, topic) = when {
+                    "walk" in query || "walked" in query ->
+                        Quad("Brisk Walk", 180, 40, LogIconTopic.WALK)
+                    "run" in query || "jog" in query || "jogged" in query ->
+                        Quad("Outdoor Running", 450, 35, LogIconTopic.RUN)
+                    "gym" in query || "weight" in query || "lifting" in query ->
+                        Quad("Weight Training", 240, 45, LogIconTopic.STRENGTH)
+                    "yoga" in query ->
+                        Quad("Surya Namaskar & Yoga", 150, 30, LogIconTopic.MIND_BODY)
+                    "cricket" in query || "play" in query ->
+                        Quad("Cricket Match Play", 320, 60, LogIconTopic.SPORT)
+                    else -> Quad("Cardio Workout", 280, 30, LogIconTopic.CARDIO)
                 }
                 FitnessTrackerResponse(
                     status = "EXERCISE_LOGGED",
@@ -1970,7 +2035,8 @@ class FitnessRepository(
                     exerciseAnalysis = ExerciseAnalysis(
                         activityDetected = act,
                         caloriesBurned = burn,
-                        durationMinutes = dur
+                        durationMinutes = dur,
+                        iconTopic = topic
                     )
                 )
             }
@@ -2023,6 +2089,7 @@ class FitnessRepository(
             foodAnalysis = FoodAnalysis(
                 dishName = dish.name,
                 macros = Macros(dish.calories, dish.proteinG, dish.carbsG, dish.fatsG),
+                iconTopic = simulateFoodIconTopic(query),
                 ingredients = listOf(
                     Ingredient(
                         name = dish.name,
@@ -2161,7 +2228,25 @@ class FitnessRepository(
     }
 
     private data class Quintet<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
+    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
     private data class Triplet<A, B, C>(val first: A, val second: B, val third: C)
+
+    /** Coarse topic for the offline simulator only (live path uses AI `icon_topic`). */
+    private fun simulateFoodIconTopic(query: String): String = when {
+        listOf("chai", "tea", "coffee", "juice", "lassi", "smoothie", "soda").any { it in query } ->
+            LogIconTopic.DRINK
+        listOf("ice cream", "cake", "sweet", "dessert", "cookie", "mithai").any { it in query } ->
+            LogIconTopic.DESSERT
+        listOf("roti", "paratha", "naan", "bread", "dosa", "idli", "toast", "pav").any { it in query } ->
+            LogIconTopic.BAKERY
+        listOf("biryani", "rice", "noodle", "pasta", "soup", "dal", "curry", "sambar").any { it in query } ->
+            LogIconTopic.BOWL
+        listOf("chicken", "fish", "egg", "mutton", "paneer", "steak").any { it in query } ->
+            LogIconTopic.PROTEIN
+        listOf("salad", "fruit", "yogurt", "curd", "oat").any { it in query } ->
+            LogIconTopic.PRODUCE
+        else -> LogIconTopic.MEAL
+    }
 
     /**
      * Tries AI calls within the preferred platform when [AppSettings.aiAutoFailover] is on:

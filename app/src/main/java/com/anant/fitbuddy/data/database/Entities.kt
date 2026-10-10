@@ -81,7 +81,9 @@ data class FoodLog(
     val calories: Int,
     val proteinG: Int,
     val carbsG: Int,
-    val fatsG: Int
+    val fatsG: Int,
+    /** AI [LogIconTopic] id for the dashboard glyph; null → default meal icon. */
+    val iconTopic: String? = null
 )
 
 /**
@@ -124,7 +126,9 @@ data class ExerciseLog(
     val timestamp: Long,
     val dateString: String, // format: "YYYY-MM-DD"
     val caloriesBurned: Int,
-    val durationMinutes: Int
+    val durationMinutes: Int,
+    /** AI [LogIconTopic] id for the dashboard glyph; null → default strength icon. */
+    val iconTopic: String? = null
 )
 
 /** A reusable single-food library item (ingredients + macros) for meal building only. */
@@ -141,7 +145,9 @@ data class SavedFood(
     val barcode: String? = null,
     val ingredients: List<LoggedIngredient>? = null,
     /** Epoch ms of last pick/log; higher values sort first in the library. */
-    val lastUsedAt: Long = 0L
+    val lastUsedAt: Long = 0L,
+    /** AI [LogIconTopic] id; null → default meal icon. */
+    val iconTopic: String? = null
 )
 
 /** A reusable meal template (multiple foods) for one-tap logging from the dashboard. */
@@ -157,7 +163,9 @@ data class MealPreset(
     val createdAt: Long,
     val foods: List<com.anant.fitbuddy.data.model.PresetMealFood>? = null,
     /** Epoch ms of last pick/log; higher values sort first in the library. */
-    val lastUsedAt: Long = 0L
+    val lastUsedAt: Long = 0L,
+    /** AI [LogIconTopic] id; null → default meal icon. */
+    val iconTopic: String? = null
 )
 
 /** A user-added exercise saved for the workout picker after AI (or offline) normalisation. */

@@ -176,6 +176,18 @@ object DateUtils {
     fun rolling30DayBounds(endInclusive: String = today()): Pair<String, String> =
         addDays(endInclusive, -29) to endInclusive
 
+    /** Inclusive calendar days from [startDate] → [endDate] (oldest first). Empty if inverted. */
+    fun datesInclusive(startDate: String, endDate: String): List<String> {
+        if (startDate > endDate) return emptyList()
+        val out = ArrayList<String>()
+        var cur = startDate
+        while (cur <= endDate) {
+            out.add(cur)
+            cur = addDays(cur, 1)
+        }
+        return out
+    }
+
     /** Compact label for a 30-day range, e.g. "Jul 3 – Aug 1" or "Jun 2 – Jul 1, 2025". */
     fun rolling30DayLabel(endInclusive: String): String {
         val start = addDays(endInclusive, -29)

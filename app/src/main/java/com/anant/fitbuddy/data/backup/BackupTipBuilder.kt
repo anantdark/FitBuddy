@@ -280,7 +280,7 @@ object BackupTipBuilder {
 
     private fun hashFood(row: FoodLog) = listOf(
         row.id, row.dishName, row.timestamp, row.dateString,
-        row.calories, row.proteinG, row.carbsG, row.fatsG
+        row.calories, row.proteinG, row.carbsG, row.fatsG, row.iconTopic
     ).joinToString("|").let(BackupContentHasher::sha256Hex)
 
     private fun hashMealFood(row: MealFood) = listOf(
@@ -289,7 +289,8 @@ object BackupTipBuilder {
     ).joinToString("|").let(BackupContentHasher::sha256Hex)
 
     private fun hashExercise(row: ExerciseLog) = listOf(
-        row.id, row.activityName, row.timestamp, row.dateString, row.caloriesBurned, row.durationMinutes
+        row.id, row.activityName, row.timestamp, row.dateString,
+        row.caloriesBurned, row.durationMinutes, row.iconTopic
     ).joinToString("|").let(BackupContentHasher::sha256Hex)
 
     private fun hashMeasurement(row: BodyMeasurement) = listOf(

@@ -33,7 +33,9 @@ data class FoodEntryDraft(
 data class MealDraft(
     val name: String,
     val timestamp: Long,
-    val foods: List<FoodEntryDraft>
+    val foods: List<FoodEntryDraft>,
+    /** AI [LogIconTopic] id; carried through review → save. */
+    val iconTopic: String? = null
 ) {
     val totalCalories: Int get() = foods.sumOf { it.totalCalories }
     val totalProtein: Int get() = foods.sumOf { it.totalProtein }
@@ -62,7 +64,8 @@ fun FoodDraft.toFoodEntry(servings: Double = 1.0): FoodEntryDraft = FoodEntryDra
 fun FoodDraft.toSingleFoodMeal(): MealDraft = MealDraft(
     name = dishName,
     timestamp = timestamp,
-    foods = listOf(toFoodEntry())
+    foods = listOf(toFoodEntry()),
+    iconTopic = iconTopic
 )
 
 fun FoodDraft.toMealBuilderItems(): List<FoodEntryDraft> = listOf(toFoodEntry())

@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,6 +64,7 @@ import com.anant.fitbuddy.ui.components.WeekMacroBarChart
 import com.anant.fitbuddy.ui.components.pressable
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
+import com.anant.fitbuddy.ui.util.LogItemIcons
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
@@ -86,6 +85,7 @@ private data class LogRowItem(
     val calories: Int,
     val timestamp: Long,
     val isFood: Boolean,
+    val iconTopic: String? = null,
     val foodLog: FoodLog? = null,
     val exerciseLog: ExerciseLog? = null
 )
@@ -852,9 +852,9 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = if (item.isFood) {
-                            Icons.Filled.Restaurant
+                            LogItemIcons.forFood(item.iconTopic)
                         } else {
-                            Icons.Filled.LocalFireDepartment
+                            LogItemIcons.forExercise(item.iconTopic)
                         },
                         contentDescription = null,
                         tint = accent
@@ -923,6 +923,7 @@ private fun rememberCombinedLogs(
             calories = it.calories,
             timestamp = it.timestamp,
             isFood = true,
+            iconTopic = it.iconTopic,
             foodLog = it
         )
     }
@@ -933,6 +934,7 @@ private fun rememberCombinedLogs(
             calories = it.caloriesBurned,
             timestamp = it.timestamp,
             isFood = false,
+            iconTopic = it.iconTopic,
             exerciseLog = it
         )
     }

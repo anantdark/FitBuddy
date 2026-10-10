@@ -19,6 +19,7 @@ import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.database.filledForDateRange
 import com.anant.fitbuddy.data.model.ActivityLevelRecommendation
 import com.anant.fitbuddy.data.model.ActivityLevelRecommender
 import com.anant.fitbuddy.data.model.BodyTrendAnalyzer
@@ -1939,8 +1940,16 @@ class MainViewModel(
 
     // --- Analytics --------------------------------------------------------------------------
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val weeklyFood: StateFlow<List<FoodDailySummary>> =
-        repository.getWeeklyFoodSummaries()
+        _realToday
+            .flatMapLatest { endDate ->
+                val dates = DateUtils.rollingWeekDates(endDate)
+                val start = dates.first()
+                val end = dates.last()
+                repository.getFoodSummariesBetween(start, end)
+                    .map { it.filledForDateRange(start, end) }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1949,6 +1958,7 @@ class MainViewModel(
             .flatMapLatest { endDate ->
                 val (start, end) = DateUtils.rolling30DayBounds(endDate)
                 repository.getFoodSummariesBetween(start, end)
+                    .map { it.filledForDateRange(start, end) }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -2048,9 +2058,10 @@ class MainViewModel(
                 )
             }
                 .onSuccess { result ->
+                    val name = result.sessionName ?: draft.name
                     _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
                     _analysisState.update {
-                        it.copy(userMessage = "Logged ${draft.name} · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = "Logged $name · -${result.caloriesBurned} kcal")
                     }
                 }
                 .onFailure { e ->
@@ -2156,10 +2167,11 @@ class MainViewModel(
                 .onSuccess { result ->
                     // Edit/clone closes by clearing editingWorkout (not via savedSuccessfully
                     // LaunchedEffect). Leaving that flag set would auto-dismiss the next open.
+                    val name = result.sessionName ?: draft.name
                     _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
-                        it.copy(userMessage = "Cloned ${draft.name} · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = "Cloned $name · -${result.caloriesBurned} kcal")
                     }
                 }
                 .onFailure { e ->
@@ -2197,10 +2209,11 @@ class MainViewModel(
                 .onSuccess { result ->
                     // Edit/clone closes by clearing editingWorkout (not via savedSuccessfully
                     // LaunchedEffect). Leaving that flag set would auto-dismiss the next open.
+                    val name = result.sessionName ?: draft.name
                     _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
-                        it.copy(userMessage = "Updated ${draft.name} · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = "Updated $name · -${result.caloriesBurned} kcal")
                     }
                 }
                 .onFailure { e ->

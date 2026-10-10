@@ -14,7 +14,9 @@ data class ExerciseDraft(
     val durationMinutes: Int? = null,
     val distanceKm: Double? = null,
     /** Demo GIF from the exercise catalog when known; null for customs / offline seed. */
-    val gifUrl: String? = null
+    val gifUrl: String? = null,
+    /** ExerciseDB body-part labels; drives [LogIconTopic.fromWorkoutDraft]. */
+    val bodyParts: List<String> = emptyList()
 ) {
     fun isCardio(): Boolean = equipment == Equipment.CARDIO
 }
@@ -22,11 +24,15 @@ data class ExerciseDraft(
 /** An in-progress workout session being built in the logging screen, before it's saved. */
 @Immutable
 data class WorkoutDraft(
-    val name: String = "Workout",
+    val name: String = DEFAULT_NAME,
     val durationMinutes: Int = DEFAULT_DURATION_MINUTES,
     val exercises: List<ExerciseDraft> = emptyList()
 ) {
+    /** True when the user left the placeholder title (AI naming may replace it on save). */
+    fun hasDefaultName(): Boolean = name.trim().equals(DEFAULT_NAME, ignoreCase = true)
+
     companion object {
+        const val DEFAULT_NAME = "Workout"
         const val DEFAULT_DURATION_MINUTES = 45
 
         /**

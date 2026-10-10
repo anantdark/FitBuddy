@@ -100,6 +100,16 @@ class DateUtilsTest {
     }
 
     @Test
+    fun `datesInclusive covers every day oldest to newest`() {
+        assertEquals(
+            listOf("2026-07-13", "2026-07-14", "2026-07-15"),
+            DateUtils.datesInclusive("2026-07-13", "2026-07-15")
+        )
+        assertEquals(emptyList<String>(), DateUtils.datesInclusive("2026-07-15", "2026-07-13"))
+        assertEquals(listOf("2026-07-19"), DateUtils.datesInclusive("2026-07-19", "2026-07-19"))
+    }
+
+    @Test
     fun `display helpers return expected US locale shapes`() {
         val prev = Locale.getDefault()
         val prevTz = TimeZone.getDefault()

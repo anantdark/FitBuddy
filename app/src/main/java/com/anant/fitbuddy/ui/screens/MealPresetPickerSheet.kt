@@ -12,8 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
+import com.anant.fitbuddy.ui.util.LogItemIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -131,7 +131,7 @@ private fun MealPresetRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Filled.Bookmark,
+                    LogItemIcons.forFood(preset.iconTopic),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )

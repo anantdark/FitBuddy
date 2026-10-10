@@ -44,7 +44,8 @@ fun MealPreset.toMealDraft(): MealDraft {
     return MealDraft(
         name = name,
         timestamp = System.currentTimeMillis(),
-        foods = entries
+        foods = entries,
+        iconTopic = iconTopic
     )
 }
 

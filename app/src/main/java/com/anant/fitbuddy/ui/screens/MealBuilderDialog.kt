@@ -95,7 +95,8 @@ fun MealBuilderDialog(
                     onClick = {
                         onReview(
                             items.toMealDraft(mealName.trim()).copy(
-                                timestamp = initialDraft?.timestamp ?: System.currentTimeMillis()
+                                timestamp = initialDraft?.timestamp ?: System.currentTimeMillis(),
+                                iconTopic = initialDraft?.iconTopic
                             )
                         )
                     }
