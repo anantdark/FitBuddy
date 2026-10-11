@@ -84,6 +84,15 @@ class DateUtilsTest {
     }
 
     @Test
+    fun `addCalendarMonths and minDate`() {
+        assertEquals("2026-07-15", DateUtils.addCalendarMonths("2026-01-15", 6))
+        assertEquals("2025-07-15", DateUtils.addCalendarMonths("2026-01-15", -6))
+        assertEquals("2026-01-01", DateUtils.minDate("2026-01-01", "2026-02-01"))
+        assertEquals("2026-01-01", DateUtils.minDate(null, "2026-01-01"))
+        assertEquals("2026-01-01", DateUtils.minDate("2026-01-01", null))
+    }
+
+    @Test
     fun `dayTitle today yesterday and older`() {
         val prev = Locale.getDefault()
         try {

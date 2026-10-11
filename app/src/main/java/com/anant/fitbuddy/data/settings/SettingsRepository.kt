@@ -159,6 +159,7 @@ class SettingsRepository(context: Context) {
                 insightAnim != AppSettings.LOADING_ANIM_OFF,
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
+            signupDate = prefs[KEY_SIGNUP_DATE].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             diagnosticLoggingEnabled = prefs[KEY_DIAGNOSTIC_LOGGING] ?: false,
             region = prefs[KEY_REGION].orEmpty(),
@@ -219,10 +220,13 @@ class SettingsRepository(context: Context) {
         return id
     }
 
-    /** Replaces the Support ID (crash reporting + cloud backup document key). */
+    /** Replaces the Support ID (crash reporting + cloud backup document key). Clears signup date. */
     suspend fun regenerateSupportId(): String {
         val id = java.util.UUID.randomUUID().toString()
-        dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
+        dataStore.edit { prefs ->
+            prefs[KEY_SUPPORT_ID] = id
+            prefs.remove(KEY_SIGNUP_DATE)
+        }
         return id
     }
 
@@ -231,6 +235,34 @@ class SettingsRepository(context: Context) {
         val id = supportId.trim()
         if (id.isBlank()) return
         dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
+    }
+
+    /**
+     * Persists [signupDate] (`yyyy-MM-dd`) once. No-op when blank or when a signup date is
+     * already stored (first-entry / restore wins).
+     */
+    suspend fun setSignupDateIfEmpty(signupDate: String): String? {
+        val date = signupDate.trim()
+        if (date.isBlank()) return null
+        var stored: String? = null
+        dataStore.edit { prefs ->
+            val existing = prefs[KEY_SIGNUP_DATE].orEmpty()
+            if (existing.isNotBlank()) {
+                stored = existing
+            } else {
+                prefs[KEY_SIGNUP_DATE] = date
+                stored = date
+            }
+        }
+        return stored
+    }
+
+    /** Overwrites signup date (restore / regenerate backfill). Blank clears. */
+    suspend fun setSignupDate(signupDate: String) {
+        val date = signupDate.trim()
+        dataStore.edit { prefs ->
+            if (date.isBlank()) prefs.remove(KEY_SIGNUP_DATE) else prefs[KEY_SIGNUP_DATE] = date
+        }
     }
 
     /** UTC calendar day `yyyy-MM-dd` of the last Sentry heartbeat, or null. */
@@ -434,6 +466,11 @@ class SettingsRepository(context: Context) {
             prefs[KEY_REGION_REQUEST_SENT_AT] = settings.regionRequestSentAt
             if (settings.supportId.isNotBlank()) {
                 prefs[KEY_SUPPORT_ID] = settings.supportId
+            }
+            if (settings.signupDate.isNotBlank()) {
+                prefs[KEY_SIGNUP_DATE] = settings.signupDate.trim()
+            } else {
+                prefs.remove(KEY_SIGNUP_DATE)
             }
             prefs[KEY_EASTER_EGG] = settings.easterEggDiscovered
             prefs[KEY_DAILY_LOG_REMINDER] = settings.dailyLogReminderEnabled
@@ -712,6 +749,7 @@ class SettingsRepository(context: Context) {
             }
         }
         val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
+        val KEY_SIGNUP_DATE = stringPreferencesKey("signup_date")
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
         val KEY_DIAGNOSTIC_LOGGING = booleanPreferencesKey("diagnostic_logging_enabled")
         val KEY_REGION = stringPreferencesKey("app_region")

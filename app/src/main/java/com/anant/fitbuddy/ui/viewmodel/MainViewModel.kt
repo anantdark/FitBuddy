@@ -934,8 +934,14 @@ class MainViewModel(
                     current = settingsRepository.settings.first()
                 }
 
+                runCatching { repository.ensureSignupDateFromLogs() }
+                current = settingsRepository.settings.first()
                 val lastSeenDate = settingsRepository.lastSeenDonorDonationDate()
-                val newcomers = donorListRepository.newDisplayableDonors(file, lastSeenDate)
+                val newcomers = donorListRepository.newDisplayableDonors(
+                    file = file,
+                    lastSeenDonationDate = lastSeenDate,
+                    signupDate = current.signupDate.ifBlank { null },
+                )
                 if (newcomers.isNotEmpty()) {
                     _newDonorsThankYou.value = newcomers
                 } else {
@@ -2671,7 +2677,8 @@ class MainViewModel(
                         cloudBackupEnabled = !BuildConfig.DEBUG
                     )
                 )
-                CrashReporter.setSupportId(reusedId)
+                CrashReporter.setSupportId(reusedId, restored.signupDate)
+                runCatching { repository.ensureSignupDateFromLogs() }
                 count
             }
                 .onSuccess { count ->
@@ -2845,7 +2852,8 @@ class MainViewModel(
                         cloudAutoUploadEnabled = !BuildConfig.DEBUG
                     )
                 )
-                CrashReporter.setSupportId(reusedId)
+                CrashReporter.setSupportId(reusedId, restored.signupDate)
+                runCatching { repository.ensureSignupDateFromLogs() }
                 val after = settingsRepository.settings.first()
                 applyRestoredAiCredentialGate(after)
             }
@@ -2897,8 +2905,9 @@ class MainViewModel(
                 }
                 val after = settingsRepository.settings.first()
                 if (after.supportId.isNotBlank()) {
-                    CrashReporter.setSupportId(after.supportId)
+                    CrashReporter.setSupportId(after.supportId, after.signupDate)
                 }
+                runCatching { repository.ensureSignupDateFromLogs() }
                 applyRestoredAiCredentialGate(after)
             }
             _onboardingRestoring.value = false
@@ -2914,7 +2923,10 @@ class MainViewModel(
     fun regenerateSupportId() {
         viewModelScope.launch {
             val id = settingsRepository.regenerateSupportId()
-            CrashReporter.setSupportId(id)
+            // Signup date was cleared with the ID; re-mint from earliest food/exercise log.
+            repository.ensureSignupDateFromLogs()
+            val signup = settingsRepository.settings.first().signupDate
+            CrashReporter.setSupportId(id, signup)
             refreshSupporterStatus(id)
             _analysisState.update {
                 it.copy(userMessage = "New Support ID generated — copy it from Backup settings")

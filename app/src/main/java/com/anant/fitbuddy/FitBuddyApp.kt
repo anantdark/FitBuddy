@@ -148,6 +148,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             app = this,
             enabled = settings.crashReportingEnabled,
             supportId = settings.supportId,
+            signupDate = settings.signupDate,
             proxyModeSeed = proxyModeSeed,
             forceProxy = settings.forceSentryProxyMode
         )
@@ -160,6 +161,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         appScope.launch {
             runCatching { exerciseCatalogRepository.ensureLoaded() }
+            // Existing installs: mint signup_date from earliest food/exercise log once.
+            runCatching { repository.ensureSignupDateFromLogs() }
         }
         ReminderReceiver.ensureChannel(this)
         DonationReminderReceiver.ensureChannel(this)

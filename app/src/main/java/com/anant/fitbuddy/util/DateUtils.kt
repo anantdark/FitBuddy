@@ -74,6 +74,22 @@ object DateUtils {
         return format(cal.timeInMillis)
     }
 
+    /** Add [months] (may be negative) to a `yyyy-MM-dd` local calendar day. */
+    fun addCalendarMonths(dateString: String, months: Int): String =
+        LocalDate.parse(dateString).plusMonths(months.toLong()).toString()
+
+    /** Earlier of two `yyyy-MM-dd` strings; nulls sort as missing. */
+    fun minDate(a: String?, b: String?): String? {
+        val left = a?.takeIf { it.isNotBlank() }
+        val right = b?.takeIf { it.isNotBlank() }
+        return when {
+            left == null -> right
+            right == null -> left
+            left <= right -> left
+            else -> right
+        }
+    }
+
     /**
      * Compact range for a week strip, e.g. "Jul 6 – 12" or "Jun 30 – Jul 6".
      * Empty [dates] → "".

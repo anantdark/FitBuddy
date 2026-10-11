@@ -877,11 +877,15 @@ fun SettingsScreen(
         // --- Themes (colors + fonts) — supporters only ------------------------------------
         var themesLockToastAt by remember { mutableLongStateOf(0L) }
         var showThemesSupportDialog by remember { mutableStateOf(false) }
+        val themesUnlocked = isSupporter || settings.forceSentryProxyMode
         SettingsCard(
             title = "Themes",
+            titleBadge = {
+                SupporterExclusiveBadge(muted = themesUnlocked)
+            },
             initiallyExpanded = false,
             // Force Sentry proxy (dev) unlocks for local testing; shipping UI stays supporter-gated.
-            unlocked = isSupporter || settings.forceSentryProxyMode,
+            unlocked = themesUnlocked,
             onLockedExpandAttempt = {
                 val now = SystemClock.elapsedRealtime()
                 if (themesLockToastAt > 0L && now - themesLockToastAt < 5_000L) {
@@ -2455,6 +2459,8 @@ private fun SettingsCard(
     initiallyExpanded: Boolean = true,
     hintTitle: String? = null,
     hint: String? = null,
+    /** Optional chip beside the title (e.g. supporter-only sections). */
+    titleBadge: (@Composable () -> Unit)? = null,
     /** When false, header is greyed and expand taps call [onLockedExpandAttempt] instead. */
     unlocked: Boolean = true,
     onLockedExpandAttempt: (() -> Unit)? = null,
@@ -2498,17 +2504,10 @@ private fun SettingsCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (locked) {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                Row(
                     modifier = Modifier
                         .weight(1f)
                         .then(
@@ -2517,8 +2516,24 @@ private fun SettingsCard(
                             } else {
                                 Modifier
                             }
-                        )
-                )
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (locked) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    titleBadge?.invoke()
+                }
                 if (hint != null && hintTitle != null && unlocked) {
                     HintIconButton(title = hintTitle, message = hint)
                 }
@@ -2542,6 +2557,36 @@ private fun SettingsCard(
             }
         }
     }
+}
+
+/** Compact chip marking Settings sections reserved for public supporters. */
+@Composable
+private fun SupporterExclusiveBadge(
+    muted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val background = if (muted) {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    } else {
+        MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val foreground = if (muted) {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    } else {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    }
+    Text(
+        text = "Supporter exclusive",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = foreground,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .clip(appShape(6.dp))
+            .background(background)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

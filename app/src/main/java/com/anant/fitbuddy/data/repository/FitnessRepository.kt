@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.backup.BackupChunkIds
 import com.anant.fitbuddy.data.backup.BackupChunkMerger
 import com.anant.fitbuddy.data.backup.BackupContentHasher
@@ -127,6 +128,29 @@ class FitnessRepository(
     /** Total user-created records across food logs, exercise logs, and measurements. */
     suspend fun getTotalRecordCount(): Int =
         foodLogDao.count() + exerciseLogDao.count() + bodyMeasurementDao.count()
+
+    /** Earliest food or exercise `dateString`, or null when neither table has rows. */
+    suspend fun earliestFoodOrExerciseDate(): String? =
+        DateUtils.minDate(
+            foodLogDao.getEarliestDateString(),
+            exerciseLogDao.getEarliestDateString()
+        )
+
+    /**
+     * Mints [AppSettings.signupDate] from the earliest food/exercise log when unset, then
+     * mirrors it to Sentry. Safe to call often (no-op once a date is stored).
+     */
+    suspend fun ensureSignupDateFromLogs() {
+        val existing = settingsRepository.settings.first().signupDate.trim()
+        if (existing.isNotEmpty()) {
+            CrashReporter.setSignupDate(existing)
+            return
+        }
+        val earliest = earliestFoodOrExerciseDate() ?: return
+        val stored = settingsRepository.setSignupDateIfEmpty(earliest) ?: return
+        CrashReporter.setSignupDate(stored)
+    }
+
     val savedFoods: Flow<List<SavedFood>> = savedFoodDao.getAll()
     val mealPresets: Flow<List<MealPreset>> = mealPresetDao.getAll()
     val exercisePresets: Flow<List<ExercisePreset>> = exercisePresetDao.getAllPresets()
@@ -1013,6 +1037,7 @@ class FitnessRepository(
                 exerciseLogId = exerciseLogId
             )
         )
+        ensureSignupDateFromLogs()
 
         return result
     }
@@ -1300,6 +1325,7 @@ class FitnessRepository(
                         iconTopic = LogIconTopic.normalizeExercise(exercise.iconTopic)
                     )
                 )
+                ensureSignupDateFromLogs()
                 AnalysisOutcome.ExerciseSaved(activityName, caloriesBurned)
             }
 
@@ -1451,6 +1477,7 @@ class FitnessRepository(
         }
         mealFoodDao.deleteForMeal(mealId)
         mealFoodDao.insertAll(draft.foods.mapIndexed { index, food -> food.toMealFood(mealId, index) })
+        ensureSignupDateFromLogs()
     }
 
     /** Convenience: log a single reviewed food as a one-food meal. */

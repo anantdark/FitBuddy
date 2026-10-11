@@ -135,4 +135,13 @@ object DonorBadgeRules {
             at.isNotEmpty() && (floor.isEmpty() || at > floor)
         }
     }
+
+    /** True when [donor] has at least one donation on or after [minDate] (`yyyy-MM-dd`). */
+    fun hasDonationOnOrAfter(donor: DonorEntry, minDate: String?): Boolean {
+        val floor = DonorDates.normalizeOrNull(minDate) ?: return true
+        return donor.donations.any { rec ->
+            val at = rec.normalizedAt
+            at.isNotEmpty() && at >= floor
+        }
+    }
 }

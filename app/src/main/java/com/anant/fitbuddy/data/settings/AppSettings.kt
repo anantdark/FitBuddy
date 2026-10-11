@@ -186,6 +186,12 @@ data class AppSettings(
      * Share this with the developer when reporting a bug.
      */
     val supportId: String = "",
+    /**
+     * Calendar day (`yyyy-MM-dd`) of the earliest food or exercise log on this install.
+     * Empty until the first log; backfilled for existing users. Synced via backup; Sentry
+     * `User.data["signup_dt"]`.
+     */
+    val signupDate: String = "",
     /** When false, Sentry does not send crash events (SDK may still be initialized). Off by default on F-Droid. */
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /**

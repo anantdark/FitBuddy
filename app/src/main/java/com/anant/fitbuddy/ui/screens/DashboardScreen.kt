@@ -773,7 +773,7 @@ private fun LogActionSheet(
             if (showClone) {
                 ActionRow(
                     Icons.Filled.ContentCopy,
-                    "Clone to today",
+                    "Clone item",
                     onClick = { runAfterHide(onClone) }
                 )
             }
