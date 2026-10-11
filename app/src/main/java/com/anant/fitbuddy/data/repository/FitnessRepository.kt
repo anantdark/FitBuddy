@@ -613,7 +613,9 @@ class FitnessRepository(
                 )
             )
             // Legacy single plaintext head: migrate to sealed Support-ID tip when possible.
-            if (chain.size == 1 &&
+            // Debug builds never push — even this one-shot migration rewrite.
+            if (!BuildConfig.DEBUG &&
+                chain.size == 1 &&
                 backupManager.crypto.classify(chain[0].payloadJson) == BackupFormat.LEGACY_PLAIN
             ) {
                 try {

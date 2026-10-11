@@ -2640,10 +2640,23 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Settings → Developer tools restore. Blocked in debug builds; use onboarding
+     * "Restore from cloud backup" with a Support ID instead ([restoreOnboardingFromCloud]).
+     */
     fun downloadMongoBackup(
         supportId: String,
         passwordProvider: suspend () -> CharArray? = { null }
     ) {
+        if (BuildConfig.DEBUG) {
+            _analysisState.update {
+                it.copy(
+                    userMessage = "In debug builds, restore from cloud only during onboarding " +
+                        "(enter a Support ID)."
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val enteredId = supportId.trim()
@@ -2802,8 +2815,9 @@ class MainViewModel(
     }
 
     /**
-     * Onboarding cloud restore. Reuses the Support ID from the backup payload (or the ID
-     * entered to fetch it), enables cloud backup, then probes AI credentials.
+     * Onboarding cloud restore (pull-only). Reuses the Support ID from the backup payload
+     * (or the ID entered to fetch it), then probes AI credentials. Release builds opt into
+     * cloud backup afterward; debug builds keep uploads off.
      */
     fun restoreOnboardingFromCloud(
         supportId: String,

@@ -1350,8 +1350,9 @@ fun SettingsScreen(
                 )
             } else if (BuildConfig.DEBUG) {
                 Text(
-                    text = "Cloud backup is disabled in debug builds so FitBuddy Dev never " +
-                        "uploads to cloud. Use a release build to enable it.",
+                    text = "Cloud backup uploads are disabled in debug builds. You can still " +
+                        "pull an existing backup during onboarding with a Support ID. " +
+                        "Use a release build to enable uploads.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1723,9 +1724,19 @@ fun SettingsScreen(
                             showMongoRestoreConfirm = true
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = cloudVaultAvailable && !mongoBackupBusy
+                        enabled = !BuildConfig.DEBUG &&
+                            cloudVaultAvailable &&
+                            !mongoBackupBusy
                     ) {
                         Text("Download & restore from cloud")
+                    }
+                    if (BuildConfig.DEBUG) {
+                        Text(
+                            text = "Debug builds restore from cloud only during onboarding " +
+                                "(Support ID). Uploads stay off.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     OutlinedButton(
                         onClick = onForceNewCloudChunk,
