@@ -1348,6 +1348,48 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else if (BuildConfig.DEBUG) {
+                Text(
+                    text = "Cloud backup is disabled in debug builds so FitBuddy Dev never " +
+                        "uploads to cloud. Use a release build to enable it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                SettingToggleRow(
+                    title = "Enable cloud backup",
+                    checked = false,
+                    onCheckedChange = {},
+                    enabled = false,
+                    hintTitle = "Enable cloud backup",
+                    hint = "Unavailable in debug builds."
+                )
+                SettingToggleRow(
+                    title = "Auto-upload on startup",
+                    checked = false,
+                    onCheckedChange = {},
+                    enabled = false,
+                    hintTitle = "Auto-upload",
+                    hint = "Unavailable in debug builds."
+                )
+                Text(
+                    text = "Cloud backup off (debug)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false
+                ) {
+                    Text("Upload now")
+                }
+                OutlinedButton(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false
+                ) {
+                    Text("Change cloud backup password")
+                }
             } else {
                 SettingToggleRow(
                     title = "Enable cloud backup",
@@ -1688,7 +1730,8 @@ fun SettingsScreen(
                     OutlinedButton(
                         onClick = onForceNewCloudChunk,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = cloudVaultAvailable &&
+                        enabled = !BuildConfig.DEBUG &&
+                            cloudVaultAvailable &&
                             settings.cloudBackupEnabled &&
                             !mongoBackupBusy
                     ) {

@@ -2583,6 +2583,12 @@ class MainViewModel(
     val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
 
     fun uploadMongoBackup() {
+        if (BuildConfig.DEBUG) {
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             runCatching { repository.uploadMongoBackup(force = true) }
@@ -2608,6 +2614,12 @@ class MainViewModel(
 
     /** Developer tools: freeze current tip log rows and append a new cloud tip chunk. */
     fun forceNewCloudBackupChunk() {
+        if (BuildConfig.DEBUG) {
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             runCatching { repository.uploadMongoBackup(force = true, forceNewChunk = true) }
@@ -2642,7 +2654,8 @@ class MainViewModel(
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
-                        cloudBackupEnabled = true
+                        // Debug builds never opt into cloud upload after restore.
+                        cloudBackupEnabled = !BuildConfig.DEBUG
                     )
                 )
                 CrashReporter.setSupportId(reusedId)
@@ -2663,6 +2676,13 @@ class MainViewModel(
     }
 
     fun changeCloudPassword(newPassword: CharArray?) {
+        if (BuildConfig.DEBUG) {
+            newPassword?.fill('\u0000')
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val isBlank = newPassword == null || newPassword.isEmpty() ||
@@ -2694,6 +2714,12 @@ class MainViewModel(
     }
 
     fun setCloudBackupEnabled(enabled: Boolean) {
+        if (BuildConfig.DEBUG && enabled) {
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup is disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             if (enabled) {
                 settingsRepository.ensureSupportId()
@@ -2722,6 +2748,13 @@ class MainViewModel(
      * failure the toggle stays enabled and a retry runs on the next auto-upload.
      */
     fun enableCloudBackup(password: CharArray?) {
+        if (BuildConfig.DEBUG) {
+            password?.fill('\u0000')
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup is disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val isBlank = password == null || password.isEmpty() || password.all { it.isWhitespace() }
@@ -2793,8 +2826,9 @@ class MainViewModel(
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
-                        cloudBackupEnabled = true,
-                        cloudAutoUploadEnabled = true
+                        // Debug builds never opt into cloud upload after restore.
+                        cloudBackupEnabled = !BuildConfig.DEBUG,
+                        cloudAutoUploadEnabled = !BuildConfig.DEBUG
                     )
                 )
                 CrashReporter.setSupportId(reusedId)

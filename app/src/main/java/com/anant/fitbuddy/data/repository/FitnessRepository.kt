@@ -3,6 +3,7 @@ package com.anant.fitbuddy.data.repository
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.backup.BackupChunkIds
 import com.anant.fitbuddy.data.backup.BackupChunkMerger
 import com.anant.fitbuddy.data.backup.BackupContentHasher
@@ -376,6 +377,9 @@ class FitnessRepository(
         force: Boolean = false,
         forceNewChunk: Boolean = false
     ): CloudUploadResult {
+        if (BuildConfig.DEBUG) {
+            error("Cloud backup uploads are disabled in debug builds")
+        }
         val settings = settingsRepository.settings.first()
         if (!settings.cloudBackupEnabled) {
             error("Cloud backup is disabled")
@@ -714,6 +718,9 @@ class FitnessRepository(
      * PUTs each node (tip-only rule does not apply).
      */
     suspend fun changeCloudPassword(newPassword: CharArray?) {
+        if (BuildConfig.DEBUG) {
+            error("Cloud backup uploads are disabled in debug builds")
+        }
         // Validate: non-blank password must be 8–128 characters
         val isBlank = newPassword == null || newPassword.isEmpty() || newPassword.all { it.isWhitespace() }
         if (!isBlank && (newPassword.size < 8 || newPassword.size > 128)) {
@@ -807,6 +814,7 @@ class FitnessRepository(
      * and last upload older than [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
      */
     fun shouldAutoUploadNow(settings: AppSettings, nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (BuildConfig.DEBUG) return false
         if (!settings.cloudBackupEnabled || !settings.cloudAutoUploadEnabled) return false
         if (!MongoUriVault.isAvailable()) return false
         if (settings.supportId.isBlank()) return false
