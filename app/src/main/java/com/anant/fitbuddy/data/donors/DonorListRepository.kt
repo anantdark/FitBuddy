@@ -57,10 +57,9 @@ class DonorListRepository(
     }
 
     /**
-     * Named donors with at least one donation strictly after [lastSeenDonationDate],
-     * and not older than [THANK_YOU_MAX_AGE_MONTHS] before [signupDate] (or today when
-     * signup is unset). Preserves [DonorsFile.donors] array order. Gallery uses
-     * [allDisplayableDonors] (no age filter).
+     * Named donors with a thank-you–eligible donation: new vs [lastSeenDonationDate], and
+     * either on/after [signupDate] (unbounded) or within [THANK_YOU_MAX_AGE_MONTHS] before
+     * signup (or before today when signup is unset). Gallery uses [allDisplayableDonors].
      */
     fun newDisplayableDonors(
         file: DonorsFile,
@@ -68,14 +67,17 @@ class DonorListRepository(
         signupDate: String? = null,
         today: String = DateUtils.today(),
     ): List<DonorEntry> {
-        val floor = DonorDates.normalizeOrNull(lastSeenDonationDate)
         val ageAnchor = DonorDates.normalizeOrNull(signupDate) ?: today
-        val notBefore = DateUtils.addCalendarMonths(ageAnchor, -THANK_YOU_MAX_AGE_MONTHS)
+        val preSignupNotBefore = DateUtils.addCalendarMonths(ageAnchor, -THANK_YOU_MAX_AGE_MONTHS)
         return file.donors.filter { entry ->
             entry.normalizedHash.isNotEmpty() &&
                 entry.hasDisplayInfo &&
-                DonorBadgeRules.hasDonationAfter(entry, floor) &&
-                DonorBadgeRules.hasDonationOnOrAfter(entry, notBefore)
+                DonorBadgeRules.hasThankYouEligibleDonation(
+                    donor = entry,
+                    lastSeenDate = lastSeenDonationDate,
+                    signupDate = signupDate,
+                    preSignupNotBefore = preSignupNotBefore,
+                )
         }
     }
 

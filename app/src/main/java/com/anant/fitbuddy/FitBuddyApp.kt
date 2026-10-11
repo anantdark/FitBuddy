@@ -148,7 +148,6 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             app = this,
             enabled = settings.crashReportingEnabled,
             supportId = settings.supportId,
-            signupDate = settings.signupDate,
             proxyModeSeed = proxyModeSeed,
             forceProxy = settings.forceSentryProxyMode
         )
@@ -248,7 +247,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             aiProvider = settings.provider.name,
             username = settings.usernameForHeartbeat,
             recordCount = recordCount,
-            isDeveloper = settings.developerModeUnlocked
+            isDeveloper = settings.developerModeUnlocked,
+            signupDate = settings.signupDate
         )
         val current = BuildConfig.VERSION_CODE
         val previous = settingsRepository.lastKnownVersionCode()

@@ -4,7 +4,6 @@ import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import com.anant.fitbuddy.BuildConfig
-import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.backup.BackupChunkIds
 import com.anant.fitbuddy.data.backup.BackupChunkMerger
 import com.anant.fitbuddy.data.backup.BackupContentHasher
@@ -137,18 +136,14 @@ class FitnessRepository(
         )
 
     /**
-     * Mints [AppSettings.signupDate] from the earliest food/exercise log when unset, then
-     * mirrors it to Sentry. Safe to call often (no-op once a date is stored).
+     * Mints [AppSettings.signupDate] from the earliest food/exercise log when unset.
+     * Safe to call often (no-op once a date is stored). Heartbeats read it from settings.
      */
     suspend fun ensureSignupDateFromLogs() {
         val existing = settingsRepository.settings.first().signupDate.trim()
-        if (existing.isNotEmpty()) {
-            CrashReporter.setSignupDate(existing)
-            return
-        }
+        if (existing.isNotEmpty()) return
         val earliest = earliestFoodOrExerciseDate() ?: return
-        val stored = settingsRepository.setSignupDateIfEmpty(earliest) ?: return
-        CrashReporter.setSignupDate(stored)
+        settingsRepository.setSignupDateIfEmpty(earliest)
     }
 
     val savedFoods: Flow<List<SavedFood>> = savedFoodDao.getAll()

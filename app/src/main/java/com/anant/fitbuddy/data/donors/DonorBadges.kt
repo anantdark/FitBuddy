@@ -144,4 +144,31 @@ object DonorBadgeRules {
             at.isNotEmpty() && at >= floor
         }
     }
+
+    /**
+     * True when [donor] has a donation that is new vs [lastSeenDate] and eligible for the
+     * thank-you banner relative to [signupDate]:
+     * - on/after signup → always eligible (no upper bound)
+     * - before signup → only if within [preSignupNotBefore] (typically signup − 6 months)
+     */
+    fun hasThankYouEligibleDonation(
+        donor: DonorEntry,
+        lastSeenDate: String?,
+        signupDate: String?,
+        preSignupNotBefore: String?,
+    ): Boolean {
+        val lastSeen = DonorDates.normalizeOrNull(lastSeenDate)
+        val signup = DonorDates.normalizeOrNull(signupDate)
+        val preFloor = DonorDates.normalizeOrNull(preSignupNotBefore)
+        return donor.donations.any { rec ->
+            val at = rec.normalizedAt
+            if (at.isEmpty()) return@any false
+            if (lastSeen != null && at <= lastSeen) return@any false
+            when {
+                signup == null -> preFloor == null || at >= preFloor
+                at >= signup -> true // after signup: unbounded
+                else -> preFloor != null && at >= preFloor // before signup: 6‑month window
+            }
+        }
+    }
 }

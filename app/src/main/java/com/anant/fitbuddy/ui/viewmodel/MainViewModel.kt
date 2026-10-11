@@ -1246,7 +1246,8 @@ class MainViewModel(
             aiProvider = s.provider.name,
             username = s.usernameForHeartbeat,
             recordCount = recordCount,
-            isDeveloper = s.developerModeUnlocked
+            isDeveloper = s.developerModeUnlocked,
+            signupDate = s.signupDate
         )
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
@@ -2677,7 +2678,7 @@ class MainViewModel(
                         cloudBackupEnabled = !BuildConfig.DEBUG
                     )
                 )
-                CrashReporter.setSupportId(reusedId, restored.signupDate)
+                CrashReporter.setSupportId(reusedId)
                 runCatching { repository.ensureSignupDateFromLogs() }
                 count
             }
@@ -2852,7 +2853,7 @@ class MainViewModel(
                         cloudAutoUploadEnabled = !BuildConfig.DEBUG
                     )
                 )
-                CrashReporter.setSupportId(reusedId, restored.signupDate)
+                CrashReporter.setSupportId(reusedId)
                 runCatching { repository.ensureSignupDateFromLogs() }
                 val after = settingsRepository.settings.first()
                 applyRestoredAiCredentialGate(after)
@@ -2905,7 +2906,7 @@ class MainViewModel(
                 }
                 val after = settingsRepository.settings.first()
                 if (after.supportId.isNotBlank()) {
-                    CrashReporter.setSupportId(after.supportId, after.signupDate)
+                    CrashReporter.setSupportId(after.supportId)
                 }
                 runCatching { repository.ensureSignupDateFromLogs() }
                 applyRestoredAiCredentialGate(after)
@@ -2925,8 +2926,7 @@ class MainViewModel(
             val id = settingsRepository.regenerateSupportId()
             // Signup date was cleared with the ID; re-mint from earliest food/exercise log.
             repository.ensureSignupDateFromLogs()
-            val signup = settingsRepository.settings.first().signupDate
-            CrashReporter.setSupportId(id, signup)
+            CrashReporter.setSupportId(id)
             refreshSupporterStatus(id)
             _analysisState.update {
                 it.copy(userMessage = "New Support ID generated — copy it from Backup settings")

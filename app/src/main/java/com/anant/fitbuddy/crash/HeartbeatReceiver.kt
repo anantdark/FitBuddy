@@ -43,7 +43,8 @@ class HeartbeatReceiver : BroadcastReceiver() {
                     aiProvider = settings.provider.name,
                     username = settings.usernameForHeartbeat,
                     recordCount = recordCount,
-                    isDeveloper = settings.developerModeUnlocked
+                    isDeveloper = settings.developerModeUnlocked,
+                    signupDate = settings.signupDate
                 )
                 val sent = CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)
                 // Persist today's transport decision so proxy mode survives process death, and

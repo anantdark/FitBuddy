@@ -7,8 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Thank-you banner: new vs last-seen, and hide donations older than 6 months before signup.
- * Uses the same predicates as [DonorListRepository.newDisplayableDonors].
+ * Thank-you banner: new vs last-seen; pre-signup donations capped at 6 months;
+ * post-signup donations unbounded.
  */
 class DonorThankYouFilterTest {
 
@@ -17,12 +17,19 @@ class DonorThankYouFilterTest {
         lastSeen: String?,
         signupDate: String,
     ): List<DonorEntry> {
-        val notBefore = DateUtils.addCalendarMonths(signupDate, -DonorListRepository.THANK_YOU_MAX_AGE_MONTHS)
+        val preFloor = DateUtils.addCalendarMonths(
+            signupDate,
+            -DonorListRepository.THANK_YOU_MAX_AGE_MONTHS,
+        )
         return donors.filter { entry ->
             entry.normalizedHash.isNotEmpty() &&
                 entry.hasDisplayInfo &&
-                DonorBadgeRules.hasDonationAfter(entry, lastSeen) &&
-                DonorBadgeRules.hasDonationOnOrAfter(entry, notBefore)
+                DonorBadgeRules.hasThankYouEligibleDonation(
+                    donor = entry,
+                    lastSeenDate = lastSeen,
+                    signupDate = signupDate,
+                    preSignupNotBefore = preFloor,
+                )
         }
     }
 
@@ -40,7 +47,6 @@ class DonorThankYouFilterTest {
                 donations = listOf(DonationRecord(amountUsd = 4.0, at = "2026-01-10")),
             ),
         )
-        // Signup mid-2026 → window starts 2025-12-15; Jan donation stays, June 2025 drops.
         val shown = thankYouFilter(donors, lastSeen = null, signupDate = "2026-06-15")
         assertEquals(listOf("Recent"), shown.map { it.displayName })
     }
@@ -62,6 +68,20 @@ class DonorThankYouFilterTest {
             emptyList<String>(),
             thankYouFilter(donors, null, "2026-07-02").map { it.displayName },
         )
+    }
+
+    @Test
+    fun thankYou_postSignupDonationsHaveNoUpperBound() {
+        val donors = listOf(
+            DonorEntry(
+                hash = "late",
+                name = "Late",
+                donations = listOf(DonationRecord(amountUsd = 4.0, at = "2028-12-01")),
+            ),
+        )
+        // Years after a 2026 signup — still thank-you eligible when new.
+        val shown = thankYouFilter(donors, lastSeen = "2028-11-01", signupDate = "2026-01-15")
+        assertEquals(listOf("Late"), shown.map { it.displayName })
     }
 
     @Test

@@ -32,6 +32,8 @@ data class HeartbeatInfo(
     val recordCount: Int = 0,
     /** True when Settings developer tools are unlocked on this install. */
     val isDeveloper: Boolean = false,
+    /** First food/exercise log day (`yyyy-MM-dd`); empty until minted. Heartbeats only. */
+    val signupDate: String = "",
     val androidSdk: Int = Build.VERSION.SDK_INT,
     val manufacturer: String = Build.MANUFACTURER.orEmpty().take(64),
     val model: String = Build.MODEL.orEmpty().take(64)
@@ -69,10 +71,6 @@ object CrashReporter {
     private val ready = AtomicBoolean(false)
     @Volatile
     private var reportingEnabled: Boolean = true
-    @Volatile
-    private var currentSupportId: String = ""
-    @Volatile
-    private var currentSignupDate: String = ""
 
     /**
      * When true, all Sentry traffic is routed through the Vercel proxy (read on the transport's
@@ -91,7 +89,6 @@ object CrashReporter {
         app: Application,
         enabled: Boolean,
         supportId: String,
-        signupDate: String = "",
         proxyModeSeed: Boolean = false,
         forceProxy: Boolean = false
     ) {
@@ -101,8 +98,6 @@ object CrashReporter {
         reportingEnabled = enabled
         forcedProxyMode.set(forceProxy)
         proxyModeActive.set(forceProxy || proxyModeSeed)
-        currentSupportId = supportId.trim()
-        currentSignupDate = signupDate.trim()
         SentryAndroid.init(app) { options ->
             options.dsn = dsn
             // Route envelopes through the Vercel proxy when proxy mode is active (Sentry ingest
@@ -141,7 +136,9 @@ object CrashReporter {
                 scrub(event)
             })
         }
-        applySentryUser()
+        if (supportId.isNotBlank()) {
+            Sentry.setUser(User().apply { id = supportId })
+        }
         ready.set(true)
     }
 
@@ -158,32 +155,9 @@ object CrashReporter {
         proxyModeActive.set(active)
     }
 
-    fun setSupportId(supportId: String, signupDate: String? = null) {
+    fun setSupportId(supportId: String) {
         if (!ready.get() || supportId.isBlank()) return
-        currentSupportId = supportId.trim()
-        if (signupDate != null) currentSignupDate = signupDate.trim()
-        applySentryUser()
-    }
-
-    /** Updates Sentry `User.data["signup_dt"]` without changing [currentSupportId]. */
-    fun setSignupDate(signupDate: String) {
-        if (!ready.get()) return
-        currentSignupDate = signupDate.trim()
-        if (currentSupportId.isNotBlank()) applySentryUser()
-    }
-
-    private fun applySentryUser() {
-        val id = currentSupportId
-        if (id.isBlank()) return
-        Sentry.setUser(
-            User().apply {
-                this.id = id
-                val dt = currentSignupDate
-                if (dt.isNotEmpty()) {
-                    data = mapOf(SIGNUP_DT_KEY to dt)
-                }
-            }
-        )
+        Sentry.setUser(User().apply { id = supportId })
     }
 
     /** Event-name breadcrumb only — never attach meal text, keys, or barcodes. */
@@ -346,6 +320,10 @@ object CrashReporter {
             }
             add(SentryAttribute.integerAttribute("record_count", info.recordCount))
             add(SentryAttribute.booleanAttribute("is_developer", info.isDeveloper))
+            val signup = info.signupDate.trim()
+            if (signup.isNotEmpty()) {
+                add(SentryAttribute.stringAttribute(SIGNUP_DT_KEY, signup))
+            }
         }
         val attrs = SentryAttributes.of(*attrList.toTypedArray())
         Sentry.metrics().count(
@@ -362,7 +340,7 @@ object CrashReporter {
     }
 
     private const val TAG = "FitBuddyCrash"
-    /** Sentry User.data key for the install's first food/exercise log day. */
+    /** Heartbeat Logs/Metrics attribute for the install's first food/exercise log day. */
     const val SIGNUP_DT_KEY = "signup_dt"
 
     private fun scrub(event: SentryEvent): SentryEvent {
