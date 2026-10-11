@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.util
 
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -108,6 +111,17 @@ object DateUtils {
             set(Calendar.MILLISECOND, clock.get(Calendar.MILLISECOND))
         }.timeInMillis
     }
+
+    /**
+     * UTC midnight millis for a `yyyy-MM-dd` day — the format Material [DatePicker] expects /
+     * returns via [androidx.compose.material3.DatePickerState.selectedDateMillis].
+     */
+    fun dateStringToUtcEpochDayMillis(dateString: String): Long =
+        LocalDate.parse(dateString).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+    /** Inverse of [dateStringToUtcEpochDayMillis]. */
+    fun utcEpochDayMillisToDateString(utcEpochDayMillis: Long): String =
+        Instant.ofEpochMilli(utcEpochDayMillis).atZone(ZoneOffset.UTC).toLocalDate().toString()
 
     /** "Today" / "Yesterday" / "Wed, Jul 16" relative to [realToday]. */
     fun dayTitle(dateString: String, realToday: String = today()): String {

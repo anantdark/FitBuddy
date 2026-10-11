@@ -1162,6 +1162,7 @@ fun MainScreen(
             isReanalyzing = analysisState.isReanalyzing,
             reviewMessage = analysisState.reviewMessage,
             onReviewMessageShown = viewModel::consumeReviewMessage,
+            showLogDate = foodEditorTarget == FoodEditorTarget.LOG_MEAL,
             onConfirm = { confirmed ->
                 when (foodEditorTarget) {
                     FoodEditorTarget.LOG_MEAL -> viewModel.confirmFood(confirmed)

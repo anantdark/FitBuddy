@@ -77,6 +77,13 @@ class DateUtilsTest {
     }
 
     @Test
+    fun `date picker UTC millis round-trips yyyy-MM-dd`() {
+        val original = "2026-07-10"
+        val utcMillis = DateUtils.dateStringToUtcEpochDayMillis(original)
+        assertEquals(original, DateUtils.utcEpochDayMillisToDateString(utcMillis))
+    }
+
+    @Test
     fun `dayTitle today yesterday and older`() {
         val prev = Locale.getDefault()
         try {

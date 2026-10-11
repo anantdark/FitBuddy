@@ -53,6 +53,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
+import com.anant.fitbuddy.ui.components.LogDateField
 
 /** Full-screen editable review of an AI-analysed meal, shown before it is saved to the log. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,6 +69,8 @@ fun FoodReviewDialog(
     onAskForPortion: (String) -> Unit = {},
     askPortionHint: String =
         "Know the dish but not grams? Estimates a standard home serving.",
+    /** When false (editing a food inside a meal), the meal owns the log date. */
+    showLogDate: Boolean = true,
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -77,6 +80,8 @@ fun FoodReviewDialog(
         // Editable working copy, re-seeded if a different draft arrives.
         var dishName by remember(draft) { mutableStateOf(draft.dishName) }
         val ingredients = remember(draft) { draft.ingredients.toMutableStateList() }
+        // Keyed on the incoming stamp so food edits from the parent don't wipe a local date pick.
+        var logTimestamp by remember(draft.timestamp) { mutableStateOf(draft.timestamp) }
         var showAddDialog by remember { mutableStateOf(false) }
 
         val context = LocalContext.current
@@ -133,6 +138,7 @@ fun FoodReviewDialog(
                             onSaveAsPreset(
                                 draft.copy(
                                     dishName = name,
+                                    timestamp = logTimestamp,
                                     ingredients = ingredients.toList()
                                 )
                             )
@@ -158,6 +164,7 @@ fun FoodReviewDialog(
                                 onConfirm(
                                     draft.copy(
                                         dishName = dishName.trim(),
+                                        timestamp = logTimestamp,
                                         ingredients = ingredients.toList()
                                     )
                                 )
@@ -176,6 +183,16 @@ fun FoodReviewDialog(
             ) {
                 item {
                     TotalsCard(totalCalories, totalProtein, totalCarbs, totalFats)
+                }
+
+                if (showLogDate) {
+                    item {
+                        LogDateField(
+                            timestamp = logTimestamp,
+                            onTimestampChange = { logTimestamp = it },
+                            enabled = !isReanalyzing
+                        )
+                    }
                 }
 
                 item {
