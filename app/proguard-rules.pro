@@ -12,6 +12,7 @@
 -keep class com.anant.fitbuddy.data.model.** { *; }
 -keep class com.anant.fitbuddy.data.remote.dto.** { *; }
 -keep class com.anant.fitbuddy.data.database.** { *; }
+-keep class com.anant.fitbuddy.data.pcsync.** { *; }
 -keep class com.anant.fitbuddy.**JsonAdapter { *; }
 
 # --- Moshi ---------------------------------------------------------------------------------
