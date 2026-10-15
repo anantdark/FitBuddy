@@ -244,8 +244,19 @@ data class AppSettings(
     /**
      * Developer: force all Sentry traffic through the Vercel proxy, overriding the automatic
      * daily connectivity check. Off = automatic (direct when reachable, proxy when blocked).
+     * Manual only — automatic proxy fallback must never set this to true.
      */
     val forceSentryProxyMode: Boolean = false,
+    /**
+     * UTC day `yyyy-MM-dd` when automatic proxy fallback last latched (Sentry direct unreachable).
+     * Null when routing direct (or forced proxy is managed separately). Not a user toggle.
+     */
+    val sentryProxyModeUtcDay: String? = null,
+    /**
+     * Developer: unlock Themes (colors/fonts) without being on the supporters list.
+     * Independent of [forceSentryProxyMode].
+     */
+    val developerUnlockThemes: Boolean = false,
     /**
      * Developer: keep analyzing-banner and insight wait animations visible even when
      * nothing is loading, so they can be previewed without waiting on AI.

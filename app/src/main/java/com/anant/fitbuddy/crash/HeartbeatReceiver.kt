@@ -47,13 +47,12 @@ class HeartbeatReceiver : BroadcastReceiver() {
                     signupDate = settings.signupDate
                 )
                 val sent = CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)
-                // Persist today's transport decision so proxy mode survives process death, and
-                // sync the developer toggle to the actual state (the daily auto-check may have
-                // flipped it since the last manual toggle).
-                val proxied = CrashReporter.isProxyModeActive()
-                settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
-                if (settings.forceSentryProxyMode != proxied) {
-                    settingsRepository.save(settings.copy(forceSentryProxyMode = proxied))
+                // Latch today's *automatic* transport choice for cold starts. Never touch
+                // forceSentryProxyMode — that switch is developer-only and stays off during
+                // proxy fallback.
+                if (!CrashReporter.isForcedProxyMode()) {
+                    val proxied = CrashReporter.isProxyModeActive()
+                    settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
                 }
                 if (sent) {
                     settingsRepository.markHeartbeatSent(today)

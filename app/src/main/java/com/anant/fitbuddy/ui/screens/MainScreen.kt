@@ -70,6 +70,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.util.SystemToast
+import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.MealDraft
@@ -108,8 +109,19 @@ private enum class FoodEditorTarget {
     /** Add or replace a row in the meal builder. */
     MEAL_BUILDER,
     /** Replace a row in the meal review dialog. */
-    MEAL_REVIEW
+    MEAL_REVIEW,
+    /** Manual create from the saved-food library — persist only. */
+    SAVE_LIBRARY
 }
+
+private fun blankFoodDraft(): FoodDraft =
+    FoodDraft(
+        dishName = "New food",
+        timestamp = System.currentTimeMillis(),
+        ingredients = listOf(
+            IngredientDraft.fromAbsolute("Ingredient", 100, 0, 0, 0, 0)
+        )
+    )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -851,6 +863,12 @@ fun MainScreen(
                 showMealPresetSheet = false
             },
             onDelete = viewModel::deleteMealPreset,
+            onCreate = {
+                showMealPresetSheet = false
+                mealItems.clear()
+                mealBuilderInitial = null
+                showMealBuilder = true
+            },
             onDismiss = { showMealPresetSheet = false }
         )
     }
@@ -872,6 +890,22 @@ fun MainScreen(
             },
             onDelete = viewModel::deleteSavedFood,
             onEdit = viewModel::updateSavedFood,
+            onCreate = {
+                showSavedFoodSheet = false
+                when (savedFoodSheetMode) {
+                    SavedFoodSheetMode.PICK_FOR_MEAL -> {
+                        foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
+                        mealFoodEditIndex = null
+                        viewModel.openFoodEditor(blankFoodDraft())
+                    }
+                    SavedFoodSheetMode.LOG_TO_DAY,
+                    SavedFoodSheetMode.MANAGE_LIBRARY -> {
+                        foodEditorTarget = FoodEditorTarget.SAVE_LIBRARY
+                        mealFoodEditIndex = null
+                        viewModel.openFoodEditor(blankFoodDraft())
+                    }
+                }
+            },
             onDismiss = { showSavedFoodSheet = false }
         )
     }
@@ -882,6 +916,12 @@ fun MainScreen(
             mode = SavedFoodSheetMode.MANAGE_LIBRARY,
             onDelete = viewModel::deleteSavedFood,
             onEdit = viewModel::updateSavedFood,
+            onCreate = {
+                showSavedFoodManageSheet = false
+                foodEditorTarget = FoodEditorTarget.SAVE_LIBRARY
+                mealFoodEditIndex = null
+                viewModel.openFoodEditor(blankFoodDraft())
+            },
             onDismiss = { showSavedFoodManageSheet = false }
         )
     }
@@ -904,15 +944,7 @@ fun MainScreen(
             onCreateFood = {
                 foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
                 mealFoodEditIndex = null
-                viewModel.openFoodEditor(
-                    com.anant.fitbuddy.data.model.FoodDraft(
-                        dishName = "New food",
-                        timestamp = System.currentTimeMillis(),
-                        ingredients = listOf(
-                            IngredientDraft.fromAbsolute("Ingredient", 100, 0, 0, 0, 0)
-                        )
-                    )
-                )
+                viewModel.openFoodEditor(blankFoodDraft())
             },
             onEditFood = { index ->
                 foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
@@ -1163,6 +1195,13 @@ fun MainScreen(
             reviewMessage = analysisState.reviewMessage,
             onReviewMessageShown = viewModel::consumeReviewMessage,
             showLogDate = foodEditorTarget == FoodEditorTarget.LOG_MEAL,
+            confirmLabel = when (foodEditorTarget) {
+                FoodEditorTarget.SAVE_LIBRARY -> "Save food"
+                FoodEditorTarget.MEAL_BUILDER,
+                FoodEditorTarget.MEAL_REVIEW -> "Add to meal"
+                FoodEditorTarget.LOG_MEAL -> "Log food"
+            },
+            showSaveAsPreset = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY,
             onConfirm = { confirmed ->
                 when (foodEditorTarget) {
                     FoodEditorTarget.LOG_MEAL -> viewModel.confirmFood(confirmed)
@@ -1183,6 +1222,11 @@ fun MainScreen(
                             viewModel.updateMealDraftFood(idx, entry)
                         }
                         mealFoodEditIndex = null
+                        viewModel.dismissFoodDraft()
+                    }
+                    FoodEditorTarget.SAVE_LIBRARY -> {
+                        viewModel.saveDraftAsSavedFood(confirmed)
+                        SystemToast.show(context, "Saved \"${confirmed.dishName}\" to food library")
                         viewModel.dismissFoodDraft()
                     }
                 }

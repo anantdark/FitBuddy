@@ -23,6 +23,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import android.os.Build
 import com.anant.fitbuddy.util.GifFirstFrameDecoder
+import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
@@ -140,9 +141,15 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         }
         val proxyModeSeed = runBlocking {
             val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
-            // Auto proxy mode is on at startup if today's automatic daily check already
-            // switched to the proxy.
-            settingsRepository.sentryProxyModeDay() == today
+            val latchDay = settingsRepository.sentryProxyModeDay()
+            // Stale latch from a previous UTC day must not seed proxy — new day = direct first.
+            if (latchDay != null && latchDay != today) {
+                settingsRepository.setSentryProxyModeDay(null)
+                false
+            } else {
+                // Same-day auto latch only — does not imply forceSentryProxyMode.
+                latchDay == today
+            }
         }
         CrashReporter.init(
             app = this,
@@ -221,10 +228,13 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
-        // Update heartbeat (one-shot on upgrade) runs immediately; daily heartbeat is
-        // scheduled via an inexact alarm around UTC midnight.
+        // Upgrade pulse + daily catch-up (direct Sentry probe first) run off the main thread;
+        // the UTC-midnight alarm covers days the process never starts.
         Thread({
-            runBlocking(Dispatchers.IO) { maybeSendUpdateHeartbeat() }
+            runBlocking(Dispatchers.IO) {
+                maybeSendUpdateHeartbeat()
+                maybeSendDailyHeartbeatCatchUp()
+            }
         }, "fitbuddy-heartbeat").start()
         HeartbeatScheduler.schedule(this)
     }
@@ -242,14 +252,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
      */
     private suspend fun maybeSendUpdateHeartbeat() {
         val settings = settingsRepository.settings.first()
-        val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
-        val info = HeartbeatInfo(
-            aiProvider = settings.provider.name,
-            username = settings.usernameForHeartbeat,
-            recordCount = recordCount,
-            isDeveloper = settings.developerModeUnlocked,
-            signupDate = settings.signupDate
-        )
+        val info = heartbeatInfo(settings)
         val current = BuildConfig.VERSION_CODE
         val previous = settingsRepository.lastKnownVersionCode()
 
@@ -257,11 +260,46 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             settingsRepository.setLastKnownVersionCode(current)
         } else if (current > previous) {
             if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
+                persistAutoProxyLatch()
                 settingsRepository.setLastKnownVersionCode(current)
             }
         } else if (current != previous) {
             // Downgrade / same-channel swap — sync without an update pulse.
             settingsRepository.setLastKnownVersionCode(current)
         }
+    }
+
+    /**
+     * If today's fleet heartbeat has not run yet, send it now (probes direct Sentry first,
+     * then latches proxy for the UTC day only if blocked). Covers Doze-delayed midnight alarms
+     * whenever the app actually starts.
+     */
+    private suspend fun maybeSendDailyHeartbeatCatchUp() {
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+        if (settingsRepository.lastHeartbeatUtcDay() == today) return
+        val settings = settingsRepository.settings.first()
+        val sent = CrashReporter.sendHeartbeat(heartbeatInfo(settings), HeartbeatKind.DAILY)
+        persistAutoProxyLatch()
+        if (sent) {
+            settingsRepository.markHeartbeatSent(today)
+        }
+    }
+
+    private suspend fun heartbeatInfo(settings: AppSettings): HeartbeatInfo {
+        val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
+        return HeartbeatInfo(
+            aiProvider = settings.provider.name,
+            username = settings.usernameForHeartbeat,
+            recordCount = recordCount,
+            isDeveloper = settings.developerModeUnlocked,
+            signupDate = settings.signupDate
+        )
+    }
+
+    private suspend fun persistAutoProxyLatch() {
+        if (CrashReporter.isForcedProxyMode()) return
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+        val proxied = CrashReporter.isProxyModeActive()
+        settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
     }
 }

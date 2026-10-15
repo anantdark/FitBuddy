@@ -182,6 +182,8 @@ class SettingsRepository(context: Context) {
             strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
             forceSentryProxyMode = prefs[KEY_FORCE_SENTRY_PROXY] ?: false,
+            sentryProxyModeUtcDay = prefs[KEY_SENTRY_PROXY_DAY],
+            developerUnlockThemes = prefs[KEY_DEVELOPER_UNLOCK_THEMES] ?: false,
             forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
             // Debug builds never sync to cloud (including after restore / Auto Backup).
             cloudBackupEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
@@ -487,6 +489,9 @@ class SettingsRepository(context: Context) {
             prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
             prefs[KEY_FORCE_SENTRY_PROXY] = settings.forceSentryProxyMode
+            // Drop legacy key that was incorrectly auto-synced from proxy fallback.
+            prefs.remove(KEY_FORCE_SENTRY_PROXY_LEGACY)
+            prefs[KEY_DEVELOPER_UNLOCK_THEMES] = settings.developerUnlockThemes
             prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
             prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
@@ -776,7 +781,10 @@ class SettingsRepository(context: Context) {
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
         val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
-        val KEY_FORCE_SENTRY_PROXY = booleanPreferencesKey("force_sentry_proxy_mode")
+        // Renamed so installs that had the switch auto-synced by proxy fallback reset to off.
+        val KEY_FORCE_SENTRY_PROXY = booleanPreferencesKey("force_sentry_proxy_mode_manual")
+        val KEY_FORCE_SENTRY_PROXY_LEGACY = booleanPreferencesKey("force_sentry_proxy_mode")
+        val KEY_DEVELOPER_UNLOCK_THEMES = booleanPreferencesKey("developer_unlock_themes")
         val KEY_FORCE_SHOW_LOADING_ANIMS = booleanPreferencesKey("force_show_loading_animations")
         val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
         val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")

@@ -71,6 +71,10 @@ fun FoodReviewDialog(
         "Know the dish but not grams? Estimates a standard home serving.",
     /** When false (editing a food inside a meal), the meal owns the log date. */
     showLogDate: Boolean = true,
+    /** Primary confirm button label (e.g. "Log food" vs "Save food"). */
+    confirmLabel: String = "Log food",
+    /** When false, hides the secondary "Save as preset" action (library create flow). */
+    showSaveAsPreset: Boolean = true,
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -130,24 +134,26 @@ fun FoodReviewDialog(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = canSave,
-                        onClick = {
-                            val name = dishName.trim()
-                            onSaveAsPreset(
-                                draft.copy(
-                                    dishName = name,
-                                    timestamp = logTimestamp,
-                                    ingredients = ingredients.toList()
+                    if (showSaveAsPreset) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = canSave,
+                            onClick = {
+                                val name = dishName.trim()
+                                onSaveAsPreset(
+                                    draft.copy(
+                                        dishName = name,
+                                        timestamp = logTimestamp,
+                                        ingredients = ingredients.toList()
+                                    )
                                 )
-                            )
-                            SystemToast.show(context, "Saved \"$name\" to food library")
+                                SystemToast.show(context, "Saved \"$name\" to food library")
+                            }
+                        ) {
+                            Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Save as preset")
                         }
-                    ) {
-                        Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Save as preset")
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -169,7 +175,7 @@ fun FoodReviewDialog(
                                     )
                                 )
                             }
-                        ) { Text("Log food") }
+                        ) { Text(confirmLabel) }
                     }
                 }
             }

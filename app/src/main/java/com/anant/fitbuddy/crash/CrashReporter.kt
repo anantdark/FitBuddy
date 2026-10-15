@@ -23,6 +23,8 @@ import io.sentry.logger.SentryLogParameters
 import io.sentry.metrics.SentryMetricsParameters
 import io.sentry.protocol.SentryId
 import io.sentry.protocol.User
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Coarse snapshot attached to daily heartbeats (username is device-local display name). */
@@ -73,15 +75,22 @@ object CrashReporter {
     private var reportingEnabled: Boolean = true
 
     /**
-     * When true, all Sentry traffic is routed through the Vercel proxy (read on the transport's
-     * hot path). Set by the daily heartbeat for the rest of a UTC day when Sentry's ingest host
-     * is blocked; seeded at init from the persisted per-day flag.
+     * When true, all Sentry traffic is routed through the Vercel proxy (transport hot path).
+     * Set by automatic reachability fallback (latched per UTC day) or by [forcedProxyMode].
+     * This is the live routing flag — not the developer settings switch.
      */
     private val proxyModeActive = AtomicBoolean(false)
 
     /**
-     * True when the developer toggle forced proxy mode on. The daily/auto reachability probe
-     * must not override this, so [sendHeartbeat] skips the probe while forced.
+     * UTC day (`yyyy-MM-dd`) for which [proxyModeActive] was latched by auto fallback.
+     * Expires at the next UTC midnight so a new day always starts on direct until re-probed.
+     */
+    @Volatile
+    private var autoProxyLatchUtcDay: String? = null
+
+    /**
+     * True only when the developer "Force Sentry proxy" switch is on. Skips the reachability
+     * probe so automatic checks cannot clear a manual force. Never set by auto fallback.
      */
     private val forcedProxyMode = AtomicBoolean(false)
 
@@ -97,7 +106,17 @@ object CrashReporter {
         if (dsn.isEmpty()) return
         reportingEnabled = enabled
         forcedProxyMode.set(forceProxy)
-        proxyModeActive.set(forceProxy || proxyModeSeed)
+        if (forceProxy) {
+            proxyModeActive.set(true)
+            autoProxyLatchUtcDay = null
+        } else if (proxyModeSeed) {
+            // Same UTC day as a prior failed direct probe — stay on proxy until tomorrow's probe.
+            proxyModeActive.set(true)
+            autoProxyLatchUtcDay = utcToday()
+        } else {
+            proxyModeActive.set(false)
+            autoProxyLatchUtcDay = null
+        }
         SentryAndroid.init(app) { options ->
             options.dsn = dsn
             // Route envelopes through the Vercel proxy when proxy mode is active (Sentry ingest
@@ -107,7 +126,7 @@ object CrashReporter {
                 SentryProxyTransport(
                     options = transportOptions,
                     delegate = defaultFactory.create(transportOptions, requestDetails),
-                    proxyModeActive = { proxyModeActive.get() }
+                    proxyModeActive = { isProxyModeActive() }
                 )
             }
             options.isSendDefaultPii = false
@@ -149,11 +168,17 @@ object CrashReporter {
     /**
      * Developer toggle: force all Sentry traffic through the proxy (true) or return to
      * automatic (false). While forced on, the reachability probe won't override it.
+     * Automatic proxy fallback must never call this — it only flips [proxyModeActive].
      */
-    fun setProxyModeActive(active: Boolean) {
-        forcedProxyMode.set(active)
-        proxyModeActive.set(active)
+    fun setForcedProxyMode(forced: Boolean) {
+        forcedProxyMode.set(forced)
+        proxyModeActive.set(forced)
+        // Leaving force clears any auto latch; the next heartbeat re-probes direct first.
+        autoProxyLatchUtcDay = null
     }
+
+    /** True when the developer "Force Sentry proxy" switch is on (not auto fallback). */
+    fun isForcedProxyMode(): Boolean = forcedProxyMode.get()
 
     fun setSupportId(supportId: String) {
         if (!ready.get() || supportId.isBlank()) return
@@ -248,14 +273,18 @@ object CrashReporter {
     fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
         if (!ready.get()) return false
 
-        // Automatic proxy fallback: probe the direct route and, if Sentry's ingest host is
-        // blocked, latch proxyModeActive so the custom transport diverts the SDK's *real*
-        // envelope through the proxy (same path the developer toggle uses; no hand-built
-        // envelope). The developer toggle takes precedence — when it forces proxy mode on,
-        // we must NOT run the probe, or a reachable host would flip it back off.
+        // Every heartbeat (unless force-proxy is on): probe direct Sentry first. Only latch
+        // proxy for the rest of this UTC day when the ingest host is unreachable. Callers
+        // persist the day latch separately and must never flip forceSentryProxyMode.
         if (!forcedProxyMode.get() && SentryHeartbeatProxy.isAvailable()) {
             val reachable = SentryHeartbeatProxy.isDirectIngestReachable()
-            proxyModeActive.set(!reachable)
+            if (reachable) {
+                proxyModeActive.set(false)
+                autoProxyLatchUtcDay = null
+            } else {
+                proxyModeActive.set(true)
+                autoProxyLatchUtcDay = utcToday()
+            }
             Log.i(TAG, "heartbeat $kind: direct ingest ${if (reachable) "reachable" else "blocked → proxy"}")
         }
 
@@ -264,8 +293,21 @@ object CrashReporter {
         return sendHeartbeatDirect(info, kind)
     }
 
-    /** True when Sentry traffic is currently being routed through the proxy. */
-    fun isProxyModeActive(): Boolean = proxyModeActive.get()
+    /**
+     * True when Sentry traffic should use the proxy right now.
+     * Auto latch expires at UTC midnight so a new day always prefers direct until re-probed.
+     */
+    fun isProxyModeActive(): Boolean {
+        if (forcedProxyMode.get()) return true
+        val latchDay = autoProxyLatchUtcDay
+        if (latchDay == null || latchDay != utcToday()) {
+            if (proxyModeActive.get()) proxyModeActive.set(false)
+            return false
+        }
+        return proxyModeActive.get()
+    }
+
+    private fun utcToday(): String = LocalDate.now(ZoneOffset.UTC).toString()
 
     /** Direct SDK send: Crons check-in + fleet pulse, flushed. True if the check-in was queued. */
     private fun sendHeartbeatDirect(info: HeartbeatInfo, kind: HeartbeatKind): Boolean =
@@ -287,7 +329,7 @@ object CrashReporter {
             val checkInId = Sentry.captureCheckIn(checkIn)
             // If proxy mode is on, this envelope is diverted through the proxy by the custom
             // transport — mark the message so proxied heartbeats read "... (proxy)".
-            val message = if (proxyModeActive.get()) kind.proxyLogMessage else kind.logMessage
+            val message = if (isProxyModeActive()) kind.proxyLogMessage else kind.logMessage
             emitFleetPulse(info, message = message)
             // Flush so cold-start pulse isn't lost if the process is killed early.
             Sentry.flush(5_000L)

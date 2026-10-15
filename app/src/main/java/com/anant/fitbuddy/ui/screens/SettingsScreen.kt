@@ -115,6 +115,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.util.ReleaseNotes
@@ -127,6 +128,8 @@ import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
+import java.time.LocalDate
+import java.time.ZoneOffset
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
@@ -877,14 +880,14 @@ fun SettingsScreen(
         // --- Themes (colors + fonts) — supporters only ------------------------------------
         var themesLockToastAt by remember { mutableLongStateOf(0L) }
         var showThemesSupportDialog by remember { mutableStateOf(false) }
-        val themesUnlocked = isSupporter || settings.forceSentryProxyMode
+        val themesUnlocked = isSupporter || settings.developerUnlockThemes
         SettingsCard(
             title = "Themes",
             titleBadge = {
                 SupporterExclusiveBadge(muted = themesUnlocked)
             },
             initiallyExpanded = false,
-            // Force Sentry proxy (dev) unlocks for local testing; shipping UI stays supporter-gated.
+            // Developer "Surface lab" toggle unlocks for local testing; shipping UI stays supporter-gated.
             unlocked = themesUnlocked,
             onLockedExpandAttempt = {
                 val now = SystemClock.elapsedRealtime()
@@ -1807,9 +1810,15 @@ fun SettingsScreen(
                         checked = settings.forceSentryProxyMode,
                         onCheckedChange = onForceSentryProxyToggled,
                         hintTitle = "Force Sentry proxy",
-                        hint = "Route all Sentry traffic through the FitBuddy cloud proxy instead " +
-                            "of contacting Sentry directly. Off = automatic (direct when reachable, " +
-                            "proxy only when the daily check finds Sentry blocked)."
+                        hint = "When on, always route Sentry through the FitBuddy cloud proxy. " +
+                            "When off, try Sentry directly first; proxy is only a fallback if " +
+                            "direct is unreachable (re-checked about once per UTC day). " +
+                            "Fallback never turns this switch on."
+                    )
+                    Text(
+                        text = "Routing: ${sentryRoutingStatusLabel(settings)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
                         onClick = onClearModelCooldowns,
@@ -1833,8 +1842,17 @@ fun SettingsScreen(
 
                 DeveloperSection(
                     title = "UI preview",
-                    description = "Preview loading animations without waiting on AI."
+                    description = "Preview themes and loading animations without waiting on AI."
                 ) {
+                    SettingToggleRow(
+                        title = "Surface lab",
+                        checked = settings.developerUnlockThemes,
+                        onCheckedChange = {
+                            onSave(settings.copy(developerUnlockThemes = it))
+                        },
+                        hintTitle = "Surface lab",
+                        hint = "Experimental surface/token previews for local QA."
+                    )
                     SettingToggleRow(
                         title = "Keep animations visible",
                         checked = settings.forceShowLoadingAnimations,
@@ -2637,6 +2655,20 @@ private fun LoadingAnimationChoiceDropdown(
                 )
             }
         }
+    }
+}
+
+/** Live Sentry transport label for Developer settings (force switch stays independent). */
+private fun sentryRoutingStatusLabel(settings: AppSettings): String {
+    val today = LocalDate.now(ZoneOffset.UTC).toString()
+    val autoProxyToday = settings.sentryProxyModeUtcDay == today
+    return when {
+        settings.forceSentryProxyMode || CrashReporter.isForcedProxyMode() ->
+            "Proxy (forced)"
+        autoProxyToday || CrashReporter.isProxyModeActive() ->
+            "Proxy (automatic — Sentry direct unreachable)"
+        else ->
+            "Direct (automatic)"
     }
 }
 
