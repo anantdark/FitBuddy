@@ -159,6 +159,7 @@ class SettingsRepository(context: Context) {
                 insightAnim != AppSettings.LOADING_ANIM_OFF,
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
+            signupDate = prefs[KEY_SIGNUP_DATE].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             diagnosticLoggingEnabled = prefs[KEY_DIAGNOSTIC_LOGGING] ?: false,
             region = prefs[KEY_REGION].orEmpty(),
@@ -181,6 +182,8 @@ class SettingsRepository(context: Context) {
             strictClarification = prefs[KEY_STRICT_CLARIFICATION] ?: false,
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
             forceSentryProxyMode = prefs[KEY_FORCE_SENTRY_PROXY] ?: false,
+            sentryProxyModeUtcDay = prefs[KEY_SENTRY_PROXY_DAY],
+            developerUnlockThemes = prefs[KEY_DEVELOPER_UNLOCK_THEMES] ?: false,
             forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
             // Debug builds never sync to cloud (including after restore / Auto Backup).
             cloudBackupEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
@@ -219,10 +222,13 @@ class SettingsRepository(context: Context) {
         return id
     }
 
-    /** Replaces the Support ID (crash reporting + cloud backup document key). */
+    /** Replaces the Support ID (crash reporting + cloud backup document key). Clears signup date. */
     suspend fun regenerateSupportId(): String {
         val id = java.util.UUID.randomUUID().toString()
-        dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
+        dataStore.edit { prefs ->
+            prefs[KEY_SUPPORT_ID] = id
+            prefs.remove(KEY_SIGNUP_DATE)
+        }
         return id
     }
 
@@ -231,6 +237,34 @@ class SettingsRepository(context: Context) {
         val id = supportId.trim()
         if (id.isBlank()) return
         dataStore.edit { prefs -> prefs[KEY_SUPPORT_ID] = id }
+    }
+
+    /**
+     * Persists [signupDate] (`yyyy-MM-dd`) once. No-op when blank or when a signup date is
+     * already stored (first-entry / restore wins).
+     */
+    suspend fun setSignupDateIfEmpty(signupDate: String): String? {
+        val date = signupDate.trim()
+        if (date.isBlank()) return null
+        var stored: String? = null
+        dataStore.edit { prefs ->
+            val existing = prefs[KEY_SIGNUP_DATE].orEmpty()
+            if (existing.isNotBlank()) {
+                stored = existing
+            } else {
+                prefs[KEY_SIGNUP_DATE] = date
+                stored = date
+            }
+        }
+        return stored
+    }
+
+    /** Overwrites signup date (restore / regenerate backfill). Blank clears. */
+    suspend fun setSignupDate(signupDate: String) {
+        val date = signupDate.trim()
+        dataStore.edit { prefs ->
+            if (date.isBlank()) prefs.remove(KEY_SIGNUP_DATE) else prefs[KEY_SIGNUP_DATE] = date
+        }
     }
 
     /** UTC calendar day `yyyy-MM-dd` of the last Sentry heartbeat, or null. */
@@ -435,6 +469,11 @@ class SettingsRepository(context: Context) {
             if (settings.supportId.isNotBlank()) {
                 prefs[KEY_SUPPORT_ID] = settings.supportId
             }
+            if (settings.signupDate.isNotBlank()) {
+                prefs[KEY_SIGNUP_DATE] = settings.signupDate.trim()
+            } else {
+                prefs.remove(KEY_SIGNUP_DATE)
+            }
             prefs[KEY_EASTER_EGG] = settings.easterEggDiscovered
             prefs[KEY_DAILY_LOG_REMINDER] = settings.dailyLogReminderEnabled
             prefs[KEY_DAILY_LOG_REMINDER_HOUR] = settings.dailyLogReminderHour.coerceIn(0, 23)
@@ -450,6 +489,9 @@ class SettingsRepository(context: Context) {
             prefs[KEY_STRICT_CLARIFICATION] = settings.strictClarification
             prefs[KEY_VERBOSE_HTTP] = settings.verboseHttpLogging
             prefs[KEY_FORCE_SENTRY_PROXY] = settings.forceSentryProxyMode
+            // Drop legacy key that was incorrectly auto-synced from proxy fallback.
+            prefs.remove(KEY_FORCE_SENTRY_PROXY_LEGACY)
+            prefs[KEY_DEVELOPER_UNLOCK_THEMES] = settings.developerUnlockThemes
             prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
             prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
@@ -712,6 +754,7 @@ class SettingsRepository(context: Context) {
             }
         }
         val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
+        val KEY_SIGNUP_DATE = stringPreferencesKey("signup_date")
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
         val KEY_DIAGNOSTIC_LOGGING = booleanPreferencesKey("diagnostic_logging_enabled")
         val KEY_REGION = stringPreferencesKey("app_region")
@@ -738,7 +781,10 @@ class SettingsRepository(context: Context) {
         val KEY_SHOW_RAW_AI_JSON = booleanPreferencesKey("show_raw_ai_json")
         val KEY_STRICT_CLARIFICATION = booleanPreferencesKey("strict_clarification")
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
-        val KEY_FORCE_SENTRY_PROXY = booleanPreferencesKey("force_sentry_proxy_mode")
+        // Renamed so installs that had the switch auto-synced by proxy fallback reset to off.
+        val KEY_FORCE_SENTRY_PROXY = booleanPreferencesKey("force_sentry_proxy_mode_manual")
+        val KEY_FORCE_SENTRY_PROXY_LEGACY = booleanPreferencesKey("force_sentry_proxy_mode")
+        val KEY_DEVELOPER_UNLOCK_THEMES = booleanPreferencesKey("developer_unlock_themes")
         val KEY_FORCE_SHOW_LOADING_ANIMS = booleanPreferencesKey("force_show_loading_animations")
         val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
         val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")

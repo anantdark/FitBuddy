@@ -2,6 +2,7 @@ package com.anant.fitbuddy.util
 
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.ExerciseDraft
+import com.anant.fitbuddy.data.model.LogIconTopic
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -14,7 +15,13 @@ class WorkoutCalorieEstimatorTest {
             name = "Push",
             durationMinutes = 60,
             exercises = listOf(
-                ExerciseDraft("Bench Press", sets = 3, reps = 10, equipment = Equipment.BENCH)
+                ExerciseDraft(
+                    "Bench Press",
+                    sets = 3,
+                    reps = 10,
+                    equipment = Equipment.BENCH,
+                    bodyParts = listOf("Chest")
+                )
             )
         )
         // 4.0 * 80kg * 1h = 320
@@ -22,6 +29,7 @@ class WorkoutCalorieEstimatorTest {
         assertEquals(320, result.caloriesBurned)
         assertEquals(60, result.durationMinutes)
         assertEquals("Moderate strength session", result.intensityNote)
+        assertEquals(LogIconTopic.CHEST, result.iconTopic)
     }
 
     @Test
@@ -43,6 +51,7 @@ class WorkoutCalorieEstimatorTest {
         val result = WorkoutCalorieEstimator.estimate(draft, weightKg = 70.0)
         assertEquals(245, result.caloriesBurned)
         assertEquals("Cardio session", result.intensityNote)
+        assertEquals(LogIconTopic.CARDIO, result.iconTopic)
     }
 
     @Test

@@ -19,6 +19,7 @@ import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.database.filledForDateRange
 import com.anant.fitbuddy.data.model.ActivityLevelRecommendation
 import com.anant.fitbuddy.data.model.ActivityLevelRecommender
 import com.anant.fitbuddy.data.model.BodyTrendAnalyzer
@@ -933,8 +934,14 @@ class MainViewModel(
                     current = settingsRepository.settings.first()
                 }
 
+                runCatching { repository.ensureSignupDateFromLogs() }
+                current = settingsRepository.settings.first()
                 val lastSeenDate = settingsRepository.lastSeenDonorDonationDate()
-                val newcomers = donorListRepository.newDisplayableDonors(file, lastSeenDate)
+                val newcomers = donorListRepository.newDisplayableDonors(
+                    file = file,
+                    lastSeenDonationDate = lastSeenDate,
+                    signupDate = current.signupDate.ifBlank { null },
+                )
                 if (newcomers.isNotEmpty()) {
                     _newDonorsThankYou.value = newcomers
                 } else {
@@ -1095,6 +1102,7 @@ class MainViewModel(
 
     /** Records a successful custom-region Sentry send (one allowed per install / supportId). */
     fun markRegionRequestSent() {
+        if (_forceFullOnboarding.value) return
         viewModelScope.launch {
             val current = settings.value
             if (current.regionRequestSentAt > 0L) return@launch
@@ -1105,26 +1113,23 @@ class MainViewModel(
     }
 
     /**
-     * Developer: reopen the full onboarding flow (path picker through region). Keeps food/workout
-     * logs and profile; clears region and resets crash-reporting to the build default so the
-     * crash opt-in step appears when this build defaults it off.
+     * Developer: show the full onboarding UI as an in-memory preview.
+     * Does not clear region, crash reporting, profile, AI keys, or logs. Completing the flow
+     * (or killing the process) returns to the dashboard with data unchanged — the flag is not
+     * persisted, so a cold start always lands on home.
      */
     fun restartOnboardingForTesting() {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsRepository.save(
-                current.copy(
-                    region = "",
-                    crashReportingEnabled = AppSettings().crashReportingEnabled
-                )
-            )
-            CrashReporter.setReportingEnabled(AppSettings().crashReportingEnabled)
-            _forceAiSetup.value = false
-            _forceFullOnboarding.value = true
-            _analysisState.update {
-                it.copy(userMessage = "Onboarding restarted for testing")
-            }
+        _forceAiSetup.value = false
+        _forceFullOnboarding.value = true
+        _analysisState.update {
+            it.copy(userMessage = "Onboarding preview — no data will be saved")
         }
+    }
+
+    private fun finishOnboardingPreview(message: String = "Onboarding preview closed — no data changed") {
+        _forceFullOnboarding.value = false
+        _forceAiSetup.value = false
+        _analysisState.update { it.copy(userMessage = message) }
     }
 
     /**
@@ -1184,22 +1189,22 @@ class MainViewModel(
         }
     }
 
-    /** Developer: route all Sentry traffic through the Vercel proxy until the next daily check. */
+    /** Developer: force Sentry through the Vercel proxy (manual only — never auto-synced). */
     fun setForceSentryProxyMode(enabled: Boolean) {
         viewModelScope.launch {
             val current = settings.value
             settingsRepository.save(current.copy(forceSentryProxyMode = enabled))
-            CrashReporter.setProxyModeActive(enabled)
-            // Keep the per-day marker in sync so the choice survives process death and the
-            // startup seed matches (cleared when turning off).
+            CrashReporter.setForcedProxyMode(enabled)
+            // Forced-on seeds cold starts; turning off clears the latch so the next probe
+            // tries direct first again (automatic fallback may re-latch later).
             val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
             settingsRepository.setSentryProxyModeDay(if (enabled) today else null)
             _analysisState.update {
                 it.copy(
                     userMessage = if (enabled) {
-                        "Sentry proxy on"
+                        "Force Sentry proxy on"
                     } else {
-                        "Sentry proxy off (automatic)"
+                        "Force Sentry proxy off (automatic routing)"
                     }
                 )
             }
@@ -1241,21 +1246,18 @@ class MainViewModel(
             aiProvider = s.provider.name,
             username = s.usernameForHeartbeat,
             recordCount = recordCount,
-            isDeveloper = s.developerModeUnlocked
+            isDeveloper = s.developerModeUnlocked,
+            signupDate = s.signupDate
         )
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
         val sent = withContext(Dispatchers.IO) {
             CrashReporter.sendHeartbeat(info, kind)
         }
-        if (kind == HeartbeatKind.DAILY) {
-            // Persist today's proxy decision (survives process death) and sync the developer
-            // toggle to the actual state — the daily auto-check may have flipped it.
+        // Persist automatic proxy latch only — never flip forceSentryProxyMode from fallback.
+        if (!CrashReporter.isForcedProxyMode()) {
             val proxied = CrashReporter.isProxyModeActive()
             settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
-            if (s.forceSentryProxyMode != proxied) {
-                settingsRepository.save(s.copy(forceSentryProxyMode = proxied))
-            }
         }
         if (sent) {
             settingsRepository.markHeartbeatSent(today)
@@ -1585,6 +1587,9 @@ class MainViewModel(
 
     /** Developer: re-show the full onboarding path (path picker → … → region) without wiping logs. */
     private val _forceFullOnboarding = MutableStateFlow(false)
+
+    /** True while Developer → Restart onboarding is showing a throwaway walkthrough. */
+    val onboardingPreviewMode: StateFlow<Boolean> = _forceFullOnboarding.asStateFlow()
 
     val needsOnboarding: StateFlow<Boolean?> =
         combine(
@@ -1938,8 +1943,16 @@ class MainViewModel(
 
     // --- Analytics --------------------------------------------------------------------------
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val weeklyFood: StateFlow<List<FoodDailySummary>> =
-        repository.getWeeklyFoodSummaries()
+        _realToday
+            .flatMapLatest { endDate ->
+                val dates = DateUtils.rollingWeekDates(endDate)
+                val start = dates.first()
+                val end = dates.last()
+                repository.getFoodSummariesBetween(start, end)
+                    .map { it.filledForDateRange(start, end) }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1948,6 +1961,7 @@ class MainViewModel(
             .flatMapLatest { endDate ->
                 val (start, end) = DateUtils.rolling30DayBounds(endDate)
                 repository.getFoodSummariesBetween(start, end)
+                    .map { it.filledForDateRange(start, end) }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -2047,9 +2061,10 @@ class MainViewModel(
                 )
             }
                 .onSuccess { result ->
+                    val name = result.sessionName ?: draft.name
                     _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
                     _analysisState.update {
-                        it.copy(userMessage = "Logged ${draft.name} · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = "Logged $name · -${result.caloriesBurned} kcal")
                     }
                 }
                 .onFailure { e ->
@@ -2155,10 +2170,11 @@ class MainViewModel(
                 .onSuccess { result ->
                     // Edit/clone closes by clearing editingWorkout (not via savedSuccessfully
                     // LaunchedEffect). Leaving that flag set would auto-dismiss the next open.
+                    val name = result.sessionName ?: draft.name
                     _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
-                        it.copy(userMessage = "Cloned ${draft.name} · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = "Cloned $name · -${result.caloriesBurned} kcal")
                     }
                 }
                 .onFailure { e ->
@@ -2196,10 +2212,11 @@ class MainViewModel(
                 .onSuccess { result ->
                     // Edit/clone closes by clearing editingWorkout (not via savedSuccessfully
                     // LaunchedEffect). Leaving that flag set would auto-dismiss the next open.
+                    val name = result.sessionName ?: draft.name
                     _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
-                        it.copy(userMessage = "Updated ${draft.name} · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = "Updated $name · -${result.caloriesBurned} kcal")
                     }
                 }
                 .onFailure { e ->
@@ -2569,6 +2586,12 @@ class MainViewModel(
     val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
 
     fun uploadMongoBackup() {
+        if (BuildConfig.DEBUG) {
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             runCatching { repository.uploadMongoBackup(force = true) }
@@ -2594,6 +2617,12 @@ class MainViewModel(
 
     /** Developer tools: freeze current tip log rows and append a new cloud tip chunk. */
     fun forceNewCloudBackupChunk() {
+        if (BuildConfig.DEBUG) {
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             runCatching { repository.uploadMongoBackup(force = true, forceNewChunk = true) }
@@ -2614,10 +2643,23 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Settings → Developer tools restore. Blocked in debug builds; use onboarding
+     * "Restore from cloud backup" with a Support ID instead ([restoreOnboardingFromCloud]).
+     */
     fun downloadMongoBackup(
         supportId: String,
         passwordProvider: suspend () -> CharArray? = { null }
     ) {
+        if (BuildConfig.DEBUG) {
+            _analysisState.update {
+                it.copy(
+                    userMessage = "In debug builds, restore from cloud only during onboarding " +
+                        "(enter a Support ID)."
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val enteredId = supportId.trim()
@@ -2628,10 +2670,12 @@ class MainViewModel(
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
-                        cloudBackupEnabled = true
+                        // Debug builds never opt into cloud upload after restore.
+                        cloudBackupEnabled = !BuildConfig.DEBUG
                     )
                 )
                 CrashReporter.setSupportId(reusedId)
+                runCatching { repository.ensureSignupDateFromLogs() }
                 count
             }
                 .onSuccess { count ->
@@ -2649,6 +2693,13 @@ class MainViewModel(
     }
 
     fun changeCloudPassword(newPassword: CharArray?) {
+        if (BuildConfig.DEBUG) {
+            newPassword?.fill('\u0000')
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val isBlank = newPassword == null || newPassword.isEmpty() ||
@@ -2680,6 +2731,12 @@ class MainViewModel(
     }
 
     fun setCloudBackupEnabled(enabled: Boolean) {
+        if (BuildConfig.DEBUG && enabled) {
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup is disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             if (enabled) {
                 settingsRepository.ensureSupportId()
@@ -2708,6 +2765,13 @@ class MainViewModel(
      * failure the toggle stays enabled and a retry runs on the next auto-upload.
      */
     fun enableCloudBackup(password: CharArray?) {
+        if (BuildConfig.DEBUG) {
+            password?.fill('\u0000')
+            _analysisState.update {
+                it.copy(userMessage = "Cloud backup is disabled in debug builds")
+            }
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val isBlank = password == null || password.isEmpty() || password.all { it.isWhitespace() }
@@ -2748,20 +2812,26 @@ class MainViewModel(
 
     /** Guest path: ensure a Support ID exists before the AI/profile steps. */
     fun startGuestOnboarding() {
+        if (_forceFullOnboarding.value) return // preview — do not mint / touch Support ID
         viewModelScope.launch {
             settingsRepository.ensureSupportId()
         }
     }
 
     /**
-     * Onboarding cloud restore. Reuses the Support ID from the backup payload (or the ID
-     * entered to fetch it), enables cloud backup, then probes AI credentials.
+     * Onboarding cloud restore (pull-only). Reuses the Support ID from the backup payload
+     * (or the ID entered to fetch it), then probes AI credentials. Release builds opt into
+     * cloud backup afterward; debug builds keep uploads off.
      */
     fun restoreOnboardingFromCloud(
         supportId: String,
         passwordProvider: suspend () -> CharArray? = { null },
         onResult: (Boolean, String?) -> Unit
     ) {
+        if (_forceFullOnboarding.value) {
+            onResult(false, "Preview mode — restore is disabled")
+            return
+        }
         if (_onboardingRestoring.value) return
         _onboardingRestoring.value = true
         viewModelScope.launch {
@@ -2774,11 +2844,13 @@ class MainViewModel(
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
-                        cloudBackupEnabled = true,
-                        cloudAutoUploadEnabled = true
+                        // Debug builds never opt into cloud upload after restore.
+                        cloudBackupEnabled = !BuildConfig.DEBUG,
+                        cloudAutoUploadEnabled = !BuildConfig.DEBUG
                     )
                 )
                 CrashReporter.setSupportId(reusedId)
+                runCatching { repository.ensureSignupDateFromLogs() }
                 val after = settingsRepository.settings.first()
                 applyRestoredAiCredentialGate(after)
             }
@@ -2801,6 +2873,10 @@ class MainViewModel(
         passwordProvider: suspend () -> CharArray? = { null },
         onResult: (Boolean, String?) -> Unit
     ) {
+        if (_forceFullOnboarding.value) {
+            onResult(false, "Preview mode — restore is disabled")
+            return
+        }
         if (_onboardingRestoring.value) return
         _onboardingRestoring.value = true
         viewModelScope.launch {
@@ -2828,6 +2904,7 @@ class MainViewModel(
                 if (after.supportId.isNotBlank()) {
                     CrashReporter.setSupportId(after.supportId)
                 }
+                runCatching { repository.ensureSignupDateFromLogs() }
                 applyRestoredAiCredentialGate(after)
             }
             _onboardingRestoring.value = false
@@ -2843,6 +2920,8 @@ class MainViewModel(
     fun regenerateSupportId() {
         viewModelScope.launch {
             val id = settingsRepository.regenerateSupportId()
+            // Signup date was cleared with the ID; re-mint from earliest food/exercise log.
+            repository.ensureSignupDateFromLogs()
             CrashReporter.setSupportId(id)
             refreshSupporterStatus(id)
             _analysisState.update {
@@ -2853,6 +2932,10 @@ class MainViewModel(
 
     /** AI-only onboarding finish: persist keys and clear the force-AI flag. */
     fun completeAiSetupOnly(aiSettings: AppSettings) {
+        if (_forceFullOnboarding.value) {
+            finishOnboardingPreview()
+            return
+        }
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
         viewModelScope.launch {
@@ -3323,6 +3406,12 @@ class MainViewModel(
 
     /** Opens OpenRouter OAuth PKCE via loopback callback + Custom Tab / browser. */
     fun startOpenRouterOAuth(context: Context) {
+        if (_forceFullOnboarding.value) {
+            _analysisState.update {
+                it.copy(userMessage = "Preview mode — OpenRouter sign-in is disabled")
+            }
+            return
+        }
         if (_openRouterOAuthBusy.value) return
         val appContext = context.applicationContext
         val verifier = OpenRouterPkce.generateVerifier()
@@ -3415,6 +3504,12 @@ class MainViewModel(
     }
 
     fun disconnectOpenRouterOAuth() {
+        if (_forceFullOnboarding.value) {
+            _analysisState.update {
+                it.copy(userMessage = "Preview mode — OpenRouter disconnect is disabled")
+            }
+            return
+        }
         viewModelScope.launch {
             pendingOpenRouterCodeVerifier = null
             openRouterOAuthCallbackServer?.stop()
@@ -3460,6 +3555,10 @@ class MainViewModel(
         region: AppRegion,
         crashReportingEnabled: Boolean
     ) {
+        if (_forceFullOnboarding.value) {
+            finishOnboardingPreview()
+            return
+        }
         if (_onboardingSaving.value) return
         _onboardingSaving.value = true
         viewModelScope.launch {

@@ -117,7 +117,9 @@ fun WorkoutLogDialog(
         onDismissRequest = { if (!state.isSaving) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        var sessionName by remember { mutableStateOf(initialDraft?.name ?: "Workout") }
+        var sessionName by remember {
+            mutableStateOf(initialDraft?.name ?: WorkoutDraft.DEFAULT_NAME)
+        }
         val exercises = remember {
             mutableStateListOf<ExerciseDraft>().apply { initialDraft?.exercises?.let(::addAll) }
         }
@@ -365,7 +367,12 @@ fun WorkoutLogDialog(
                 gifUrl = exercise.gifUrl,
                 onAdd = { draft ->
                     onRecordPick(exercise.name, exercise.exerciseId)
-                    exercises.add(draft.copy(gifUrl = exercise.gifUrl))
+                    exercises.add(
+                        draft.copy(
+                            gifUrl = exercise.gifUrl,
+                            bodyParts = exercise.bodyParts
+                        )
+                    )
                     pendingExercise = null
                 },
                 onDismiss = {

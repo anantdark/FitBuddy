@@ -77,6 +77,22 @@ class DateUtilsTest {
     }
 
     @Test
+    fun `date picker UTC millis round-trips yyyy-MM-dd`() {
+        val original = "2026-07-10"
+        val utcMillis = DateUtils.dateStringToUtcEpochDayMillis(original)
+        assertEquals(original, DateUtils.utcEpochDayMillisToDateString(utcMillis))
+    }
+
+    @Test
+    fun `addCalendarMonths and minDate`() {
+        assertEquals("2026-07-15", DateUtils.addCalendarMonths("2026-01-15", 6))
+        assertEquals("2025-07-15", DateUtils.addCalendarMonths("2026-01-15", -6))
+        assertEquals("2026-01-01", DateUtils.minDate("2026-01-01", "2026-02-01"))
+        assertEquals("2026-01-01", DateUtils.minDate(null, "2026-01-01"))
+        assertEquals("2026-01-01", DateUtils.minDate("2026-01-01", null))
+    }
+
+    @Test
     fun `dayTitle today yesterday and older`() {
         val prev = Locale.getDefault()
         try {
@@ -97,6 +113,16 @@ class DateUtilsTest {
         assertEquals("2024-02-01" to "2024-02-29", DateUtils.monthBounds("2024-02"))
         assertEquals("2026-08", DateUtils.addMonths("2026-07", 1))
         assertEquals("2025-12", DateUtils.addMonths("2026-01", -1))
+    }
+
+    @Test
+    fun `datesInclusive covers every day oldest to newest`() {
+        assertEquals(
+            listOf("2026-07-13", "2026-07-14", "2026-07-15"),
+            DateUtils.datesInclusive("2026-07-13", "2026-07-15")
+        )
+        assertEquals(emptyList<String>(), DateUtils.datesInclusive("2026-07-15", "2026-07-13"))
+        assertEquals(listOf("2026-07-19"), DateUtils.datesInclusive("2026-07-19", "2026-07-19"))
     }
 
     @Test

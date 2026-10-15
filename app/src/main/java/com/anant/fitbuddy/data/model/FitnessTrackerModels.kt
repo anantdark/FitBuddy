@@ -15,7 +15,9 @@ data class FitnessTrackerResponse(
 data class FoodAnalysis(
     @Json(name = "dish_name") val dishName: String,
     @Json(name = "macros") val macros: Macros,
-    @Json(name = "ingredients") val ingredients: List<Ingredient>? = null
+    @Json(name = "ingredients") val ingredients: List<Ingredient>? = null,
+    /** Coarse [LogIconTopic] id for the dashboard glyph. */
+    @Json(name = "icon_topic") val iconTopic: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -48,5 +50,7 @@ data class Macros(
 data class ExerciseAnalysis(
     @Json(name = "activity_detected") val activityDetected: String?,
     @Json(name = "calories_burned") val caloriesBurned: Int?,
-    @Json(name = "duration_minutes") val durationMinutes: Int? = 30 // Fallback duration in minutes
+    @Json(name = "duration_minutes") val durationMinutes: Int? = 30, // Fallback duration in minutes
+    /** Coarse [LogIconTopic] id for the dashboard glyph. */
+    @Json(name = "icon_topic") val iconTopic: String? = null
 )

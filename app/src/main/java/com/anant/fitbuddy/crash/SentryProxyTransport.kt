@@ -13,10 +13,10 @@ import java.io.IOException
  * A Sentry transport that can divert traffic through the FitBuddy Vercel proxy.
  *
  * It wraps the SDK's real HTTP transport ([delegate]) for the normal, direct path. When
- * [proxyModeActive] returns true — set by the daily heartbeat once it detects Sentry's ingest
- * host is blocked for the day — every envelope the SDK produces (crashes, messages, logs,
- * metrics, check-ins) is serialized and forwarded to the proxy instead. The proxy relays it to
- * Sentry server-side, where the user's DNS/adblock can't interfere.
+ * [proxyModeActive] returns true — after a heartbeat probe found Sentry ingest blocked for the
+ * current UTC day — every envelope the SDK produces (crashes, messages, logs, metrics,
+ * check-ins) is serialized and forwarded to the proxy instead. A new UTC day expires that latch
+ * so traffic returns to direct until the next probe.
  *
  * Envelopes forwarded through the proxy are not queued/retried by the SDK's disk cache — if the
  * proxy POST fails we fall back to the direct transport so the SDK's caching/retry still applies.

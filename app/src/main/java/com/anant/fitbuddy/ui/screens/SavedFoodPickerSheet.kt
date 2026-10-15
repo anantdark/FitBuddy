@@ -17,9 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Restaurant
+import com.anant.fitbuddy.ui.util.LogItemIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.ui.components.IconButton
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.pressable
 
 enum class SavedFoodSheetMode { PICK_FOR_MEAL, LOG_TO_DAY, MANAGE_LIBRARY }
@@ -53,6 +55,7 @@ fun SavedFoodPickerSheet(
     onPick: (SavedFood) -> Unit = {},
     onDelete: (SavedFood) -> Unit,
     onEdit: (SavedFood) -> Unit = {},
+    onCreate: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -98,6 +101,17 @@ fun SavedFoodPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
             )
 
+            OutlinedButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                onClick = onCreate
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text("Create food")
+            }
+
             if (foods.isNotEmpty()) {
                 OutlinedTextField(
                     value = query,
@@ -114,7 +128,7 @@ fun SavedFoodPickerSheet(
             when {
                 foods.isEmpty() -> {
                     Text(
-                        text = "No saved foods yet. Scan a barcode from Log, or save a food as preset after AI review.",
+                        text = "No saved foods yet. Create one above, scan a barcode from Log, or save a food after AI review.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
@@ -188,7 +202,7 @@ private fun SavedFoodRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Filled.Restaurant,
+                    LogItemIcons.forFood(food.iconTopic),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary
                 )

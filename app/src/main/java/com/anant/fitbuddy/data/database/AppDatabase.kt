@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -162,7 +162,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_15_16,
                         MIGRATION_16_17,
                         MIGRATION_17_18,
-                        MIGRATION_18_19
+                        MIGRATION_18_19,
+                        MIGRATION_19_20
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -284,6 +285,14 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL(
                 "ALTER TABLE exercise_usage ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0"
             )
+        }
+
+        /** AI icon-topic labels for log / library glyphs. */
+        val MIGRATION_19_20 = migration(19, 20) { db ->
+            db.execSQL("ALTER TABLE food_logs ADD COLUMN iconTopic TEXT")
+            db.execSQL("ALTER TABLE exercise_logs ADD COLUMN iconTopic TEXT")
+            db.execSQL("ALTER TABLE saved_foods ADD COLUMN iconTopic TEXT")
+            db.execSQL("ALTER TABLE meal_presets ADD COLUMN iconTopic TEXT")
         }
 
         /**

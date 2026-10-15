@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.util
 
 import com.anant.fitbuddy.data.model.Equipment
+import com.anant.fitbuddy.data.model.LogIconTopic
 import com.anant.fitbuddy.data.model.WorkoutCaloriesResponse
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import kotlin.math.roundToInt
@@ -8,6 +9,7 @@ import kotlin.math.roundToInt
 /**
  * Local MET-based calorie burn for structured workout sessions.
  * kcal = MET × weight_kg × hours (session-average METs; rest included for strength).
+ * Also assigns an [LogIconTopic] from the exercises' body parts.
  */
 object WorkoutCalorieEstimator {
 
@@ -33,7 +35,8 @@ object WorkoutCalorieEstimator {
         return WorkoutCaloriesResponse(
             caloriesBurned = calories,
             durationMinutes = duration,
-            intensityNote = note
+            intensityNote = note,
+            iconTopic = LogIconTopic.fromWorkoutDraft(draft)
         )
     }
 }

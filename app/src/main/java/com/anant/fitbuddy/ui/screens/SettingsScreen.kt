@@ -115,6 +115,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.util.ReleaseNotes
@@ -127,6 +128,8 @@ import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
+import java.time.LocalDate
+import java.time.ZoneOffset
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
@@ -877,11 +880,15 @@ fun SettingsScreen(
         // --- Themes (colors + fonts) — supporters only ------------------------------------
         var themesLockToastAt by remember { mutableLongStateOf(0L) }
         var showThemesSupportDialog by remember { mutableStateOf(false) }
+        val themesUnlocked = isSupporter || settings.developerUnlockThemes
         SettingsCard(
             title = "Themes",
+            titleBadge = {
+                SupporterExclusiveBadge(muted = themesUnlocked)
+            },
             initiallyExpanded = false,
-            // Force Sentry proxy (dev) unlocks for local testing; shipping UI stays supporter-gated.
-            unlocked = isSupporter || settings.forceSentryProxyMode,
+            // Developer "Surface lab" toggle unlocks for local testing; shipping UI stays supporter-gated.
+            unlocked = themesUnlocked,
             onLockedExpandAttempt = {
                 val now = SystemClock.elapsedRealtime()
                 if (themesLockToastAt > 0L && now - themesLockToastAt < 5_000L) {
@@ -1348,6 +1355,49 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else if (BuildConfig.DEBUG) {
+                Text(
+                    text = "Cloud backup uploads are disabled in debug builds. You can still " +
+                        "pull an existing backup during onboarding with a Support ID. " +
+                        "Use a release build to enable uploads.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                SettingToggleRow(
+                    title = "Enable cloud backup",
+                    checked = false,
+                    onCheckedChange = {},
+                    enabled = false,
+                    hintTitle = "Enable cloud backup",
+                    hint = "Unavailable in debug builds."
+                )
+                SettingToggleRow(
+                    title = "Auto-upload on startup",
+                    checked = false,
+                    onCheckedChange = {},
+                    enabled = false,
+                    hintTitle = "Auto-upload",
+                    hint = "Unavailable in debug builds."
+                )
+                Text(
+                    text = "Cloud backup off (debug)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false
+                ) {
+                    Text("Upload now")
+                }
+                OutlinedButton(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false
+                ) {
+                    Text("Change cloud backup password")
+                }
             } else {
                 SettingToggleRow(
                     title = "Enable cloud backup",
@@ -1681,14 +1731,25 @@ fun SettingsScreen(
                             showMongoRestoreConfirm = true
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = cloudVaultAvailable && !mongoBackupBusy
+                        enabled = !BuildConfig.DEBUG &&
+                            cloudVaultAvailable &&
+                            !mongoBackupBusy
                     ) {
                         Text("Download & restore from cloud")
+                    }
+                    if (BuildConfig.DEBUG) {
+                        Text(
+                            text = "Debug builds restore from cloud only during onboarding " +
+                                "(Support ID). Uploads stay off.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     OutlinedButton(
                         onClick = onForceNewCloudChunk,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = cloudVaultAvailable &&
+                        enabled = !BuildConfig.DEBUG &&
+                            cloudVaultAvailable &&
                             settings.cloudBackupEnabled &&
                             !mongoBackupBusy
                     ) {
@@ -1749,9 +1810,15 @@ fun SettingsScreen(
                         checked = settings.forceSentryProxyMode,
                         onCheckedChange = onForceSentryProxyToggled,
                         hintTitle = "Force Sentry proxy",
-                        hint = "Route all Sentry traffic through the FitBuddy cloud proxy instead " +
-                            "of contacting Sentry directly. Off = automatic (direct when reachable, " +
-                            "proxy only when the daily check finds Sentry blocked)."
+                        hint = "When on, always route Sentry through the FitBuddy cloud proxy. " +
+                            "When off, try Sentry directly first; proxy is only a fallback if " +
+                            "direct is unreachable (re-checked about once per UTC day). " +
+                            "Fallback never turns this switch on."
+                    )
+                    Text(
+                        text = "Routing: ${sentryRoutingStatusLabel(settings)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
                         onClick = onClearModelCooldowns,
@@ -1775,8 +1842,17 @@ fun SettingsScreen(
 
                 DeveloperSection(
                     title = "UI preview",
-                    description = "Preview loading animations without waiting on AI."
+                    description = "Preview themes and loading animations without waiting on AI."
                 ) {
+                    SettingToggleRow(
+                        title = "Surface lab",
+                        checked = settings.developerUnlockThemes,
+                        onCheckedChange = {
+                            onSave(settings.copy(developerUnlockThemes = it))
+                        },
+                        hintTitle = "Surface lab",
+                        hint = "Experimental surface/token previews for local QA."
+                    )
                     SettingToggleRow(
                         title = "Keep animations visible",
                         checked = settings.forceShowLoadingAnimations,
@@ -1891,11 +1967,12 @@ fun SettingsScreen(
                         onClick = onRestartOnboarding,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Restart onboarding flow")
+                        Text("Preview onboarding flow")
                     }
                     Text(
-                        text = "Reopens the full first-run path (including region). Keeps logs; " +
-                            "clears region and resets crash reporting to this build's default.",
+                        text = "Opens the full first-run UI as a throwaway preview. Does not change " +
+                            "profile, AI keys, region, or crash reporting. Force-stop the app to " +
+                            "return home, or finish the preview — nothing is saved.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2400,6 +2477,8 @@ private fun SettingsCard(
     initiallyExpanded: Boolean = true,
     hintTitle: String? = null,
     hint: String? = null,
+    /** Optional chip beside the title (e.g. supporter-only sections). */
+    titleBadge: (@Composable () -> Unit)? = null,
     /** When false, header is greyed and expand taps call [onLockedExpandAttempt] instead. */
     unlocked: Boolean = true,
     onLockedExpandAttempt: (() -> Unit)? = null,
@@ -2443,17 +2522,10 @@ private fun SettingsCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (locked) {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                Row(
                     modifier = Modifier
                         .weight(1f)
                         .then(
@@ -2462,8 +2534,24 @@ private fun SettingsCard(
                             } else {
                                 Modifier
                             }
-                        )
-                )
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (locked) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    titleBadge?.invoke()
+                }
                 if (hint != null && hintTitle != null && unlocked) {
                     HintIconButton(title = hintTitle, message = hint)
                 }
@@ -2487,6 +2575,36 @@ private fun SettingsCard(
             }
         }
     }
+}
+
+/** Compact chip marking Settings sections reserved for public supporters. */
+@Composable
+private fun SupporterExclusiveBadge(
+    muted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val background = if (muted) {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    } else {
+        MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val foreground = if (muted) {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    } else {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    }
+    Text(
+        text = "Supporter exclusive",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = foreground,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .clip(appShape(6.dp))
+            .background(background)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2537,6 +2655,20 @@ private fun LoadingAnimationChoiceDropdown(
                 )
             }
         }
+    }
+}
+
+/** Live Sentry transport label for Developer settings (force switch stays independent). */
+private fun sentryRoutingStatusLabel(settings: AppSettings): String {
+    val today = LocalDate.now(ZoneOffset.UTC).toString()
+    val autoProxyToday = settings.sentryProxyModeUtcDay == today
+    return when {
+        settings.forceSentryProxyMode || CrashReporter.isForcedProxyMode() ->
+            "Proxy (forced)"
+        autoProxyToday || CrashReporter.isProxyModeActive() ->
+            "Proxy (automatic — Sentry direct unreachable)"
+        else ->
+            "Direct (automatic)"
     }
 }
 
@@ -2647,7 +2779,9 @@ fun ApiKeyChipEditor(
     label: String,
     keys: List<String>,
     onKeysChange: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    errorMessage: String? = null,
 ) {
     var draft by remember { mutableStateOf("") }
 
@@ -2663,6 +2797,11 @@ fun ApiKeyChipEditor(
             Text(
                 label,
                 style = MaterialTheme.typography.bodyMedium,
+                color = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 modifier = Modifier.weight(1f)
             )
             HintIconButton(
@@ -2719,6 +2858,7 @@ fun ApiKeyChipEditor(
                     },
                     label = { Text("Add key (paste several)") },
                     singleLine = true,
+                    isError = isError && keys.isEmpty(),
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.weight(1f)
                 )
@@ -2728,6 +2868,13 @@ fun ApiKeyChipEditor(
                     if (commitRaw(draft)) draft = ""
                 }
             ) { Text("Add") }
+        }
+        if (isError && !errorMessage.isNullOrBlank()) {
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }

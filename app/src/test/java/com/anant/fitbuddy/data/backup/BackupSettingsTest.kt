@@ -69,6 +69,7 @@ class BackupSettingsTest {
                 animationsEnabled = false,
                 autoCheckUpdates = false,
                 supportId = "support-xyz",
+                signupDate = "2026-01-15",
                 crashReportingEnabled = false,
                 region = "US",
                 regionRequestSentAt = 1_700_000_100_000L,

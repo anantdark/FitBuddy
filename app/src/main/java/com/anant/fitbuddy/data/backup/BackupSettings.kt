@@ -77,6 +77,8 @@ data class BackupSettings(
     val animationsEnabled: Boolean = true,
     val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     val supportId: String = "",
+    /** Empty on older backups — import leaves blank until first log / backfill. */
+    val signupDate: String = "",
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /** Empty on older backups — import leaves region unset so the region page can collect it. */
     val region: String = "",
@@ -93,6 +95,7 @@ data class BackupSettings(
     val showRawAiJson: Boolean = false,
     val strictClarification: Boolean = false,
     val verboseHttpLogging: Boolean = false,
+    val developerUnlockThemes: Boolean = false,
     val forceShowLoadingAnimations: Boolean = false,
     val cloudBackupEnabled: Boolean = false,
     val cloudAutoUploadEnabled: Boolean = true,
@@ -187,6 +190,7 @@ data class BackupSettings(
                 // Both flavors have an in-app checker (GitHub Releases vs f-droid.org).
                 autoCheckUpdates = autoCheckUpdates,
                 supportId = supportId,
+                signupDate = signupDate.trim(),
                 crashReportingEnabled = crashReportingEnabled,
                 region = region.trim(),
                 regionRequestSentAt = regionRequestSentAt,
@@ -201,6 +205,7 @@ data class BackupSettings(
                 showRawAiJson = showRawAiJson,
                 strictClarification = strictClarification,
                 verboseHttpLogging = verboseHttpLogging,
+                developerUnlockThemes = developerUnlockThemes,
                 forceShowLoadingAnimations = forceShowLoadingAnimations,
                 cloudBackupEnabled = cloudBackupEnabled,
                 cloudAutoUploadEnabled = cloudAutoUploadEnabled,
@@ -257,6 +262,7 @@ data class BackupSettings(
             animationsEnabled = settings.animationsEnabled,
             autoCheckUpdates = settings.autoCheckUpdates,
             supportId = settings.supportId,
+            signupDate = settings.signupDate,
             crashReportingEnabled = settings.crashReportingEnabled,
             region = settings.region,
             regionRequestSentAt = settings.regionRequestSentAt,
@@ -271,6 +277,7 @@ data class BackupSettings(
             showRawAiJson = settings.showRawAiJson,
             strictClarification = settings.strictClarification,
             verboseHttpLogging = settings.verboseHttpLogging,
+            developerUnlockThemes = settings.developerUnlockThemes,
             forceShowLoadingAnimations = settings.forceShowLoadingAnimations,
             cloudBackupEnabled = settings.cloudBackupEnabled,
             cloudAutoUploadEnabled = settings.cloudAutoUploadEnabled,

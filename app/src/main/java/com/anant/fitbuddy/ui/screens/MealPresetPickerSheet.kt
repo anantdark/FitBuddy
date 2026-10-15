@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.anant.fitbuddy.ui.theme.appShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import com.anant.fitbuddy.ui.util.LogItemIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.ui.components.IconButton
+import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.pressable
 
 /** Bottom sheet listing saved meals; tap to quick-log the whole meal to the active day. */
@@ -41,6 +44,7 @@ fun MealPresetPickerSheet(
     presets: List<MealPreset>,
     onPick: (MealPreset) -> Unit,
     onDelete: (MealPreset) -> Unit,
+    onCreate: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -58,11 +62,22 @@ fun MealPresetPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = "Tap a meal to log it to the day you're viewing. Recently used meals stay on top. Build a meal and choose Save as preset to add one here.",
+                text = "Tap a meal to log it to the day you're viewing. Recently used meals stay on top.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
             )
+
+            OutlinedButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                onClick = onCreate
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Create meal")
+            }
 
             if (presets.isNotEmpty()) {
                 OutlinedTextField(
@@ -80,7 +95,7 @@ fun MealPresetPickerSheet(
             when {
                 presets.isEmpty() -> {
                     Text(
-                        text = "No saved meals yet. Build a meal, then tap Save as preset on the review screen.",
+                        text = "No saved meals yet. Create one above, then save it as a preset on the review screen.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
@@ -131,7 +146,7 @@ private fun MealPresetRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Filled.Bookmark,
+                    LogItemIcons.forFood(preset.iconTopic),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )

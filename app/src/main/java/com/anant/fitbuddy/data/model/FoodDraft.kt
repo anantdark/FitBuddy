@@ -77,7 +77,9 @@ data class IngredientDraft(
 data class FoodDraft(
     val dishName: String,
     val timestamp: Long,
-    val ingredients: List<IngredientDraft>
+    val ingredients: List<IngredientDraft>,
+    /** AI [LogIconTopic] id; carried through review → save. */
+    val iconTopic: String? = null
 ) {
     val totalCalories: Int get() = ingredients.sumOf { it.calories }
     val totalProtein: Int get() = ingredients.sumOf { it.protein }

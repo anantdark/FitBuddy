@@ -83,6 +83,9 @@ interface FoodLogDao {
     @Query("SELECT COUNT(*) FROM food_logs")
     suspend fun count(): Int
 
+    @Query("SELECT MIN(dateString) FROM food_logs")
+    suspend fun getEarliestDateString(): String?
+
     @Query("SELECT * FROM food_logs ORDER BY timestamp DESC")
     fun getAllFoodLogs(): Flow<List<FoodLog>>
 
@@ -200,6 +203,9 @@ data class FoodTotals(
 interface ExerciseLogDao {
     @Query("SELECT COUNT(*) FROM exercise_logs")
     suspend fun count(): Int
+
+    @Query("SELECT MIN(dateString) FROM exercise_logs")
+    suspend fun getEarliestDateString(): String?
 
     @Query("SELECT * FROM exercise_logs ORDER BY timestamp DESC")
     fun getAllExerciseLogs(): Flow<List<ExerciseLog>>

@@ -186,6 +186,12 @@ data class AppSettings(
      * Share this with the developer when reporting a bug.
      */
     val supportId: String = "",
+    /**
+     * Calendar day (`yyyy-MM-dd`) of the earliest food or exercise log on this install.
+     * Empty until the first log; backfilled for existing users. Synced via backup; sent on
+     * Sentry heartbeats as `signup_dt` (not on crash User).
+     */
+    val signupDate: String = "",
     /** When false, Sentry does not send crash events (SDK may still be initialized). Off by default on F-Droid. */
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /**
@@ -238,8 +244,19 @@ data class AppSettings(
     /**
      * Developer: force all Sentry traffic through the Vercel proxy, overriding the automatic
      * daily connectivity check. Off = automatic (direct when reachable, proxy when blocked).
+     * Manual only — automatic proxy fallback must never set this to true.
      */
     val forceSentryProxyMode: Boolean = false,
+    /**
+     * UTC day `yyyy-MM-dd` when automatic proxy fallback last latched (Sentry direct unreachable).
+     * Null when routing direct (or forced proxy is managed separately). Not a user toggle.
+     */
+    val sentryProxyModeUtcDay: String? = null,
+    /**
+     * Developer: unlock Themes (colors/fonts) without being on the supporters list.
+     * Independent of [forceSentryProxyMode].
+     */
+    val developerUnlockThemes: Boolean = false,
     /**
      * Developer: keep analyzing-banner and insight wait animations visible even when
      * nothing is loading, so they can be previewed without waiting on AI.

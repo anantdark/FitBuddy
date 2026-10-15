@@ -1,6 +1,5 @@
 package com.anant.fitbuddy.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,8 +34,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.MealDraft
+import com.anant.fitbuddy.ui.components.LogDateField
 import com.anant.fitbuddy.util.SystemToast
 
 /**
@@ -57,9 +61,13 @@ fun MealReviewDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    // Keyed on the incoming stamp so in-dialog food edits don't wipe a local date pick.
+    var logTimestamp by remember(draft.timestamp) { mutableStateOf(draft.timestamp) }
+
+    fun confirmedDraft(): MealDraft = draft.copy(timestamp = logTimestamp)
 
     fun savePreset() {
-        onSaveAsPreset(draft)
+        onSaveAsPreset(confirmedDraft())
         if (!saveAsPresetOnly) {
             SystemToast.show(context, "Saved \"${draft.name}\" as meal preset")
         }
@@ -111,7 +119,7 @@ fun MealReviewDialog(
                             modifier = Modifier.weight(1f),
                             enabled = draft.foods.isNotEmpty(),
                             onClick = {
-                                if (saveAsPresetOnly) savePreset() else onConfirm(draft)
+                                if (saveAsPresetOnly) savePreset() else onConfirm(confirmedDraft())
                             }
                         ) {
                             Text(
@@ -152,6 +160,14 @@ fun MealReviewDialog(
                         draft.totalCarbs,
                         draft.totalFats
                     )
+                }
+                if (!saveAsPresetOnly) {
+                    item {
+                        LogDateField(
+                            timestamp = logTimestamp,
+                            onTimestampChange = { logTimestamp = it }
+                        )
+                    }
                 }
                 item {
                     Text(

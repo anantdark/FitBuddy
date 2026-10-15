@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.util
 
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -71,6 +74,22 @@ object DateUtils {
         return format(cal.timeInMillis)
     }
 
+    /** Add [months] (may be negative) to a `yyyy-MM-dd` local calendar day. */
+    fun addCalendarMonths(dateString: String, months: Int): String =
+        LocalDate.parse(dateString).plusMonths(months.toLong()).toString()
+
+    /** Earlier of two `yyyy-MM-dd` strings; nulls sort as missing. */
+    fun minDate(a: String?, b: String?): String? {
+        val left = a?.takeIf { it.isNotBlank() }
+        val right = b?.takeIf { it.isNotBlank() }
+        return when {
+            left == null -> right
+            right == null -> left
+            left <= right -> left
+            else -> right
+        }
+    }
+
     /**
      * Compact range for a week strip, e.g. "Jul 6 – 12" or "Jun 30 – Jul 6".
      * Empty [dates] → "".
@@ -108,6 +127,17 @@ object DateUtils {
             set(Calendar.MILLISECOND, clock.get(Calendar.MILLISECOND))
         }.timeInMillis
     }
+
+    /**
+     * UTC midnight millis for a `yyyy-MM-dd` day — the format Material [DatePicker] expects /
+     * returns via [androidx.compose.material3.DatePickerState.selectedDateMillis].
+     */
+    fun dateStringToUtcEpochDayMillis(dateString: String): Long =
+        LocalDate.parse(dateString).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+    /** Inverse of [dateStringToUtcEpochDayMillis]. */
+    fun utcEpochDayMillisToDateString(utcEpochDayMillis: Long): String =
+        Instant.ofEpochMilli(utcEpochDayMillis).atZone(ZoneOffset.UTC).toLocalDate().toString()
 
     /** "Today" / "Yesterday" / "Wed, Jul 16" relative to [realToday]. */
     fun dayTitle(dateString: String, realToday: String = today()): String {
@@ -175,6 +205,18 @@ object DateUtils {
     /** Rolling 30-day bounds ending on [endInclusive]: start = endInclusive − 29 days. */
     fun rolling30DayBounds(endInclusive: String = today()): Pair<String, String> =
         addDays(endInclusive, -29) to endInclusive
+
+    /** Inclusive calendar days from [startDate] → [endDate] (oldest first). Empty if inverted. */
+    fun datesInclusive(startDate: String, endDate: String): List<String> {
+        if (startDate > endDate) return emptyList()
+        val out = ArrayList<String>()
+        var cur = startDate
+        while (cur <= endDate) {
+            out.add(cur)
+            cur = addDays(cur, 1)
+        }
+        return out
+    }
 
     /** Compact label for a 30-day range, e.g. "Jul 3 – Aug 1" or "Jun 2 – Jul 1, 2025". */
     fun rolling30DayLabel(endInclusive: String): String {

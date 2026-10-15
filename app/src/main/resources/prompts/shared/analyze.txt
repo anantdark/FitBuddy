@@ -43,6 +43,25 @@ Ingredient quantity rules (critical for loose text):
 - For bulk or continuous portions, use quantity 1 and weight_g as the portion weight.
 {{MEASUREMENT_PROMPT_NOTES}}
 
+Icon topic (required on SUCCESS / EXERCISE_LOGGED):
+- food "icon_topic" must be EXACTLY one of: drink | dessert | bakery | bowl | protein | produce | meal
+  - drink: coffee, tea, juice, soda, alcohol, smoothies
+  - dessert: sweets, ice cream, cake, candy
+  - bakery: bread, roti, toast, pastry, dosa, pancakes
+  - bowl: rice, noodles, pasta, soup, stew, curry, dal
+  - protein: meat, fish, eggs, paneer, tofu as the main focus
+  - produce: salad, fruit, yogurt, oats when those dominate
+  - meal: mixed plates, named meals, breakfast/lunch/dinner, anything else
+- exercise "icon_topic" must be EXACTLY one of:
+  run | walk | cycle | swim | mind_body | sport | cardio |
+  chest | back | legs | arms | shoulders | core | strength
+  - run / walk / cycle / swim: those activities
+  - mind_body: yoga, stretch, pilates, mobility
+  - sport: ball sports, martial arts, team games
+  - cardio: HIIT, elliptical, general cardio not covered above
+  - chest / back / legs / arms / shoulders / core: primary focus of a strength session
+  - strength: mixed full-body weights / calisthenics when no single body part dominates
+
 Respond using EXACTLY this schema. Set "food_analysis" to null OUTRIGHT (not an object with
 null fields inside) when status is not SUCCESS, and "exercise_analysis" to null OUTRIGHT
 when status is not EXERCISE_LOGGED:
@@ -51,6 +70,7 @@ when status is not EXERCISE_LOGGED:
   "clarification_message": "String text or null",
   "food_analysis": {
     "dish_name": "String",
+    "icon_topic": "drink | dessert | bakery | bowl | protein | produce | meal",
     "macros": { "calories": Int, "protein_g": Int, "carbs_g": Int, "fats_g": Int },
     "ingredients": [
       { "name": "String", "quantity": Int, "weight_g": Int, "calories": Int, "protein_g": Int, "carbs_g": Int, "fats_g": Int }
@@ -59,7 +79,8 @@ when status is not EXERCISE_LOGGED:
   "exercise_analysis": {
     "activity_detected": "String",
     "calories_burned": Int,
-    "duration_minutes": Int
+    "duration_minutes": Int,
+    "icon_topic": "run | walk | cycle | swim | mind_body | sport | cardio | chest | back | legs | arms | shoulders | core | strength"
   }
 }
 

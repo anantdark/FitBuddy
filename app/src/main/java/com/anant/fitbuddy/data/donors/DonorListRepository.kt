@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.donors
 
 import com.anant.fitbuddy.data.remote.NetworkModule
 import com.anant.fitbuddy.data.settings.SettingsRepository
+import com.anant.fitbuddy.util.DateUtils
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -56,18 +57,27 @@ class DonorListRepository(
     }
 
     /**
-     * Named donors with at least one donation strictly after [lastSeenDonationDate].
-     * Preserves [DonorsFile.donors] array order.
+     * Named donors with a thank-you–eligible donation: new vs [lastSeenDonationDate], and
+     * either on/after [signupDate] (unbounded) or within [THANK_YOU_MAX_AGE_MONTHS] before
+     * signup (or before today when signup is unset). Gallery uses [allDisplayableDonors].
      */
     fun newDisplayableDonors(
         file: DonorsFile,
         lastSeenDonationDate: String?,
+        signupDate: String? = null,
+        today: String = DateUtils.today(),
     ): List<DonorEntry> {
-        val floor = DonorDates.normalizeOrNull(lastSeenDonationDate)
+        val ageAnchor = DonorDates.normalizeOrNull(signupDate) ?: today
+        val preSignupNotBefore = DateUtils.addCalendarMonths(ageAnchor, -THANK_YOU_MAX_AGE_MONTHS)
         return file.donors.filter { entry ->
             entry.normalizedHash.isNotEmpty() &&
                 entry.hasDisplayInfo &&
-                DonorBadgeRules.hasDonationAfter(entry, floor)
+                DonorBadgeRules.hasThankYouEligibleDonation(
+                    donor = entry,
+                    lastSeenDate = lastSeenDonationDate,
+                    signupDate = signupDate,
+                    preSignupNotBefore = preSignupNotBefore,
+                )
         }
     }
 
@@ -96,5 +106,7 @@ class DonorListRepository(
     companion object {
         const val DONORS_URL =
             "https://raw.githubusercontent.com/anantdark/FitBuddy/main/config/donors.json"
+        /** Thank-you banner hides donations older than this many months before signup. */
+        const val THANK_YOU_MAX_AGE_MONTHS = 6
     }
 }
