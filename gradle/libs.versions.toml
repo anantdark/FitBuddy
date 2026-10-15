@@ -42,7 +42,7 @@ moshiKotlinCodegen = "1.15.2"
 datastorePreferences = "1.1.7"
 material = "1.12.0"
 zxingCpp = "3.1.1"
-sentryAndroid = "8.52.0"
+sentryAndroid = "8.53.0"
 browser = "1.10.0"
 
 [libraries]
