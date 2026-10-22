@@ -18,13 +18,13 @@ import androidx.compose.material3.SwitchColors
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.ui.theme.isMakoStyle
+import androidx.compose.runtime.getValue
 
 private val MakoTrackWidth = 52.dp
 private val MakoTrackHeight = 32.dp

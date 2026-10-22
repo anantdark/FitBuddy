@@ -35,11 +35,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +60,8 @@ import com.anant.fitbuddy.ui.components.ConfettiOverlay
 import com.anant.fitbuddy.ui.components.DonorTradingCardDialog
 import com.anant.fitbuddy.util.SystemToast
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 @Composable
 internal fun DonationReminderDialog(

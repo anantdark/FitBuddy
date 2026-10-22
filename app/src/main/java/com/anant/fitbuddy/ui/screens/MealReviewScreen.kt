@@ -34,14 +34,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.MealDraft
 import com.anant.fitbuddy.ui.components.LogDateField
 import com.anant.fitbuddy.util.SystemToast
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Final review before persisting a meal (one or more foods).

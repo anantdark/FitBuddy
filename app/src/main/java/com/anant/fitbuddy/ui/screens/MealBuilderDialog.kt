@@ -32,12 +32,9 @@ import androidx.compose.material3.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +45,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.MealDraft
 import com.anant.fitbuddy.data.model.toMealDraft
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -353,7 +352,3 @@ private fun ManualFoodEntryDialog(
         }
     )
 }
-
-/** Seeds a meal builder list from an existing draft (for editing logged meals). */
-fun MealDraft.toFoodEntryList(): SnapshotStateList<FoodEntryDraft> =
-    foods.toMutableStateList()

@@ -37,11 +37,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,6 +80,8 @@ import java.util.Calendar
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 /** Soft Material palette accents for P/C/F (Red 200 / Teal 200 / Orange 200). */
 val MacroProteinColor = Color(0xFFEF9A9A)
 val MacroCarbsColor = Color(0xFF80CBC4)
@@ -515,47 +515,6 @@ fun CustomLineChart(
             }
         }
     }
-}
-
-/**
- * Custom-drawn Stacked Bar Chart showcasing macronutrient trend breakdowns
- * (Protein, Carbs, Fats distribution stacked in a clean, vertical canvas).
- *
- * Prefer [WeekMacroBarChart] for Progress / Dashboard (calorie-height P/C/F share).
- */
-@Composable
-fun CustomStackedBarChart(
-    foodSummaries: List<FoodDailySummary>,
-    modifier: Modifier = Modifier
-) {
-    val days = remember(foodSummaries) {
-        foodSummaries.asReversed().map { s ->
-            WeekDayMacroBar(
-                date = s.dateString,
-                weekdayLabel = s.dateString.substringAfterLast('-'),
-                calories = s.totalCalories,
-                proteinG = s.totalProtein,
-                carbsG = s.totalCarbs,
-                fatsG = s.totalFats
-            )
-        }
-    }
-    var selectedDate by remember(days) {
-        mutableStateOf(days.lastOrNull()?.date.orEmpty())
-    }
-    if (days.isEmpty()) {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No log data available yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        return
-    }
-    WeekMacroBarChart(
-        days = days,
-        selectedDate = selectedDate,
-        onSelectDate = { selectedDate = it },
-        showDayLabels = days.size <= 10,
-        modifier = modifier
-    )
 }
 
 /** One day of macros for the week-history stacked bar chart. */

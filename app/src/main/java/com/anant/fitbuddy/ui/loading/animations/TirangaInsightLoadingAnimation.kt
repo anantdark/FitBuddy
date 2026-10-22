@@ -9,12 +9,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -27,6 +25,8 @@ import com.anant.fitbuddy.ui.loading.LoadingAnimation
 import com.anant.fitbuddy.ui.loading.LoadingAnimationScope
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Compact tiranga wash used inside insight / health-target buttons. */
 object TirangaInsightLoadingAnimation : LoadingAnimation {

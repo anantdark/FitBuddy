@@ -16,10 +16,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +26,8 @@ import com.anant.fitbuddy.ui.components.AppSwitch
 import com.anant.fitbuddy.ui.components.Button
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Optional onboarding step for personal cloud backup. Enabling it also turns crash reporting on

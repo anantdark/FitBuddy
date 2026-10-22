@@ -36,7 +36,6 @@ import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.HealthTargetInput
 import com.anant.fitbuddy.data.model.MealDraft
 import com.anant.fitbuddy.data.model.toSingleFoodMeal
-import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.NutritionTargetHistory
 import com.anant.fitbuddy.data.model.NutritionTrendEvidence
@@ -57,7 +56,6 @@ import com.anant.fitbuddy.data.donors.DonorBadgeRules
 import com.anant.fitbuddy.data.donors.DonorEntry
 import com.anant.fitbuddy.data.donors.DonorListRepository
 import com.anant.fitbuddy.data.remote.OpenFoodFactsProductUnavailableException
-import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.util.FdroidUpdateLauncher
@@ -71,7 +69,6 @@ import com.anant.fitbuddy.data.repository.FitnessRepository
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
-import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
@@ -80,9 +77,6 @@ import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -499,9 +493,6 @@ class MainViewModel(
         }
     }
 
-    /** Local share export is required when cloud backup is off. */
-    fun needsLocalUriForUpdateBackup(): Boolean = !settings.value.cloudBackupEnabled
-
     /**
      * Start Export backup & update: remember [downloadUrl], then begin cloud upload or share-sheet
      * export immediately.
@@ -519,17 +510,6 @@ class MainViewModel(
         }
         exportBackupForUpdate(context)
         return false
-    }
-
-    fun cancelBackupFilePick() {
-        _updateState.update {
-            it.copy(
-                isAwaitingBackupFilePick = false,
-                pendingDownloadUrlAfterBackup = null,
-                backupStatusMessage = null,
-                backupStatusIsError = false
-            )
-        }
     }
 
     /**
@@ -714,14 +694,6 @@ class MainViewModel(
 
     fun consumeOpenDonationDialogRequest() {
         _openDonationDialogRequested.value = false
-    }
-
-    fun showDonationReminderDialog(force: Boolean = false) {
-        if (force || DonationReminderScheduler.canShowEveningDialog(settings.value) ||
-            _pendingEveningDonateReminder.value
-        ) {
-            _donationReminderVisible.value = true
-        }
     }
 
     fun onDonateReminderNotificationOpened() {
@@ -1655,23 +1627,6 @@ class MainViewModel(
 
     /** When true, dashboard launch should run a one-shot AI calorie/macro target design. */
     private var pendingInitialTargetDesign = false
-
-    /** Logs for the currently selected dashboard day. */
-    val foodLogsForSelectedDay: StateFlow<List<FoodLog>> =
-        combine(_selectedDate, weekSnapshots) { date, snaps ->
-            snaps[date]?.foodLogs.orEmpty()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val exerciseLogsForSelectedDay: StateFlow<List<ExerciseLog>> =
-        combine(_selectedDate, weekSnapshots) { date, snaps ->
-            snaps[date]?.exerciseLogs.orEmpty()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    /** @deprecated Prefer [foodLogsForSelectedDay]; kept for any remaining call sites. */
-    val foodLogsToday: StateFlow<List<FoodLog>> = foodLogsForSelectedDay
-
-    /** @deprecated Prefer [exerciseLogsForSelectedDay]; kept for any remaining call sites. */
-    val exerciseLogsToday: StateFlow<List<ExerciseLog>> = exerciseLogsForSelectedDay
 
     // --- Saved foods & meal presets ---------------------------------------------------------
 

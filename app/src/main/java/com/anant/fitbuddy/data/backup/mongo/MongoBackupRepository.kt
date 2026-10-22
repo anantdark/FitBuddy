@@ -160,19 +160,6 @@ open class MongoBackupRepository(
         }
     }
 
-    /**
-     * Returns the BackupData envelope JSON for [supportId] head (legacy single-doc path).
-     */
-    suspend fun downloadPayloadJson(
-        baseUrl: String,
-        apiKey: String,
-        databaseName: String,
-        collectionName: String,
-        supportId: String
-    ): String = downloadDoc(
-        baseUrl, apiKey, databaseName, collectionName, supportId, chunkId = null
-    ).payloadJson
-
     open suspend fun downloadChain(
         baseUrl: String,
         apiKey: String,

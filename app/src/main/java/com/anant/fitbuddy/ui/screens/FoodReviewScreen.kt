@@ -36,10 +36,8 @@ import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.util.SystemToast
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +52,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.ui.components.LogDateField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Full-screen editable review of an AI-analysed meal, shown before it is saved to the log. */
 @OptIn(ExperimentalMaterial3Api::class)

@@ -257,14 +257,6 @@ class SettingsRepository(context: Context) {
         return stored
     }
 
-    /** Overwrites signup date (restore / regenerate backfill). Blank clears. */
-    suspend fun setSignupDate(signupDate: String) {
-        val date = signupDate.trim()
-        dataStore.edit { prefs ->
-            if (date.isBlank()) prefs.remove(KEY_SIGNUP_DATE) else prefs[KEY_SIGNUP_DATE] = date
-        }
-    }
-
     /** UTC calendar day `yyyy-MM-dd` of the last Sentry heartbeat, or null. */
     suspend fun lastHeartbeatUtcDay(): String? =
         dataStore.data.first()[KEY_LAST_HEARTBEAT_DAY]

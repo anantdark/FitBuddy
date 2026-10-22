@@ -35,11 +35,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +67,8 @@ import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 // Macro accent colors shared with the stacked bar chart legend.
 private val ProteinColor = MacroProteinColor

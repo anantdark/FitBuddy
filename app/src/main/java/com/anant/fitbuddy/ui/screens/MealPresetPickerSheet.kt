@@ -24,10 +24,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +34,8 @@ import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.ui.components.IconButton
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.pressable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Bottom sheet listing saved meals; tap to quick-log the whole meal to the active day. */
 @OptIn(ExperimentalMaterial3Api::class)

@@ -27,10 +27,8 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +40,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.ui.theme.isMakoStyle
 import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** M3 ActiveIndicator 56×32 around a 24dp icon. */
 private val IndicatorWidth = 56.dp

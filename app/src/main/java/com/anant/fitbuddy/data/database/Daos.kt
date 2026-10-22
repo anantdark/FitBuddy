@@ -87,25 +87,10 @@ interface FoodLogDao {
     suspend fun getEarliestDateString(): String?
 
     @Query("SELECT * FROM food_logs ORDER BY timestamp DESC")
-    fun getAllFoodLogs(): Flow<List<FoodLog>>
-
-    @Query("SELECT * FROM food_logs ORDER BY timestamp DESC")
     suspend fun getAllOnce(): List<FoodLog>
 
     @Query("SELECT * FROM food_logs WHERE dateString = :dateString ORDER BY timestamp DESC")
     fun getFoodLogsByDate(dateString: String): Flow<List<FoodLog>>
-
-    @Query("SELECT SUM(calories) FROM food_logs WHERE dateString = :dateString")
-    fun getTotalCaloriesForDate(dateString: String): Flow<Int?>
-
-    @Query("SELECT SUM(proteinG) FROM food_logs WHERE dateString = :dateString")
-    fun getTotalProteinForDate(dateString: String): Flow<Int?>
-
-    @Query("SELECT SUM(carbsG) FROM food_logs WHERE dateString = :dateString")
-    fun getTotalCarbsForDate(dateString: String): Flow<Int?>
-
-    @Query("SELECT SUM(fatsG) FROM food_logs WHERE dateString = :dateString")
-    fun getTotalFatsForDate(dateString: String): Flow<Int?>
 
     /** Single-query daily totals: avoids observing/combining four separate SUM queries. */
     @Query("""
@@ -137,15 +122,6 @@ interface FoodLogDao {
     suspend fun clearAll()
 
     // For graphs: returns daily totals for last N days that have logs
-    @Query("""
-        SELECT dateString, SUM(calories) as totalCalories, SUM(proteinG) as totalProtein, SUM(carbsG) as totalCarbs, SUM(fatsG) as totalFats 
-        FROM food_logs 
-        GROUP BY dateString 
-        ORDER BY dateString DESC 
-        LIMIT :limit
-    """)
-    fun getHistoricalFoodSummaries(limit: Int): Flow<List<FoodDailySummary>>
-
     /** Every day that has food logs (newest first) — for AI progress context. */
     @Query("""
         SELECT dateString, SUM(calories) as totalCalories, SUM(proteinG) as totalProtein, SUM(carbsG) as totalCarbs, SUM(fatsG) as totalFats 
@@ -208,9 +184,6 @@ interface ExerciseLogDao {
     suspend fun getEarliestDateString(): String?
 
     @Query("SELECT * FROM exercise_logs ORDER BY timestamp DESC")
-    fun getAllExerciseLogs(): Flow<List<ExerciseLog>>
-
-    @Query("SELECT * FROM exercise_logs ORDER BY timestamp DESC")
     suspend fun getAllOnce(): List<ExerciseLog>
 
     @Query("SELECT * FROM exercise_logs WHERE dateString = :dateString ORDER BY timestamp DESC")
@@ -236,18 +209,6 @@ interface ExerciseLogDao {
     suspend fun clearAll()
 
     // For graphs: returns daily total burned for last N days that have logs
-    @Query("""
-        SELECT dateString,
-               SUM(caloriesBurned) AS totalBurned,
-               SUM(durationMinutes) AS totalDurationMinutes,
-               COUNT(*) AS workoutCount
-        FROM exercise_logs 
-        GROUP BY dateString 
-        ORDER BY dateString DESC 
-        LIMIT :limit
-    """)
-    fun getHistoricalExerciseSummaries(limit: Int): Flow<List<ExerciseDailySummary>>
-
     /** Every day that has exercise logs (newest first) — for AI progress context. */
     @Query("""
         SELECT dateString,
@@ -381,9 +342,6 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC")
     fun getAll(): Flow<List<WorkoutSession>>
 
-    @Query("SELECT * FROM workout_sessions WHERE dateString = :dateString ORDER BY timestamp DESC")
-    fun getForDate(dateString: String): Flow<List<WorkoutSession>>
-
     @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC")
     suspend fun getAllOnce(): List<WorkoutSession>
 
@@ -434,9 +392,6 @@ interface BodyMeasurementDao {
 
     @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC")
     fun getAll(): Flow<List<BodyMeasurement>>
-
-    @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC LIMIT :limit")
-    fun getRecent(limit: Int): Flow<List<BodyMeasurement>>
 
     @Query("SELECT * FROM body_measurements ORDER BY timestamp DESC, id DESC LIMIT 1")
     fun getLatest(): Flow<BodyMeasurement?>

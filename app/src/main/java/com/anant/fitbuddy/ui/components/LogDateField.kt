@@ -11,12 +11,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.anant.fitbuddy.util.DateUtils
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Read-only field that opens a Material date picker. Defaults to the draft's current day;

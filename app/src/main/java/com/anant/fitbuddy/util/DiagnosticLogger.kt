@@ -74,8 +74,6 @@ object DiagnosticLogger {
         }
     }
 
-    fun hasContent(): Boolean = synchronized(lock) { lines.isNotEmpty() }
-
     fun log(category: String, message: String, details: Map<String, String> = emptyMap()) {
         if (!enabled) return
         val ts = isoFormat.format(Date())

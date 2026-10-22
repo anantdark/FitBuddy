@@ -68,4 +68,3 @@ fun FoodDraft.toSingleFoodMeal(): MealDraft = MealDraft(
     iconTopic = iconTopic
 )
 
-fun FoodDraft.toMealBuilderItems(): List<FoodEntryDraft> = listOf(toFoodEntry())

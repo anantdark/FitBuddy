@@ -13,8 +13,6 @@ data class ModelCooldown(
     /** Epoch millis (UTC) — skip this model until this instant. */
     val untilEpochMs: Long
 ) {
-    fun storageKey(): String = keyOf(provider, modelId)
-
     companion object {
         fun keyOf(provider: AiProvider, modelId: String): String =
             "${provider.name}|$modelId"

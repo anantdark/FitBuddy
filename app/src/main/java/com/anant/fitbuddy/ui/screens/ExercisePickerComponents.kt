@@ -68,12 +68,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import coil.size.Size
@@ -100,6 +98,8 @@ import com.anant.fitbuddy.ui.components.IconButton
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.components.pressable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 private const val RECENT_LIMIT = 8
 private const val FREQUENT_LIMIT = 8
@@ -159,10 +159,6 @@ fun ExercisePickerSheet(
     LaunchedEffect(query) {
         delay(200)
         debouncedQuery = query
-    }
-
-    val usageScoreByName = remember(usages) {
-        usages.associate { it.name.lowercase() to it.useCount }
     }
 
     val rankedBodyParts = remember(bodyPartFilters, pinnedBodyPartFilters) {
