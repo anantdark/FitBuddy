@@ -19,6 +19,12 @@ data class CatalogExercise(
     val targetMuscles: List<String> = emptyList(),
     val secondaryMuscles: List<String> = emptyList(),
     val instructions: List<String> = emptyList(),
+    /**
+     * Explicit mode from custom classify / preset. Null → derive from [name] + [equipmentTag].
+     */
+    val loggingModeOverride: ExerciseLoggingMode? = null,
+    /** True for a user-added preset (editable/deletable); false for the live ExerciseDB catalog. */
+    val isCustom: Boolean = false,
 ) {
     val primaryEquipmentLabel: String
         get() = equipments.firstOrNull()?.replaceFirstChar { it.uppercase() }
@@ -26,6 +32,17 @@ data class CatalogExercise(
 
     val primaryBodyPartLabel: String?
         get() = bodyParts.firstOrNull()?.replaceFirstChar { it.uppercase() }
+
+    fun resolvedLoggingMode(): ExerciseLoggingMode =
+        resolveLoggingMode(name, equipmentTag, loggingModeOverride)
+
+    /** Sets×seconds UI (holds, carries, stretch holds) vs sets×reps. */
+    val usesTimedLogging: Boolean
+        get() {
+            val mode = resolvedLoggingMode()
+            return mode == ExerciseLoggingMode.TIMED_HOLD ||
+                mode == ExerciseLoggingMode.TIMED_CARRY
+        }
 }
 
 /**
@@ -55,6 +72,8 @@ fun mapExerciseDbEquipment(
         return Equipment.BARBELL
     }
     if (eqs.any { it == "body weight" }) return Equipment.BODYWEIGHT
+    // ExerciseDB tags plate-loaded holds (e.g. weighted front plank) as "weighted"
+    if (eqs.any { it == "weighted" }) return Equipment.OTHER
     val machineEq = setOf(
         "cable",
         "leverage machine",
@@ -69,3 +88,18 @@ fun mapExerciseDbEquipment(
 /** Title-cases ExerciseDB filter labels for chips (“upper arms” → “Upper arms”). */
 fun titleCaseLabel(raw: String): String =
     raw.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+/**
+ * A best-effort GIF match found for a custom exercise, offered to the user to accept or deny
+ * before it's persisted on the preset. [source] is shown so the user knows where it came from.
+ */
+data class GifSuggestion(
+    val exerciseName: String,
+    val matchedName: String,
+    val gifUrl: String,
+    val catalogExerciseId: String?,
+    val source: GifSuggestionSource,
+    val instructions: List<String> = emptyList()
+)
+
+enum class GifSuggestionSource { EXERCISE_DB, GYM_GIFS }

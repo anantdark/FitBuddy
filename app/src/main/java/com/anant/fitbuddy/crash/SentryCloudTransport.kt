@@ -10,32 +10,23 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 /**
- * A Sentry transport that can divert traffic through the FitBuddy Vercel proxy.
+ * Sentry transport that sends every envelope through FitBuddy’s Vercel ingest when available.
  *
- * It wraps the SDK's real HTTP transport ([delegate]) for the normal, direct path. When
- * [proxyModeActive] returns true — after a heartbeat probe found Sentry ingest blocked for the
- * current UTC day — every envelope the SDK produces (crashes, messages, logs, metrics,
- * check-ins) is serialized and forwarded to the proxy instead. A new UTC day expires that latch
- * so traffic returns to direct until the next probe.
- *
- * Envelopes forwarded through the proxy are not queued/retried by the SDK's disk cache — if the
- * proxy POST fails we fall back to the direct transport so the SDK's caching/retry still applies.
+ * Wraps the SDK’s HTTP transport ([delegate]) only as a fallback when cloud ingest is
+ * unavailable or the POST fails — so the SDK’s disk cache / retry still applies.
  */
-internal class SentryProxyTransport(
+internal class SentryCloudTransport(
     private val options: SentryOptions,
-    private val delegate: ITransport,
-    private val proxyModeActive: () -> Boolean
+    private val delegate: ITransport
 ) : ITransport {
 
     override fun send(envelope: SentryEnvelope, hint: Hint) {
-        if (proxyModeActive() && SentryHeartbeatProxy.isAvailable()) {
+        if (SentryCloudIngest.isAvailable()) {
             val bytes = serialize(envelope)
-            if (bytes != null && SentryHeartbeatProxy.forwardEnvelope(bytes)) {
+            if (bytes != null && SentryCloudIngest.forwardEnvelope(bytes)) {
                 return
             }
-            // Proxy unavailable or the POST failed — fall through to the direct transport so
-            // the SDK's own disk cache/retry can take over.
-            Log.w(TAG, "proxy send failed; falling back to direct transport")
+            Log.w(TAG, "cloud ingest failed; falling back to direct transport")
         }
         delegate.send(envelope, hint)
     }

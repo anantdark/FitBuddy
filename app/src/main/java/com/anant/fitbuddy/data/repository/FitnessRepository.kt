@@ -47,11 +47,21 @@ import com.anant.fitbuddy.data.database.WorkoutExerciseDao
 import com.anant.fitbuddy.data.database.WorkoutSession
 import com.anant.fitbuddy.data.database.WorkoutSessionDao
 import com.anant.fitbuddy.data.model.CatalogExercise
+import com.anant.fitbuddy.data.model.CustomCatalogEntry
 import com.anant.fitbuddy.data.model.CustomExerciseResponse
 import com.anant.fitbuddy.data.model.Equipment
+import com.anant.fitbuddy.data.model.ExerciseLoggingMode
+import com.anant.fitbuddy.data.model.GifSuggestion
+import com.anant.fitbuddy.data.model.GifSuggestionSource
+import com.anant.fitbuddy.data.remote.gymgifs.GymGifsCatalogRepository
 import com.anant.fitbuddy.data.model.NutritionTargetHistory
 import com.anant.fitbuddy.data.model.mergeCatalogWithCustoms
 import com.anant.fitbuddy.data.model.ExerciseDraft
+import com.anant.fitbuddy.data.model.isTimedHoldExercise
+import com.anant.fitbuddy.data.model.classifyCustomExerciseOffline
+import com.anant.fitbuddy.data.model.parseLoggingMode
+import com.anant.fitbuddy.data.model.resolveLoggingMode
+import com.anant.fitbuddy.data.model.toStorageValue
 import com.anant.fitbuddy.data.model.FitnessTrackerResponse
 import com.anant.fitbuddy.data.model.ExerciseAnalysis
 import com.anant.fitbuddy.data.model.FoodAnalysis
@@ -114,6 +124,7 @@ class FitnessRepository(
     private val workoutSessionDao: WorkoutSessionDao,
     private val workoutExerciseDao: WorkoutExerciseDao,
     private val exerciseCatalogRepository: ExerciseCatalogRepository,
+    private val gymGifsCatalogRepository: GymGifsCatalogRepository,
     private val remoteAiDataSource: RemoteAiDataSource,
     private val openFoodFactsDataSource: OpenFoodFactsDataSource,
     private val settingsRepository: SettingsRepository,
@@ -124,9 +135,17 @@ class FitnessRepository(
     val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
     val allExerciseLogs: Flow<List<ExerciseLog>> = exerciseLogDao.getAllExerciseLogs()
 
+    /** True when a profile with age/weight/height already exists (past first-run onboarding). */
+    suspend fun hasBasicsConfiguredProfile(): Boolean =
+        userProfileDao.getProfileOnce()?.hasBasicsConfigured() == true
+
     /** Total user-created records across food logs, exercise logs, and measurements. */
     suspend fun getTotalRecordCount(): Int =
         foodLogDao.count() + exerciseLogDao.count() + bodyMeasurementDao.count()
+
+    /** True when the user has logged at least one meal or workout (gates cloud uploads). */
+    suspend fun hasFoodOrExerciseLogs(): Boolean =
+        foodLogDao.count() + exerciseLogDao.count() > 0
 
     /** Earliest food or exercise `dateString`, or null when neither table has rows. */
     suspend fun earliestFoodOrExerciseDate(): String? =
@@ -156,7 +175,19 @@ class FitnessRepository(
         exerciseCatalogRepository.exercises,
         exercisePresets
     ) { catalog, presets ->
-        mergeCatalogWithCustoms(catalog, presets.map { it.name to it.equipment })
+        mergeCatalogWithCustoms(
+            catalog,
+            presets.map {
+                CustomCatalogEntry(
+                    name = it.name,
+                    equipment = it.equipment,
+                    loggingMode = parseLoggingMode(it.loggingMode),
+                    gifUrl = it.gifUrl,
+                    catalogExerciseId = it.catalogExerciseId,
+                    instructions = it.instructions.orEmpty()
+                )
+            }
+        )
     }
 
     val exerciseCatalogBodyParts: Flow<List<String>> = exerciseCatalogRepository.bodyParts
@@ -409,6 +440,15 @@ class FitnessRepository(
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
         if (!BackupChunkIds.isValidSupportId(supportId)) {
             error("Support ID is invalid for cloud chunk backups")
+        }
+        // Don't upload until the user has logged at least one meal or workout
+        // (profile/weight from onboarding alone is not enough).
+        if (!hasFoodOrExerciseLogs()) {
+            return CloudUploadResult(
+                recordCount = 0,
+                skipped = true,
+                skippedNoActivity = true
+            )
         }
         return try {
             val full = backupManager.buildBackupData()
@@ -832,13 +872,18 @@ class FitnessRepository(
 
     /**
      * True when startup auto-upload should run: cloud + auto toggles on, vault present,
-     * and last upload older than [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
+     * at least one food or workout log, and last upload older than
+     * [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
      */
-    fun shouldAutoUploadNow(settings: AppSettings, nowMs: Long = System.currentTimeMillis()): Boolean {
+    suspend fun shouldAutoUploadNow(
+        settings: AppSettings,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
         if (BuildConfig.DEBUG) return false
         if (!settings.cloudBackupEnabled || !settings.cloudAutoUploadEnabled) return false
         if (!MongoUriVault.isAvailable()) return false
         if (settings.supportId.isBlank()) return false
+        if (!hasFoodOrExerciseLogs()) return false
         val last = settings.mongoLastUploadAt
         if (last <= 0L) return true
         return nowMs - last >= AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS
@@ -1171,7 +1216,8 @@ class FitnessRepository(
                 orderIndex = index,
                 equipment = ex.equipment,
                 durationMinutes = ex.durationMinutes,
-                distanceKm = ex.distanceKm
+                distanceKm = ex.distanceKm,
+                durationSeconds = ex.durationSeconds
             )
         }
 
@@ -1692,18 +1738,41 @@ class FitnessRepository(
                     remoteAiDataSource.classifyExercise(s, trimmed, knownNames)
                 }
                 result
-            }.getOrElse { classifyExerciseOffline(trimmed) }
+            }.getOrElse { classifyCustomExerciseOffline(trimmed) }
         } else {
-            classifyExerciseOffline(trimmed)
+            classifyCustomExerciseOffline(trimmed)
         }
 
         val name = classified.canonicalName.trim().ifBlank { trimmed }.let(::titleCaseExerciseName)
-        val equipment = normaliseEquipment(classified.equipment)
-        val exercise = CatalogExercise(name = name, equipmentTag = equipment)
+        var equipment = normaliseEquipment(classified.equipment)
+        val loggingMode = resolveLoggingMode(
+            name = name,
+            equipment = equipment,
+            override = parseLoggingMode(classified.loggingMode)
+        )
+        // Keep equipment consistent with the logging metric.
+        if (loggingMode == ExerciseLoggingMode.CARDIO) {
+            equipment = Equipment.CARDIO
+        } else if (equipment == Equipment.CARDIO && loggingMode != ExerciseLoggingMode.CARDIO) {
+            equipment = Equipment.OTHER
+        }
 
-        findKnownExercise(name)?.let { return it }
+        findKnownExercise(name)?.let { known ->
+            // Refresh preset mode if we now know a better logging metric for a custom.
+            if (known.exerciseId == null && known.loggingModeOverride == null) {
+                ensureExercisePreset(name, known.equipmentTag, loggingMode)
+            }
+            return known.copy(
+                loggingModeOverride = known.loggingModeOverride ?: loggingMode
+            )
+        }
 
-        ensureExercisePreset(name, equipment)
+        val exercise = CatalogExercise(
+            name = name,
+            equipmentTag = equipment,
+            loggingModeOverride = loggingMode
+        )
+        ensureExercisePreset(name, equipment, loggingMode)
         return exercise
     }
 
@@ -1732,19 +1801,31 @@ class FitnessRepository(
         return parsed.exercises.map { row ->
             val name = titleCaseExerciseName(row.name.trim().ifBlank { "Exercise" })
             val equipment = normaliseEquipment(row.equipment)
-            ensureExercisePreset(name, equipment)
+            val loggingMode = resolveLoggingMode(name, equipment)
+            ensureExercisePreset(name, equipment, loggingMode)
             recordExerciseUsage(name)
-            val isCardio = equipment == Equipment.CARDIO
+            val isCardio = loggingMode == ExerciseLoggingMode.CARDIO
+            val isHold = loggingMode == ExerciseLoggingMode.TIMED_HOLD ||
+                loggingMode == ExerciseLoggingMode.TIMED_CARRY
             val catalogHit = exerciseCatalogRepository.exercises.value
                 .firstOrNull { it.name.equals(name, ignoreCase = true) }
+            val holdSeconds = when {
+                !isHold -> null
+                row.durationSeconds != null && row.durationSeconds > 0 -> row.durationSeconds
+                // Legacy/model slip: hold time sometimes lands in reps (e.g. "3x45 plank")
+                row.reps > 1 -> row.reps
+                else -> 30
+            }
             ExerciseDraft(
                 name = name,
                 sets = if (isCardio) 1 else row.sets.coerceAtLeast(1),
-                reps = if (isCardio) 1 else row.reps.coerceAtLeast(1),
+                reps = if (isCardio || isHold) 1 else row.reps.coerceAtLeast(1),
                 weightKg = row.weightKg?.takeIf { it > 0 },
                 equipment = equipment,
-                durationMinutes = row.durationMinutes?.takeIf { it > 0 },
-                distanceKm = row.distanceKm?.takeIf { it > 0 },
+                durationMinutes = if (isHold) null else row.durationMinutes?.takeIf { it > 0 },
+                distanceKm = if (isHold) null else row.distanceKm?.takeIf { it > 0 },
+                durationSeconds = holdSeconds,
+                loggingModeOverride = loggingMode,
                 gifUrl = catalogHit?.gifUrl,
                 bodyParts = catalogHit?.bodyParts.orEmpty()
             )
@@ -1767,18 +1848,74 @@ class FitnessRepository(
         return result.name.trim().ifBlank { WorkoutDraft.DEFAULT_NAME }
     }
 
-    private suspend fun ensureExercisePreset(name: String, equipment: String) {
-        if (exercisePresetDao.findByName(name) == null &&
-            exerciseCatalogRepository.exercises.value.none { it.name.equals(name, ignoreCase = true) }
-        ) {
+    private suspend fun ensureExercisePreset(
+        name: String,
+        equipment: String,
+        loggingMode: ExerciseLoggingMode = resolveLoggingMode(name, equipment)
+    ) {
+        val inCatalog = exerciseCatalogRepository.exercises.value
+            .any { it.name.equals(name, ignoreCase = true) }
+        if (inCatalog) return
+        val existing = exercisePresetDao.findByName(name)
+        val modeValue = loggingMode.toStorageValue()
+        if (existing == null) {
             exercisePresetDao.insertPreset(
                 ExercisePreset(
                     name = name,
                     equipment = equipment,
-                    createdAt = System.currentTimeMillis()
+                    createdAt = System.currentTimeMillis(),
+                    loggingMode = modeValue
                 )
             )
+        } else if (existing.loggingMode.isNullOrBlank()) {
+            exercisePresetDao.insertPreset(existing.copy(loggingMode = modeValue))
         }
+    }
+
+    /**
+     * Best-effort GIF match for a freshly-classified custom exercise: checks the primary
+     * ExerciseDB catalog first, then the GymGifs fallback. Returns null if neither is confident.
+     * Caller decides whether to show it to the user and persist via [acceptGifSuggestion].
+     */
+    suspend fun suggestGifForCustomExercise(name: String): GifSuggestion? {
+        exerciseCatalogRepository.findByName(name)?.let { hit ->
+            if (hit.gifUrl != null) {
+                return GifSuggestion(
+                    exerciseName = name,
+                    matchedName = hit.name,
+                    gifUrl = hit.gifUrl,
+                    catalogExerciseId = hit.exerciseId,
+                    source = GifSuggestionSource.EXERCISE_DB,
+                    instructions = hit.instructions
+                )
+            }
+        }
+        val fallback = gymGifsCatalogRepository.findByName(name) ?: return null
+        return GifSuggestion(
+            exerciseName = name,
+            matchedName = fallback.name,
+            gifUrl = fallback.gifUrl ?: return null,
+            catalogExerciseId = fallback.exerciseId,
+            source = GifSuggestionSource.GYM_GIFS,
+            instructions = fallback.instructions
+        )
+    }
+
+    /** Persists a user-accepted [GifSuggestion] onto the matching custom exercise preset. */
+    suspend fun acceptGifSuggestion(suggestion: GifSuggestion) {
+        val existing = exercisePresetDao.findByName(suggestion.exerciseName) ?: return
+        exercisePresetDao.insertPreset(
+            existing.copy(
+                gifUrl = suggestion.gifUrl,
+                catalogExerciseId = suggestion.catalogExerciseId,
+                instructions = suggestion.instructions.takeIf { it.isNotEmpty() }
+            )
+        )
+    }
+
+    /** Removes a user-added custom exercise preset. No-op for exercises from the live catalog. */
+    suspend fun deleteCustomExercise(name: String) {
+        exercisePresetDao.findByName(name)?.let { exercisePresetDao.deletePreset(it) }
     }
 
     private fun titleCaseExerciseName(raw: String): String =
@@ -1791,28 +1928,18 @@ class FitnessRepository(
             .firstOrNull { it.name.equals(name, ignoreCase = true) }
             ?.let { return it }
         exercisePresetDao.findByName(name)?.let {
-            return CatalogExercise(name = it.name, equipmentTag = it.equipment)
+            val mode = parseLoggingMode(it.loggingMode)
+                ?: resolveLoggingMode(it.name, it.equipment)
+            return CatalogExercise(
+                name = it.name,
+                equipmentTag = it.equipment,
+                exerciseId = it.catalogExerciseId,
+                gifUrl = it.gifUrl,
+                instructions = it.instructions.orEmpty(),
+                loggingModeOverride = mode
+            )
         }
         return null
-    }
-
-    private fun classifyExerciseOffline(rawName: String): CustomExerciseResponse {
-        val name = rawName.trim().split("\\s+".toRegex()).joinToString(" ") { word ->
-            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        }
-        val lower = rawName.lowercase()
-        val equipment = when {
-            "dumbbell" in lower || lower.startsWith("db ") || " db" in lower -> Equipment.DUMBBELL
-            "barbell" in lower || lower.startsWith("bb ") -> Equipment.BARBELL
-            "treadmill" in lower || "bike" in lower || "rower" in lower ||
-                "cardio" in lower || "run" in lower -> Equipment.CARDIO
-            "pull-up" in lower || "push-up" in lower || "pushup" in lower ||
-                "pullup" in lower || "bodyweight" in lower -> Equipment.BODYWEIGHT
-            "machine" in lower || "cable" in lower || "pulldown" in lower -> Equipment.MACHINE
-            "bench" in lower || "press" in lower -> Equipment.BENCH
-            else -> Equipment.OTHER
-        }
-        return CustomExerciseResponse(name, equipment)
     }
 
     private fun normaliseEquipment(raw: String): String {

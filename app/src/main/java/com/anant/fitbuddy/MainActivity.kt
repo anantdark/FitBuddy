@@ -29,6 +29,7 @@ import com.anant.fitbuddy.data.region.RegionDetector
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
+import com.anant.fitbuddy.ui.screens.CloudBackupOptInScreen
 import com.anant.fitbuddy.ui.screens.CrashReportingOptInScreen
 import com.anant.fitbuddy.ui.screens.MainScreen
 import com.anant.fitbuddy.ui.screens.OnboardingScreen
@@ -139,53 +140,100 @@ class MainActivity : ComponentActivity() {
                             RequestStartupPermissions(onDenied = onStartupPermissionsDenied)
                             val context = LocalContext.current
                             val detectedRegion = remember { RegionDetector.detectFromDevice(context) }
-                            // Same as onboarding: opt-in page only when the build defaults
-                            // crash reporting off (F-Droid / debug) and it is still off.
+                            // Same as onboarding: cloud page when vault is available (non-debug),
+                            // crash opt-in when the build defaults reporting off and it is still off.
+                            // F-Droid only — GitHub builds skip cloud onboarding.
+                            val showCloudStep =
+                                !BuildConfig.DEBUG &&
+                                    BuildConfig.IS_FDROID &&
+                                    MongoUriVault.isAvailable()
                             val buildDefaultsCrashOff = !AppSettings().crashReportingEnabled
-                            var pendingCrashChoice by remember {
+                            val needsCrashStep =
+                                buildDefaultsCrashOff && !settings.crashReportingEnabled
+                            // null = still on that opt-in page; non-null = choice made / skipped.
+                            var pendingCloudChoice by remember {
                                 mutableStateOf<Boolean?>(
-                                    if (buildDefaultsCrashOff && !settings.crashReportingEnabled) {
-                                        null
-                                    } else {
-                                        settings.crashReportingEnabled
-                                    }
+                                    if (showCloudStep && !settings.cloudBackupEnabled) null
+                                    else settings.cloudBackupEnabled
                                 )
                             }
-                            if (pendingCrashChoice == null) {
-                                CrashReportingOptInScreen(
-                                    initialEnabled = false,
-                                    onContinue = { enabled ->
-                                        pendingCrashChoice = enabled
-                                        // Apply immediately so region-request send works
-                                        // before completeRegionSelection persists settings.
-                                        CrashReporter.setReportingEnabled(enabled)
-                                    }
+                            var pendingCrashChoice by remember {
+                                mutableStateOf<Boolean?>(
+                                    if (needsCrashStep) null else settings.crashReportingEnabled
                                 )
-                            } else {
-                                RegionSelectionScreen(
-                                    defaultRegion = detectedRegion,
-                                    crashReportingEnabled = pendingCrashChoice == true,
-                                    supportId = settings.supportId,
-                                    isSaving = regionSelectionSaving,
-                                    regionRequestAlreadySent = settings.regionRequestSentAt > 0L,
-                                    onFinished = { region ->
-                                        viewModel.completeRegionSelection(
-                                            region,
-                                            crashReportingEnabled = pendingCrashChoice
-                                        )
-                                    },
-                                    onBack = if (buildDefaultsCrashOff) {
-                                        { pendingCrashChoice = null }
-                                    } else {
-                                        null
-                                    },
-                                    requestDisabledHint = if (buildDefaultsCrashOff) {
-                                        "Enable crash reporting on the previous page to request a custom region."
-                                    } else {
-                                        "Enable Send crash reports in Settings to request a custom region."
-                                    },
-                                    onRequestRegionSent = viewModel::markRegionRequestSent
-                                )
+                            }
+                            when {
+                                showCloudStep && pendingCloudChoice == null -> {
+                                    CloudBackupOptInScreen(
+                                        initialEnabled = false,
+                                        onContinue = { enabled ->
+                                            pendingCloudChoice = enabled
+                                            if (enabled) {
+                                                pendingCrashChoice = true
+                                                CrashReporter.setReportingEnabled(true)
+                                            }
+                                        }
+                                    )
+                                }
+                                // Skip crash page when cloud backup is on (crash reports implied).
+                                // Existing accounts (region-only path): default the toggle on.
+                                needsCrashStep &&
+                                    pendingCloudChoice != true &&
+                                    pendingCrashChoice == null -> {
+                                    CrashReportingOptInScreen(
+                                        initialEnabled = true,
+                                        onContinue = { enabled ->
+                                            pendingCrashChoice = enabled
+                                            CrashReporter.setReportingEnabled(enabled)
+                                        },
+                                        onBack = if (showCloudStep) {
+                                            { pendingCloudChoice = null }
+                                        } else {
+                                            null
+                                        }
+                                    )
+                                }
+                                else -> {
+                                    val crashOn = pendingCrashChoice == true ||
+                                        pendingCloudChoice == true
+                                    RegionSelectionScreen(
+                                        defaultRegion = detectedRegion,
+                                        crashReportingEnabled = crashOn,
+                                        supportId = settings.supportId,
+                                        isSaving = regionSelectionSaving,
+                                        regionRequestAlreadySent =
+                                            settings.regionRequestSentAt > 0L,
+                                        onFinished = { region ->
+                                            viewModel.completeRegionSelection(
+                                                region,
+                                                crashReportingEnabled = crashOn,
+                                                cloudBackupEnabled = pendingCloudChoice == true
+                                            )
+                                        },
+                                        onBack = when {
+                                            pendingCloudChoice == true && showCloudStep -> {
+                                                { pendingCloudChoice = null }
+                                            }
+                                            needsCrashStep && pendingCloudChoice != true -> {
+                                                { pendingCrashChoice = null }
+                                            }
+                                            showCloudStep -> {
+                                                { pendingCloudChoice = null }
+                                            }
+                                            else -> null
+                                        },
+                                        requestDisabledHint = if (needsCrashStep ||
+                                            buildDefaultsCrashOff
+                                        ) {
+                                            "Enable crash reporting on the previous page to " +
+                                                "request a custom region."
+                                        } else {
+                                            "Enable Send crash reports in Settings to request " +
+                                                "a custom region."
+                                        },
+                                        onRequestRegionSent = viewModel::markRegionRequestSent
+                                    )
+                                }
                             }
                         } else {
                             RequestStartupPermissions(onDenied = onStartupPermissionsDenied)

@@ -14,6 +14,7 @@ import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.exercisedb.ExerciseCatalogRepository
+import com.anant.fitbuddy.data.remote.gymgifs.GymGifsCatalogRepository
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import coil.ImageLoader
 import coil.ImageLoaderFactory
@@ -45,6 +46,15 @@ import kotlinx.coroutines.runBlocking
  */
 class FitBuddyApp : Application(), ImageLoaderFactory {
 
+    companion object {
+        /**
+         * Last versionCode that did not auto-enable crash reporting on upgrade.
+         * Used only by [maybeEnableCrashReportingForUpgraders] — delete both when upgrades
+         * from this code (F-Droid 3.2.81 / matching GitHub builds) are no longer relevant.
+         */
+        private const val CRASH_REPORTING_UPGRADE_OPT_IN_THROUGH = 81
+    }
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val database by lazy { AppDatabase.getDatabase(this) }
@@ -63,6 +73,10 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         ExerciseCatalogRepository(this)
     }
 
+    val gymGifsCatalogRepository: GymGifsCatalogRepository by lazy {
+        GymGifsCatalogRepository(this)
+    }
+
     val repository: FitnessRepository by lazy {
         FitnessRepository(
             userProfileDao = database.userProfileDao(),
@@ -77,6 +91,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             workoutSessionDao = database.workoutSessionDao(),
             workoutExerciseDao = database.workoutExerciseDao(),
             exerciseCatalogRepository = exerciseCatalogRepository,
+            gymGifsCatalogRepository = gymGifsCatalogRepository,
             remoteAiDataSource = RemoteAiDataSource(
                 api = NetworkModule.provideAiApi(),
                 moshi = NetworkModule.moshi
@@ -137,26 +152,14 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             settingsRepository.ensureSupportId()
             // Fold legacy dedicated OpenAI → OpenAI-compatible before anything reads settings.
             settingsRepository.persistLegacyOpenAiMigrationIfNeeded()
+            settingsRepository.clearLegacySentryRoutingPrefs()
+            maybeEnableCrashReportingForUpgraders()
             settingsRepository.settings.first()
-        }
-        val proxyModeSeed = runBlocking {
-            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
-            val latchDay = settingsRepository.sentryProxyModeDay()
-            // Stale latch from a previous UTC day must not seed proxy — new day = direct first.
-            if (latchDay != null && latchDay != today) {
-                settingsRepository.setSentryProxyModeDay(null)
-                false
-            } else {
-                // Same-day auto latch only — does not imply forceSentryProxyMode.
-                latchDay == today
-            }
         }
         CrashReporter.init(
             app = this,
             enabled = settings.crashReportingEnabled,
-            supportId = settings.supportId,
-            proxyModeSeed = proxyModeSeed,
-            forceProxy = settings.forceSentryProxyMode
+            supportId = settings.supportId
         )
         DiagnosticLogger.init(this)
         DiagnosticLogger.setEnabled(
@@ -228,8 +231,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
-        // Upgrade pulse + daily catch-up (direct Sentry probe first) run off the main thread;
-        // the UTC-midnight alarm covers days the process never starts.
+        // Upgrade pulse + daily catch-up run off the main thread; the UTC-midnight alarm
+        // covers days the process never starts.
         Thread({
             runBlocking(Dispatchers.IO) {
                 maybeSendUpdateHeartbeat()
@@ -247,6 +250,31 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
     }
 
     /**
+     * Temporary upgrade opt-in: existing installs from [CRASH_REPORTING_UPGRADE_OPT_IN_THROUGH]
+     * or older get crash reporting turned on once. Fresh installs are untouched so onboarding
+     * keeps the user's choice. Delete this method (and its call site) when upgrades from that
+     * version are no longer relevant.
+     */
+    private suspend fun maybeEnableCrashReportingForUpgraders() {
+        val previous = settingsRepository.lastKnownVersionCode()
+        val current = BuildConfig.VERSION_CODE
+        when {
+            previous == null -> {
+                // Older install before version tracking: opt in only if an account already exists.
+                val snapshot = settingsRepository.settings.first()
+                val hasAccount =
+                    runCatching { repository.hasBasicsConfiguredProfile() }.getOrDefault(false) ||
+                        snapshot.region.isNotBlank() ||
+                        snapshot.signupDate.isNotBlank()
+                if (hasAccount) settingsRepository.setCrashReportingEnabled(true)
+            }
+            previous <= CRASH_REPORTING_UPGRADE_OPT_IN_THROUGH && current > previous -> {
+                settingsRepository.setCrashReportingEnabled(true)
+            }
+        }
+    }
+
+    /**
      * On upgrade: one "FitBuddy update heartbeat" (independent of the daily alarm).
      * Fresh installs only seed the stored version code (no update pulse).
      */
@@ -260,7 +288,6 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             settingsRepository.setLastKnownVersionCode(current)
         } else if (current > previous) {
             if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
-                persistAutoProxyLatch()
                 settingsRepository.setLastKnownVersionCode(current)
             }
         } else if (current != previous) {
@@ -270,16 +297,14 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
     }
 
     /**
-     * If today's fleet heartbeat has not run yet, send it now (probes direct Sentry first,
-     * then latches proxy for the UTC day only if blocked). Covers Doze-delayed midnight alarms
-     * whenever the app actually starts.
+     * If today's fleet heartbeat has not run yet, send it now. Covers Doze-delayed midnight
+     * alarms whenever the app actually starts.
      */
     private suspend fun maybeSendDailyHeartbeatCatchUp() {
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         if (settingsRepository.lastHeartbeatUtcDay() == today) return
         val settings = settingsRepository.settings.first()
         val sent = CrashReporter.sendHeartbeat(heartbeatInfo(settings), HeartbeatKind.DAILY)
-        persistAutoProxyLatch()
         if (sent) {
             settingsRepository.markHeartbeatSent(today)
         }
@@ -289,17 +314,9 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
         return HeartbeatInfo(
             aiProvider = settings.provider.name,
-            username = settings.usernameForHeartbeat,
             recordCount = recordCount,
             isDeveloper = settings.developerModeUnlocked,
             signupDate = settings.signupDate
         )
-    }
-
-    private suspend fun persistAutoProxyLatch() {
-        if (CrashReporter.isForcedProxyMode()) return
-        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
-        val proxied = CrashReporter.isProxyModeActive()
-        settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
     }
 }

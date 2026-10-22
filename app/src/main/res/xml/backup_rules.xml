@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Default Auto Backup (empty = include all app-private domains).
-
-   AI credentials live in shared_prefs/app_settings.preferences_pb (see SettingsDataStore).
-   Do not add include-only rules here unless databases and sharedpref are both listed —
-   an include list replaces the default "everything" set.
-   See https://developer.android.com/identity/data/autobackup
+   Android Auto Backup is disabled (android:allowBackup="false").
+   FitBuddy’s supported backup path is opt-in MongoDB cloud backup / local JSON export —
+   not Google Auto Backup. This file is unused while allowBackup is false; kept empty
+   so a future re-enable does not silently restore the old “include everything” default.
+   https://developer.android.com/identity/data/autobackup
 -->
 <full-backup-content>
 </full-backup-content>

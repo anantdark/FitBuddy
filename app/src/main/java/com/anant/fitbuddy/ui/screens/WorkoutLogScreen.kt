@@ -73,12 +73,15 @@ import com.anant.fitbuddy.data.database.ExerciseUsage
 import com.anant.fitbuddy.data.model.CatalogExercise
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.ExerciseDraft
+import com.anant.fitbuddy.data.model.ExerciseLoggingMode
 import com.anant.fitbuddy.data.model.WorkoutDraft
 import com.anant.fitbuddy.ui.components.pressable
 import com.anant.fitbuddy.ui.viewmodel.WorkoutLogUiState
 
 private val SET_PRESETS = listOf("1", "2", "3")
 private val REP_PRESETS = listOf("8", "12", "15")
+private val HOLD_SEC_PRESETS = listOf("20", "30", "45", "60", "90")
+private val CARRY_SEC_PRESETS = listOf("30", "45", "60", "90", "120")
 private val WEIGHT_PRESETS = listOf("5", "10", "15", "20")
 
 /**
@@ -103,6 +106,7 @@ fun WorkoutLogDialog(
     isNamingWorkout: Boolean,
     isAiOnline: Boolean,
     onClassifyCustom: (rawName: String, onResolved: (CatalogExercise) -> Unit) -> Unit,
+    onDeleteCustomExercise: (name: String) -> Unit = {},
     onInferExercises: (description: String, onResolved: (List<ExerciseDraft>) -> Unit) -> Unit,
     onSuggestName: (exerciseNames: List<String>, onResolved: (String) -> Unit) -> Unit,
     onRecordPick: (name: String, exerciseId: String?) -> Unit = { _, _ -> },
@@ -350,6 +354,10 @@ fun WorkoutLogDialog(
                         pendingExercise = exercise
                     }
                 },
+                onDeleteCustomExercise = { name ->
+                    onDeleteCustomExercise(name)
+                    exercises.removeAll { it.name.equals(name, ignoreCase = true) }
+                },
                 onInferExercises = { description ->
                     onInferExercises(description) { drafts ->
                         exercises.addAll(drafts)
@@ -362,15 +370,14 @@ fun WorkoutLogDialog(
 
         pendingExercise?.let { exercise ->
             AddExerciseDetailsDialog(
-                exerciseName = exercise.name,
-                equipment = exercise.equipmentTag,
-                gifUrl = exercise.gifUrl,
+                exercise = exercise,
                 onAdd = { draft ->
                     onRecordPick(exercise.name, exercise.exerciseId)
                     exercises.add(
                         draft.copy(
                             gifUrl = exercise.gifUrl,
-                            bodyParts = exercise.bodyParts
+                            bodyParts = exercise.bodyParts,
+                            loggingModeOverride = exercise.resolvedLoggingMode()
                         )
                     )
                     pendingExercise = null
@@ -453,13 +460,21 @@ private fun EditExerciseDialog(
     onSave: (ExerciseDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val isCardio = exercise.isCardio()
+    val mode = exercise.resolvedLoggingMode()
+    val isCardio = mode == ExerciseLoggingMode.CARDIO
+    val isHold = mode == ExerciseLoggingMode.TIMED_HOLD || mode == ExerciseLoggingMode.TIMED_CARRY
+    val isCarry = mode == ExerciseLoggingMode.TIMED_CARRY
     var sets by remember { mutableStateOf(exercise.sets.toString()) }
     var reps by remember { mutableStateOf(exercise.reps.toString()) }
+    var holdSec by remember {
+        mutableStateOf((exercise.durationSeconds ?: if (isCarry) 60 else 30).toString())
+    }
     var weight by remember { mutableStateOf(exercise.weightKg?.toString() ?: "") }
     var duration by remember { mutableStateOf(exercise.durationMinutes?.toString() ?: "30") }
     var distance by remember { mutableStateOf(exercise.distanceKm?.let { formatDistanceKm(it) } ?: "") }
-    val needsWeight = !isCardio && exercise.equipment != Equipment.BODYWEIGHT
+    val needsWeight = !isCardio && (isCarry || exercise.equipment != Equipment.BODYWEIGHT)
+    val timedLabel = if (isCarry) "Time (sec)" else "Hold (sec)"
+    val timedPresets = if (isCarry) CARRY_SEC_PRESETS else HOLD_SEC_PRESETS
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -489,6 +504,34 @@ private fun EditExerciseDialog(
                                 distance = it.filter { c -> c.isDigit() || c == '.' }
                             }
                         }
+                    }
+                } else if (isHold) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = "Sets",
+                                value = sets,
+                                presets = SET_PRESETS,
+                                onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = timedLabel,
+                                value = holdSec,
+                                presets = timedPresets,
+                                onValueChange = { holdSec = it.filter { c -> c.isDigit() }.take(4) }
+                            )
+                        }
+                    }
+                    if (needsWeight) {
+                        PresetNumberField(
+                            label = "Weight (kg)",
+                            value = weight,
+                            presets = WEIGHT_PRESETS,
+                            decimal = true,
+                            onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
+                        )
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -523,25 +566,40 @@ private fun EditExerciseDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = if (isCardio) {
-                    (duration.toIntOrNull() ?: 0) > 0
-                } else {
-                    (sets.toIntOrNull() ?: 0) > 0 && (reps.toIntOrNull() ?: 0) > 0
+                enabled = when {
+                    isCardio -> (duration.toIntOrNull() ?: 0) > 0
+                    isHold -> (sets.toIntOrNull() ?: 0) > 0 && (holdSec.toIntOrNull() ?: 0) > 0
+                    else -> (sets.toIntOrNull() ?: 0) > 0 && (reps.toIntOrNull() ?: 0) > 0
                 },
                 onClick = {
-                    if (isCardio) {
-                        onSave(
+                    when {
+                        isCardio -> onSave(
                             exercise.copy(
                                 durationMinutes = duration.toIntOrNull() ?: exercise.durationMinutes,
-                                distanceKm = distance.toDoubleOrNull()?.takeIf { it > 0 }
+                                distanceKm = distance.toDoubleOrNull()?.takeIf { it > 0 },
+                                loggingModeOverride = ExerciseLoggingMode.CARDIO
                             )
                         )
-                    } else {
-                        onSave(
+                        isHold -> onSave(
+                            exercise.copy(
+                                sets = sets.toIntOrNull() ?: exercise.sets,
+                                reps = 1,
+                                weightKg = weight.toDoubleOrNull(),
+                                durationSeconds = holdSec.toIntOrNull() ?: exercise.durationSeconds,
+                                loggingModeOverride = if (isCarry) {
+                                    ExerciseLoggingMode.TIMED_CARRY
+                                } else {
+                                    ExerciseLoggingMode.TIMED_HOLD
+                                }
+                            )
+                        )
+                        else -> onSave(
                             exercise.copy(
                                 sets = sets.toIntOrNull() ?: exercise.sets,
                                 reps = reps.toIntOrNull() ?: exercise.reps,
-                                weightKg = weight.toDoubleOrNull()
+                                weightKg = weight.toDoubleOrNull(),
+                                durationSeconds = null,
+                                loggingModeOverride = ExerciseLoggingMode.REPS
                             )
                         )
                     }
@@ -554,22 +612,29 @@ private fun EditExerciseDialog(
     )
 }
 
-/** Sets/reps/weight for strength, or time/distance for cardio, before adding to the session. */
+/** Sets/reps/weight for strength, hold time for isometrics, or time/distance for cardio. */
 @Composable
 private fun AddExerciseDetailsDialog(
-    exerciseName: String,
-    equipment: String,
-    gifUrl: String? = null,
+    exercise: CatalogExercise,
     onAdd: (ExerciseDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val isCardio = equipment == Equipment.CARDIO
+    val exerciseName = exercise.name
+    val equipment = exercise.equipmentTag
+    val gifUrl = exercise.gifUrl
+    val mode = exercise.resolvedLoggingMode()
+    val isCardio = mode == ExerciseLoggingMode.CARDIO
+    val isCarry = mode == ExerciseLoggingMode.TIMED_CARRY
+    val isHold = mode == ExerciseLoggingMode.TIMED_HOLD || isCarry
     var sets by remember { mutableStateOf("3") }
     var reps by remember { mutableStateOf("12") }
+    var holdSec by remember { mutableStateOf(if (isCarry) "60" else "30") }
     var weight by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("30") }
     var distance by remember { mutableStateOf("") }
-    val needsWeight = !isCardio && equipment != Equipment.BODYWEIGHT
+    val needsWeight = !isCardio && (isCarry || equipment != Equipment.BODYWEIGHT)
+    val timedLabel = if (isCarry) "Time (sec)" else "Hold (sec)"
+    val timedPresets = if (isCarry) CARRY_SEC_PRESETS else HOLD_SEC_PRESETS
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -599,6 +664,34 @@ private fun AddExerciseDetailsDialog(
                                 distance = it.filter { c -> c.isDigit() || c == '.' }
                             }
                         }
+                    }
+                } else if (isHold) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = "Sets",
+                                value = sets,
+                                presets = SET_PRESETS,
+                                onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            PresetNumberField(
+                                label = timedLabel,
+                                value = holdSec,
+                                presets = timedPresets,
+                                onValueChange = { holdSec = it.filter { c -> c.isDigit() }.take(4) }
+                            )
+                        }
+                    }
+                    if (needsWeight) {
+                        PresetNumberField(
+                            label = "Weight (kg, optional)",
+                            value = weight,
+                            presets = WEIGHT_PRESETS,
+                            decimal = true,
+                            onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
+                        )
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -633,32 +726,49 @@ private fun AddExerciseDetailsDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = if (isCardio) {
-                    (duration.toIntOrNull() ?: 0) > 0
-                } else {
-                    (sets.toIntOrNull() ?: 0) > 0 && (reps.toIntOrNull() ?: 0) > 0
+                enabled = when {
+                    isCardio -> (duration.toIntOrNull() ?: 0) > 0
+                    isHold -> (sets.toIntOrNull() ?: 0) > 0 && (holdSec.toIntOrNull() ?: 0) > 0
+                    else -> (sets.toIntOrNull() ?: 0) > 0 && (reps.toIntOrNull() ?: 0) > 0
                 },
                 onClick = {
-                    if (isCardio) {
-                        onAdd(
+                    when {
+                        isCardio -> onAdd(
                             ExerciseDraft(
                                 name = exerciseName,
                                 sets = 1,
                                 reps = 1,
-                                equipment = equipment,
+                                equipment = Equipment.CARDIO,
                                 durationMinutes = duration.toIntOrNull() ?: 1,
                                 distanceKm = distance.toDoubleOrNull()?.takeIf { it > 0 },
+                                loggingModeOverride = ExerciseLoggingMode.CARDIO,
                                 gifUrl = gifUrl
                             )
                         )
-                    } else {
-                        onAdd(
+                        isHold -> onAdd(
+                            ExerciseDraft(
+                                name = exerciseName,
+                                sets = sets.toIntOrNull() ?: 1,
+                                reps = 1,
+                                weightKg = weight.toDoubleOrNull(),
+                                equipment = equipment,
+                                durationSeconds = holdSec.toIntOrNull() ?: 30,
+                                loggingModeOverride = if (isCarry) {
+                                    ExerciseLoggingMode.TIMED_CARRY
+                                } else {
+                                    ExerciseLoggingMode.TIMED_HOLD
+                                },
+                                gifUrl = gifUrl
+                            )
+                        )
+                        else -> onAdd(
                             ExerciseDraft(
                                 name = exerciseName,
                                 sets = sets.toIntOrNull() ?: 1,
                                 reps = reps.toIntOrNull() ?: 1,
                                 weightKg = weight.toDoubleOrNull(),
                                 equipment = equipment,
+                                loggingModeOverride = ExerciseLoggingMode.REPS,
                                 gifUrl = gifUrl
                             )
                         )
@@ -680,6 +790,10 @@ private fun exerciseSummary(exercise: ExerciseDraft): String {
         }.joinToString(" · ").ifBlank { "Cardio" }
     }
     val weightText = exercise.weightKg?.let { " @ ${it}kg" } ?: ""
+    if (exercise.isTimedHold()) {
+        val sec = exercise.durationSeconds ?: 30
+        return "${exercise.sets} sets × ${sec}s$weightText"
+    }
     return "${exercise.sets} sets × ${exercise.reps} reps$weightText"
 }
 

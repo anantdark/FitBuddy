@@ -303,7 +303,8 @@ object BackupTipBuilder {
     ).joinToString("|").let(BackupContentHasher::sha256Hex)
 
     private fun hashWorkoutExercise(row: WorkoutExercise) = listOf(
-        row.id, row.sessionId, row.name, row.sets, row.reps, row.weightKg, row.orderIndex, row.equipment
+        row.id, row.sessionId, row.name, row.sets, row.reps, row.weightKg, row.orderIndex,
+        row.equipment, row.durationMinutes, row.distanceKm, row.durationSeconds
     ).joinToString("|").let(BackupContentHasher::sha256Hex)
 
     private fun hashFoodPair(row: FoodLog) = row.id to hashFood(row)

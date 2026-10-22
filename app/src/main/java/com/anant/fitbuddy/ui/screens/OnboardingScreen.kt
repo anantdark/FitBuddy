@@ -175,20 +175,26 @@ fun OnboardingScreen(
         activityLevel: String,
         aiSettings: AppSettings,
         region: AppRegion,
-        crashReportingEnabled: Boolean
+        crashReportingEnabled: Boolean,
+        cloudBackupEnabled: Boolean
     ) -> Unit,
     onCompleteAiOnly: (AppSettings) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // -1 = path picker; 0..N = AI / profile / lifestyle [/ crash] / region (or AI-only).
+    // -1 = path picker; 0..N = AI / profile / lifestyle [/ cloud] [/ crash] / region (or AI-only).
     var step by remember(aiOnly) { mutableIntStateOf(if (aiOnly) 0 else -1) }
+    // Cloud page: F-Droid release only (GitHub builds skip this; enable later in Settings).
+    val showCloudStep =
+        !aiOnly && !BuildConfig.DEBUG && BuildConfig.IS_FDROID && cloudRestoreAvailable
     // Crash page only when the build defaults reporting off (F-Droid / debug).
     val showCrashStep = !initialCrashReportingEnabled
+    var cloudBackupChoice by remember { mutableStateOf(false) }
     var crashReportingChoice by remember(initialCrashReportingEnabled) {
         mutableStateOf(initialCrashReportingEnabled)
     }
-    val stepCrash = 3
-    val stepRegion = if (showCrashStep) 4 else 3
+    val stepCloud = 3
+    val stepCrash = if (showCloudStep) 4 else 3
+    val stepRegion = 3 + (if (showCloudStep) 1 else 0) + (if (showCrashStep) 1 else 0)
     var cloudSupportId by remember { mutableStateOf("") }
     var cloudError by remember { mutableStateOf<String?>(null) }
     // Password prompt for restoring a custom-password-protected cloud backup.
@@ -269,11 +275,6 @@ fun OnboardingScreen(
         attempted = profileAttempted && !skipNameInOnboarding,
         blankMessage = "Enter your first name",
     )
-    val lastNameError = onboardingRequiredTextError(
-        value = lastName,
-        attempted = profileAttempted && !skipNameInOnboarding,
-        blankMessage = "Enter your last name",
-    )
     val ageError = onboardingIntRangeError(
         value = age,
         range = 18..120,
@@ -297,8 +298,8 @@ fun OnboardingScreen(
         unit = "kg",
     )
     // Completeness for Continue (independent of whether red hints are visible yet).
-    val stepOneValid = (skipNameInOnboarding ||
-        (firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty())) &&
+    // Last name is optional.
+    val stepOneValid = (skipNameInOnboarding || firstName.trim().isNotEmpty()) &&
         (age.toIntOrNull() ?: 0) in 18..120 &&
         (height.toDoubleOrNull() ?: 0.0) in 100.0..250.0 &&
         (weight.toDoubleOrNull() ?: 0.0) in 25.0..400.0
@@ -415,7 +416,11 @@ fun OnboardingScreen(
         }
     }
 
-    fun finishOnboarding(region: AppRegion, crashReportingEnabled: Boolean) {
+    fun finishOnboarding(
+        region: AppRegion,
+        crashReportingEnabled: Boolean,
+        cloudBackupEnabled: Boolean
+    ) {
         onComplete(
             firstName.trim(),
             lastName.trim(),
@@ -427,9 +432,20 @@ fun OnboardingScreen(
             activity,
             buildAiSettings(),
             region,
-            crashReportingEnabled
+            crashReportingEnabled,
+            cloudBackupEnabled
         )
     }
+
+    fun stepBeforeRegion(): Int = when {
+        // Cloud-on skips the crash page — go back to cloud (or lifestyle).
+        cloudBackupChoice && showCloudStep -> stepCloud
+        showCrashStep && !cloudBackupChoice -> stepCrash
+        showCloudStep -> stepCloud
+        else -> 2
+    }
+
+    fun stepBeforeCrash(): Int = if (showCloudStep) stepCloud else 2
 
     fun finishAiOnly() {
         if (aiValidated) {
@@ -475,8 +491,7 @@ fun OnboardingScreen(
     val onPathPicker = step < 0 && !aiOnly
     val totalSteps = when {
         aiOnly -> 1
-        showCrashStep -> 5
-        else -> 4
+        else -> 4 + (if (showCloudStep) 1 else 0) + (if (showCrashStep) 1 else 0)
     }
     val progressStep = if (onPathPicker) 0 else (if (aiOnly) 0 else step)
 
@@ -491,7 +506,30 @@ fun OnboardingScreen(
         showConfetti = false
     }
 
-    if (!aiOnly && showCrashStep && step == stepCrash) {
+    if (!aiOnly && showCloudStep && step == stepCloud) {
+        CloudBackupOptInScreen(
+            initialEnabled = cloudBackupChoice,
+            onContinue = { enabled ->
+                cloudBackupChoice = enabled
+                if (enabled) {
+                    // Cloud backup requires crash reporting — skip the crash opt-in page.
+                    crashReportingChoice = true
+                    if (!previewMode) {
+                        CrashReporter.setReportingEnabled(true)
+                    }
+                    step = stepRegion
+                } else {
+                    step = if (showCrashStep) stepCrash else stepRegion
+                }
+            },
+            onBack = { step = 2 },
+            modifier = modifier.fillMaxSize()
+        )
+        return
+    }
+
+    // Only when cloud backup was left off (cloud-on path skips this page).
+    if (!aiOnly && showCrashStep && !cloudBackupChoice && step == stepCrash) {
         CrashReportingOptInScreen(
             initialEnabled = crashReportingChoice,
             onContinue = { enabled ->
@@ -503,7 +541,7 @@ fun OnboardingScreen(
                 }
                 step = stepRegion
             },
-            onBack = { step = 2 },
+            onBack = { step = stepBeforeCrash() },
             modifier = modifier.fillMaxSize()
         )
         return
@@ -520,11 +558,9 @@ fun OnboardingScreen(
             isSaving = isSaving,
             regionRequestAlreadySent = regionRequestAlreadySent,
             onFinished = { region ->
-                finishOnboarding(region, crashReportingChoice)
+                finishOnboarding(region, crashReportingChoice, cloudBackupChoice)
             },
-            onBack = {
-                step = if (showCrashStep) stepCrash else 2
-            },
+            onBack = { step = stepBeforeRegion() },
             requestDisabledHint = if (showCrashStep) {
                 "Enable crash reporting on the previous page to request a custom region."
             } else {
@@ -889,10 +925,8 @@ fun OnboardingScreen(
                                     errorMessage = firstNameError,
                                 ) { firstName = it }
                                 OnboardingTextField(
-                                    label = "Last name",
+                                    label = "Last name (optional)",
                                     value = lastName,
-                                    isError = lastNameError != null,
-                                    errorMessage = lastNameError,
                                 ) { lastName = it }
                             }
                             OnboardingNumberField(
@@ -1022,7 +1056,11 @@ fun OnboardingScreen(
                                             step = 2
                                         }
                                     }
-                                    else -> step = if (showCrashStep) stepCrash else stepRegion
+                                    else -> step = when {
+                                        showCloudStep -> stepCloud
+                                        showCrashStep -> stepCrash
+                                        else -> stepRegion
+                                    }
                                 }
                             }
                         ) {

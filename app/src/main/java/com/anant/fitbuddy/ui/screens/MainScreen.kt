@@ -176,6 +176,7 @@ fun MainScreen(
     val pinnedWorkoutEquipmentFilters by viewModel.pinnedWorkoutEquipmentFilters.collectAsStateWithLifecycle()
     val exerciseCatalogLoading by viewModel.exerciseCatalogLoading.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
+    val gifSuggestion by viewModel.gifSuggestion.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
@@ -468,9 +469,6 @@ fun MainScreen(
                 },
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
-                },
-                onForceSentryProxyToggled = { enabled ->
-                    viewModel.setForceSentryProxyMode(enabled)
                 },
                 onStartDiagnosticLogging = {
                     viewModel.setDiagnosticLoggingEnabled(true)
@@ -1077,6 +1075,14 @@ fun MainScreen(
         )
     }
 
+    gifSuggestion?.let { suggestion ->
+        GifSuggestionDialog(
+            suggestion = suggestion,
+            onAccept = viewModel::acceptGifSuggestion,
+            onDeny = viewModel::dismissGifSuggestion,
+        )
+    }
+
     if (showWorkoutDialog) {
         WorkoutLogDialog(
             state = workoutLogState,
@@ -1092,6 +1098,7 @@ fun MainScreen(
             isNamingWorkout = workoutNaming,
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
+            onDeleteCustomExercise = viewModel::deleteCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
@@ -1122,6 +1129,7 @@ fun MainScreen(
             isNamingWorkout = workoutNaming,
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
+            onDeleteCustomExercise = viewModel::deleteCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
@@ -1704,7 +1712,7 @@ private fun dashboardGreeting(firstName: String): String {
 private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Unit) {
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
-    val canSave = firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty()
+    val canSave = firstName.trim().isNotEmpty()
     AlertDialog(
         onDismissRequest = {},
         title = { Text("What’s your name?") },
@@ -1727,7 +1735,7 @@ private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Un
                 OutlinedTextField(
                     value = lastName,
                     onValueChange = { lastName = it },
-                    label = { Text("Last name") },
+                    label = { Text("Last name (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )

@@ -22,29 +22,33 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -80,7 +84,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -90,13 +93,39 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.anant.fitbuddy.data.database.ExerciseUsage
 import com.anant.fitbuddy.data.model.CatalogExercise
+import com.anant.fitbuddy.data.model.GifSuggestion
+import com.anant.fitbuddy.data.model.GifSuggestionSource
 import com.anant.fitbuddy.data.model.WorkoutFilterOrdering
 import com.anant.fitbuddy.ui.components.IconButton
 import com.anant.fitbuddy.ui.components.OutlinedButton
+import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.components.pressable
 
 private const val RECENT_LIMIT = 8
 private const val FREQUENT_LIMIT = 8
+
+/**
+ * Workaround for Material3 [ModalBottomSheet] nested-scroll jitter
+ * (https://issuetracker.google.com/issues/486562294): leftover upward scroll/fling at the
+ * inner list boundary must not reach the sheet's drag gesture, or the sheet bounces.
+ * Downward leftovers are left alone so swipe-to-dismiss still works from the list top.
+ */
+@Composable
+private fun rememberBottomSheetContentScrollConnection(): NestedScrollConnection =
+    remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset = if (available.y < 0f) available else Offset.Zero
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity
+            ): Velocity = if (available.y < 0f) available else Velocity.Zero
+        }
+    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +146,7 @@ fun ExercisePickerSheet(
     onPromoteEquipmentFilter: (String) -> Unit = {},
     onClassifyCustom: (rawName: String) -> Unit,
     onInferExercises: (description: String) -> Unit,
+    onDeleteCustomExercise: (name: String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -236,7 +266,9 @@ fun ExercisePickerSheet(
         filtered.none { it.name.equals(trimmedQuery, ignoreCase = true) }
     val showInferButton = trimmedQuery.isNotBlank()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    // Swallow leftover upward scroll/fling at list bounds so it does not leak into the
+    // sheet drag (Material3 ModalBottomSheet nested-scroll jitter; issuetracker 486562294).
+    val sheetListScrollConnection = rememberBottomSheetContentScrollConnection()
     val activeFilterCount =
         (if (selectedBodyPart != null) 1 else 0) + (if (selectedEquipment != null) 1 else 0)
 
@@ -260,13 +292,14 @@ fun ExercisePickerSheet(
                 onAdd = {
                     onPick(selected)
                     preview = null
-                }
+                },
+                onDeleteCustom = { onDeleteCustomExercise(selected.name) }
             )
         } else {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (imeVisible) Modifier.fillMaxHeight(0.92f) else Modifier)
+                        .fillMaxHeight(0.92f)
                         .navigationBarsPadding()
                         .imePadding()
                 ) {
@@ -415,10 +448,8 @@ fun ExercisePickerSheet(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(
-                                if (imeVisible) Modifier.weight(1f)
-                                else Modifier.heightIn(max = 440.dp)
-                            ),
+                            .weight(1f)
+                            .nestedScroll(sheetListScrollConnection),
                         contentPadding = PaddingValues(
                             start = 20.dp,
                             end = 20.dp,
@@ -680,8 +711,28 @@ private fun ExercisePreviewPane(
     isFavorite: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: (Boolean) -> Unit,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onDeleteCustom: () -> Unit = {}
 ) {
+    val sheetListScrollConnection = rememberBottomSheetContentScrollConnection()
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete \"${exercise.name}\"?") },
+            text = { Text("This removes it from your exercise picker. Already-logged workouts keep their history.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDeleteCustom()
+                    onBack()
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+            }
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -704,6 +755,15 @@ private fun ExercisePreviewPane(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            if (exercise.isCustom) {
+                IconButton(onClick = { confirmDelete = true }) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete custom exercise",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
             IconButton(onClick = { onToggleFavorite(!isFavorite) }) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -720,6 +780,7 @@ private fun ExercisePreviewPane(
         Column(
             modifier = Modifier
                 .weight(1f)
+                .nestedScroll(sheetListScrollConnection)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -958,6 +1019,47 @@ fun ExerciseGifThumb(
             )
         }
     }
+}
+
+/**
+ * Confirms a best-matching GIF found for a just-added custom exercise. Shown once per custom
+ * add; declining leaves the preset without a demo GIF (no further auto-retry).
+ */
+@Composable
+fun GifSuggestionDialog(
+    suggestion: GifSuggestion,
+    onAccept: () -> Unit,
+    onDeny: () -> Unit,
+) {
+    val sourceLabel = when (suggestion.source) {
+        GifSuggestionSource.EXERCISE_DB -> "ExerciseDB"
+        GifSuggestionSource.GYM_GIFS -> "GymGifs"
+    }
+    AlertDialog(
+        onDismissRequest = onDeny,
+        title = { Text("Use this GIF for \"${suggestion.exerciseName}\"?") },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                ExerciseGifThumb(
+                    url = suggestion.gifUrl,
+                    animated = true,
+                    modifier = Modifier.size(180.dp)
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Best match: \"${suggestion.matchedName}\" ($sourceLabel)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onAccept) { Text("Use GIF") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDeny) { Text("No thanks") }
+        }
+    )
 }
 
 /** Strips leading "Step:N" prefixes from ExerciseDB instruction strings. */

@@ -50,6 +50,13 @@ val COMMON_EXERCISES_SEED: List<CatalogExercise> = listOf(
     CatalogExercise("Seated Knee Tucks (Ins and Outs)", Equipment.BODYWEIGHT),
     CatalogExercise("Bodyweight Squat", Equipment.BODYWEIGHT),
     CatalogExercise("Plank", Equipment.BODYWEIGHT),
+    CatalogExercise("Side Plank", Equipment.BODYWEIGHT),
+    CatalogExercise("Wall Sit", Equipment.BODYWEIGHT),
+    CatalogExercise("Hollow Hold", Equipment.BODYWEIGHT),
+    CatalogExercise("Dead Hang", Equipment.BODYWEIGHT),
+    CatalogExercise("L-Sit", Equipment.BODYWEIGHT),
+    CatalogExercise("V-Sit", Equipment.BODYWEIGHT),
+    CatalogExercise("Handstand Hold", Equipment.BODYWEIGHT),
     CatalogExercise("Lunge", Equipment.BODYWEIGHT),
     CatalogExercise("Crunch", Equipment.BODYWEIGHT),
     CatalogExercise("Lat Pulldown", Equipment.MACHINE),
@@ -58,6 +65,7 @@ val COMMON_EXERCISES_SEED: List<CatalogExercise> = listOf(
     CatalogExercise("Leg Curl", Equipment.MACHINE),
     CatalogExercise("Cable Row", Equipment.MACHINE),
     CatalogExercise("Chest Press Machine", Equipment.MACHINE),
+    CatalogExercise("Farmer's Walk", Equipment.DUMBBELL),
     CatalogExercise("Running", Equipment.CARDIO),
     CatalogExercise("Jogging", Equipment.CARDIO),
     CatalogExercise("Treadmill Run", Equipment.CARDIO),
@@ -67,22 +75,46 @@ val COMMON_EXERCISES_SEED: List<CatalogExercise> = listOf(
 )
 
 /**
+ * One custom picker row: display name, equipment tag, optional persisted logging mode + media.
+ */
+data class CustomCatalogEntry(
+    val name: String,
+    val equipment: String,
+    val loggingMode: ExerciseLoggingMode? = null,
+    val gifUrl: String? = null,
+    val catalogExerciseId: String? = null,
+    val instructions: List<String> = emptyList()
+)
+
+/**
  * Merges catalog exercises with user-saved custom presets (deduped by name, case-insensitive).
  * Customs without a catalog match are appended.
  */
 fun mergeCatalogWithCustoms(
     catalog: List<CatalogExercise>,
-    customNames: List<Pair<String, String>>
+    customs: List<CustomCatalogEntry>
 ): List<CatalogExercise> {
     val seen = mutableSetOf<String>()
     val result = mutableListOf<CatalogExercise>()
     for (exercise in catalog) {
         if (seen.add(exercise.name.lowercase())) result.add(exercise)
     }
-    for ((name, equipment) in customNames.sortedBy { it.first.lowercase() }) {
-        if (seen.add(name.lowercase())) {
-            result.add(CatalogExercise(name = name, equipmentTag = equipment))
+    for (custom in customs.sortedBy { it.name.lowercase() }) {
+        if (seen.add(custom.name.lowercase())) {
+            result.add(
+                CatalogExercise(
+                    name = custom.name,
+                    equipmentTag = custom.equipment,
+                    exerciseId = custom.catalogExerciseId,
+                    gifUrl = custom.gifUrl,
+                    instructions = custom.instructions,
+                    loggingModeOverride = custom.loggingMode
+                        ?: resolveLoggingMode(custom.name, custom.equipment),
+                    isCustom = true
+                )
+            )
         }
     }
     return result
 }
+

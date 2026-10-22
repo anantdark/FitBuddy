@@ -13,12 +13,43 @@ data class ExerciseDraft(
     /** Populated for cardio (run/jog/bike, etc.); null for rep-based strength work. */
     val durationMinutes: Int? = null,
     val distanceKm: Double? = null,
+    /**
+     * Hold time per set in seconds for isometric / static work (plank, wall sit, etc.).
+     * Null for cardio and rep-based strength.
+     */
+    val durationSeconds: Int? = null,
+    /**
+     * Explicit logging mode from classify / catalog override. When null, derived from name,
+     * equipment, and whether [durationSeconds] was logged.
+     */
+    val loggingModeOverride: ExerciseLoggingMode? = null,
     /** Demo GIF from the exercise catalog when known; null for customs / offline seed. */
     val gifUrl: String? = null,
     /** ExerciseDB body-part labels; drives [LogIconTopic.fromWorkoutDraft]. */
     val bodyParts: List<String> = emptyList()
 ) {
-    fun isCardio(): Boolean = equipment == Equipment.CARDIO
+    fun isCardio(): Boolean =
+        resolvedLoggingMode() == ExerciseLoggingMode.CARDIO || equipment == Equipment.CARDIO
+
+    /** Static holds / carries logged by time (sets × seconds), not reps. */
+    fun isTimedHold(): Boolean {
+        val mode = resolvedLoggingMode()
+        return mode == ExerciseLoggingMode.TIMED_HOLD || mode == ExerciseLoggingMode.TIMED_CARRY
+    }
+
+    fun resolvedLoggingMode(): ExerciseLoggingMode {
+        if (equipment == Equipment.CARDIO) return ExerciseLoggingMode.CARDIO
+        loggingModeOverride?.let { return it }
+        // Logged hold/carry keeps timed mode even if the custom name is ambiguous.
+        if (durationSeconds != null && durationSeconds > 0) {
+            return if (isTimedCarryExercise(name, equipment)) {
+                ExerciseLoggingMode.TIMED_CARRY
+            } else {
+                ExerciseLoggingMode.TIMED_HOLD
+            }
+        }
+        return exerciseLoggingMode(name, equipment)
+    }
 }
 
 /** An in-progress workout session being built in the logging screen, before it's saved. */
@@ -36,15 +67,12 @@ data class WorkoutDraft(
         const val DEFAULT_DURATION_MINUTES = 45
 
         /**
-         * Estimates total session time for calorie burn: sums cardio durations plus ~3 min per
-         * strength set (rest included). Rep counts alone don't encode elapsed time.
+         * Estimates total session time for calorie burn from each exercise's logging mode
+         * (cardio minutes, hold/carry work+rest, or ~3 min per strength set).
          */
         fun estimateDurationMinutes(exercises: List<ExerciseDraft>): Int {
             if (exercises.isEmpty()) return DEFAULT_DURATION_MINUTES
-            val cardioMinutes = exercises.filter { it.isCardio() }.sumOf { it.durationMinutes ?: 0 }
-            val strengthMinutes = exercises.filter { !it.isCardio() }.sumOf { it.sets * 3 }
-            val total = cardioMinutes + strengthMinutes
-            return total.coerceAtLeast(5)
+            return exercises.sumOf { estimatedExerciseMinutes(it) }.coerceAtLeast(5)
         }
     }
 }

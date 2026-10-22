@@ -115,7 +115,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.anant.fitbuddy.BuildConfig
-import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.util.ReleaseNotes
@@ -128,8 +127,6 @@ import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
-import java.time.LocalDate
-import java.time.ZoneOffset
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.data.settings.isPlausibleModelIdFor
@@ -202,7 +199,6 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit,
     onAutoCheckUpdatesChange: (Boolean) -> Unit,
     onCrashReportingChange: (Boolean) -> Unit,
-    onForceSentryProxyToggled: (Boolean) -> Unit = {},
     onStartDiagnosticLogging: () -> Unit = {},
     onStopAndExportDiagnosticLog: () -> Unit = {},
     onSupportIdCopied: () -> Unit = {},
@@ -236,7 +232,7 @@ fun SettingsScreen(
     onMongoDownload: (supportId: String) -> Unit = {},
     onChangeCloudPassword: (CharArray?) -> Unit = {},
     onRegenerateSupportId: () -> Unit = {},
-    /** Settings-only: ♥ double-tap also sends a Sentry heartbeat (when reporting is on). */
+    /** Settings-only: ♥ double-tap side effect (crash reporting on). */
     onHeartDoubleTapHeartbeat: () -> Unit = {},
     /** Themes section unlock — true when this install's Support ID is on the donors list. */
     isSupporter: Boolean = false,
@@ -832,7 +828,7 @@ fun SettingsScreen(
                 onValueChange = { profileFirstName = it }
             )
             SettingField(
-                label = "Last name",
+                label = "Last name (optional)",
                 value = profileLastName,
                 onValueChange = { profileLastName = it }
             )
@@ -857,7 +853,6 @@ fun SettingsScreen(
                 onSelected = { profileSex = it }
             )
             val profileValid = profileFirstName.trim().isNotEmpty() &&
-                profileLastName.trim().isNotEmpty() &&
                 (profileAge.toIntOrNull() ?: 0) in 18..120 &&
                 (profileHeight.toDoubleOrNull() ?: 0.0) in 100.0..250.0
             Button(
@@ -1411,8 +1406,9 @@ fun SettingsScreen(
                         }
                     },
                     hintTitle = "Enable cloud backup",
-                    hint = "When on, you can upload manually or automatically. Uploads use your " +
-                        "Support ID as the cloud document key."
+                    hint = "When on, you can upload manually or automatically after you log a " +
+                        "meal or workout. Uploads use your Support ID as the cloud document key. " +
+                        "Also turns on crash reports (turning crash reports off disables cloud backup)."
                 )
                 SettingToggleRow(
                     title = "Auto-upload on startup",
@@ -1502,15 +1498,55 @@ fun SettingsScreen(
                     }
                 )
             }
+            var showCrashOffDisablesCloudWarning by remember {
+                mutableStateOf(false)
+            }
+            if (showCrashOffDisablesCloudWarning) {
+                AlertDialog(
+                    onDismissRequest = { showCrashOffDisablesCloudWarning = false },
+                    title = { Text("Disable crash reports?") },
+                    text = {
+                        Text(
+                            "Turning off crash reports will also disable cloud backup. " +
+                                "You can turn either back on later in Settings."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showCrashOffDisablesCloudWarning = false
+                                onCrashReportingChange(false)
+                            }
+                        ) { Text("Disable both") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showCrashOffDisablesCloudWarning = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
             SettingToggleRow(
                 title = "Send crash reports",
-                checked = settings.crashReportingEnabled,
-                onCheckedChange = onCrashReportingChange,
+                checked = settings.crashReportingEnabled || settings.cloudBackupEnabled,
+                onCheckedChange = { enabled ->
+                    if (!enabled && settings.cloudBackupEnabled) {
+                        showCrashOffDisablesCloudWarning = true
+                    } else {
+                        onCrashReportingChange(enabled)
+                    }
+                },
                 hintTitle = "Crash reports",
-                hint = "Anonymous stack traces help fix bugs. No meals, photos, or API keys. " +
-                    "When on, the app may send one anonymous daily heartbeat " +
-                    "(Cron, Metrics, and Logs — not Issues). Turn off anytime. " +
-                    "Your Support ID (under Backup) identifies reports without personal data."
+                hint = if (settings.cloudBackupEnabled) {
+                    "Cloud backup is on — turning this off will also disable cloud backup. " +
+                        "Anonymous stack traces help fix bugs. No meals, photos, names, or API keys. " +
+                        "Privacy & deletion: anantdark.github.io/FitBuddy/privacy.html"
+                } else {
+                    "Anonymous stack traces help fix bugs. No meals, photos, names, or API keys. " +
+                        "Your Support ID (under Backup) identifies reports. Turn off anytime. " +
+                        "Enabling cloud backup turns this on automatically. " +
+                        "Privacy & deletion: anantdark.github.io/FitBuddy/privacy.html"
+                }
             )
             val diagnosticEntries by DiagnosticLogger.entryCount.collectAsState()
             Row(
@@ -1636,6 +1672,11 @@ fun SettingsScreen(
                 "Docs",
                 "anantdark.github.io/FitBuddy",
                 "https://anantdark.github.io/FitBuddy/"
+            )
+            AboutLinkRow(
+                "Privacy",
+                "Privacy & data deletion",
+                "https://anantdark.github.io/FitBuddy/privacy.html"
             )
         }
 
@@ -1804,21 +1845,6 @@ fun SettingsScreen(
                         hintTitle = "Verbose HTTP",
                         hint = "Log full OkHttp request/response bodies (including on release builds). " +
                             "May include API keys in logcat — keep off unless debugging."
-                    )
-                    SettingToggleRow(
-                        title = "Force Sentry proxy",
-                        checked = settings.forceSentryProxyMode,
-                        onCheckedChange = onForceSentryProxyToggled,
-                        hintTitle = "Force Sentry proxy",
-                        hint = "When on, always route Sentry through the FitBuddy cloud proxy. " +
-                            "When off, try Sentry directly first; proxy is only a fallback if " +
-                            "direct is unreachable (re-checked about once per UTC day). " +
-                            "Fallback never turns this switch on."
-                    )
-                    Text(
-                        text = "Routing: ${sentryRoutingStatusLabel(settings)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
                         onClick = onClearModelCooldowns,
@@ -2658,20 +2684,6 @@ private fun LoadingAnimationChoiceDropdown(
     }
 }
 
-/** Live Sentry transport label for Developer settings (force switch stays independent). */
-private fun sentryRoutingStatusLabel(settings: AppSettings): String {
-    val today = LocalDate.now(ZoneOffset.UTC).toString()
-    val autoProxyToday = settings.sentryProxyModeUtcDay == today
-    return when {
-        settings.forceSentryProxyMode || CrashReporter.isForcedProxyMode() ->
-            "Proxy (forced)"
-        autoProxyToday || CrashReporter.isProxyModeActive() ->
-            "Proxy (automatic — Sentry direct unreachable)"
-        else ->
-            "Direct (automatic)"
-    }
-}
-
 @Composable
 private fun SettingToggleRow(
     title: String,
@@ -3160,7 +3172,9 @@ private fun EnableCloudBackupDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Optionally set a password. Leave blank to use default (Support ID) protection.",
+                    "Optionally set a password. Leave blank to use default (Support ID) protection. " +
+                        "To request remote deletion later, email fitbuddy31@proton.me with your Support ID " +
+                        "(see Privacy in About).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

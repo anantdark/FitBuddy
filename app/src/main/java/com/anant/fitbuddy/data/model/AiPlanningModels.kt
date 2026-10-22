@@ -91,11 +91,13 @@ data class WorkoutCaloriesResponse(
     @Json(ignore = true) val sessionName: String? = null
 )
 
-/** AI-normalised name + equipment for a user-typed custom exercise. */
+/** AI-normalised name + equipment (+ logging metric) for a user-typed custom exercise. */
 @JsonClass(generateAdapter = true)
 data class CustomExerciseResponse(
     @Json(name = "canonical_name") val canonicalName: String,
-    @Json(name = "equipment") val equipment: String
+    @Json(name = "equipment") val equipment: String,
+    /** One of: cardio, hold, carry, reps. Null/blank → derive from name + equipment. */
+    @Json(name = "logging_mode") val loggingMode: String? = null
 )
 
 /** One exercise parsed from a free-text workout description. */
@@ -107,7 +109,9 @@ data class ParsedWorkoutExercise(
     @Json(name = "reps") val reps: Int,
     @Json(name = "weight_kg") val weightKg: Double? = null,
     @Json(name = "duration_minutes") val durationMinutes: Int? = null,
-    @Json(name = "distance_km") val distanceKm: Double? = null
+    @Json(name = "distance_km") val distanceKm: Double? = null,
+    /** Hold time per set in seconds for isometric / static work (plank, wall sit, etc.). */
+    @Json(name = "duration_seconds") val durationSeconds: Int? = null
 )
 
 /** Full workout parsed from natural-language input. */

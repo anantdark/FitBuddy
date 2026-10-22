@@ -3,6 +3,7 @@ package com.anant.fitbuddy.data.remote.exercisedb
 import android.content.Context
 import com.anant.fitbuddy.data.model.COMMON_EXERCISES_SEED
 import com.anant.fitbuddy.data.model.CatalogExercise
+import com.anant.fitbuddy.data.model.ExerciseNameMatcher
 import com.anant.fitbuddy.data.model.mapExerciseDbEquipment
 import com.anant.fitbuddy.data.model.titleCaseLabel
 import com.anant.fitbuddy.data.remote.NetworkModule
@@ -72,6 +73,10 @@ class ExerciseCatalogRepository(
 
     fun gifUrlFor(exerciseId: String): String =
         "$CDN_BASE/media/$exerciseId.gif"
+
+    /** Exact or fuzzy name match in the primary catalog (in-memory). */
+    fun findByName(query: String): CatalogExercise? =
+        ExerciseNameMatcher.findBest(query, _exercises.value, nameOf = { it.name })
 
     private fun loadFromDisk(): Boolean {
         if (!exercisesFile.isFile) return false
