@@ -30,8 +30,7 @@ import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.util.dismissKeyboardOnTap
 
 /**
- * Optional onboarding step shown when crash reporting is off by default (F-Droid / debug).
- * Placed before the region page so users can enable reporting before requesting a custom region.
+ * Optional onboarding step when crash reporting defaults off and cloud backup was not enabled.
  */
 @Composable
 fun CrashReportingOptInScreen(
@@ -75,14 +74,13 @@ fun CrashReportingOptInScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Help improve FitBuddy",
+                text = "Crash reports",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Anonymous crash reports help the developer find and fix bugs. " +
-                    "Nothing about your meals, photos, name, or API keys is ever sent.",
+                text = "Anonymous reports help fix bugs. Off by default — change anytime in Settings.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -100,20 +98,12 @@ fun CrashReportingOptInScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Send anonymous crash reports",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Off by default on this build. You can change this later in Settings. " +
-                                "Turning this on also lets you request a custom region on the next page.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = "Send crash reports",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
                     AppSwitch(
                         checked = enabled,
                         onCheckedChange = { enabled = it }

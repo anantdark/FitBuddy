@@ -139,6 +139,10 @@ class FitnessRepository(
     suspend fun getTotalRecordCount(): Int =
         foodLogDao.count() + exerciseLogDao.count() + bodyMeasurementDao.count()
 
+    /** True when the user has logged at least one meal or workout (gates cloud uploads). */
+    suspend fun hasFoodOrExerciseLogs(): Boolean =
+        foodLogDao.count() + exerciseLogDao.count() > 0
+
     /** Earliest food or exercise `dateString`, or null when neither table has rows. */
     suspend fun earliestFoodOrExerciseDate(): String? =
         DateUtils.minDate(
@@ -432,6 +436,15 @@ class FitnessRepository(
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
         if (!BackupChunkIds.isValidSupportId(supportId)) {
             error("Support ID is invalid for cloud chunk backups")
+        }
+        // Don't upload until the user has logged at least one meal or workout
+        // (profile/weight from onboarding alone is not enough).
+        if (!hasFoodOrExerciseLogs()) {
+            return CloudUploadResult(
+                recordCount = 0,
+                skipped = true,
+                skippedNoActivity = true
+            )
         }
         return try {
             val full = backupManager.buildBackupData()
@@ -855,13 +868,18 @@ class FitnessRepository(
 
     /**
      * True when startup auto-upload should run: cloud + auto toggles on, vault present,
-     * and last upload older than [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
+     * at least one food or workout log, and last upload older than
+     * [AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS] (or never).
      */
-    fun shouldAutoUploadNow(settings: AppSettings, nowMs: Long = System.currentTimeMillis()): Boolean {
+    suspend fun shouldAutoUploadNow(
+        settings: AppSettings,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
         if (BuildConfig.DEBUG) return false
         if (!settings.cloudBackupEnabled || !settings.cloudAutoUploadEnabled) return false
         if (!MongoUriVault.isAvailable()) return false
         if (settings.supportId.isBlank()) return false
+        if (!hasFoodOrExerciseLogs()) return false
         val last = settings.mongoLastUploadAt
         if (last <= 0L) return true
         return nowMs - last >= AppSettings.CLOUD_AUTO_UPLOAD_DEBOUNCE_MS

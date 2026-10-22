@@ -50,15 +50,7 @@ First-run defaults can be seeded from `local.properties` (see below). Without a 
 
 ## Crash reporting
 
-Anonymous crashes go to [Sentry](https://sentry.io) using a DSN committed obfuscated in `app/build.gradle.kts`. No meals, photos, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events.
-
-With reporting on, the app may send one anonymous **daily heartbeat** the first time it opens each UTC day:
-
-- **Crons** — check-in on monitor `fitbuddy-daily-heartbeat`
-- **Explore → Metrics** — counter `fitbuddy.daily_active` (sum; group by `model` / `app_version` / `manufacturer`)
-- **Explore → Logs** — message “FitBuddy daily heartbeat” with the same device/app/AI attributes (filter `heartbeat:true`)
-
-Does **not** create Issues. No meals, photos, or API keys.
+Anonymous crashes go to [Sentry](https://sentry.io) via FitBuddy’s Vercel ingest (`/api/sentry`), using a DSN committed obfuscated in `app/build.gradle.kts`. No meals, photos, names, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events. Privacy & remote deletion: [privacy.html](https://anantdark.github.io/FitBuddy/privacy.html) (`fitbuddy31@proton.me`).
 
 ## Build from source
 

@@ -143,26 +143,13 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             settingsRepository.ensureSupportId()
             // Fold legacy dedicated OpenAI → OpenAI-compatible before anything reads settings.
             settingsRepository.persistLegacyOpenAiMigrationIfNeeded()
+            settingsRepository.clearLegacySentryRoutingPrefs()
             settingsRepository.settings.first()
-        }
-        val proxyModeSeed = runBlocking {
-            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
-            val latchDay = settingsRepository.sentryProxyModeDay()
-            // Stale latch from a previous UTC day must not seed proxy — new day = direct first.
-            if (latchDay != null && latchDay != today) {
-                settingsRepository.setSentryProxyModeDay(null)
-                false
-            } else {
-                // Same-day auto latch only — does not imply forceSentryProxyMode.
-                latchDay == today
-            }
         }
         CrashReporter.init(
             app = this,
             enabled = settings.crashReportingEnabled,
-            supportId = settings.supportId,
-            proxyModeSeed = proxyModeSeed,
-            forceProxy = settings.forceSentryProxyMode
+            supportId = settings.supportId
         )
         DiagnosticLogger.init(this)
         DiagnosticLogger.setEnabled(
@@ -234,8 +221,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         appScope.launch {
             maybeAutoUploadCloudBackup()
         }
-        // Upgrade pulse + daily catch-up (direct Sentry probe first) run off the main thread;
-        // the UTC-midnight alarm covers days the process never starts.
+        // Upgrade pulse + daily catch-up run off the main thread; the UTC-midnight alarm
+        // covers days the process never starts.
         Thread({
             runBlocking(Dispatchers.IO) {
                 maybeSendUpdateHeartbeat()
@@ -266,7 +253,6 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             settingsRepository.setLastKnownVersionCode(current)
         } else if (current > previous) {
             if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
-                persistAutoProxyLatch()
                 settingsRepository.setLastKnownVersionCode(current)
             }
         } else if (current != previous) {
@@ -276,16 +262,14 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
     }
 
     /**
-     * If today's fleet heartbeat has not run yet, send it now (probes direct Sentry first,
-     * then latches proxy for the UTC day only if blocked). Covers Doze-delayed midnight alarms
-     * whenever the app actually starts.
+     * If today's fleet heartbeat has not run yet, send it now. Covers Doze-delayed midnight
+     * alarms whenever the app actually starts.
      */
     private suspend fun maybeSendDailyHeartbeatCatchUp() {
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         if (settingsRepository.lastHeartbeatUtcDay() == today) return
         val settings = settingsRepository.settings.first()
         val sent = CrashReporter.sendHeartbeat(heartbeatInfo(settings), HeartbeatKind.DAILY)
-        persistAutoProxyLatch()
         if (sent) {
             settingsRepository.markHeartbeatSent(today)
         }
@@ -295,17 +279,9 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
         return HeartbeatInfo(
             aiProvider = settings.provider.name,
-            username = settings.usernameForHeartbeat,
             recordCount = recordCount,
             isDeveloper = settings.developerModeUnlocked,
             signupDate = settings.signupDate
         )
-    }
-
-    private suspend fun persistAutoProxyLatch() {
-        if (CrashReporter.isForcedProxyMode()) return
-        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
-        val proxied = CrashReporter.isProxyModeActive()
-        settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
     }
 }

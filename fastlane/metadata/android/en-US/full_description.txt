@@ -30,11 +30,12 @@ AI providers (configured at runtime in Settings):
 Without a configured provider, the app works offline using the built-in simulator. Photos require a configured AI provider.
 
 Privacy:
-• No ads, no tracking by default
+• No ads, no tracking by default; no Android Auto Backup (local JSON + optional MongoDB only)
 • Crash reports (Sentry) are off by default on F-Droid builds; opt in under Settings
-• Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup
+• Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup; optional password
 • AI providers are contacted only when you choose to enable them
 • Razorpay, payment apps, and GitHub Sponsors open only when you choose them; the UPI QR is stored locally
+• Privacy policy & deletion requests: https://anantdark.github.io/FitBuddy/privacy.html (fitbuddy31@proton.me)
 
 Updates on this F-Droid build are delivered by F-Droid. The GitHub update checker is disabled in this flavor.
 

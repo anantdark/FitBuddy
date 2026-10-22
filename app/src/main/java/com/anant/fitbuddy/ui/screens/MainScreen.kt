@@ -470,9 +470,6 @@ fun MainScreen(
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
                 },
-                onForceSentryProxyToggled = { enabled ->
-                    viewModel.setForceSentryProxyMode(enabled)
-                },
                 onStartDiagnosticLogging = {
                     viewModel.setDiagnosticLoggingEnabled(true)
                 },
@@ -1715,7 +1712,7 @@ private fun dashboardGreeting(firstName: String): String {
 private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Unit) {
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
-    val canSave = firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty()
+    val canSave = firstName.trim().isNotEmpty()
     AlertDialog(
         onDismissRequest = {},
         title = { Text("What’s your name?") },
@@ -1738,7 +1735,7 @@ private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Un
                 OutlinedTextField(
                     value = lastName,
                     onValueChange = { lastName = it },
-                    label = { Text("Last name") },
+                    label = { Text("Last name (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )

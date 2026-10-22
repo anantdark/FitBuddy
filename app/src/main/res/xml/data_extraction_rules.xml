@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Default cloud + device-transfer backup (empty cloud-backup = include all).
-
-   Keep AI settings (shared_prefs/app_settings.preferences_pb) in the default set so
-   reinstall/device setup restores API keys with the Room profile. See SettingsDataStore.
+   Cloud Auto Backup is off via android:allowBackup="false". Exclude all domains here so
+   Android 12+ cloud restore / extraction also stays empty. Device-to-device transfer is
+   excluded for the same reason — supported backups are local JSON + opt-in MongoDB only.
    https://developer.android.com/about/versions/12/backup-restore#xml-changes
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Empty = platform default (databases + sharedpref + files). -->
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
     </cloud-backup>
-    <!-- No device-transfer section: D2D uses the same cloud-backup defaults. -->
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
 </data-extraction-rules>

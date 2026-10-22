@@ -1139,25 +1139,49 @@ class MainViewModel(
      */
     fun completeRegionSelection(
         region: AppRegion,
-        crashReportingEnabled: Boolean? = null
+        crashReportingEnabled: Boolean? = null,
+        cloudBackupEnabled: Boolean? = null
     ) {
         if (_regionSelectionSaving.value) return
         _regionSelectionSaving.value = true
         viewModelScope.launch {
             val current = settings.value
-            val reporting = crashReportingEnabled ?: current.crashReportingEnabled
+            val cloudOn = (cloudBackupEnabled ?: current.cloudBackupEnabled) && !BuildConfig.DEBUG
+            val reporting = (crashReportingEnabled ?: current.crashReportingEnabled) || cloudOn
+            if (cloudOn) {
+                settingsRepository.ensureSupportId()
+                // Onboarding/region path: Support ID default — no custom password prompt.
+                settingsRepository.setCloudBackupPasswordBlob(null)
+            }
             settingsRepository.save(
-                current.copy(region = region.name, crashReportingEnabled = reporting)
+                current.copy(
+                    region = region.name,
+                    crashReportingEnabled = reporting,
+                    cloudBackupEnabled = cloudOn,
+                    cloudAutoUploadEnabled = if (cloudOn) true else current.cloudAutoUploadEnabled,
+                    cloudBackupPasswordSet = if (cloudOn) false else current.cloudBackupPasswordSet
+                )
             )
             CrashReporter.setReportingEnabled(reporting)
             _regionSelectionSaving.value = false
         }
     }
 
+    /**
+     * Toggles crash reporting. Turning it off while cloud backup is on also disables cloud
+     * backup (caller should warn the user first). Turning crash reports on never enables cloud.
+     */
     fun setCrashReportingEnabled(enabled: Boolean) {
         viewModelScope.launch {
             val current = settings.value
-            settingsRepository.save(current.copy(crashReportingEnabled = enabled))
+            val disableCloud = !enabled && current.cloudBackupEnabled
+            settingsRepository.save(
+                current.copy(
+                    crashReportingEnabled = enabled,
+                    cloudBackupEnabled = if (disableCloud) false else current.cloudBackupEnabled,
+                    cloudAutoUploadEnabled = if (disableCloud) false else current.cloudAutoUploadEnabled
+                )
+            )
             CrashReporter.setReportingEnabled(enabled)
             if (enabled) {
                 val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
@@ -1167,7 +1191,11 @@ class MainViewModel(
             }
             _analysisState.update {
                 it.copy(
-                    userMessage = if (enabled) "Crash reports enabled" else "Crash reports disabled"
+                    userMessage = when {
+                        enabled -> "Crash reports enabled"
+                        disableCloud -> "Crash reports and cloud backup disabled"
+                        else -> "Crash reports disabled"
+                    }
                 )
             }
         }
@@ -1184,28 +1212,6 @@ class MainViewModel(
                         "Diagnostic logging on — reproduce the issue, then stop & export"
                     } else {
                         "Diagnostic logging off"
-                    }
-                )
-            }
-        }
-    }
-
-    /** Developer: force Sentry through the Vercel proxy (manual only — never auto-synced). */
-    fun setForceSentryProxyMode(enabled: Boolean) {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsRepository.save(current.copy(forceSentryProxyMode = enabled))
-            CrashReporter.setForcedProxyMode(enabled)
-            // Forced-on seeds cold starts; turning off clears the latch so the next probe
-            // tries direct first again (automatic fallback may re-latch later).
-            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
-            settingsRepository.setSentryProxyModeDay(if (enabled) today else null)
-            _analysisState.update {
-                it.copy(
-                    userMessage = if (enabled) {
-                        "Force Sentry proxy on"
-                    } else {
-                        "Force Sentry proxy off (automatic routing)"
                     }
                 )
             }
@@ -1231,8 +1237,8 @@ class MainViewModel(
 
 
     /**
-     * Easter egg: Settings “crafted with ♥” double-tap. Always tries a Sentry heartbeat
-     * (even if crash reporting is off); ignores the once-per-day gate so the tap pulses.
+     * Easter egg: Settings “crafted with ♥” double-tap. Sends a Sentry heartbeat when
+     * crash reporting is on; ignores the once-per-day gate so the tap pulses.
      */
     fun sendHeartbeatFromLoveTap() {
         viewModelScope.launch {
@@ -1245,7 +1251,6 @@ class MainViewModel(
         val recordCount = runCatching { repository.getTotalRecordCount() }.getOrDefault(0)
         val info = HeartbeatInfo(
             aiProvider = s.provider.name,
-            username = s.usernameForHeartbeat,
             recordCount = recordCount,
             isDeveloper = s.developerModeUnlocked,
             signupDate = s.signupDate
@@ -1254,11 +1259,6 @@ class MainViewModel(
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
         val sent = withContext(Dispatchers.IO) {
             CrashReporter.sendHeartbeat(info, kind)
-        }
-        // Persist automatic proxy latch only — never flip forceSentryProxyMode from fallback.
-        if (!CrashReporter.isForcedProxyMode()) {
-            val proxied = CrashReporter.isProxyModeActive()
-            settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
         }
         if (sent) {
             settingsRepository.markHeartbeatSent(today)
@@ -2632,10 +2632,11 @@ class MainViewModel(
                 .onSuccess { result ->
                     _analysisState.update {
                         it.copy(
-                            userMessage = if (result.skipped) {
-                                "Cloud backup already up to date"
-                            } else {
-                                "Uploaded ${result.recordCount} records to cloud backup"
+                            userMessage = when {
+                                result.skippedNoActivity ->
+                                    "Log a meal or workout before uploading a cloud backup"
+                                result.skipped -> "Cloud backup already up to date"
+                                else -> "Uploaded ${result.recordCount} records to cloud backup"
                             }
                         )
                     }
@@ -2661,9 +2662,17 @@ class MainViewModel(
             _mongoBackupBusy.value = true
             runCatching { repository.uploadMongoBackup(force = true, forceNewChunk = true) }
                 .onSuccess { result ->
-                    val tip = result.newTipChunkId?.let { " · tip $it" }.orEmpty()
                     _analysisState.update {
-                        it.copy(userMessage = "Created new cloud chunk$tip")
+                        it.copy(
+                            userMessage = when {
+                                result.skippedNoActivity ->
+                                    "Log a meal or workout before uploading a cloud backup"
+                                else -> {
+                                    val tip = result.newTipChunkId?.let { " · tip $it" }.orEmpty()
+                                    "Created new cloud chunk$tip"
+                                }
+                            }
+                        )
                     }
                 }
                 .onFailure { e ->
@@ -2701,14 +2710,17 @@ class MainViewModel(
                 val count = repository.downloadMongoBackup(enteredId, passwordProvider)
                 val restored = settingsRepository.settings.first()
                 val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                val cloudOn = !BuildConfig.DEBUG
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
                         // Debug builds never opt into cloud upload after restore.
-                        cloudBackupEnabled = !BuildConfig.DEBUG
+                        cloudBackupEnabled = cloudOn,
+                        crashReportingEnabled = if (cloudOn) true else restored.crashReportingEnabled
                     )
                 )
                 CrashReporter.setSupportId(reusedId)
+                if (cloudOn) CrashReporter.setReportingEnabled(true)
                 runCatching { repository.ensureSignupDateFromLogs() }
                 count
             }
@@ -2776,17 +2788,21 @@ class MainViewModel(
                 settingsRepository.ensureSupportId()
             }
             val current = settings.value
-            settingsRepository.save(
-                current.copy(
-                    cloudBackupEnabled = enabled,
-                    cloudAutoUploadEnabled = if (enabled) {
-                        // Default auto-upload on when first enabling.
-                        true
-                    } else {
-                        false
-                    }
-                )
+            val next = current.copy(
+                cloudBackupEnabled = enabled,
+                // Enabling cloud also turns crash reports on (and they stay on if cloud is later off).
+                crashReportingEnabled = if (enabled) true else current.crashReportingEnabled,
+                cloudAutoUploadEnabled = if (enabled) {
+                    // Default auto-upload on when first enabling.
+                    true
+                } else {
+                    false
+                }
             )
+            settingsRepository.save(next)
+            if (enabled) {
+                CrashReporter.setReportingEnabled(true)
+            }
         }
     }
 
@@ -2813,8 +2829,13 @@ class MainViewModel(
                 settingsRepository.ensureSupportId()
                 val current = settingsRepository.settings.first()
                 settingsRepository.save(
-                    current.copy(cloudBackupEnabled = true, cloudAutoUploadEnabled = true)
+                    current.copy(
+                        cloudBackupEnabled = true,
+                        cloudAutoUploadEnabled = true,
+                        crashReportingEnabled = true
+                    )
                 )
+                CrashReporter.setReportingEnabled(true)
                 // First upload seals with the chosen password (blank → Support ID).
                 repository.changeCloudPassword(password)
             }
@@ -2875,15 +2896,18 @@ class MainViewModel(
                 val restored = settingsRepository.settings.first()
                 // Prefer Support ID from restored settings; fall back to the ID used to fetch.
                 val reusedId = restored.supportId.trim().ifBlank { enteredId }
+                val cloudOn = !BuildConfig.DEBUG
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
                         // Debug builds never opt into cloud upload after restore.
-                        cloudBackupEnabled = !BuildConfig.DEBUG,
-                        cloudAutoUploadEnabled = !BuildConfig.DEBUG
+                        cloudBackupEnabled = cloudOn,
+                        cloudAutoUploadEnabled = cloudOn,
+                        crashReportingEnabled = if (cloudOn) true else restored.crashReportingEnabled
                     )
                 )
                 CrashReporter.setSupportId(reusedId)
+                if (cloudOn) CrashReporter.setReportingEnabled(true)
                 runCatching { repository.ensureSignupDateFromLogs() }
                 val after = settingsRepository.settings.first()
                 applyRestoredAiCredentialGate(after)
@@ -3588,7 +3612,8 @@ class MainViewModel(
         activityLevel: String,
         aiSettings: AppSettings,
         region: AppRegion,
-        crashReportingEnabled: Boolean
+        crashReportingEnabled: Boolean,
+        cloudBackupEnabled: Boolean = false
     ) {
         if (_forceFullOnboarding.value) {
             finishOnboardingPreview()
@@ -3602,12 +3627,23 @@ class MainViewModel(
                 require(heightCm in 100.0..250.0) { "Enter a valid height between 100 and 250 cm" }
                 require(weightKg in 25.0..400.0) { "Enter a valid weight between 25 and 400 kg" }
                 val current = settings.value
+                val cloudOn = cloudBackupEnabled && !BuildConfig.DEBUG
+                // Cloud backup implies crash reporting.
+                val crashOn = crashReportingEnabled || cloudOn
+                if (cloudOn) {
+                    settingsRepository.ensureSupportId()
+                    // Onboarding: Support ID default — change password later in Settings.
+                    settingsRepository.setCloudBackupPasswordBlob(null)
+                }
                 settingsRepository.save(
                     current.copy(
                         firstName = firstName.trim(),
                         lastName = lastName.trim(),
                         region = region.name,
-                        crashReportingEnabled = crashReportingEnabled,
+                        crashReportingEnabled = crashOn,
+                        cloudBackupEnabled = cloudOn,
+                        cloudAutoUploadEnabled = if (cloudOn) true else current.cloudAutoUploadEnabled,
+                        cloudBackupPasswordSet = if (cloudOn) false else current.cloudBackupPasswordSet,
                         provider = aiSettings.provider,
                         openRouterApiKeys = aiSettings.openRouterApiKeys,
                         openRouterApiKey = aiSettings.openRouterApiKey,
@@ -3668,7 +3704,7 @@ class MainViewModel(
                     )
                 )
                 pendingInitialTargetDesign = true
-                CrashReporter.setReportingEnabled(crashReportingEnabled)
+                CrashReporter.setReportingEnabled(crashOn)
                 _forceAiSetup.value = false
                 _forceFullOnboarding.value = false
             }.onFailure { e ->

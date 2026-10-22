@@ -241,21 +241,7 @@ data class AppSettings(
     val strictClarification: Boolean = false,
     /** Developer: OkHttp BODY logs even on release builds. */
     val verboseHttpLogging: Boolean = false,
-    /**
-     * Developer: force all Sentry traffic through the Vercel proxy, overriding the automatic
-     * daily connectivity check. Off = automatic (direct when reachable, proxy when blocked).
-     * Manual only — automatic proxy fallback must never set this to true.
-     */
-    val forceSentryProxyMode: Boolean = false,
-    /**
-     * UTC day `yyyy-MM-dd` when automatic proxy fallback last latched (Sentry direct unreachable).
-     * Null when routing direct (or forced proxy is managed separately). Not a user toggle.
-     */
-    val sentryProxyModeUtcDay: String? = null,
-    /**
-     * Developer: unlock Themes (colors/fonts) without being on the supporters list.
-     * Independent of [forceSentryProxyMode].
-     */
+    /** Developer: unlock Themes (colors/fonts) without being on the supporters list. */
     val developerUnlockThemes: Boolean = false,
     /**
      * Developer: keep analyzing-banner and insight wait animations visible even when
@@ -315,16 +301,15 @@ data class AppSettings(
     val hasUserName: Boolean
         get() = displayFirstName.isNotEmpty()
 
-    /** "First Last" for Sentry heartbeats; blank when no name. */
-    val usernameForHeartbeat: String
-        get() {
-            val first = firstName.trim()
-            val last = lastName.trim()
-            return when {
-                first.isEmpty() -> ""
-                last.isEmpty() -> first
-                else -> "$first $last"
-            }
+    /**
+     * Cloud backup implies crash reporting (one-way): enabling cloud turns crash reports on
+     * and keeps them on; turning crash reports on never enables cloud.
+     */
+    fun withCloudBackupCrashReportingGate(): AppSettings =
+        if (cloudBackupEnabled && !crashReportingEnabled) {
+            copy(crashReportingEnabled = true)
+        } else {
+            this
         }
 
     /** True when cloud backup is opted in and this build has a vault URI + Support ID. */

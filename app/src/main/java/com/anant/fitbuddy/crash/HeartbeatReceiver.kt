@@ -17,8 +17,7 @@ import java.time.ZoneOffset
  * sent today, then re-arms the alarm for the next midnight.
  *
  * Work runs on [Dispatchers.IO] via [goAsync] so the daily heartbeat can perform blocking
- * network calls (the direct-ingest reachability probe and the proxy fallback in
- * [SentryHeartbeatProxy]) without touching the main thread.
+ * network calls (cloud ingest via [SentryCloudTransport]) without touching the main thread.
  */
 class HeartbeatReceiver : BroadcastReceiver() {
 
@@ -41,19 +40,11 @@ class HeartbeatReceiver : BroadcastReceiver() {
                     runCatching { app.repository.getTotalRecordCount() }.getOrDefault(0)
                 val info = HeartbeatInfo(
                     aiProvider = settings.provider.name,
-                    username = settings.usernameForHeartbeat,
                     recordCount = recordCount,
                     isDeveloper = settings.developerModeUnlocked,
                     signupDate = settings.signupDate
                 )
                 val sent = CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)
-                // Latch today's *automatic* transport choice for cold starts. Never touch
-                // forceSentryProxyMode — that switch is developer-only and stays off during
-                // proxy fallback.
-                if (!CrashReporter.isForcedProxyMode()) {
-                    val proxied = CrashReporter.isProxyModeActive()
-                    settingsRepository.setSentryProxyModeDay(if (proxied) today else null)
-                }
                 if (sent) {
                     settingsRepository.markHeartbeatSent(today)
                 }
