@@ -2126,7 +2126,7 @@ class FitnessRepository(
                     clarificationMessage = null,
                     foodAnalysis = FoodAnalysis(
                         dishName = dish,
-                        macros = Macros(c, p, cr, f),
+                        macros = Macros(c, p.toDouble(), cr.toDouble(), f.toDouble()),
                         ingredients = buildSimIngredients(input, query, c, p, cr, f),
                         iconTopic = simulateFoodIconTopic(query)
                     ),
@@ -2207,7 +2207,7 @@ class FitnessRepository(
             clarificationMessage = null,
             foodAnalysis = FoodAnalysis(
                 dishName = dish.name,
-                macros = Macros(dish.calories, dish.proteinG, dish.carbsG, dish.fatsG),
+                macros = Macros(dish.calories, dish.proteinG.toDouble(), dish.carbsG.toDouble(), dish.fatsG.toDouble()),
                 iconTopic = simulateFoodIconTopic(query),
                 ingredients = listOf(
                     Ingredient(
@@ -2215,9 +2215,9 @@ class FitnessRepository(
                         quantity = 1,
                         weightG = dish.weightG,
                         calories = dish.calories,
-                        proteinG = dish.proteinG,
-                        carbsG = dish.carbsG,
-                        fatsG = dish.fatsG
+                        proteinG = dish.proteinG.toDouble(),
+                        carbsG = dish.carbsG.toDouble(),
+                        fatsG = dish.fatsG.toDouble()
                     )
                 )
             ),
@@ -2339,9 +2339,9 @@ class FitnessRepository(
                 quantity = quantity,
                 weightG = weightG,
                 calories = ic,
-                proteinG = ip,
-                carbsG = icr,
-                fatsG = ifa
+                proteinG = ip.toDouble(),
+                carbsG = icr.toDouble(),
+                fatsG = ifa.toDouble()
             )
         }
     }

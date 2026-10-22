@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.viewmodel
 
+import com.anant.fitbuddy.util.roundMacro
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -111,17 +112,17 @@ data class DashboardUiState(
     val targetFats: Int = DEFAULT_TARGET_FATS,
     val consumedCalories: Int = 0,
     val burnedCalories: Int = 0,
-    val consumedProtein: Int = 0,
-    val consumedCarbs: Int = 0,
-    val consumedFats: Int = 0
+    val consumedProtein: Double = 0.0,
+    val consumedCarbs: Double = 0.0,
+    val consumedFats: Double = 0.0
 ) {
     /** Exercise burn is shown separately; the TDEE-based target already includes average activity. */
     val netCalories: Int get() = consumedCalories - burnedCalories
     val remainingCalories: Int get() = targetCalories - consumedCalories
 
-    val remainingProtein: Int get() = (targetProtein - consumedProtein).coerceAtLeast(0)
-    val remainingCarbs: Int get() = (targetCarbs - consumedCarbs).coerceAtLeast(0)
-    val remainingFats: Int get() = (targetFats - consumedFats).coerceAtLeast(0)
+    val remainingProtein: Double get() = (targetProtein - consumedProtein).coerceAtLeast(0.0).roundMacro()
+    val remainingCarbs: Double get() = (targetCarbs - consumedCarbs).coerceAtLeast(0.0).roundMacro()
+    val remainingFats: Double get() = (targetFats - consumedFats).coerceAtLeast(0.0).roundMacro()
 
     /** 0f..1f fill of the calorie ring (food intake progress toward the daily target). */
     val calorieProgress: Float
@@ -255,9 +256,9 @@ data class DayLogSnapshot(
     val exerciseLogs: List<ExerciseLog> = emptyList(),
     val consumedCalories: Int = 0,
     val burnedCalories: Int = 0,
-    val consumedProtein: Int = 0,
-    val consumedCarbs: Int = 0,
-    val consumedFats: Int = 0
+    val consumedProtein: Double = 0.0,
+    val consumedCarbs: Double = 0.0,
+    val consumedFats: Double = 0.0
 )
 
 /** State of the manual "Check for Updates" flow in Settings. */
@@ -4364,9 +4365,9 @@ class MainViewModel(
                     put("days_logged", n)
                     put("avg_calories", days.map { it.totalCalories }.average().roundToInt())
                     put("avg_target_calories", dayTargets.average().roundToInt())
-                    put("avg_protein_g", days.map { it.totalProtein }.average().roundToInt())
-                    put("avg_carbs_g", days.map { it.totalCarbs }.average().roundToInt())
-                    put("avg_fats_g", days.map { it.totalFats }.average().roundToInt())
+                    put("avg_protein_g", days.map { it.totalProtein }.average().roundMacro())
+                    put("avg_carbs_g", days.map { it.totalCarbs }.average().roundMacro())
+                    put("avg_fats_g", days.map { it.totalFats }.average().roundMacro())
                     put("avg_calories_burned", burned.average().roundToInt())
                     put(
                         "avg_net_calories",

@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -163,7 +164,7 @@ private fun MealPresetRow(
                 text = buildString {
                     append("${preset.calories} kcal")
                     if (foodCount > 0) append(" · $foodCount food(s)")
-                    append(" · P ${preset.proteinG}g · C ${preset.carbsG}g · F ${preset.fatsG}g")
+                    append(" · P ${preset.proteinG.formatMacro()}g · C ${preset.carbsG.formatMacro()}g · F ${preset.fatsG.formatMacro()}g")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

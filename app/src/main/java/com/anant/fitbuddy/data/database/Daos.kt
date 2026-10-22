@@ -162,17 +162,17 @@ interface MealFoodDao {
 data class FoodDailySummary(
     val dateString: String,
     val totalCalories: Int,
-    val totalProtein: Int,
-    val totalCarbs: Int,
-    val totalFats: Int
+    val totalProtein: Double,
+    val totalCarbs: Double,
+    val totalFats: Double
 )
 
 /** Aggregated food totals for a single day (calories + macros). */
 data class FoodTotals(
     val totalCalories: Int = 0,
-    val totalProtein: Int = 0,
-    val totalCarbs: Int = 0,
-    val totalFats: Int = 0
+    val totalProtein: Double = 0.0,
+    val totalCarbs: Double = 0.0,
+    val totalFats: Double = 0.0
 )
 
 @Dao

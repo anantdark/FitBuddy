@@ -24,9 +24,9 @@ class BackupIdRemapperTest {
             servings = 1.0,
             orderIndex = 0,
             calories = 200,
-            proteinG = 12,
-            carbsG = 30,
-            fatsG = 4,
+            proteinG = 12.0,
+            carbsG = 30.0,
+            fatsG = 4.0,
             presetId = 42
         )
         val remapped = BackupIdRemapper.remapMealFood(
@@ -47,9 +47,9 @@ class BackupIdRemapperTest {
             name = "Orphan",
             servings = 1.0,
             calories = 100,
-            proteinG = 1,
-            carbsG = 1,
-            fatsG = 1,
+            proteinG = 1.0,
+            carbsG = 1.0,
+            fatsG = 1.0,
             presetId = 7
         )
         assertNull(
@@ -69,27 +69,27 @@ class BackupIdRemapperTest {
             id = 8,
             name = "Lunch",
             calories = 500,
-            proteinG = 30,
-            carbsG = 50,
-            fatsG = 15,
+            proteinG = 30.0,
+            carbsG = 50.0,
+            fatsG = 15.0,
             createdAt = 1L,
             foods = listOf(
                 PresetMealFood(
                     name = "Roti",
                     servings = 2.0,
                     calories = 200,
-                    proteinG = 6,
-                    carbsG = 40,
-                    fatsG = 2,
+                    proteinG = 6.0,
+                    carbsG = 40.0,
+                    fatsG = 2.0,
                     savedFoodId = 11
                 ),
                 PresetMealFood(
                     name = "Paneer",
                     servings = 1.0,
                     calories = 300,
-                    proteinG = 24,
-                    carbsG = 10,
-                    fatsG = 13,
+                    proteinG = 24.0,
+                    carbsG = 10.0,
+                    fatsG = 13.0,
                     savedFoodId = 22
                 )
             )

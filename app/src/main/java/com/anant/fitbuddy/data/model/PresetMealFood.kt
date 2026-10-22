@@ -8,9 +8,9 @@ data class PresetMealFood(
     val name: String,
     val servings: Double,
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double,
     val ingredients: List<LoggedIngredient>? = null,
     val savedFoodId: Int? = null,
     val barcode: String? = null

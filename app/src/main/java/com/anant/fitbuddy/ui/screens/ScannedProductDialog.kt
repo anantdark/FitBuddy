@@ -1,5 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
+import com.anant.fitbuddy.util.sanitizeMacroInput
+import com.anant.fitbuddy.util.toMacroOrNull
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,9 +35,9 @@ fun ScannedProductDialog(
 ) {
     var name by remember(product) { mutableStateOf(product.name) }
     var calories by remember(product) { mutableStateOf(product.calories.toString()) }
-    var protein by remember(product) { mutableStateOf(product.proteinG.toString()) }
-    var carbs by remember(product) { mutableStateOf(product.carbsG.toString()) }
-    var fats by remember(product) { mutableStateOf(product.fatsG.toString()) }
+    var protein by remember(product) { mutableStateOf(product.proteinG.formatMacro()) }
+    var carbs by remember(product) { mutableStateOf(product.carbsG.formatMacro()) }
+    var fats by remember(product) { mutableStateOf(product.fatsG.formatMacro()) }
 
     fun buildProduct(): ScannedProduct? {
         val cal = calories.toIntOrNull() ?: return null
@@ -42,9 +45,9 @@ fun ScannedProductDialog(
             barcode = product.barcode,
             name = name.trim().ifBlank { product.name },
             calories = cal,
-            proteinG = protein.toIntOrNull() ?: 0,
-            carbsG = carbs.toIntOrNull() ?: 0,
-            fatsG = fats.toIntOrNull() ?: 0,
+            proteinG = protein.toMacroOrNull() ?: 0.0,
+            carbsG = carbs.toMacroOrNull() ?: 0.0,
+            fatsG = fats.toMacroOrNull() ?: 0.0,
             servingGrams = product.servingGrams
         )
     }
@@ -111,11 +114,11 @@ private fun MacroField(
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { onValueChange(it.filter { c -> c.isDigit() }.take(4)) },
+        onValueChange = { onValueChange(it.sanitizeMacroInput()) },
         label = { Text(label) },
         singleLine = true,
         enabled = enabled,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = Modifier.fillMaxWidth()
     )
 }

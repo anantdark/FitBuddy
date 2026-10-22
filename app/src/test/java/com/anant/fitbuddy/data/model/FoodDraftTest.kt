@@ -8,20 +8,20 @@ class FoodDraftTest {
     @Test
     fun `fromAbsolute single unit stores full weight as one unit`() {
         val egg = IngredientDraft.fromAbsolute(
-            name = "Egg", weightG = 50, calories = 78, protein = 6, carbs = 1, fats = 5
+            name = "Egg", weightG = 50, calories = 78, protein = 6.0, carbs = 1.0, fats = 5.0
         )
         assertEquals(1, egg.quantity)
         assertEquals(50, egg.unitWeightG)
         assertEquals(50, egg.weightG)
         assertEquals(78, egg.calories)
-        assertEquals(6, egg.protein)
+        assertEquals(6.0, egg.protein, 0.0)
     }
 
     @Test
     fun `fromAbsolute with quantity splits weight evenly per unit`() {
         // 2 eggs, 100g / 156kcal total -> 1 egg = 50g / 78kcal
         val eggs = IngredientDraft.fromAbsolute(
-            name = "Egg", weightG = 100, calories = 156, protein = 12, carbs = 2, fats = 10, quantity = 2
+            name = "Egg", weightG = 100, calories = 156, protein = 12.0, carbs = 2.0, fats = 10.0, quantity = 2
         )
         assertEquals(2, eggs.quantity)
         assertEquals(50, eggs.unitWeightG)
@@ -32,18 +32,18 @@ class FoodDraftTest {
     @Test
     fun `changing quantity scales weight and macros proportionally`() {
         val egg = IngredientDraft.fromAbsolute(
-            name = "Egg", weightG = 50, calories = 78, protein = 6, carbs = 1, fats = 5
+            name = "Egg", weightG = 50, calories = 78, protein = 6.0, carbs = 1.0, fats = 5.0
         )
         val threeEggs = egg.copy(quantity = 3)
         assertEquals(150, threeEggs.weightG)
         assertEquals(234, threeEggs.calories)
-        assertEquals(18, threeEggs.protein)
+        assertEquals(18.0, threeEggs.protein, 0.0)
     }
 
     @Test
     fun `zero weight ingredient does not divide by zero`() {
         val ingredient = IngredientDraft.fromAbsolute(
-            name = "Garnish", weightG = 0, calories = 0, protein = 0, carbs = 0, fats = 0
+            name = "Garnish", weightG = 0, calories = 0, protein = 0.0, carbs = 0.0, fats = 0.0
         )
         assertEquals(0, ingredient.weightG)
         assertEquals(0, ingredient.calories)
@@ -55,13 +55,13 @@ class FoodDraftTest {
             dishName = "Idli with Sambar",
             timestamp = 0L,
             ingredients = listOf(
-                IngredientDraft.fromAbsolute("Idli", 250, 325, 8, 65, 4),
-                IngredientDraft.fromAbsolute("Sambar", 150, 110, 4, 15, 4)
+                IngredientDraft.fromAbsolute("Idli", 250, 325, 8.0, 65.0, 4.0),
+                IngredientDraft.fromAbsolute("Sambar", 150, 110, 4.0, 15.0, 4.0)
             )
         )
         assertEquals(435, draft.totalCalories)
-        assertEquals(12, draft.totalProtein)
-        assertEquals(80, draft.totalCarbs)
-        assertEquals(8, draft.totalFats)
+        assertEquals(12.0, draft.totalProtein, 0.0)
+        assertEquals(80.0, draft.totalCarbs, 0.0)
+        assertEquals(8.0, draft.totalFats, 0.0)
     }
 }

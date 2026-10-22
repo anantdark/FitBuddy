@@ -117,7 +117,7 @@ private fun blankFoodDraft(): FoodDraft =
         dishName = "New food",
         timestamp = System.currentTimeMillis(),
         ingredients = listOf(
-            IngredientDraft.fromAbsolute("Ingredient", 100, 0, 0, 0, 0)
+            IngredientDraft.fromAbsolute("Ingredient", 100, 0, 0.0, 0.0, 0.0)
         )
     )
 

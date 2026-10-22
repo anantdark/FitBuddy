@@ -1,5 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.roundMacro
+import com.anant.fitbuddy.util.sanitizeMacroInput
+import com.anant.fitbuddy.util.toMacroOrNull
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -65,9 +68,9 @@ fun MealBuilderDialog(
     var showManualAdd by remember { mutableStateOf(false) }
 
     val totalCalories = items.sumOf { it.totalCalories }
-    val totalProtein = items.sumOf { it.totalProtein }
-    val totalCarbs = items.sumOf { it.totalCarbs }
-    val totalFats = items.sumOf { it.totalFats }
+    val totalProtein = items.sumOf { it.totalProtein }.roundMacro()
+    val totalCarbs = items.sumOf { it.totalCarbs }.roundMacro()
+    val totalFats = items.sumOf { it.totalFats }.roundMacro()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -306,20 +309,26 @@ private fun ManualFoodEntryDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = protein,
-                        onValueChange = { protein = it.filter { it.isDigit() }.take(4) },
+                        onValueChange = { protein = it.sanitizeMacroInput() },
                         label = { Text("Protein") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = carbs,
-                        onValueChange = { carbs = it.filter { it.isDigit() }.take(4) },
+                        onValueChange = { carbs = it.sanitizeMacroInput() },
                         label = { Text("Carbs") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = fats,
-                        onValueChange = { fats = it.filter { it.isDigit() }.take(4) },
+                        onValueChange = { fats = it.sanitizeMacroInput() },
                         label = { Text("Fats") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -334,9 +343,9 @@ private fun ManualFoodEntryDialog(
                             name = name.trim(),
                             weightG = 100,
                             calories = calories.toIntOrNull() ?: 0,
-                            protein = protein.toIntOrNull() ?: 0,
-                            carbs = carbs.toIntOrNull() ?: 0,
-                            fats = fats.toIntOrNull() ?: 0
+                            protein = protein.toMacroOrNull() ?: 0.0,
+                            carbs = carbs.toMacroOrNull() ?: 0.0,
+                            fats = fats.toMacroOrNull() ?: 0.0
                         ).let { ing ->
                             FoodEntryDraft(
                                 name = name.trim(),

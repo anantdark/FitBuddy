@@ -138,9 +138,9 @@ object ProgressMetricsCompressor {
                     s.optInt("calories") + "|" +
                     s.optInt("calories_burned") + "|" +
                     s.optInt("net_calories") + "|" +
-                    s.optInt("protein_g") + "|" +
-                    s.optInt("carbs_g") + "|" +
-                    s.optInt("fats_g") + "|" +
+                    s.optMacro("protein_g") + "|" +
+                    s.optMacro("carbs_g") + "|" +
+                    s.optMacro("fats_g") + "|" +
                     s.optInt("target_calories")
             )
         }
@@ -160,9 +160,9 @@ object ProgressMetricsCompressor {
                     s.optInt("avg_target_calories") + "|" +
                     s.optInt("avg_calories_burned") + "|" +
                     s.optInt("avg_net_calories") + "|" +
-                    s.optInt("avg_protein_g") + "|" +
-                    s.optInt("avg_carbs_g") + "|" +
-                    s.optInt("avg_fats_g") + "|" +
+                    s.optMacro("avg_protein_g") + "|" +
+                    s.optMacro("avg_carbs_g") + "|" +
+                    s.optMacro("avg_fats_g") + "|" +
                     s.optInt("exercise_days")
             )
         }
@@ -219,3 +219,5 @@ object ProgressMetricsCompressor {
         return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
     }
 }
+
+private fun org.json.JSONObject.optMacro(key: String): String = optDouble(key, 0.0).formatMacro()

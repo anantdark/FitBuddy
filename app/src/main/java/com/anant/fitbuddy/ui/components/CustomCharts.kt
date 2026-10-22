@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -523,9 +524,9 @@ data class WeekDayMacroBar(
     val date: String,
     val weekdayLabel: String,
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double
 )
 
 /**
@@ -661,9 +662,9 @@ fun WeekMacroBarChart(
                         cornerRadius = CornerRadius(stubCornerPx, stubCornerPx)
                     )
                 } else {
-                    val pCal = day.proteinG * 4f
-                    val cCal = day.carbsG * 4f
-                    val fCal = day.fatsG * 9f
+                    val pCal = (day.proteinG * 4.0).toFloat()
+                    val cCal = (day.carbsG * 4.0).toFloat()
+                    val fCal = (day.fatsG * 9.0).toFloat()
                     val macroSum = (pCal + cCal + fCal).coerceAtLeast(1f)
 
                     val clip = Path().apply {
@@ -755,9 +756,9 @@ fun WeekMacroBarChart(
 @Composable
 private fun MacroFloatPopup(
     calories: Int,
-    proteinG: Int,
-    carbsG: Int,
-    fatsG: Int,
+    proteinG: Double,
+    carbsG: Double,
+    fatsG: Double,
     proteinColor: Color,
     carbsColor: Color,
     fatsColor: Color,
@@ -791,9 +792,9 @@ private fun MacroFloatPopup(
             )
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MacroSwatch(proteinColor, "${proteinG}g")
-                MacroSwatch(carbsColor, "${carbsG}g")
-                MacroSwatch(fatsColor, "${fatsG}g")
+                MacroSwatch(proteinColor, "${proteinG.formatMacro()}g")
+                MacroSwatch(carbsColor, "${carbsG.formatMacro()}g")
+                MacroSwatch(fatsColor, "${fatsG.formatMacro()}g")
             }
         }
     }

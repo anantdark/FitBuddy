@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -216,7 +217,7 @@ private fun SavedFoodRow(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "${food.calories} kcal · P ${food.proteinG}g · C ${food.carbsG}g · F ${food.fatsG}g",
+                text = "${food.calories} kcal · P ${food.proteinG.formatMacro()}g · C ${food.carbsG.formatMacro()}g · F ${food.fatsG.formatMacro()}g",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
