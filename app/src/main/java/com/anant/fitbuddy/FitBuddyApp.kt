@@ -46,6 +46,15 @@ import kotlinx.coroutines.runBlocking
  */
 class FitBuddyApp : Application(), ImageLoaderFactory {
 
+    companion object {
+        /**
+         * Last versionCode that did not auto-enable crash reporting on upgrade.
+         * Used only by [maybeEnableCrashReportingForUpgraders] — delete both when upgrades
+         * from this code (F-Droid 3.2.81 / matching GitHub builds) are no longer relevant.
+         */
+        private const val CRASH_REPORTING_UPGRADE_OPT_IN_THROUGH = 81
+    }
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val database by lazy { AppDatabase.getDatabase(this) }
@@ -144,6 +153,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             // Fold legacy dedicated OpenAI → OpenAI-compatible before anything reads settings.
             settingsRepository.persistLegacyOpenAiMigrationIfNeeded()
             settingsRepository.clearLegacySentryRoutingPrefs()
+            maybeEnableCrashReportingForUpgraders()
             settingsRepository.settings.first()
         }
         CrashReporter.init(
@@ -237,6 +247,31 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         val settings = settingsRepository.settings.first()
         if (!repository.shouldAutoUploadNow(settings)) return
         runCatching { repository.uploadMongoBackup() }
+    }
+
+    /**
+     * Temporary upgrade opt-in: existing installs from [CRASH_REPORTING_UPGRADE_OPT_IN_THROUGH]
+     * or older get crash reporting turned on once. Fresh installs are untouched so onboarding
+     * keeps the user's choice. Delete this method (and its call site) when upgrades from that
+     * version are no longer relevant.
+     */
+    private suspend fun maybeEnableCrashReportingForUpgraders() {
+        val previous = settingsRepository.lastKnownVersionCode()
+        val current = BuildConfig.VERSION_CODE
+        when {
+            previous == null -> {
+                // Older install before version tracking: opt in only if an account already exists.
+                val snapshot = settingsRepository.settings.first()
+                val hasAccount =
+                    runCatching { repository.hasBasicsConfiguredProfile() }.getOrDefault(false) ||
+                        snapshot.region.isNotBlank() ||
+                        snapshot.signupDate.isNotBlank()
+                if (hasAccount) settingsRepository.setCrashReportingEnabled(true)
+            }
+            previous <= CRASH_REPORTING_UPGRADE_OPT_IN_THROUGH && current > previous -> {
+                settingsRepository.setCrashReportingEnabled(true)
+            }
+        }
     }
 
     /**

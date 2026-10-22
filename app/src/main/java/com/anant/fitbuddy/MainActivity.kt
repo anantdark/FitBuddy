@@ -176,11 +176,12 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 // Skip crash page when cloud backup is on (crash reports implied).
+                                // Existing accounts (region-only path): default the toggle on.
                                 needsCrashStep &&
                                     pendingCloudChoice != true &&
                                     pendingCrashChoice == null -> {
                                     CrashReportingOptInScreen(
-                                        initialEnabled = false,
+                                        initialEnabled = true,
                                         onContinue = { enabled ->
                                             pendingCrashChoice = enabled
                                             CrashReporter.setReportingEnabled(enabled)

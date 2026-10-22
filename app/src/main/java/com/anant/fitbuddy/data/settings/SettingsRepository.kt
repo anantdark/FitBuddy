@@ -279,7 +279,13 @@ class SettingsRepository(context: Context) {
             prefs.remove(KEY_FORCE_SENTRY_PROXY)
             prefs.remove(KEY_FORCE_SENTRY_PROXY_LEGACY)
             prefs.remove(KEY_SENTRY_PROXY_DAY)
+            // Short-lived flag from an earlier one-shot migration; safe to drop.
+            prefs.remove(booleanPreferencesKey("crash_reporting_existing_opted_in"))
         }
+    }
+
+    suspend fun setCrashReportingEnabled(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[KEY_CRASH_REPORTING] = enabled }
     }
 
     /**

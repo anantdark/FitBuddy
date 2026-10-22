@@ -135,6 +135,10 @@ class FitnessRepository(
     val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
     val allExerciseLogs: Flow<List<ExerciseLog>> = exerciseLogDao.getAllExerciseLogs()
 
+    /** True when a profile with age/weight/height already exists (past first-run onboarding). */
+    suspend fun hasBasicsConfiguredProfile(): Boolean =
+        userProfileDao.getProfileOnce()?.hasBasicsConfigured() == true
+
     /** Total user-created records across food logs, exercise logs, and measurements. */
     suspend fun getTotalRecordCount(): Int =
         foodLogDao.count() + exerciseLogDao.count() + bodyMeasurementDao.count()
