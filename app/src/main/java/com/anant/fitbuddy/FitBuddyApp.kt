@@ -14,6 +14,7 @@ import com.anant.fitbuddy.data.remote.OpenFoodFactsDataSource
 import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.exercisedb.ExerciseCatalogRepository
+import com.anant.fitbuddy.data.remote.gymgifs.GymGifsCatalogRepository
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import coil.ImageLoader
 import coil.ImageLoaderFactory
@@ -63,6 +64,10 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         ExerciseCatalogRepository(this)
     }
 
+    val gymGifsCatalogRepository: GymGifsCatalogRepository by lazy {
+        GymGifsCatalogRepository(this)
+    }
+
     val repository: FitnessRepository by lazy {
         FitnessRepository(
             userProfileDao = database.userProfileDao(),
@@ -77,6 +82,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             workoutSessionDao = database.workoutSessionDao(),
             workoutExerciseDao = database.workoutExerciseDao(),
             exerciseCatalogRepository = exerciseCatalogRepository,
+            gymGifsCatalogRepository = gymGifsCatalogRepository,
             remoteAiDataSource = RemoteAiDataSource(
                 api = NetworkModule.provideAiApi(),
                 moshi = NetworkModule.moshi

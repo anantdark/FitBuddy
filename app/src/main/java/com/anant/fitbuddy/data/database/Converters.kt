@@ -25,6 +25,10 @@ class Converters {
         Types.newParameterizedType(List::class.java, NutritionTargetPeriod::class.java)
     )
 
+    private val stringListAdapter = moshi.adapter<List<String>>(
+        Types.newParameterizedType(List::class.java, String::class.java)
+    )
+
     @TypeConverter
     fun ingredientsToJson(ingredients: List<LoggedIngredient>?): String? =
         ingredients?.let { ingredientsAdapter.toJson(it) }
@@ -48,4 +52,12 @@ class Converters {
     @TypeConverter
     fun jsonToNutritionTargetHistory(json: String?): List<NutritionTargetPeriod> =
         json?.let { nutritionTargetHistoryAdapter.fromJson(it) } ?: emptyList()
+
+    @TypeConverter
+    fun stringListToJson(list: List<String>?): String? =
+        list?.let { stringListAdapter.toJson(it) }
+
+    @TypeConverter
+    fun jsonToStringList(json: String?): List<String>? =
+        json?.let { stringListAdapter.fromJson(it) }
 }

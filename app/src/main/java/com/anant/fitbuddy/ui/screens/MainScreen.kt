@@ -176,6 +176,7 @@ fun MainScreen(
     val pinnedWorkoutEquipmentFilters by viewModel.pinnedWorkoutEquipmentFilters.collectAsStateWithLifecycle()
     val exerciseCatalogLoading by viewModel.exerciseCatalogLoading.collectAsStateWithLifecycle()
     val customExerciseClassifying by viewModel.customExerciseClassifying.collectAsStateWithLifecycle()
+    val gifSuggestion by viewModel.gifSuggestion.collectAsStateWithLifecycle()
     val workoutInferring by viewModel.workoutInferring.collectAsStateWithLifecycle()
     val workoutNaming by viewModel.workoutNaming.collectAsStateWithLifecycle()
     val barcodeLookupLoading by viewModel.barcodeLookupLoading.collectAsStateWithLifecycle()
@@ -1077,6 +1078,14 @@ fun MainScreen(
         )
     }
 
+    gifSuggestion?.let { suggestion ->
+        GifSuggestionDialog(
+            suggestion = suggestion,
+            onAccept = viewModel::acceptGifSuggestion,
+            onDeny = viewModel::dismissGifSuggestion,
+        )
+    }
+
     if (showWorkoutDialog) {
         WorkoutLogDialog(
             state = workoutLogState,
@@ -1092,6 +1101,7 @@ fun MainScreen(
             isNamingWorkout = workoutNaming,
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
+            onDeleteCustomExercise = viewModel::deleteCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,
@@ -1122,6 +1132,7 @@ fun MainScreen(
             isNamingWorkout = workoutNaming,
             isAiOnline = isAiOnline,
             onClassifyCustom = viewModel::classifyCustomExercise,
+            onDeleteCustomExercise = viewModel::deleteCustomExercise,
             onInferExercises = viewModel::inferExercisesFromDescription,
             onSuggestName = viewModel::suggestWorkoutName,
             onRecordPick = viewModel::recordExercisePick,

@@ -175,7 +175,17 @@ data class ExercisePreset(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val equipment: String,
-    val createdAt: Long
+    val createdAt: Long,
+    /**
+     * Logging metric: `cardio` | `hold` | `carry` | `reps`. Null on legacy rows → derive from name.
+     */
+    val loggingMode: String? = null,
+    /** Persisted demo GIF (ExerciseDB or GymGifs fallback); survives re-picks. */
+    val gifUrl: String? = null,
+    /** Source catalog id when media was resolved (ExerciseDB id or GymGifs `muscle/slug`). */
+    val catalogExerciseId: String? = null,
+    /** How-to steps pulled from whichever catalog the GIF was matched in; null if none. */
+    val instructions: List<String>? = null
 )
 
 /**
@@ -279,5 +289,7 @@ data class WorkoutExercise(
     val orderIndex: Int = 0,
     val equipment: String = "Other",
     val durationMinutes: Int? = null,
-    val distanceKm: Double? = null
+    val distanceKm: Double? = null,
+    /** Hold time per set (seconds) for isometric / static exercises; null otherwise. */
+    val durationSeconds: Int? = null
 )

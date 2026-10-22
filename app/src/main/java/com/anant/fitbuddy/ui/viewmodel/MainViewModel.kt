@@ -26,6 +26,7 @@ import com.anant.fitbuddy.data.model.BodyTrendAnalyzer
 import com.anant.fitbuddy.data.model.BodyTrendEvidence
 import com.anant.fitbuddy.data.model.BodyTrendReading
 import com.anant.fitbuddy.data.model.CatalogExercise
+import com.anant.fitbuddy.data.model.GifSuggestion
 import com.anant.fitbuddy.data.model.COMMON_EXERCISES_SEED
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.Equipment
@@ -1876,6 +1877,9 @@ class MainViewModel(
         }
     }
 
+    private val _gifSuggestion = MutableStateFlow<GifSuggestion?>(null)
+    val gifSuggestion: StateFlow<GifSuggestion?> = _gifSuggestion.asStateFlow()
+
     /** Normalises a custom exercise via AI/offline rules and saves it for future picker use. */
     fun classifyCustomExercise(rawName: String, onResolved: (CatalogExercise) -> Unit) {
         if (_customExerciseClassifying.value || _workoutInferring.value) return
@@ -1884,6 +1888,14 @@ class MainViewModel(
             runCatching { repository.classifyCustomExercise(rawName) }
                 .onSuccess { exercise ->
                     onResolved(exercise)
+                    // Only brand-new customs (no gif yet, not a known catalog match) need a suggestion.
+                    if (exercise.exerciseId == null && exercise.gifUrl == null) {
+                        launch {
+                            runCatching { repository.suggestGifForCustomExercise(exercise.name) }
+                                .getOrNull()
+                                ?.let { _gifSuggestion.value = it }
+                        }
+                    }
                 }
                 .onFailure { e ->
                     _analysisState.update {
@@ -1891,6 +1903,27 @@ class MainViewModel(
                     }
                 }
             _customExerciseClassifying.value = false
+        }
+    }
+
+    /** User accepted the suggested GIF for their custom exercise — persist it on the preset. */
+    fun acceptGifSuggestion() {
+        val suggestion = _gifSuggestion.value ?: return
+        _gifSuggestion.value = null
+        viewModelScope.launch {
+            runCatching { repository.acceptGifSuggestion(suggestion) }
+        }
+    }
+
+    /** User denied the suggested GIF — discard it, nothing persisted. */
+    fun dismissGifSuggestion() {
+        _gifSuggestion.value = null
+    }
+
+    /** Removes a user-added custom exercise from the picker (ExerciseDB catalog entries are a no-op). */
+    fun deleteCustomExercise(name: String) {
+        viewModelScope.launch {
+            runCatching { repository.deleteCustomExercise(name) }
         }
     }
 
@@ -2105,6 +2138,7 @@ class MainViewModel(
                                 equipment = it.equipment,
                                 durationMinutes = it.durationMinutes,
                                 distanceKm = it.distanceKm,
+                                durationSeconds = it.durationSeconds,
                                 gifUrl = catalogGifUrl(it.name)
                             )
                         }
@@ -3226,6 +3260,7 @@ class MainViewModel(
                             equipment = it.equipment,
                             durationMinutes = it.durationMinutes,
                             distanceKm = it.distanceKm,
+                            durationSeconds = it.durationSeconds,
                             gifUrl = catalogGifUrl(it.name)
                         )
                     }

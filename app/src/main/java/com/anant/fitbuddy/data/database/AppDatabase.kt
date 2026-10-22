@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 20,
+    version = 24,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -163,7 +163,11 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_16_17,
                         MIGRATION_17_18,
                         MIGRATION_18_19,
-                        MIGRATION_19_20
+                        MIGRATION_19_20,
+                        MIGRATION_20_21,
+                        MIGRATION_21_22,
+                        MIGRATION_22_23,
+                        MIGRATION_23_24
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -293,6 +297,29 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE exercise_logs ADD COLUMN iconTopic TEXT")
             db.execSQL("ALTER TABLE saved_foods ADD COLUMN iconTopic TEXT")
             db.execSQL("ALTER TABLE meal_presets ADD COLUMN iconTopic TEXT")
+        }
+
+        /** Per-set hold time (seconds) for isometric / static workout exercises. */
+        val MIGRATION_20_21 = migration(20, 21) { db ->
+            db.execSQL(
+                "ALTER TABLE workout_exercises ADD COLUMN durationSeconds INTEGER"
+            )
+        }
+
+        /** Logging metric on custom exercise presets (cardio/hold/carry/reps). */
+        val MIGRATION_21_22 = migration(21, 22) { db ->
+            db.execSQL("ALTER TABLE exercise_presets ADD COLUMN loggingMode TEXT")
+        }
+
+        /** Persisted GIF / catalog id on custom exercise presets (ExerciseDB or GymGifs). */
+        val MIGRATION_22_23 = migration(22, 23) { db ->
+            db.execSQL("ALTER TABLE exercise_presets ADD COLUMN gifUrl TEXT")
+            db.execSQL("ALTER TABLE exercise_presets ADD COLUMN catalogExerciseId TEXT")
+        }
+
+        /** How-to instructions pulled alongside a matched GIF (JSON string array). */
+        val MIGRATION_23_24 = migration(23, 24) { db ->
+            db.execSQL("ALTER TABLE exercise_presets ADD COLUMN instructions TEXT")
         }
 
         /**

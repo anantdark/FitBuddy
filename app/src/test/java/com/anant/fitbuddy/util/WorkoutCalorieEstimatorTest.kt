@@ -82,4 +82,79 @@ class WorkoutCalorieEstimatorTest {
         val result = WorkoutCalorieEstimator.estimate(draft, weightKg = 0.0)
         assertEquals(280, result.caloriesBurned)
     }
+
+    @Test
+    fun timedHoldSession_usesIsometricMetAndHoldDuration() {
+        val draft = WorkoutDraft(
+            name = "Core",
+            durationMinutes = 0,
+            exercises = listOf(
+                ExerciseDraft(
+                    name = "Weighted Front Plank",
+                    sets = 3,
+                    reps = 1,
+                    equipment = Equipment.OTHER,
+                    durationSeconds = 45,
+                    weightKg = 10.0
+                )
+            )
+        )
+        // estimateDurationMinutes → 5; MET isometric 3.5 * 70 * (5/60) ≈ 20
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg = 70.0)
+        assertEquals(5, result.durationMinutes)
+        assertEquals(20, result.caloriesBurned)
+        assertEquals("Isometric / hold session", result.intensityNote)
+    }
+
+    @Test
+    fun carrySession_usesHigherMetThanIsometric() {
+        val draft = WorkoutDraft(
+            name = "Carries",
+            durationMinutes = 6,
+            exercises = listOf(
+                ExerciseDraft(
+                    name = "Farmer's Walk",
+                    sets = 4,
+                    reps = 1,
+                    equipment = Equipment.DUMBBELL,
+                    durationSeconds = 45,
+                    weightKg = 24.0
+                )
+            )
+        )
+        // MET carry 6.0 * 70 * (6/60) = 42
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg = 70.0)
+        assertEquals(42, result.caloriesBurned)
+        assertEquals("Carry session", result.intensityNote)
+    }
+
+    @Test
+    fun mixedSession_weightsMetByExerciseMinutes() {
+        val draft = WorkoutDraft(
+            name = "Mixed",
+            durationMinutes = 0,
+            exercises = listOf(
+                ExerciseDraft(
+                    name = "Running",
+                    sets = 1,
+                    reps = 1,
+                    equipment = Equipment.CARDIO,
+                    durationMinutes = 20
+                ),
+                ExerciseDraft(
+                    name = "Plank",
+                    sets = 2,
+                    reps = 1,
+                    equipment = Equipment.BODYWEIGHT,
+                    durationSeconds = 60
+                )
+            )
+        )
+        // minutes 20 + 4 = 24; avg MET = (7*20 + 3.5*4)/24 = 154/24
+        // kcal = 154/24 * 70 * 24/60 = 154*70/60 ≈ 180
+        val result = WorkoutCalorieEstimator.estimate(draft, weightKg = 70.0)
+        assertEquals(24, result.durationMinutes)
+        assertEquals(180, result.caloriesBurned)
+        assertEquals("Mixed session", result.intensityNote)
+    }
 }
