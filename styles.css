@@ -739,25 +739,128 @@ h2 {
   color: var(--mist);
 }
 
-/* Framed store/marketing screenshots (caption + Pixel bezel baked in) */
-.shots-row {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-  align-items: stretch;
-}
-
+/* Framed store/marketing screenshots */
 .shot {
   margin: 0;
+  flex: 0 0 auto;
 }
 
 .shot img {
   display: block;
-  width: 100%;
+  width: min(220px, 58vw);
   height: auto;
   border-radius: 0.85rem;
   border: 1px solid var(--line);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
   background: #fff;
+}
+
+/* Auto-scrolling screenshot carousel */
+.shot-carousel {
+  position: relative;
+  margin-top: 2rem;
+}
+
+.shot-carousel-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+}
+
+.shot-carousel-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.shot-carousel-track {
+  display: flex;
+  gap: 1rem;
+  width: max-content;
+  will-change: transform;
+}
+
+.shot-carousel.is-animating .shot-carousel-track {
+  animation: shot-marquee var(--carousel-duration, 48s) linear infinite;
+}
+
+.shot-carousel.is-paused .shot-carousel-track,
+.shot-carousel:hover .shot-carousel-track {
+  animation-play-state: paused;
+}
+
+@keyframes shot-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-1 * var(--carousel-shift, 50%))); }
+}
+
+.shot-carousel-fade {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 3.25rem;
+  width: 3rem;
+  z-index: 1;
+}
+
+.shot-carousel-fade-left {
+  left: 0;
+  background: linear-gradient(90deg, var(--ink, #0a0e1a), transparent);
+}
+
+.shot-carousel-fade-right {
+  right: 0;
+  background: linear-gradient(270deg, var(--ink, #0a0e1a), transparent);
+}
+
+.shot-carousel-controls {
+  display: flex;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 1.15rem;
+}
+
+.shot-carousel-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mist);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.shot-carousel-btn:hover,
+.shot-carousel-btn:focus-visible {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot-carousel.is-animating .shot-carousel-track {
+    animation: none;
+  }
+
+  .shot-carousel-viewport {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .shot-carousel-track .shot {
+    scroll-snap-align: center;
+  }
+
+  .shot-carousel-fade {
+    display: none;
+  }
 }
 
 .store-row {
@@ -907,11 +1010,6 @@ img, video {
     border-radius: 0.7rem;
   }
 
-  .shots-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-
   .shot img {
     border-radius: 0.6rem;
   }
@@ -996,14 +1094,12 @@ img, video {
     max-width: min(260px, 78vw);
   }
 
-  .shots-row {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 1.1rem;
+  .shot img {
+    width: min(200px, 62vw);
   }
 
-  .shot img {
-    max-width: min(360px, 92vw);
+  .shot-carousel-fade {
+    width: 1.5rem;
   }
 
   .store-badge img {

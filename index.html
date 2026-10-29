@@ -59,28 +59,25 @@
       <p class="section-lede">
         Capture → review → watch the day add up. No calorie spreadsheet required.
       </p>
-      <div class="phone-row shots-row">
-        <figure class="shot">
-          <img src="assets/screens/today.png" alt="Dashboard — your day at a glance" />
-        </figure>
-        <figure class="shot">
-          <img src="assets/screens/log-hub.png" alt="Log — photo, text, or barcode" />
-        </figure>
-        <figure class="shot">
-          <img src="assets/screens/food-review.png" alt="Review — edit before you save" />
-        </figure>
-        <figure class="shot">
-          <img src="assets/screens/week-history.png" alt="Week — browse any day this week" />
-        </figure>
-        <figure class="shot">
-          <img src="assets/screens/progress.png" alt="Progress — trends that stick" />
-        </figure>
-        <figure class="shot">
-          <img src="assets/screens/body.png" alt="Targets — set goals your way" />
-        </figure>
-        <figure class="shot">
-          <img src="assets/screens/settings.png" alt="Settings — bring your own AI" />
-        </figure>
+      <div class="shot-carousel" data-carousel aria-label="App screenshots">
+        <div class="shot-carousel-viewport">
+          <div class="shot-carousel-track">
+            <figure class="shot"><img src="assets/screens/today.png" alt="Dashboard — your day at a glance" width="360" height="640" loading="eager" /></figure>
+            <figure class="shot"><img src="assets/screens/log-hub.png" alt="Log — photo, text, or barcode" width="360" height="640" loading="lazy" /></figure>
+            <figure class="shot"><img src="assets/screens/food-review.png" alt="Review — edit before you save" width="360" height="640" loading="lazy" /></figure>
+            <figure class="shot"><img src="assets/screens/week-history.png" alt="Week — browse any day this week" width="360" height="640" loading="lazy" /></figure>
+            <figure class="shot"><img src="assets/screens/progress.png" alt="Progress — trends that stick" width="360" height="640" loading="lazy" /></figure>
+            <figure class="shot"><img src="assets/screens/body.png" alt="Targets — set goals your way" width="360" height="640" loading="lazy" /></figure>
+            <figure class="shot"><img src="assets/screens/settings.png" alt="Settings — bring your own AI" width="360" height="640" loading="lazy" /></figure>
+          </div>
+        </div>
+        <div class="shot-carousel-fade shot-carousel-fade-left" aria-hidden="true"></div>
+        <div class="shot-carousel-fade shot-carousel-fade-right" aria-hidden="true"></div>
+        <div class="shot-carousel-controls">
+          <button type="button" class="shot-carousel-btn" data-carousel-prev aria-label="Previous screenshots">‹</button>
+          <button type="button" class="shot-carousel-btn" data-carousel-toggle aria-label="Pause auto-scroll" aria-pressed="false">❚❚</button>
+          <button type="button" class="shot-carousel-btn" data-carousel-next aria-label="Next screenshots">›</button>
+        </div>
       </div>
     </section>
 
@@ -204,6 +201,9 @@
       <h2>Get FitBuddy</h2>
       <p class="section-lede">Same codebase on every store. Pick the channel you trust.</p>
       <div class="store-row">
+        <a class="store-badge" href="https://github.com/anantdark/FitBuddy/releases/latest" rel="noopener">
+          <img src="assets/badges/get-it-on-github.png" alt="Get it on GitHub" height="64" />
+        </a>
         <a class="store-badge" href="https://f-droid.org/en/packages/com.anant.fitbuddy/" rel="noopener">
           <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="64" />
         </a>
