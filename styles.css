@@ -745,7 +745,8 @@ h2 {
   flex: 0 0 auto;
 }
 
-.shot img {
+.shot img,
+.shot-hit {
   display: block;
   width: min(220px, 58vw);
   height: auto;
@@ -755,22 +756,38 @@ h2 {
   background: #fff;
 }
 
-/* Auto-scrolling screenshot carousel */
+.shot-hit {
+  padding: 0;
+  cursor: zoom-in;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.shot-hit:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+
+.shot-hit img {
+  width: 100%;
+  height: auto;
+  border: 0;
+  border-radius: 0.75rem;
+  box-shadow: none;
+  display: block;
+  pointer-events: none;
+}
+
+/* Auto-scrolling screenshot carousel (JS-driven transform) */
 .shot-carousel {
   position: relative;
   margin-top: 2rem;
 }
 
 .shot-carousel-viewport {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+  overflow: hidden;
   mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
-}
-
-.shot-carousel-viewport::-webkit-scrollbar {
-  display: none;
 }
 
 .shot-carousel-track {
@@ -778,20 +795,7 @@ h2 {
   gap: 1rem;
   width: max-content;
   will-change: transform;
-}
-
-.shot-carousel.is-animating .shot-carousel-track {
-  animation: shot-marquee var(--carousel-duration, 48s) linear infinite;
-}
-
-.shot-carousel.is-paused .shot-carousel-track,
-.shot-carousel:hover .shot-carousel-track {
-  animation-play-state: paused;
-}
-
-@keyframes shot-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(calc(-1 * var(--carousel-shift, 50%))); }
+  transform: translate3d(0, 0, 0);
 }
 
 .shot-carousel-fade {
@@ -805,12 +809,12 @@ h2 {
 
 .shot-carousel-fade-left {
   left: 0;
-  background: linear-gradient(90deg, var(--ink, #0a0e1a), transparent);
+  background: linear-gradient(90deg, var(--ink), transparent);
 }
 
 .shot-carousel-fade-right {
   right: 0;
-  background: linear-gradient(270deg, var(--ink, #0a0e1a), transparent);
+  background: linear-gradient(270deg, var(--ink), transparent);
 }
 
 .shot-carousel-controls {
@@ -841,11 +845,101 @@ h2 {
   outline: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .shot-carousel.is-animating .shot-carousel-track {
-    animation: none;
-  }
+.shot-carousel-btn.is-playing {
+  color: var(--amber);
+  border-color: rgba(255, 159, 67, 0.45);
+}
 
+/* Lightbox */
+.shot-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 0.75rem;
+  background: rgba(4, 6, 12, 0.88);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.shot-lightbox.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.shot-lightbox-top,
+.shot-lightbox-bottom {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+
+.shot-lightbox-top {
+  justify-content: space-between;
+}
+
+.shot-lightbox-bottom {
+  justify-content: center;
+}
+
+.shot-lightbox-caption {
+  margin: 0;
+  color: var(--fog);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.shot-lightbox-stage {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shot-lightbox-stage img {
+  max-width: min(920px, 96vw);
+  max-height: min(82vh, 1400px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0.85rem;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  background: #fff;
+  cursor: zoom-out;
+}
+
+.shot-lightbox-btn {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--paper);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.shot-lightbox-btn:hover,
+.shot-lightbox-btn:focus-visible {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+body.lightbox-open {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
   .shot-carousel-viewport {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
@@ -854,12 +948,20 @@ h2 {
     -webkit-mask-image: none;
   }
 
+  .shot-carousel-track {
+    transform: none !important;
+  }
+
   .shot-carousel-track .shot {
     scroll-snap-align: center;
   }
 
   .shot-carousel-fade {
     display: none;
+  }
+
+  .shot-lightbox {
+    transition: none;
   }
 }
 
@@ -1094,12 +1196,22 @@ img, video {
     max-width: min(260px, 78vw);
   }
 
-  .shot img {
+  .shot img,
+  .shot-hit {
     width: min(200px, 62vw);
   }
 
   .shot-carousel-fade {
     width: 1.5rem;
+  }
+
+  .shot-lightbox {
+    padding: 0.5rem;
+  }
+
+  .shot-lightbox-stage img {
+    max-width: 96vw;
+    max-height: 78vh;
   }
 
   .store-badge img {

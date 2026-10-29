@@ -79,7 +79,7 @@
     });
   }
 
-  // Infinite screenshot marquee
+  // Infinite screenshot marquee (JS-driven — no CSS animation / hover traps)
   document.querySelectorAll("[data-carousel]").forEach((root) => {
     const track = root.querySelector(".shot-carousel-track");
     const viewport = root.querySelector(".shot-carousel-viewport");
@@ -90,46 +90,170 @@
 
     const originals = Array.from(track.children);
     if (!originals.length) return;
+    // Duplicate set for seamless loop
     originals.forEach((node) => track.appendChild(node.cloneNode(true)));
 
+    let offset = 0;
+    let loopWidth = 0;
+    let playing = !reduce;
+    let hovering = false;
+    let raf = 0;
+    let lastTs = 0;
+    const speed = 42; // px/sec
+
     const measure = () => {
-      const half = track.scrollWidth / 2;
-      root.style.setProperty("--carousel-shift", `${half}px`);
-      root.style.setProperty("--carousel-duration", `${Math.max(28, half / 42)}s`);
+      // First half of the duplicated track
+      loopWidth = track.scrollWidth / 2;
+      if (loopWidth > 0) offset = ((offset % loopWidth) + loopWidth) % loopWidth;
+      track.style.transform = `translate3d(${-offset}px, 0, 0)`;
     };
+
+    const paint = (ts) => {
+      if (!lastTs) lastTs = ts;
+      const dt = Math.min(0.064, (ts - lastTs) / 1000);
+      lastTs = ts;
+      if (playing && !hovering && loopWidth > 0) {
+        offset += speed * dt;
+        if (offset >= loopWidth) offset -= loopWidth;
+        track.style.transform = `translate3d(${-offset}px, 0, 0)`;
+      }
+      raf = requestAnimationFrame(paint);
+    };
+
+    const syncPlayUi = () => {
+      if (!playBtn) return;
+      playBtn.classList.toggle("is-playing", playing);
+      playBtn.setAttribute("aria-pressed", String(!playing));
+      playBtn.setAttribute("aria-label", playing ? "Pause auto-scroll" : "Resume auto-scroll");
+      playBtn.textContent = playing ? "❚❚" : "▶";
+    };
+
+    const setPlaying = (value) => {
+      if (reduce) {
+        playing = false;
+      } else {
+        playing = value;
+      }
+      lastTs = 0;
+      syncPlayUi();
+    };
+
+    const stepPx = () => {
+      const first = originals[0];
+      return (first ? first.getBoundingClientRect().width : 220) + 16;
+    };
+
+    const nudge = (dir) => {
+      if (loopWidth <= 0) return;
+      offset += dir * stepPx();
+      offset = ((offset % loopWidth) + loopWidth) % loopWidth;
+      track.style.transform = `translate3d(${-offset}px, 0, 0)`;
+    };
+
     measure();
+    syncPlayUi();
     window.addEventListener("resize", measure);
-    // Remeasure after images load
     track.querySelectorAll("img").forEach((img) => {
       if (!img.complete) img.addEventListener("load", measure, { once: true });
+      else measure();
     });
 
-    if (!reduce) root.classList.add("is-animating");
-
-    let paused = reduce;
-    const setPaused = (value) => {
-      paused = value;
-      root.classList.toggle("is-paused", paused);
-      if (playBtn) {
-        playBtn.setAttribute("aria-pressed", String(paused));
-        playBtn.setAttribute("aria-label", paused ? "Resume auto-scroll" : "Pause auto-scroll");
-        playBtn.textContent = paused ? "▶" : "❚❚";
-      }
-    };
-    setPaused(paused);
+    // Soft-pause while pointer is over the image strip only (not the buttons)
+    viewport.addEventListener("pointerenter", () => {
+      hovering = true;
+    });
+    viewport.addEventListener("pointerleave", () => {
+      hovering = false;
+      lastTs = 0;
+    });
 
     playBtn?.addEventListener("click", () => {
       if (reduce) return;
-      setPaused(!paused);
+      setPlaying(!playing);
+    });
+    prev?.addEventListener("click", () => nudge(-1));
+    next?.addEventListener("click", () => nudge(1));
+
+    if (!reduce) raf = requestAnimationFrame(paint);
+    // If reduced motion, keep track static but still allow manual nudges via overflow scroll fallback
+  });
+
+  // Screenshot lightbox / fullscreen zoom
+  (() => {
+    const lightbox = document.querySelector("[data-lightbox]");
+    if (!lightbox) return;
+    const img = lightbox.querySelector("[data-lightbox-img]");
+    const caption = lightbox.querySelector("[data-lightbox-caption]");
+    const btnClose = lightbox.querySelector("[data-lightbox-close]");
+    const btnPrev = lightbox.querySelector("[data-lightbox-prev]");
+    const btnNext = lightbox.querySelector("[data-lightbox-next]");
+
+    // Only original (non-cloned) hits at init time — re-query live for clones after carousel dup
+    const collect = () =>
+      Array.from(document.querySelectorAll(".shot-carousel-track .shot-hit")).filter(
+        (el, idx, arr) => {
+          // De-dupe by src so clones don't double the gallery
+          const src = el.getAttribute("data-lightbox-src");
+          return arr.findIndex((x) => x.getAttribute("data-lightbox-src") === src) === idx;
+        }
+      );
+
+    let index = 0;
+    let lastFocus = null;
+
+    const openAt = (i) => {
+      const items = collect();
+      if (!items.length) return;
+      index = ((i % items.length) + items.length) % items.length;
+      const el = items[index];
+      const src = el.getAttribute("data-lightbox-src");
+      const alt = el.getAttribute("data-lightbox-alt") || "";
+      if (img) {
+        img.src = src;
+        img.alt = alt;
+      }
+      if (caption) caption.textContent = alt;
+      lightbox.hidden = false;
+      lightbox.classList.add("is-open");
+      document.body.classList.add("lightbox-open");
+      lastFocus = document.activeElement;
+      btnClose?.focus();
+    };
+
+    const close = () => {
+      lightbox.classList.remove("is-open");
+      document.body.classList.remove("lightbox-open");
+      window.setTimeout(() => {
+        lightbox.hidden = true;
+        if (img) img.removeAttribute("src");
+      }, 180);
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    };
+
+    document.addEventListener("click", (e) => {
+      const hit = e.target.closest?.(".shot-hit");
+      if (!hit) return;
+      e.preventDefault();
+      const items = collect();
+      const src = hit.getAttribute("data-lightbox-src");
+      const i = items.findIndex((x) => x.getAttribute("data-lightbox-src") === src);
+      openAt(i >= 0 ? i : 0);
     });
 
-    const step = () => (originals[0]?.getBoundingClientRect().width || 220) + 16;
-    const scrollBy = (dir) => {
-      setPaused(true);
-      viewport.scrollBy({ left: dir * step(), behavior: "smooth" });
-    };
-    prev?.addEventListener("click", () => scrollBy(-1));
-    next?.addEventListener("click", () => scrollBy(1));
-  });
+    btnClose?.addEventListener("click", close);
+    btnPrev?.addEventListener("click", () => openAt(index - 1));
+    btnNext?.addEventListener("click", () => openAt(index + 1));
+    img?.addEventListener("click", close);
+    lightbox.addEventListener("click", (e) => {
+      if (e.target === lightbox || e.target.classList.contains("shot-lightbox-stage")) close();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (!lightbox.classList.contains("is-open")) return;
+      if (e.key === "Escape") close();
+      if (e.key === "ArrowLeft") openAt(index - 1);
+      if (e.key === "ArrowRight") openAt(index + 1);
+    });
+  })();
 
 })();

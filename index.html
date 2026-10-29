@@ -59,24 +59,66 @@
       <p class="section-lede">
         Capture → review → watch the day add up. No calorie spreadsheet required.
       </p>
-      <div class="shot-carousel" data-carousel aria-label="App screenshots">
+      <div class="shot-carousel" data-carousel aria-roledescription="carousel" aria-label="App screenshots">
         <div class="shot-carousel-viewport">
           <div class="shot-carousel-track">
-            <figure class="shot"><img src="assets/screens/today.png" alt="Dashboard — your day at a glance" width="360" height="640" loading="eager" /></figure>
-            <figure class="shot"><img src="assets/screens/log-hub.png" alt="Log — photo, text, or barcode" width="360" height="640" loading="lazy" /></figure>
-            <figure class="shot"><img src="assets/screens/food-review.png" alt="Review — edit before you save" width="360" height="640" loading="lazy" /></figure>
-            <figure class="shot"><img src="assets/screens/week-history.png" alt="Week — browse any day this week" width="360" height="640" loading="lazy" /></figure>
-            <figure class="shot"><img src="assets/screens/progress.png" alt="Progress — trends that stick" width="360" height="640" loading="lazy" /></figure>
-            <figure class="shot"><img src="assets/screens/body.png" alt="Targets — set goals your way" width="360" height="640" loading="lazy" /></figure>
-            <figure class="shot"><img src="assets/screens/settings.png" alt="Settings — bring your own AI" width="360" height="640" loading="lazy" /></figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/today.png" data-lightbox-alt="Dashboard — your day at a glance" aria-label="Open dashboard screenshot">
+                <img src="assets/screens/today.png" alt="" width="360" height="640" loading="eager" decoding="async" />
+              </button>
+            </figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/log-hub.png" data-lightbox-alt="Log — photo, text, or barcode" aria-label="Open log screenshot">
+                <img src="assets/screens/log-hub.png" alt="" width="360" height="640" loading="lazy" decoding="async" />
+              </button>
+            </figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/food-review.png" data-lightbox-alt="Review — edit before you save" aria-label="Open meal review screenshot">
+                <img src="assets/screens/food-review.png" alt="" width="360" height="640" loading="lazy" decoding="async" />
+              </button>
+            </figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/week-history.png" data-lightbox-alt="Week — browse any day this week" aria-label="Open week history screenshot">
+                <img src="assets/screens/week-history.png" alt="" width="360" height="640" loading="lazy" decoding="async" />
+              </button>
+            </figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/progress.png" data-lightbox-alt="Progress — trends that stick" aria-label="Open progress screenshot">
+                <img src="assets/screens/progress.png" alt="" width="360" height="640" loading="lazy" decoding="async" />
+              </button>
+            </figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/body.png" data-lightbox-alt="Targets — set goals your way" aria-label="Open targets screenshot">
+                <img src="assets/screens/body.png" alt="" width="360" height="640" loading="lazy" decoding="async" />
+              </button>
+            </figure>
+            <figure class="shot">
+              <button type="button" class="shot-hit" data-lightbox-src="assets/screens/settings.png" data-lightbox-alt="Settings — bring your own AI" aria-label="Open settings screenshot">
+                <img src="assets/screens/settings.png" alt="" width="360" height="640" loading="lazy" decoding="async" />
+              </button>
+            </figure>
           </div>
         </div>
         <div class="shot-carousel-fade shot-carousel-fade-left" aria-hidden="true"></div>
         <div class="shot-carousel-fade shot-carousel-fade-right" aria-hidden="true"></div>
         <div class="shot-carousel-controls">
           <button type="button" class="shot-carousel-btn" data-carousel-prev aria-label="Previous screenshots">‹</button>
-          <button type="button" class="shot-carousel-btn" data-carousel-toggle aria-label="Pause auto-scroll" aria-pressed="false">❚❚</button>
+          <button type="button" class="shot-carousel-btn is-playing" data-carousel-toggle aria-label="Pause auto-scroll" aria-pressed="false">❚❚</button>
           <button type="button" class="shot-carousel-btn" data-carousel-next aria-label="Next screenshots">›</button>
+        </div>
+      </div>
+
+      <div class="shot-lightbox" data-lightbox hidden>
+        <div class="shot-lightbox-top">
+          <p class="shot-lightbox-caption" data-lightbox-caption></p>
+          <button type="button" class="shot-lightbox-btn" data-lightbox-close aria-label="Close fullscreen screenshot">✕</button>
+        </div>
+        <div class="shot-lightbox-stage">
+          <img data-lightbox-img alt="" />
+        </div>
+        <div class="shot-lightbox-bottom">
+          <button type="button" class="shot-lightbox-btn" data-lightbox-prev aria-label="Previous screenshot">‹</button>
+          <button type="button" class="shot-lightbox-btn" data-lightbox-next aria-label="Next screenshot">›</button>
         </div>
       </div>
     </section>
