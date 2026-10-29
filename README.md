@@ -1,110 +1,119 @@
-# FitBuddy
+<p align="center">
+  <img src="assets/fitbuddy-banner.jpg" alt="FitBuddy — Log the plate. Track the burn." width="100%" />
+</p>
 
-AI-powered health tracker for Android with region-aware diets and daily routines. Log meals and workouts with a photo or loose text; an LLM estimates calories and macros. Includes dashboards, progress charts, editable meal review, and reusable food presets.
+<p align="center">
+  <strong>AI-powered health tracker for Android</strong><br />
+  Region-aware diets · photo / text / barcode logging · on-device privacy
+</p>
 
-[![CI](https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml)
-[![Release](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml/badge.svg)](https://github.com/anantdark/FitBuddy/actions/workflows/release.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/anantdark/FitBuddy)](https://github.com/anantdark/FitBuddy/releases/latest)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/anantdark)
+<p align="center">
+  <a href="https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml"><img src="https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/anantdark/FitBuddy/actions/workflows/release.yml"><img src="https://github.com/anantdark/FitBuddy/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
+  <a href="https://github.com/anantdark/FitBuddy/releases/latest"><img src="https://img.shields.io/github/v/release/anantdark/FitBuddy" alt="GitHub Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
+  <a href="https://github.com/sponsors/anantdark"><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors&logoColor=white" alt="Sponsor" /></a>
+</p>
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/en/packages/com.anant.fitbuddy/)
-[<img src="https://www.openapk.net/images/openapk-badge.png" alt="Get it on OpenAPK" height="80">](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/)
+<p align="center">
+  <a href="https://github.com/anantdark/FitBuddy/releases/latest"><img src="assets/badges/get-it-on-github.png" alt="Get it on GitHub" height="64" /></a>
+  &nbsp;
+  <a href="https://f-droid.org/en/packages/com.anant.fitbuddy/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="64" /></a>
+  &nbsp;
+  <a href="https://www.openapk.net/fitbuddy/com.anant.fitbuddy/"><img src="https://www.openapk.net/images/openapk-badge.png" alt="Get it on OpenAPK" height="64" /></a>
+</p>
 
-[<img src="https://img.shields.io/badge/Get_it_on-AndroidFreeware-blue?style=for-the-badge&logo=android" alt="Get it on AndroidFreeware" height="80">](https://www.androidfreeware.net/download-fitbuddy-apk.html)
+<p align="center">
+  <a href="https://www.androidfreeware.net/download-fitbuddy-apk.html"><img src="https://img.shields.io/badge/Get_it_on-AndroidFreeware-blue?style=for-the-badge&logo=android" alt="Get it on AndroidFreeware" height="48" /></a>
+  &nbsp;
+  <a href="https://anantdark.github.io/FitBuddy/"><img src="https://img.shields.io/badge/Docs-Website-0A0E1A?style=for-the-badge" alt="Docs website" height="48" /></a>
+</p>
+
+---
 
 ## Screenshots
 
-<p>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Dashboard" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Log hub" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Meal review" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Week history" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Progress" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Daily targets" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" alt="Settings" width="180" />
-</p>
+<table>
+  <tr>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Dashboard" /></td>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Log hub" /></td>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Meal review" /></td>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Week history" /></td>
+  </tr>
+  <tr>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Progress" /></td>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Daily targets" /></td>
+    <td width="25%"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" alt="Settings" /></td>
+    <td width="25%"></td>
+  </tr>
+</table>
+
+Snap a plate or type what you ate — FitBuddy estimates calories and macros, then lets you edit before you save. Workouts, week history, progress charts, and bring-your-own AI are built in.
 
 ## Features
 
-- **Region packs** — personalise AI prompts, staples, portion language, and log examples to your region
-- **Smart logging** — photo or text input; AI parses food and exercise
-- **Meal review** — edit dish name, tweak ingredient weights with live macro recalc
-- **Editable workouts** — structured sessions with AI-suggested names; upgrade simple logs
-- **Presets** — bookmark meals for one-tap logging
-- **Dashboard** — daily calorie ring, food/exercise logs, macro breakdown
-- **Science-based body goals** — track weight, body fat, BMR, and muscle mass; deterministic adult calorie/macronutrient estimates include weight milestones, quality-gated trend personalization, bounded AI-assisted choices, and activity guidance; [methodology and evidence](docs/health-target-methodology.md)
-- **Analytics** — custom Canvas charts; rolling 30-day “monthly” window
-- **Encrypted backups** — AES-256-GCM local export + cloud; gzip; append-only chunk chains
-- **Loading animations** — per-slot Analyzing / Insights choices in Settings
-- **Offline fallback** — works without AI config via built-in simulator
-- **Crash reports** — optional anonymous Sentry reports (opt out in Settings; Support ID for 1:1 help)
-- **Material You** — dynamic color theming on Android 12+
+| | |
+|---|---|
+| **Region packs** | Personalise AI prompts, staples, portion language, and log examples to your region |
+| **Smart logging** | Photo, loose text, or barcode — AI parses food and exercise |
+| **Meal review** | Edit dish name and ingredient weights with live macro recalc |
+| **Workouts** | Structured sessions, 1,500+ catalog moves with GIFs, AI-suggested names |
+| **Presets** | Bookmark meals for one-tap logging |
+| **Dashboard** | Daily calorie ring, food/exercise log, macro breakdown |
+| **Body goals** | Weight, body fat, BMR, muscle mass; science-based targets — [methodology](docs/health-target-methodology.md) |
+| **Analytics** | Custom Canvas charts; rolling 30-day window |
+| **Encrypted backups** | AES-256-GCM local export + optional cloud |
+| **Offline fallback** | Works without AI config via built-in simulator |
+| **Crash reports** | Optional anonymous Sentry (opt out in Settings) |
+| **Material You** | Dynamic color on Android 12+ |
 
 ## Download
 
-Pre-built APKs and AABs are also attached to [GitHub Releases](https://github.com/anantdark/FitBuddy/releases). Every push to `main` (including merged PRs) publishes a new build tagged `v{versionName}-build{N}`. Release APKs are **arm64-v8a only**. Update checks open the APK download in the system browser (no in-app installer).
+| Channel | Notes |
+|---------|--------|
+| **[GitHub Releases](https://github.com/anantdark/FitBuddy/releases/latest)** | Latest APK (`FitBuddy-latest.apk`), arm64-v8a. Auto-built on every push to `main`. |
+| **[F-Droid](https://f-droid.org/en/packages/com.anant.fitbuddy/)** | Same codebase, `fdroid` flavor, different signing key |
+| **[OpenAPK](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/)** | Mirror of the open-source build |
 
-FitBuddy is on [F-Droid](https://f-droid.org/en/packages/com.anant.fitbuddy/) and [OpenAPK](https://www.openapk.net/fitbuddy/com.anant.fitbuddy/) — same codebase and commit as GitHub Releases, built with the `fdroid` product flavor instead of `github`. F-Droid owns updates for that build; it's signed with a different key from the GitHub Releases APK, so the two aren't interchangeable updates for the same install.
+> F-Droid and GitHub use **different signing keys** — pick one channel per install; don’t mix updates.
 
 ## AI providers
 
-Configure at runtime in **Settings** (stored locally via DataStore):
+Configure at runtime in **Settings** (DataStore, on-device):
 
 | Provider | Notes |
 |----------|-------|
-| **OpenRouter** | Free vision models via model dropdown; optional account sign-in |
+| **OpenRouter** | Free vision models; optional account sign-in |
 | **Gemini** | Google AI Studio key; OpenAI-compatible endpoint |
 | **OpenAI** | Direct API key; curated gpt-4o catalog |
-| **Ollama / compatible** | Local or cloud; any OpenAI-compatible host (LM Studio, vLLM, LocalAI); optional API key |
+| **Ollama / compatible** | Local or cloud; LM Studio, vLLM, LocalAI, etc. |
 
-First-run defaults can be seeded from `local.properties` (see below). Without a key, the app uses the offline simulator.
+First-run defaults can be seeded from `local.properties`. Without a key, the offline simulator handles text logs.
 
 ## Crash reporting
 
-Anonymous crashes go to [Sentry](https://sentry.io) via FitBuddy’s Vercel ingest (`/api/sentry`), using a DSN committed obfuscated in `app/build.gradle.kts`. No meals, photos, names, or API keys are sent. Users can opt out under **Settings → Crash reports** and copy a **Support ID** when messaging you — search that id in Sentry to find their events. Privacy & remote deletion: [privacy.html](https://anantdark.github.io/FitBuddy/privacy.html) (`fitbuddy31@proton.me`).
+Anonymous crashes go to [Sentry](https://sentry.io) via FitBuddy’s ingest. **Not sent:** meals, photos, names, API keys. Opt out under **Settings → Crash reports**. Privacy & deletion: [privacy page](https://anantdark.github.io/FitBuddy/privacy.html) · `fitbuddy31@proton.me`.
 
 ## Build from source
 
-### Requirements
-
-- JDK 21
-- Android SDK with API 36.1 (compile) / API 29+ (min)
-- macOS/Linux/WSL (Gradle wrapper included)
-
-### Setup
+**Requirements:** JDK 21 · Android SDK (compile API 36.1 / min 29) · macOS/Linux/WSL
 
 ```bash
 git clone https://github.com/anantdark/FitBuddy.git
 cd FitBuddy
+cp local.properties.example local.properties   # set sdk.dir (+ optional AI keys)
 
-# SDK path + optional AI defaults (never commit this file)
-cp local.properties.example local.properties
-# Edit local.properties — set sdk.dir and optional API keys
-```
-
-### Compile & test
-
-```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home  # macOS Homebrew
-
 ./gradlew :app:compileDebugKotlin
 ./gradlew :app:testDebugUnitTest
 ```
 
-### Install release build (dev)
-
-Release builds use R8 minify + resource shrink. Local `keystore.properties` should point at a
-**local/dev** keystore (see [DISTRIBUTION.md](DISTRIBUTION.md)) — not the CI/Play release key.
-Without `keystore.properties`, release falls back to the Android debug key:
+Release builds use R8 + resource shrink. Local `keystore.properties` should point at a **dev** keystore ([DISTRIBUTION.md](DISTRIBUTION.md)) — not the CI release key.
 
 ```bash
 ./gradlew :app:assembleRelease
-# --user 0 = personal profile only (avoids installing into a work profile)
-adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-3.0.0-dev.apk
+adb install -r --user 0 app/build/outputs/apk/release/FitBuddy-*.apk
 ```
-
-CI release signing uses GitHub `RELEASE_*` secrets only. For Play Store setup, see [DISTRIBUTION.md](DISTRIBUTION.md).
 
 ## Project structure
 
@@ -130,47 +139,23 @@ Architecture: **MVVM** — UI → ViewModel → Repository → Room + Remote AI.
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| [CI](.github/workflows/ci.yml) | Push & PR to `main` | Compile debug/release, run unit tests |
-| [Release](.github/workflows/release.yml) | Push to `main` | Build signed APK + AAB, publish GitHub Release (latest) |
-| [F-Droid Release](.github/workflows/fdroid-release.yml) | Manual dispatch | Bump version, tag, build fdroid flavor, publish prerelease |
+| [CI](.github/workflows/ci.yml) | Push & PR to `main` | Compile debug/release, unit tests |
+| [Release](.github/workflows/release.yml) | Push to `main` | Signed APK + AAB → GitHub Release |
+| [F-Droid Release](.github/workflows/fdroid-release.yml) | Manual dispatch | Bump version, tag, publish fdroid flavor |
 
-### Releasing
-
-The GitHub release triggers automatically on every push to `main` (including merged PRs). Version is `3.2.<run_number % 100>`.
-
-The F-Droid release is triggered manually from **Actions → F-Droid Release → Run workflow**. You provide the `major.minor` version (e.g. `3.2`), and the patch is computed as `run_number % 100`. The workflow auto-bumps `build.gradle.kts`, commits, tags, builds, and publishes. See [FDROID.md](FDROID.md) for the full process.
-
-See [FDROID.md](FDROID.md) for the full F-Droid process.
-
-### Required: signed release builds in CI
-
-Release workflow **fails** without these [repository secrets](https://github.com/anantdark/FitBuddy/settings/secrets/actions)
-(so every APK shares one signing key and browser-based updates can install over the previous release):
-
-| Secret | Value |
-|--------|-------|
-| `RELEASE_KEYSTORE_BASE64` | Base64-encoded `.jks` file (`base64 -i fitbuddy-release.jks \| pbcopy`) |
-| `RELEASE_STORE_PASSWORD` | Keystore password |
-| `RELEASE_KEY_ALIAS` | Key alias (default: `fitbuddy`) |
-| `RELEASE_KEY_PASSWORD` | Key password |
-
-See [DISTRIBUTION.md](DISTRIBUTION.md) to create the keystore. After the first release signed
-with a new keystore, uninstall any older install once, then install that APK — later
-updates over that install will succeed.
+CI release signing needs `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` — see [DISTRIBUTION.md](DISTRIBUTION.md).
 
 ## Contributing
 
-1. Fork and create a feature branch
-2. Run `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest`
-3. Open a PR against `main` — CI must pass
+1. Fork and create a feature branch  
+2. Run `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest`  
+3. Open a PR against `main` — CI must pass  
 
-Bug reports and feature requests: [Issues](https://github.com/anantdark/FitBuddy/issues).
+Bug reports and ideas: [Issues](https://github.com/anantdark/FitBuddy/issues).
 
 ## Supporters
 
-Named public supporters appear here and as flip trading cards in the app (and on the
-[docs site](https://anantdark.github.io/FitBuddy/#supporters)). Donation amounts stay private —
-only the card tier chrome and crests are shown.
+Named public supporters appear here and as flip trading cards in the app (and on the [docs site](https://anantdark.github.io/FitBuddy/#supporters)). Donation amounts stay private.
 
 <table>
   <tr>
@@ -190,15 +175,11 @@ only the card tier chrome and crests are shown.
   </tr>
 </table>
 
-Thank you for keeping FitBuddy free and open. Roster source:
-[`config/donors.json`](config/donors.json).
+Thank you for keeping FitBuddy free and open. Roster: [`config/donors.json`](config/donors.json).
 
 ## Support development
 
-If FitBuddy helps you, support its continued development through
-[GitHub Sponsors](https://github.com/sponsors/anantdark). Indian users can also use the heart
-button in the app for UPI or card contributions. Named gifts (with your Support ID) can unlock
-a public thank-you card like the ones above.
+[GitHub Sponsors](https://github.com/sponsors/anantdark) · in-app heart button (UPI/card for Indian users). Named gifts can unlock a public thank-you card.
 
 ## License
 
@@ -206,8 +187,8 @@ GPL-3.0 — see [LICENSE](LICENSE).
 
 ## Related docs
 
-- [FDROID.md](FDROID.md) — F-Droid release process, tagging, and submission notes
-- [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store publishing & keystore setup
-- [Health target methodology](docs/health-target-methodology.md) — formulas, limitations, and evidence
-- [AGENTS.md](AGENTS.md) — contributor context for architecture and conventions
-- [Docs site](https://anantdark.github.io/FitBuddy/) — onboarding, usage guide, encryption, FAQ, privacy
+- [FDROID.md](FDROID.md) — F-Droid release process  
+- [DISTRIBUTION.md](DISTRIBUTION.md) — Play Store & keystore  
+- [Health target methodology](docs/health-target-methodology.md)  
+- [AGENTS.md](AGENTS.md) — architecture notes for contributors  
+- [Docs site](https://anantdark.github.io/FitBuddy/) — onboarding, guide, encryption, FAQ, privacy  
