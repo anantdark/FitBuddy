@@ -761,6 +761,17 @@ h2 {
   cursor: zoom-in;
   appearance: none;
   -webkit-appearance: none;
+  overflow: hidden;
+  transform: translateZ(0);
+  transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease), border-color 0.35s ease;
+}
+
+.shot-hit:hover,
+.shot-hit:focus-visible {
+  transform: scale(1.06);
+  border-color: rgba(255, 159, 67, 0.55);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
+  z-index: 2;
 }
 
 .shot-hit:focus-visible {
@@ -776,6 +787,14 @@ h2 {
   box-shadow: none;
   display: block;
   pointer-events: none;
+  transform: scale(1);
+  transform-origin: center center;
+  transition: transform 0.45s var(--ease);
+}
+
+.shot-hit:hover img,
+.shot-hit:focus-visible img {
+  transform: scale(1.08);
 }
 
 /* Auto-scrolling screenshot carousel (JS-driven transform) */
@@ -786,6 +805,9 @@ h2 {
 
 .shot-carousel-viewport {
   overflow: hidden;
+  /* Room for hover scale so frames aren't clipped top/bottom */
+  padding: 0.5rem 0 0.75rem;
+  margin: -0.5rem 0 -0.75rem;
   mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
 }
@@ -796,6 +818,20 @@ h2 {
   width: max-content;
   will-change: transform;
   transform: translate3d(0, 0, 0);
+  padding: 0.85rem 0.25rem 1.15rem;
+  align-items: center;
+}
+
+.shot {
+  position: relative;
+  z-index: 0;
+  transition: z-index 0s 0.35s;
+}
+
+.shot:has(.shot-hit:hover),
+.shot:has(.shot-hit:focus-visible) {
+  z-index: 3;
+  transition-delay: 0s;
 }
 
 .shot-carousel-fade {
@@ -958,6 +994,21 @@ body.lightbox-open {
 
   .shot-carousel-fade {
     display: none;
+  }
+
+  .shot-hit,
+  .shot-hit img {
+    transition: none;
+  }
+
+  .shot-hit:hover,
+  .shot-hit:focus-visible {
+    transform: none;
+  }
+
+  .shot-hit:hover img,
+  .shot-hit:focus-visible img {
+    transform: none;
   }
 
   .shot-lightbox {
