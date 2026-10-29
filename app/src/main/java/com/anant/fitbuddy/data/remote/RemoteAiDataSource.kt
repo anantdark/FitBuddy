@@ -259,7 +259,7 @@ class RemoteAiDataSource(
             messages = listOf(ChatMessage(role = "user", content = contentParts)),
             responseFormat = if (includeResponseFormat) ResponseFormat() else null,
             temperature = temperature,
-            enableThinking = disableThinkingForModel(settings.provider, settings.modelFor(hasImage))
+            enableThinking = disableThinkingForModel(settings, settings.modelFor(hasImage))
         )
         return chatWithRetry { api.chatCompletion(settings.chatUrl, settings.authHeader, request) }
     }
@@ -273,7 +273,7 @@ class RemoteAiDataSource(
             model = settings.modelFor(false),
             messages = listOf(ChatMessagePlain(role = "user", content = promptText)),
             temperature = temperature,
-            enableThinking = disableThinkingForModel(settings.provider, settings.modelFor(false))
+            enableThinking = disableThinkingForModel(settings, settings.modelFor(false))
         )
         return chatWithRetry { api.chatCompletionPlain(settings.chatUrl, settings.authHeader, request) }
     }
@@ -343,8 +343,18 @@ class RemoteAiDataSource(
      * FitBuddy's non-streaming JSON calls unless thinking is disabled. Self-hosted providers
      * (CUSTOM / OLLAMA) often expose aliases that hide the real model id, so always send
      * `enable_thinking: false` there; gateways that ignore the field are unaffected.
+     *
+     * Official OpenAI (`api.openai.com`) rejects unknown fields with HTTP 400, so omit the
+     * parameter entirely when CUSTOM points at that host (or the legacy OPENAI provider).
      */
-    private fun disableThinkingForModel(provider: AiProvider, modelId: String): Boolean? {
+    private fun disableThinkingForModel(settings: AppSettings, modelId: String): Boolean? {
+        val provider = settings.provider
+        if (provider == AiProvider.OPENAI) return null
+        if (provider == AiProvider.CUSTOM &&
+            AppSettings.isOfficialOpenAiBaseUrl(settings.customEffectiveBaseUrl)
+        ) {
+            return null
+        }
         if (provider == AiProvider.CUSTOM || provider == AiProvider.OLLAMA) return false
         if (!isLikelyThinkingModel(modelId)) return null
         return false
