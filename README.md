@@ -13,6 +13,18 @@ AI-powered health tracker for Android with region-aware diets and daily routines
 
 [<img src="https://img.shields.io/badge/Get_it_on-AndroidFreeware-blue?style=for-the-badge&logo=android" alt="Get it on AndroidFreeware" height="80">](https://www.androidfreeware.net/download-fitbuddy-apk.html)
 
+## Screenshots
+
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Dashboard" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Log hub" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Meal review" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Week history" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Progress" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Daily targets" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" alt="Settings" width="180" />
+</p>
+
 ## Features
 
 - **Region packs** — personalise AI prompts, staples, portion language, and log examples to your region
