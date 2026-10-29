@@ -79,7 +79,9 @@
     });
   }
 
-  // Infinite screenshot marquee (JS-driven — no CSS animation / hover traps)
+  // Infinite screenshot marquee (JS-driven).
+  // Prefers-reduced-motion only changes the *default* (start paused);
+  // the play button always works as an explicit user override.
   document.querySelectorAll("[data-carousel]").forEach((root) => {
     const track = root.querySelector(".shot-carousel-track");
     const viewport = root.querySelector(".shot-carousel-viewport");
@@ -90,19 +92,17 @@
 
     const originals = Array.from(track.children);
     if (!originals.length) return;
-    // Duplicate set for seamless loop
     originals.forEach((node) => track.appendChild(node.cloneNode(true)));
 
     let offset = 0;
     let loopWidth = 0;
     let playing = !reduce;
     let hovering = false;
-    let raf = 0;
     let lastTs = 0;
     const speed = 42; // px/sec
+    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
     const measure = () => {
-      // First half of the duplicated track
       loopWidth = track.scrollWidth / 2;
       if (loopWidth > 0) offset = ((offset % loopWidth) + loopWidth) % loopWidth;
       track.style.transform = `translate3d(${-offset}px, 0, 0)`;
@@ -112,15 +112,19 @@
       if (!lastTs) lastTs = ts;
       const dt = Math.min(0.064, (ts - lastTs) / 1000);
       lastTs = ts;
-      if (playing && !hovering && loopWidth > 0) {
+      // Only soft-pause on hover for fine pointers (desktop). Phones keep scrolling under a finger rest.
+      const pauseForHover = finePointer && hovering;
+      if (playing && !pauseForHover && loopWidth > 0) {
         offset += speed * dt;
         if (offset >= loopWidth) offset -= loopWidth;
         track.style.transform = `translate3d(${-offset}px, 0, 0)`;
       }
-      raf = requestAnimationFrame(paint);
+      requestAnimationFrame(paint);
     };
 
     const syncPlayUi = () => {
+      root.classList.toggle("is-playing", playing);
+      root.classList.toggle("is-paused", !playing);
       if (!playBtn) return;
       playBtn.classList.toggle("is-playing", playing);
       playBtn.setAttribute("aria-pressed", String(!playing));
@@ -129,11 +133,7 @@
     };
 
     const setPlaying = (value) => {
-      if (reduce) {
-        playing = false;
-      } else {
-        playing = value;
-      }
+      playing = Boolean(value);
       lastTs = 0;
       syncPlayUi();
     };
@@ -144,6 +144,7 @@
     };
 
     const nudge = (dir) => {
+      if (loopWidth <= 0) measure();
       if (loopWidth <= 0) return;
       offset += dir * stepPx();
       offset = ((offset % loopWidth) + loopWidth) % loopWidth;
@@ -158,7 +159,6 @@
       else measure();
     });
 
-    // Soft-pause while pointer is over the image strip only (not the buttons)
     viewport.addEventListener("pointerenter", () => {
       hovering = true;
     });
@@ -167,15 +167,21 @@
       lastTs = 0;
     });
 
-    playBtn?.addEventListener("click", () => {
-      if (reduce) return;
+    playBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       setPlaying(!playing);
     });
-    prev?.addEventListener("click", () => nudge(-1));
-    next?.addEventListener("click", () => nudge(1));
+    prev?.addEventListener("click", (e) => {
+      e.preventDefault();
+      nudge(-1);
+    });
+    next?.addEventListener("click", (e) => {
+      e.preventDefault();
+      nudge(1);
+    });
 
-    if (!reduce) raf = requestAnimationFrame(paint);
-    // If reduced motion, keep track static but still allow manual nudges via overflow scroll fallback
+    requestAnimationFrame(paint);
   });
 
   // Screenshot lightbox / fullscreen zoom
