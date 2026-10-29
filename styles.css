@@ -710,7 +710,7 @@ h2 {
 
 .phone-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1.25rem;
   margin-top: 2rem;
   align-items: end;
@@ -737,6 +737,27 @@ h2 {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--mist);
+}
+
+/* Framed store/marketing screenshots (caption + Pixel bezel baked in) */
+.shots-row {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.85rem;
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+  background: #fff;
 }
 
 .store-row {
@@ -878,12 +899,21 @@ img, video {
   }
 
   .phone-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.65rem;
   }
 
   .phone img {
     border-radius: 0.7rem;
+  }
+
+  .shots-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .shot img {
+    border-radius: 0.6rem;
   }
 
   .site-footer {
@@ -964,6 +994,16 @@ img, video {
 
   .phone img {
     max-width: min(260px, 78vw);
+  }
+
+  .shots-row {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 1.1rem;
+  }
+
+  .shot img {
+    max-width: min(360px, 92vw);
   }
 
   .store-badge img {

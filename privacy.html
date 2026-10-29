@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Privacy — FitBuddy</title>
-  <meta name="description" content="What FitBuddy stores on your device, what is sent to AI providers, optional cloud backup, and crash reports." />
+  <meta name="description" content="What FitBuddy stores on your device, what is sent to AI providers, optional cloud backup, crash reports, and how to request data deletion." />
   <link rel="canonical" href="https://anantdark.github.io/FitBuddy/privacy.html" />
   <link rel="icon" href="assets/icon-mark.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -27,11 +27,13 @@
   <div class="docs-layout">
     <aside class="docs-nav">
       <p class="docs-nav-title">Privacy</p>
+      <a href="#controller">Who is responsible</a>
       <a href="#device">On your device</a>
       <a href="#ai">AI provider</a>
       <a href="#cloud">Cloud backup</a>
       <a href="#network">Other network</a>
       <a href="#sentry">Crash reports</a>
+      <a href="#rights">Your rights &amp; deletion</a>
       <a href="#permissions">Permissions</a>
     </aside>
 
@@ -43,6 +45,16 @@
         Network calls only happen for features you use. There is no FitBuddy account.
       </p>
 
+      <section id="controller">
+        <h2>Who is responsible</h2>
+        <p>
+          FitBuddy is developed by Anant (open source, GPL-3.0). For privacy questions or
+          remote data-deletion requests, email
+          <a href="mailto:fitbuddy31@proton.me">fitbuddy31@proton.me</a>
+          and include your <strong>Support ID</strong> (Settings → Backup) when relevant.
+        </p>
+      </section>
+
       <section id="device">
         <h2>Stored on your device</h2>
         <ul>
@@ -53,7 +65,11 @@
           <li>Optional local JSON backups (optionally password-encrypted)</li>
           <li>Anonymous Support ID (not your name or email)</li>
         </ul>
-        <p>Uninstalling removes local data unless you kept an export or cloud backup under your Support ID.</p>
+        <p>
+          Uninstalling removes local data unless you kept an export or cloud backup under your Support ID.
+          FitBuddy does <strong>not</strong> use Android Auto Backup (Google’s automatic app-data backup).
+          Supported backups are local JSON export and optional MongoDB cloud backup only.
+        </p>
       </section>
 
       <section id="ai">
@@ -88,7 +104,12 @@
         <p>
           When enabled, FitBuddy can upload <strong>gzip-compressed, AES-256-GCM encrypted</strong>
           backups keyed by your Support ID. Encryption happens on-device before upload.
+          A custom password is optional (blank uses Support ID–based protection for convenience).
           Off by default. Details: <a href="encryption.html">Encryption</a>.
+        </p>
+        <p>
+          To request deletion of a cloud backup you no longer control from the app, email
+          <a href="mailto:fitbuddy31@proton.me">fitbuddy31@proton.me</a> with your Support ID.
         </p>
       </section>
 
@@ -107,10 +128,26 @@
       <section id="sentry">
         <h2>Optional crash reports (Sentry)</h2>
         <p>
-          If enabled, anonymous crash/ANR data may be sent to help fix bugs.
+          If crash reporting is enabled, anonymous crash/ANR data may be sent to help fix bugs.
+          Traffic goes through FitBuddy’s cloud ingest to Sentry. Your name is not sent.
           <strong>Not sent:</strong> meals, photos, API keys, freeform food text.
-          Opt out anytime in Settings. Share your Support ID when asking for help.
         </p>
+        <p>
+          Opt out anytime in Settings. Share your Support ID when asking for help.
+          To request deletion of Sentry events tied to your Support ID, email
+          <a href="mailto:fitbuddy31@proton.me">fitbuddy31@proton.me</a>.
+        </p>
+      </section>
+
+      <section id="rights">
+        <h2>Your rights &amp; deletion</h2>
+        <ul>
+          <li><strong>Local data</strong> — delete entries in-app, export/import JSON, or uninstall.</li>
+          <li><strong>Cloud backup / Sentry</strong> — email
+            <a href="mailto:fitbuddy31@proton.me">fitbuddy31@proton.me</a>
+            with your Support ID and what you want removed.</li>
+          <li><strong>AI providers</strong> — contact the provider you configured; FitBuddy does not control their retention.</li>
+        </ul>
       </section>
 
       <section id="permissions">
