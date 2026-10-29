@@ -10,9 +10,9 @@ data class ScannedProduct(
     val barcode: String,
     val name: String,
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double,
     val servingGrams: Int? = null
 )
 

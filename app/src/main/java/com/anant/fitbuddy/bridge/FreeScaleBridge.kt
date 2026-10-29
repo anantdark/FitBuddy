@@ -3,7 +3,6 @@ package com.anant.fitbuddy.bridge
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Bundle
 import android.util.Log
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.database.BodyMeasurement

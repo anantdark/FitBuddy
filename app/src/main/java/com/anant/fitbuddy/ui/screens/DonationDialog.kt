@@ -35,10 +35,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +56,8 @@ import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.theme.appShape
 import com.anant.fitbuddy.util.SystemToast
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 private const val RAZORPAY_DONATION_URL = "https://rzp.io/rzp/fitbuddy"
 private const val GITHUB_SPONSORS_URL = "https://github.com/sponsors/anantdark"

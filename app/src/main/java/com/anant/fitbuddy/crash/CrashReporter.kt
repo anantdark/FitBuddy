@@ -244,10 +244,6 @@ object CrashReporter {
             Log.e(TAG, "heartbeat failed", e)
         }.getOrDefault(false)
 
-    /** @see sendHeartbeat */
-    fun sendDailyHeartbeat(info: HeartbeatInfo, force: Boolean = false): Boolean =
-        sendHeartbeat(info, if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY)
-
     /**
      * One count per active install/day, tagged for grouping in Explore → Metrics
      * (e.g. group by `model` / `app_version`). Also a structured log for sample rows.

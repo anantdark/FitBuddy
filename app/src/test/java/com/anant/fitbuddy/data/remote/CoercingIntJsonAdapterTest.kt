@@ -17,7 +17,7 @@ class CoercingIntJsonAdapterTest {
         .build()
 
     @Test
-    fun foodLog_acceptsFractionalMacros() {
+    fun foodLog_keepsFractionalMacros() {
         val json = """
             {
               "id": 1,
@@ -33,9 +33,9 @@ class CoercingIntJsonAdapterTest {
 
         val log = moshi.adapter(FoodLog::class.java).fromJson(json)!!
 
-        assertEquals(83, log.proteinG)
-        assertEquals(239, log.carbsG)
-        assertEquals(71, log.fatsG)
+        assertEquals(83.2, log.proteinG, 0.0)
+        assertEquals(238.9, log.carbsG, 0.0)
+        assertEquals(71.0, log.fatsG, 0.0)
         assertEquals(1955, log.calories)
     }
 
@@ -62,7 +62,7 @@ class CoercingIntJsonAdapterTest {
 
         assertNull(food.presetId)
         assertNull(food.barcode)
-        assertEquals(12, food.proteinG)
+        assertEquals(11.9, food.proteinG, 0.0)
     }
 
     @Test
@@ -79,7 +79,7 @@ class CoercingIntJsonAdapterTest {
         assertEquals(4, data.version)
         assertEquals(35, data.foodLogs.size)
         assertEquals(130, data.mealFoods.size)
-        assertEquals(83, data.foodLogs[0].proteinG)
+        assertEquals(83.2, data.foodLogs[0].proteinG, 0.0)
         assertNull(data.mealFoods[0].presetId)
     }
 }

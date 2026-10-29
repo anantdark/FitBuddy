@@ -48,7 +48,6 @@ import com.anant.fitbuddy.data.database.WorkoutSession
 import com.anant.fitbuddy.data.database.WorkoutSessionDao
 import com.anant.fitbuddy.data.model.CatalogExercise
 import com.anant.fitbuddy.data.model.CustomCatalogEntry
-import com.anant.fitbuddy.data.model.CustomExerciseResponse
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.ExerciseLoggingMode
 import com.anant.fitbuddy.data.model.GifSuggestion
@@ -57,7 +56,6 @@ import com.anant.fitbuddy.data.remote.gymgifs.GymGifsCatalogRepository
 import com.anant.fitbuddy.data.model.NutritionTargetHistory
 import com.anant.fitbuddy.data.model.mergeCatalogWithCustoms
 import com.anant.fitbuddy.data.model.ExerciseDraft
-import com.anant.fitbuddy.data.model.isTimedHoldExercise
 import com.anant.fitbuddy.data.model.classifyCustomExerciseOffline
 import com.anant.fitbuddy.data.model.parseLoggingMode
 import com.anant.fitbuddy.data.model.resolveLoggingMode
@@ -68,7 +66,6 @@ import com.anant.fitbuddy.data.model.FoodAnalysis
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.MealDraft
-import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.IndiaRegionPack
 import com.anant.fitbuddy.data.region.RegionPack
@@ -77,7 +74,6 @@ import com.anant.fitbuddy.data.region.RegionalDish
 import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.model.toPresetMealFood
-import com.anant.fitbuddy.data.model.toSingleFoodMeal
 import com.anant.fitbuddy.data.model.Ingredient
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.LoggedIngredient
@@ -132,8 +128,6 @@ class FitnessRepository(
     private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
-    val allFoodLogs: Flow<List<FoodLog>> = foodLogDao.getAllFoodLogs()
-    val allExerciseLogs: Flow<List<ExerciseLog>> = exerciseLogDao.getAllExerciseLogs()
 
     /** True when a profile with age/weight/height already exists (past first-run onboarding). */
     suspend fun hasBasicsConfiguredProfile(): Boolean =
@@ -193,10 +187,6 @@ class FitnessRepository(
     val exerciseCatalogBodyParts: Flow<List<String>> = exerciseCatalogRepository.bodyParts
     val exerciseCatalogEquipments: Flow<List<String>> = exerciseCatalogRepository.equipments
     val exerciseCatalogLoading: Flow<Boolean> = exerciseCatalogRepository.isLoading
-
-    suspend fun ensureExerciseCatalogLoaded(forceRefresh: Boolean = false) {
-        exerciseCatalogRepository.ensureLoaded(forceRefresh)
-    }
 
     /** Records a pick so Recent / Frequent sections stay accurate. */
     suspend fun recordExerciseUsage(name: String, exerciseId: String? = null) {
@@ -258,7 +248,6 @@ class FitnessRepository(
 
     val bodyMeasurements: Flow<List<BodyMeasurement>> = bodyMeasurementDao.getAll()
     val latestMeasurement: Flow<BodyMeasurement?> = bodyMeasurementDao.getLatest()
-    fun getRecentMeasurements(limit: Int): Flow<List<BodyMeasurement>> = bodyMeasurementDao.getRecent(limit)
 
     /** Saves a reading and mirrors the actual latest reading's weight onto the profile. */
     suspend fun addMeasurement(measurement: BodyMeasurement) {
@@ -898,14 +887,8 @@ class FitnessRepository(
     /** One query for all of today's food calories + macros (replaces four SUM observers). */
     fun getFoodTotalsToday(dateString: String): Flow<FoodTotals> = foodLogDao.getFoodTotalsForDate(dateString)
 
-    fun getWeeklyFoodSummaries(): Flow<List<FoodDailySummary>> = foodLogDao.getHistoricalFoodSummaries(7)
-    fun getMonthlyFoodSummaries(): Flow<List<FoodDailySummary>> = foodLogDao.getHistoricalFoodSummaries(30)
-
     fun getFoodSummariesBetween(startDate: String, endDate: String): Flow<List<FoodDailySummary>> =
         foodLogDao.getFoodSummariesBetween(startDate, endDate)
-
-    fun getWeeklyExerciseSummaries(): Flow<List<ExerciseDailySummary>> = exerciseLogDao.getHistoricalExerciseSummaries(7)
-    fun getMonthlyExerciseSummaries(): Flow<List<ExerciseDailySummary>> = exerciseLogDao.getHistoricalExerciseSummaries(30)
 
     fun getExerciseSummariesBetween(startDate: String, endDate: String): Flow<List<ExerciseDailySummary>> =
         exerciseLogDao.getExerciseSummariesBetween(startDate, endDate)
@@ -1521,22 +1504,6 @@ class FitnessRepository(
         ensureSignupDateFromLogs()
     }
 
-    /** Convenience: log a single reviewed food as a one-food meal. */
-    suspend fun saveFoodDraft(draft: FoodDraft, id: Int = 0) {
-        saveMealDraft(draft.toSingleFoodMeal(), id)
-    }
-
-    data class MealDetails(
-        val meal: FoodLog,
-        val foods: List<MealFood>
-    )
-
-    suspend fun getMealDetails(mealLogId: Int): MealDetails? {
-        val meal = foodLogDao.getById(mealLogId) ?: return null
-        val foods = mealFoodDao.getForMealOnce(mealLogId)
-        return MealDetails(meal, foods)
-    }
-
     /** Rebuilds an editable meal draft from a stored log, preserving the food → ingredient tree. */
     suspend fun mealLogToMealDraft(log: FoodLog): MealDraft {
         val foods = mealFoodDao.getForMealOnce(log.id)
@@ -1551,13 +1518,6 @@ class FitnessRepository(
             foods = entries,
             iconTopic = log.iconTopic
         )
-    }
-
-    /** @deprecated Use [mealLogToMealDraft]; kept for single-food edit paths. */
-    suspend fun foodLogToDraft(log: FoodLog): FoodDraft {
-        val meal = mealLogToMealDraft(log)
-        val first = meal.foods.firstOrNull() ?: legacyMealFoodFallback(log)
-        return first.toFoodDraft().copy(dishName = log.dishName, timestamp = log.timestamp)
     }
 
     private fun legacyMealFoodFallback(log: FoodLog): FoodEntryDraft = FoodEntryDraft(
@@ -2166,7 +2126,7 @@ class FitnessRepository(
                     clarificationMessage = null,
                     foodAnalysis = FoodAnalysis(
                         dishName = dish,
-                        macros = Macros(c, p, cr, f),
+                        macros = Macros(c, p.toDouble(), cr.toDouble(), f.toDouble()),
                         ingredients = buildSimIngredients(input, query, c, p, cr, f),
                         iconTopic = simulateFoodIconTopic(query)
                     ),
@@ -2247,7 +2207,7 @@ class FitnessRepository(
             clarificationMessage = null,
             foodAnalysis = FoodAnalysis(
                 dishName = dish.name,
-                macros = Macros(dish.calories, dish.proteinG, dish.carbsG, dish.fatsG),
+                macros = Macros(dish.calories, dish.proteinG.toDouble(), dish.carbsG.toDouble(), dish.fatsG.toDouble()),
                 iconTopic = simulateFoodIconTopic(query),
                 ingredients = listOf(
                     Ingredient(
@@ -2255,9 +2215,9 @@ class FitnessRepository(
                         quantity = 1,
                         weightG = dish.weightG,
                         calories = dish.calories,
-                        proteinG = dish.proteinG,
-                        carbsG = dish.carbsG,
-                        fatsG = dish.fatsG
+                        proteinG = dish.proteinG.toDouble(),
+                        carbsG = dish.carbsG.toDouble(),
+                        fatsG = dish.fatsG.toDouble()
                     )
                 )
             ),
@@ -2379,16 +2339,15 @@ class FitnessRepository(
                 quantity = quantity,
                 weightG = weightG,
                 calories = ic,
-                proteinG = ip,
-                carbsG = icr,
-                fatsG = ifa
+                proteinG = ip.toDouble(),
+                carbsG = icr.toDouble(),
+                fatsG = ifa.toDouble()
             )
         }
     }
 
     private data class Quintet<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
-    private data class Triplet<A, B, C>(val first: A, val second: B, val third: C)
 
     /** Coarse topic for the offline simulator only (live path uses AI `icon_topic`). */
     private fun simulateFoodIconTopic(query: String): String = when {

@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -35,11 +36,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +68,8 @@ import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 // Macro accent colors shared with the stacked bar chart legend.
 private val ProteinColor = MacroProteinColor
@@ -288,8 +289,8 @@ private fun MacroRow(state: DashboardUiState) {
 @Composable
 private fun MacroCard(
     label: String,
-    remaining: Int,
-    consumed: Int,
+    remaining: Double,
+    consumed: Double,
     target: Int,
     color: Color,
     isFlipped: Boolean,
@@ -339,7 +340,7 @@ private fun MacroCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "${remaining}g",
+                    text = "${remaining.formatMacro()}g",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -376,7 +377,7 @@ private fun MacroCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "${consumed}g",
+                    text = "${consumed.formatMacro()}g",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = color
@@ -919,7 +920,7 @@ private fun rememberCombinedLogs(
     val food = foodLogs.map {
         LogRowItem(
             title = it.dishName,
-            subtitle = "${it.proteinG}p · ${it.carbsG}c · ${it.fatsG}f",
+            subtitle = "${it.proteinG.formatMacro()}p · ${it.carbsG.formatMacro()}c · ${it.fatsG.formatMacro()}f",
             calories = it.calories,
             timestamp = it.timestamp,
             isFood = true,

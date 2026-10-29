@@ -79,9 +79,9 @@ data class FoodLog(
     val timestamp: Long,
     val dateString: String, // format: "YYYY-MM-DD"
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double,
     /** AI [LogIconTopic] id for the dashboard glyph; null → default meal icon. */
     val iconTopic: String? = null
 )
@@ -110,9 +110,9 @@ data class MealFood(
     val servings: Double,
     val orderIndex: Int = 0,
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double,
     val ingredients: List<LoggedIngredient>? = null,
     val presetId: Int? = null,
     val barcode: String? = null
@@ -138,9 +138,9 @@ data class SavedFood(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double,
     val createdAt: Long,
     val barcode: String? = null,
     val ingredients: List<LoggedIngredient>? = null,
@@ -157,9 +157,9 @@ data class MealPreset(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val calories: Int,
-    val proteinG: Int,
-    val carbsG: Int,
-    val fatsG: Int,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatsG: Double,
     val createdAt: Long,
     val foods: List<com.anant.fitbuddy.data.model.PresetMealFood>? = null,
     /** Epoch ms of last pick/log; higher values sort first in the library. */

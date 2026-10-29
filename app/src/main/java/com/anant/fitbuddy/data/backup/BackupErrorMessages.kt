@@ -23,10 +23,6 @@ object BackupErrorMessages {
     /** Envelope exists but is corrupted or truncated — distinct from wrong password (Req 10.5). */
     const val BACKUP_CORRUPT = "Backup is corrupt or damaged"
 
-    /** Bytes cannot be parsed as any known backup format (Requirement 10.3). */
-    fun backupUnreadable(reason: String?): String =
-        "Backup is unreadable" + if (!reason.isNullOrBlank()) ": $reason" else ""
-
     /** File is neither an envelope nor a legacy payload (Requirements 2.7, 9.6). */
     const val NOT_VALID_BACKUP = "Not a valid backup"
 

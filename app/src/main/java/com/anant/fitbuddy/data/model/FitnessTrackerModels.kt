@@ -28,17 +28,17 @@ data class Ingredient(
     /** Total grams for this ingredient line (all units combined). */
     @Json(name = "weight_g") val weightG: Int,
     @Json(name = "calories") val calories: Int,
-    @Json(name = "protein_g") val proteinG: Int,
-    @Json(name = "carbs_g") val carbsG: Int,
-    @Json(name = "fats_g") val fatsG: Int
+    @Json(name = "protein_g") val proteinG: Double,
+    @Json(name = "carbs_g") val carbsG: Double,
+    @Json(name = "fats_g") val fatsG: Double
 )
 
 @JsonClass(generateAdapter = true)
 data class Macros(
     @Json(name = "calories") val calories: Int,
-    @Json(name = "protein_g") val proteinG: Int,
-    @Json(name = "carbs_g") val carbsG: Int,
-    @Json(name = "fats_g") val fatsG: Int
+    @Json(name = "protein_g") val proteinG: Double,
+    @Json(name = "carbs_g") val carbsG: Double,
+    @Json(name = "fats_g") val fatsG: Double
 )
 
 /**

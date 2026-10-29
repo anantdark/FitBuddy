@@ -434,6 +434,23 @@ class RemoteAiDataSourceTest {
     }
 
     @Test
+    fun `analyze omits enable_thinking for official OpenAI CUSTOM host`() = runTest {
+        val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
+        val source = RemoteAiDataSource(api, moshi)
+        val openAi = AppSettings(
+            provider = AiProvider.CUSTOM,
+            customBaseUrl = AppSettings.DEFAULT_CUSTOM_BASE_URL,
+            customApiKey = "sk-test",
+            customModel = "gpt-4o",
+            customTextModel = "gpt-4o"
+        )
+
+        source.analyze(openAi, "idli", "{}", null)
+
+        assertNull(api.lastChatRequest?.enableThinking)
+    }
+
+    @Test
     fun `analyze sends enable_thinking false for OLLAMA regardless of model id`() = runTest {
         val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
         val source = RemoteAiDataSource(api, moshi)

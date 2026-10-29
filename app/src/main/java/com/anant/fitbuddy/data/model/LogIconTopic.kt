@@ -44,15 +44,6 @@ object LogIconTopic {
         CHEST, BACK, LEGS, ARMS, SHOULDERS, CORE, STRENGTH
     )
 
-    /** Prompt snippet listing allowed food topics for the analyzer. */
-    const val FOOD_PROMPT_LIST =
-        "drink | dessert | bakery | bowl | protein | produce | meal"
-
-    /** Prompt snippet listing allowed exercise topics for the analyzer. */
-    const val EXERCISE_PROMPT_LIST =
-        "run | walk | cycle | swim | mind_body | sport | cardio | " +
-            "chest | back | legs | arms | shoulders | core | strength"
-
     fun normalizeFood(raw: String?): String =
         raw?.trim()?.lowercase()?.takeIf { it in FOOD_TOPICS } ?: MEAL
 

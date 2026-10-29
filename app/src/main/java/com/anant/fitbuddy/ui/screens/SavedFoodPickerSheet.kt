@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,10 +31,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -43,6 +42,8 @@ import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.ui.components.IconButton
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.pressable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 enum class SavedFoodSheetMode { PICK_FOR_MEAL, LOG_TO_DAY, MANAGE_LIBRARY }
 
@@ -216,7 +217,7 @@ private fun SavedFoodRow(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "${food.calories} kcal · P ${food.proteinG}g · C ${food.carbsG}g · F ${food.fatsG}g",
+                text = "${food.calories} kcal · P ${food.proteinG.formatMacro()}g · C ${food.carbsG.formatMacro()}g · F ${food.fatsG.formatMacro()}g",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

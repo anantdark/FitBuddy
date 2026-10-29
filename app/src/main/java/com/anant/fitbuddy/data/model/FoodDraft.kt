@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.data.model
 
 import androidx.compose.runtime.Immutable
+import com.anant.fitbuddy.util.roundMacro
 import kotlin.math.roundToInt
 
 /**
@@ -23,14 +24,16 @@ data class IngredientDraft(
     val weightG: Int get() = quantity * unitWeightG
 
     val calories: Int get() = scale(kcalPer100)
-    val protein: Int get() = scale(proteinPer100)
-    val carbs: Int get() = scale(carbsPer100)
-    val fats: Int get() = scale(fatsPer100)
+    val protein: Double get() = scaleMacro(proteinPer100)
+    val carbs: Double get() = scaleMacro(carbsPer100)
+    val fats: Double get() = scaleMacro(fatsPer100)
 
     private fun scale(per100: Double): Int = (per100 * weightG / 100.0).roundToInt()
 
+    private fun scaleMacro(per100: Double): Double = (per100 * weightG / 100.0).roundMacro()
+
     /** Recomputes per-100g rates so displayed totals match the given values at current [weightG]. */
-    fun withTotals(calories: Int, protein: Int, carbs: Int, fats: Int): IngredientDraft {
+    fun withTotals(calories: Int, protein: Double, carbs: Double, fats: Double): IngredientDraft {
         val w = weightG.coerceAtLeast(1)
         val factor = 100.0 / w
         return copy(
@@ -51,9 +54,9 @@ data class IngredientDraft(
             name: String,
             weightG: Int,
             calories: Int,
-            protein: Int,
-            carbs: Int,
-            fats: Int,
+            protein: Double,
+            carbs: Double,
+            fats: Double,
             quantity: Int = 1
         ): IngredientDraft {
             val qty = quantity.coerceAtLeast(1)
@@ -82,7 +85,7 @@ data class FoodDraft(
     val iconTopic: String? = null
 ) {
     val totalCalories: Int get() = ingredients.sumOf { it.calories }
-    val totalProtein: Int get() = ingredients.sumOf { it.protein }
-    val totalCarbs: Int get() = ingredients.sumOf { it.carbs }
-    val totalFats: Int get() = ingredients.sumOf { it.fats }
+    val totalProtein: Double get() = ingredients.sumOf { it.protein }.roundMacro()
+    val totalCarbs: Double get() = ingredients.sumOf { it.carbs }.roundMacro()
+    val totalFats: Double get() = ingredients.sumOf { it.fats }.roundMacro()
 }

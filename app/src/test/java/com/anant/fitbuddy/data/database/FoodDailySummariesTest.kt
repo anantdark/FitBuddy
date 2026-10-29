@@ -8,8 +8,8 @@ class FoodDailySummariesTest {
     @Test
     fun `filledForDateRange inserts zero days newest first`() {
         val logged = listOf(
-            FoodDailySummary("2026-07-15", 500, 20, 40, 10),
-            FoodDailySummary("2026-07-13", 400, 15, 30, 8)
+            FoodDailySummary("2026-07-15", 500, 20.0, 40.0, 10.0),
+            FoodDailySummary("2026-07-13", 400, 15.0, 30.0, 8.0)
         )
         val filled = logged.filledForDateRange("2026-07-13", "2026-07-15")
         assertEquals(

@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.data.model
 
 import androidx.compose.runtime.Immutable
+import com.anant.fitbuddy.util.roundMacro
 import kotlin.math.roundToInt
 
 /**
@@ -16,15 +17,15 @@ data class FoodEntryDraft(
     val barcode: String? = null
 ) {
     val baseCalories: Int get() = ingredients.sumOf { it.calories }
-    val baseProtein: Int get() = ingredients.sumOf { it.protein }
-    val baseCarbs: Int get() = ingredients.sumOf { it.carbs }
-    val baseFats: Int get() = ingredients.sumOf { it.fats }
+    val baseProtein: Double get() = ingredients.sumOf { it.protein }.roundMacro()
+    val baseCarbs: Double get() = ingredients.sumOf { it.carbs }.roundMacro()
+    val baseFats: Double get() = ingredients.sumOf { it.fats }.roundMacro()
     val baseWeightG: Int get() = ingredients.sumOf { it.weightG }
 
     val totalCalories: Int get() = (baseCalories * servings).roundToInt()
-    val totalProtein: Int get() = (baseProtein * servings).roundToInt()
-    val totalCarbs: Int get() = (baseCarbs * servings).roundToInt()
-    val totalFats: Int get() = (baseFats * servings).roundToInt()
+    val totalProtein: Double get() = (baseProtein * servings).roundMacro()
+    val totalCarbs: Double get() = (baseCarbs * servings).roundMacro()
+    val totalFats: Double get() = (baseFats * servings).roundMacro()
     val totalWeightG: Int get() = (baseWeightG * servings).roundToInt()
 }
 
@@ -38,9 +39,9 @@ data class MealDraft(
     val iconTopic: String? = null
 ) {
     val totalCalories: Int get() = foods.sumOf { it.totalCalories }
-    val totalProtein: Int get() = foods.sumOf { it.totalProtein }
-    val totalCarbs: Int get() = foods.sumOf { it.totalCarbs }
-    val totalFats: Int get() = foods.sumOf { it.totalFats }
+    val totalProtein: Double get() = foods.sumOf { it.totalProtein }.roundMacro()
+    val totalCarbs: Double get() = foods.sumOf { it.totalCarbs }.roundMacro()
+    val totalFats: Double get() = foods.sumOf { it.totalFats }.roundMacro()
 
     val foodCount: Int get() = foods.size
 }
@@ -68,4 +69,3 @@ fun FoodDraft.toSingleFoodMeal(): MealDraft = MealDraft(
     iconTopic = iconTopic
 )
 
-fun FoodDraft.toMealBuilderItems(): List<FoodEntryDraft> = listOf(toFoodEntry())

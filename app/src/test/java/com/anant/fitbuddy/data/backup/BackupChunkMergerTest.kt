@@ -13,14 +13,14 @@ class BackupChunkMergerTest {
         val older = BackupData(
             exportedAt = 1L,
             foodLogs = listOf(
-                FoodLog(1, "a", 1L, "2026-01-01", 100, 1, 1, 1),
-                FoodLog(2, "b", 2L, "2026-01-02", 200, 2, 2, 2)
+                FoodLog(1, "a", 1L, "2026-01-01", 100, 1.0, 1.0, 1.0),
+                FoodLog(2, "b", 2L, "2026-01-02", 200, 2.0, 2.0, 2.0)
             )
         )
         val newer = BackupData(
             exportedAt = 2L,
             foodLogs = listOf(
-                FoodLog(2, "b-edited", 3L, "2026-01-02", 250, 2, 2, 2)
+                FoodLog(2, "b-edited", 3L, "2026-01-02", 250, 2.0, 2.0, 2.0)
             ),
             deletedFoodLogIds = listOf(1)
         )

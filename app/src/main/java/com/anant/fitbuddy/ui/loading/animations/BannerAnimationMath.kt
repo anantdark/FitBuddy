@@ -114,20 +114,6 @@ internal fun orbitalPoint(
     return Triple(x, y, z)
 }
 
-/** Legacy alias — same as [orbitalPoint] with sun derived from time. */
-internal fun helicalPoint(
-    spec: PlanetSpec,
-    tMs: Double,
-    cy: Float,
-    halfW: Float,
-    halfH: Float,
-    canvasW: Float
-): Triple<Float, Float, Float> {
-    val sx = sunX(tMs, canvasW)
-    val sy = sunY(tMs, halfH * 2f)
-    return orbitalPoint(spec, tMs, sx, sy, halfH, canvasW)
-}
-
 // ---------------------------------------------------------------------------
 // Depth mappings
 // ---------------------------------------------------------------------------

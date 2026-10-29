@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class,
         WorkoutExercise::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -167,7 +167,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_20_21,
                         MIGRATION_21_22,
                         MIGRATION_22_23,
-                        MIGRATION_23_24
+                        MIGRATION_23_24,
+                        MIGRATION_24_25
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -320,6 +321,126 @@ abstract class AppDatabase : RoomDatabase() {
         /** How-to instructions pulled alongside a matched GIF (JSON string array). */
         val MIGRATION_23_24 = migration(23, 24) { db ->
             db.execSQL("ALTER TABLE exercise_presets ADD COLUMN instructions TEXT")
+        }
+
+        /**
+         * Protein/carbs/fats move from INTEGER to REAL (one-decimal macros). SQLite cannot alter a
+         * column type, so each table is rebuilt and its existing whole-gram values are carried over.
+         */
+        val MIGRATION_24_25 = migration(24, 25) { db ->
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS food_logs_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dishName TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    dateString TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG REAL NOT NULL,
+                    carbsG REAL NOT NULL,
+                    fatsG REAL NOT NULL,
+                    iconTopic TEXT
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO food_logs_new (id, dishName, timestamp, dateString, calories, proteinG, carbsG, fatsG, iconTopic)
+                SELECT id, dishName, timestamp, dateString, calories,
+                       CAST(proteinG AS REAL), CAST(carbsG AS REAL), CAST(fatsG AS REAL), iconTopic
+                FROM food_logs
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE food_logs")
+            db.execSQL("ALTER TABLE food_logs_new RENAME TO food_logs")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS meal_foods_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    mealLogId INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    servings REAL NOT NULL,
+                    orderIndex INTEGER NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG REAL NOT NULL,
+                    carbsG REAL NOT NULL,
+                    fatsG REAL NOT NULL,
+                    ingredients TEXT,
+                    presetId INTEGER,
+                    barcode TEXT,
+                    FOREIGN KEY(mealLogId) REFERENCES food_logs(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO meal_foods_new (id, mealLogId, name, servings, orderIndex, calories, proteinG, carbsG, fatsG, ingredients, presetId, barcode)
+                SELECT id, mealLogId, name, servings, orderIndex, calories,
+                       CAST(proteinG AS REAL), CAST(carbsG AS REAL), CAST(fatsG AS REAL), ingredients, presetId, barcode
+                FROM meal_foods
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE meal_foods")
+            db.execSQL("ALTER TABLE meal_foods_new RENAME TO meal_foods")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_meal_foods_mealLogId ON meal_foods (mealLogId)")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS saved_foods_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG REAL NOT NULL,
+                    carbsG REAL NOT NULL,
+                    fatsG REAL NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    barcode TEXT,
+                    ingredients TEXT,
+                    lastUsedAt INTEGER NOT NULL,
+                    iconTopic TEXT
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO saved_foods_new (id, name, calories, proteinG, carbsG, fatsG, createdAt, barcode, ingredients, lastUsedAt, iconTopic)
+                SELECT id, name, calories,
+                       CAST(proteinG AS REAL), CAST(carbsG AS REAL), CAST(fatsG AS REAL),
+                       createdAt, barcode, ingredients, lastUsedAt, iconTopic
+                FROM saved_foods
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE saved_foods")
+            db.execSQL("ALTER TABLE saved_foods_new RENAME TO saved_foods")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS meal_presets_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    proteinG REAL NOT NULL,
+                    carbsG REAL NOT NULL,
+                    fatsG REAL NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    foods TEXT,
+                    lastUsedAt INTEGER NOT NULL,
+                    iconTopic TEXT
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO meal_presets_new (id, name, calories, proteinG, carbsG, fatsG, createdAt, foods, lastUsedAt, iconTopic)
+                SELECT id, name, calories,
+                       CAST(proteinG AS REAL), CAST(carbsG AS REAL), CAST(fatsG AS REAL),
+                       createdAt, foods, lastUsedAt, iconTopic
+                FROM meal_presets
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE meal_presets")
+            db.execSQL("ALTER TABLE meal_presets_new RENAME TO meal_presets")
         }
 
         /**

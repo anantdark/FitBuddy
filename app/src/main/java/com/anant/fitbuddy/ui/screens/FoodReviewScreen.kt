@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
+import com.anant.fitbuddy.ui.components.MacroTextField
+import com.anant.fitbuddy.ui.components.MacroValueField
+import com.anant.fitbuddy.util.toMacroOrNull
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,10 +40,8 @@ import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.util.SystemToast
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +56,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.ui.components.LogDateField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Full-screen editable review of an AI-analysed meal, shown before it is saved to the log. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -363,7 +367,7 @@ fun FoodReviewDialog(
 }
 
 @Composable
-fun TotalsCard(calories: Int, protein: Int, carbs: Int, fats: Int) {
+fun TotalsCard(calories: Int, protein: Double, carbs: Double, fats: Double) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -394,10 +398,10 @@ fun TotalsCard(calories: Int, protein: Int, carbs: Int, fats: Int) {
 }
 
 @Composable
-private fun MacroPill(label: String, grams: Int) {
+private fun MacroPill(label: String, grams: Double) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "${grams}g",
+            text = "${grams.formatMacro()}g",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -415,7 +419,7 @@ private fun IngredientCard(
     ingredient: IngredientDraft,
     onQuantityChange: (Int) -> Unit,
     onUnitWeightChange: (Int) -> Unit,
-    onMacrosChange: (calories: Int, protein: Int, carbs: Int, fats: Int) -> Unit,
+    onMacrosChange: (calories: Int, protein: Double, carbs: Double, fats: Double) -> Unit,
     onDelete: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -484,25 +488,31 @@ private fun IngredientCard(
                     ) { onMacrosChange(it, ingredient.protein, ingredient.carbs, ingredient.fats) }
                 }
                 Box(Modifier.weight(1f)) {
-                    MacroEditField(
+                    MacroValueField(
                         label = "Protein",
                         value = ingredient.protein,
+                        onValueChange = { onMacrosChange(ingredient.calories, it, ingredient.carbs, ingredient.fats) },
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = ingredient.weightG > 0
-                    ) { onMacrosChange(ingredient.calories, it, ingredient.carbs, ingredient.fats) }
+                    )
                 }
                 Box(Modifier.weight(1f)) {
-                    MacroEditField(
+                    MacroValueField(
                         label = "Carbs",
                         value = ingredient.carbs,
+                        onValueChange = { onMacrosChange(ingredient.calories, ingredient.protein, it, ingredient.fats) },
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = ingredient.weightG > 0
-                    ) { onMacrosChange(ingredient.calories, ingredient.protein, it, ingredient.fats) }
+                    )
                 }
                 Box(Modifier.weight(1f)) {
-                    MacroEditField(
+                    MacroValueField(
                         label = "Fats",
                         value = ingredient.fats,
+                        onValueChange = { onMacrosChange(ingredient.calories, ingredient.protein, ingredient.carbs, it) },
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = ingredient.weightG > 0
-                    ) { onMacrosChange(ingredient.calories, ingredient.protein, ingredient.carbs, it) }
+                    )
                 }
             }
         }
@@ -565,9 +575,9 @@ private fun AddIngredientDialog(
                 )
                 NumberField2("Calories per unit (kcal)", calories) { calories = it }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { NumberField2("Protein", protein) { protein = it } }
-                    Box(Modifier.weight(1f)) { NumberField2("Carbs", carbs) { carbs = it } }
-                    Box(Modifier.weight(1f)) { NumberField2("Fats", fats) { fats = it } }
+                    Box(Modifier.weight(1f)) { MacroTextField("Protein", protein, { protein = it }, Modifier.fillMaxWidth()) }
+                    Box(Modifier.weight(1f)) { MacroTextField("Carbs", carbs, { carbs = it }, Modifier.fillMaxWidth()) }
+                    Box(Modifier.weight(1f)) { MacroTextField("Fats", fats, { fats = it }, Modifier.fillMaxWidth()) }
                 }
             }
         },
@@ -583,9 +593,9 @@ private fun AddIngredientDialog(
                             name = name.trim(),
                             weightG = qty * unit,
                             calories = qty * (calories.toIntOrNull() ?: 0),
-                            protein = qty * (protein.toIntOrNull() ?: 0),
-                            carbs = qty * (carbs.toIntOrNull() ?: 0),
-                            fats = qty * (fats.toIntOrNull() ?: 0),
+                            protein = qty * (protein.toMacroOrNull() ?: 0.0),
+                            carbs = qty * (carbs.toMacroOrNull() ?: 0.0),
+                            fats = qty * (fats.toMacroOrNull() ?: 0.0),
                             quantity = qty
                         )
                     )

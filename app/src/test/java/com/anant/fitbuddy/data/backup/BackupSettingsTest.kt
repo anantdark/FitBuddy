@@ -220,9 +220,9 @@ class BackupSettingsTest {
                     timestamp = 11L,
                     dateString = "2026-07-19",
                     calories = 500,
-                    proteinG = 30,
-                    carbsG = 50,
-                    fatsG = 15
+                    proteinG = 30.0,
+                    carbsG = 50.0,
+                    fatsG = 15.0
                 )
             ),
             mealFoods = listOf(
@@ -233,9 +233,9 @@ class BackupSettingsTest {
                     servings = 1.5,
                     orderIndex = 1,
                     calories = 250,
-                    proteinG = 10,
-                    carbsG = 40,
-                    fatsG = 5,
+                    proteinG = 10.0,
+                    carbsG = 40.0,
+                    fatsG = 5.0,
                     ingredients = listOf(ingredient),
                     presetId = 4,
                     barcode = "890123"
@@ -256,9 +256,9 @@ class BackupSettingsTest {
                     id = 4,
                     name = "Oats",
                     calories = 150,
-                    proteinG = 5,
-                    carbsG = 27,
-                    fatsG = 3,
+                    proteinG = 5.0,
+                    carbsG = 27.0,
+                    fatsG = 3.0,
                     createdAt = 13L,
                     barcode = "890123",
                     ingredients = listOf(ingredient)
@@ -269,18 +269,18 @@ class BackupSettingsTest {
                     id = 6,
                     name = "Lunch box",
                     calories = 600,
-                    proteinG = 40,
-                    carbsG = 60,
-                    fatsG = 20,
+                    proteinG = 40.0,
+                    carbsG = 60.0,
+                    fatsG = 20.0,
                     createdAt = 14L,
                     foods = listOf(
                         PresetMealFood(
                             name = "Oats",
                             servings = 1.0,
                             calories = 150,
-                            proteinG = 5,
-                            carbsG = 27,
-                            fatsG = 3,
+                            proteinG = 5.0,
+                            carbsG = 27.0,
+                            fatsG = 3.0,
                             ingredients = listOf(ingredient),
                             savedFoodId = 4,
                             barcode = "890123"

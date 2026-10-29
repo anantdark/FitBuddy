@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.data.remote
 
 import com.anant.fitbuddy.data.model.ScannedProduct
+import com.anant.fitbuddy.util.roundMacro
 import kotlin.math.roundToInt
 import retrofit2.HttpException
 
@@ -49,9 +50,9 @@ class OpenFoodFactsDataSource(
             barcode = code,
             name = name,
             calories = calories.roundToInt().coerceAtLeast(0),
-            proteinG = protein.roundToInt().coerceAtLeast(0),
-            carbsG = carbs.roundToInt().coerceAtLeast(0),
-            fatsG = fats.roundToInt().coerceAtLeast(0),
+            proteinG = protein.roundMacro().coerceAtLeast(0.0),
+            carbsG = carbs.roundMacro().coerceAtLeast(0.0),
+            fatsG = fats.roundMacro().coerceAtLeast(0.0),
             servingGrams = servingGrams
         )
     }

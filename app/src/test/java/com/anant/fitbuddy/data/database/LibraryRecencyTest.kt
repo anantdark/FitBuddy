@@ -12,9 +12,9 @@ class LibraryRecencyTest {
             id = 1,
             name = "Dal",
             calories = 200,
-            proteinG = 10,
-            carbsG = 20,
-            fatsG = 5,
+            proteinG = 10.0,
+            carbsG = 20.0,
+            fatsG = 5.0,
             createdAt = 50L,
             lastUsedAt = 9_999L
         )
@@ -27,9 +27,9 @@ class LibraryRecencyTest {
             id = 1,
             name = "Oats",
             calories = 150,
-            proteinG = 5,
-            carbsG = 27,
-            fatsG = 3,
+            proteinG = 5.0,
+            carbsG = 27.0,
+            fatsG = 3.0,
             createdAt = 1_000L,
             lastUsedAt = 0L
         )
@@ -68,9 +68,9 @@ class LibraryRecencyTest {
             id = 1,
             name = "Dal",
             calories = 200,
-            proteinG = 10,
-            carbsG = 20,
-            fatsG = 5,
+            proteinG = 10.0,
+            carbsG = 20.0,
+            fatsG = 5.0,
             createdAt = 50L,
             lastUsedAt = 9_999L
         )

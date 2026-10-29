@@ -12,8 +12,6 @@ object BackupChunkIds {
         return id.isNotEmpty() && !id.contains(SEPARATOR)
     }
 
-    fun headId(supportId: String): String = supportId.trim()
-
     fun chunkId(supportId: String, chunkIndex: Int): String {
         require(chunkIndex >= 0) { "chunkIndex must be >= 0" }
         val id = supportId.trim()

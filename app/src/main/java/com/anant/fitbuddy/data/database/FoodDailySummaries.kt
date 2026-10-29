@@ -17,9 +17,9 @@ fun List<FoodDailySummary>.filledForDateRange(
             byDate[date] ?: FoodDailySummary(
                 dateString = date,
                 totalCalories = 0,
-                totalProtein = 0,
-                totalCarbs = 0,
-                totalFats = 0
+                totalProtein = 0.0,
+                totalCarbs = 0.0,
+                totalFats = 0.0
             )
         }
 }

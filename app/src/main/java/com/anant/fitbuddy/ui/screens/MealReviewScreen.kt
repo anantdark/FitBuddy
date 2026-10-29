@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,14 +35,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.MealDraft
 import com.anant.fitbuddy.ui.components.LogDateField
 import com.anant.fitbuddy.util.SystemToast
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Final review before persisting a meal (one or more foods).
@@ -230,8 +231,8 @@ private fun MealFoodReviewCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "${food.totalCalories} kcal · P ${food.totalProtein}g · " +
-                        "C ${food.totalCarbs}g · F ${food.totalFats}g",
+                    text = "${food.totalCalories} kcal · P ${food.totalProtein.formatMacro()}g · " +
+                        "C ${food.totalCarbs.formatMacro()}g · F ${food.totalFats.formatMacro()}g",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

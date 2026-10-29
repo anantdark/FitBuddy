@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,10 +25,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +35,8 @@ import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.ui.components.IconButton
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.pressable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Bottom sheet listing saved meals; tap to quick-log the whole meal to the active day. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -163,7 +164,7 @@ private fun MealPresetRow(
                 text = buildString {
                     append("${preset.calories} kcal")
                     if (foodCount > 0) append(" · $foodCount food(s)")
-                    append(" · P ${preset.proteinG}g · C ${preset.carbsG}g · F ${preset.fatsG}g")
+                    append(" · P ${preset.proteinG.formatMacro()}g · C ${preset.carbsG.formatMacro()}g · F ${preset.fatsG.formatMacro()}g")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
