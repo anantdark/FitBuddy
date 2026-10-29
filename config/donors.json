@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-09",
+  "updatedAt": "2026-10-30",
   "donors": [
     {
       "hash": "146a345312644c125e4ae4aae2ceec64fe10e2da99f451bf8d12e656d4ca460b",
@@ -11,6 +11,18 @@
         {
           "amountUsd": 1.0,
           "at": "2026-10-09"
+        }
+      ]
+    },
+    {
+      "hash": "a7bed32ae34925d0032da50869e42a11ef700a2fa5f7ea0659a8da6ce3244a97",
+      "name": "Cloxer",
+      "photoUrl": "https://raw.githubusercontent.com/anantdark/FitBuddy/main/config/donors/cloxer.jpg",
+      "tags": ["og"],
+      "donations": [
+        {
+          "amountUsd": 5.0,
+          "at": "2026-10-30"
         }
       ]
     }
