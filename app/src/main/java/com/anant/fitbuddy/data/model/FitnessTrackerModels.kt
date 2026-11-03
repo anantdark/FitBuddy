@@ -11,20 +11,36 @@ data class FitnessTrackerResponse(
     @Json(name = "exercise_analysis") val exerciseAnalysis: ExerciseAnalysis?
 )
 
+/**
+ * AI food payload. Prefer [mealName] + [foods]. Legacy single-dish fields ([dishName],
+ * [macros], [ingredients]) are still accepted for older model replies / offline sim.
+ */
 @JsonClass(generateAdapter = true)
 data class FoodAnalysis(
-    @Json(name = "dish_name") val dishName: String,
-    @Json(name = "macros") val macros: Macros,
+    @Json(name = "meal_name") val mealName: String? = null,
+    @Json(name = "foods") val foods: List<FoodItemAnalysis>? = null,
+    /** Legacy single-dish name; used when [foods] is absent. */
+    @Json(name = "dish_name") val dishName: String? = null,
+    @Json(name = "macros") val macros: Macros? = null,
     @Json(name = "ingredients") val ingredients: List<Ingredient>? = null,
     /** Coarse [LogIconTopic] id for the dashboard glyph. */
     @Json(name = "icon_topic") val iconTopic: String? = null
+)
+
+/** One food within a multi-food meal analysis. Macros live on [ingredients] (per base unit). */
+@JsonClass(generateAdapter = true)
+data class FoodItemAnalysis(
+    @Json(name = "name") val name: String,
+    /** Count of this food in the meal (e.g. 2 for "2 burgers"). Base-unit ingredients × this. */
+    @Json(name = "servings") val servings: Double = 1.0,
+    @Json(name = "ingredients") val ingredients: List<Ingredient>? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class Ingredient(
     @Json(name = "name") val name: String,
     /** Count of discrete units (e.g. 4 for "4 almonds"). Use 1 for bulk/continuous portions. */
-    @Json(name = "quantity") val quantity: Int = 1,
+    @Json(name = "quantity") val quantity: Double = 1.0,
     /** Total grams for this ingredient line (all units combined). */
     @Json(name = "weight_g") val weightG: Int,
     @Json(name = "calories") val calories: Int,

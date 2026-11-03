@@ -310,6 +310,7 @@ fun MainScreen(
     }
 
     val editingMealId = analysisState.editingFoodLogId
+    // Multi-food edit → meal review (not builder). Single-food edit uses foodDraft instead.
     LaunchedEffect(editingMealId, analysisState.mealDraft) {
         val id = editingMealId ?: run {
             lastOpenedEditMealId = null
@@ -318,16 +319,27 @@ fun MainScreen(
         if (id == lastOpenedEditMealId) return@LaunchedEffect
         val draft = analysisState.mealDraft ?: return@LaunchedEffect
         lastOpenedEditMealId = id
-        mealBuilderInitial = draft
-        mealItems.clear()
-        mealItems.addAll(draft.foods)
-        showMealBuilder = true
+        mealReviewSavesAsPreset = false
+        mealReviewDraft = draft.snapshot()
     }
 
-    LaunchedEffect(analysisState.mealDraft) {
-        val vmDraft = analysisState.mealDraft ?: return@LaunchedEffect
+    // AI multi-food result (no editing id) → meal review.
+    LaunchedEffect(analysisState.mealDraft, analysisState.editingFoodLogId) {
+        val draft = analysisState.mealDraft ?: return@LaunchedEffect
+        if (analysisState.editingFoodLogId != null) return@LaunchedEffect
+        if (showMealBuilder) return@LaunchedEffect
         if (mealReviewDraft != null) {
-            mealReviewDraft = vmDraft.snapshot()
+            mealReviewDraft = draft.snapshot()
+            return@LaunchedEffect
+        }
+        mealReviewSavesAsPreset = false
+        mealReviewDraft = draft.snapshot()
+    }
+
+    // Editing a single-food log opens FoodReview as a log/update confirm.
+    LaunchedEffect(analysisState.foodDraft, analysisState.editingFoodLogId) {
+        if (analysisState.foodDraft != null && analysisState.editingFoodLogId != null) {
+            foodEditorTarget = FoodEditorTarget.LOG_MEAL
         }
     }
 
@@ -1174,8 +1186,8 @@ fun MainScreen(
             },
             onSaveAsPreset = { mealDraft ->
                 viewModel.saveMealDraftAsPreset(mealDraft)
+                SystemToast.show(context, "Saved \"${mealDraft.name}\" as meal preset")
                 if (saveAsPresetOnly) {
-                    SystemToast.show(context, "Saved \"${mealDraft.name}\" as meal preset")
                     mealReviewDraft = null
                     mealReviewSavesAsPreset = false
                     viewModel.dismissMealDraft()
@@ -1205,7 +1217,8 @@ fun MainScreen(
                 FoodEditorTarget.SAVE_LIBRARY -> "Save food"
                 FoodEditorTarget.MEAL_BUILDER,
                 FoodEditorTarget.MEAL_REVIEW -> "Add to meal"
-                FoodEditorTarget.LOG_MEAL -> "Log food"
+                FoodEditorTarget.LOG_MEAL ->
+                    if (analysisState.editingFoodLogId != null) "Update food" else "Log food"
             },
             showSaveAsPreset = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY,
             onConfirm = { confirmed ->

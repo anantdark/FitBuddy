@@ -36,6 +36,7 @@ import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.HealthTargetInput
 import com.anant.fitbuddy.data.model.MealDraft
+import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toSingleFoodMeal
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.NutritionTargetHistory
@@ -1767,7 +1768,13 @@ class MainViewModel(
     }
 
     fun dismissFoodDraft() {
-        _analysisState.update { it.copy(foodDraft = null) }
+        _analysisState.update {
+            it.copy(
+                foodDraft = null,
+                // Clear edit id only when we were editing a single-food log (no meal draft open).
+                editingFoodLogId = if (it.mealDraft == null) null else it.editingFoodLogId
+            )
+        }
     }
 
     // --- Exercise presets (workout picker) --------------------------------------------------
@@ -3056,6 +3063,23 @@ class MainViewModel(
                         clarificationMessage = null,
                         foodDraft = outcome.draft,
                         mealDraft = null,
+                        editingFoodLogId = null,
+                        userMessage = outcome.failoverNote,
+                        rawAiJson = rawJson
+                    )
+                }
+            }
+
+            is AnalysisOutcome.MealReady -> {
+                clearPending()
+                _analysisState.update {
+                    it.copy(
+                        isLoading = false,
+                        analyzingModel = null,
+                        clarificationMessage = null,
+                        foodDraft = null,
+                        mealDraft = outcome.draft,
+                        editingFoodLogId = null,
                         userMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
@@ -3156,19 +3180,38 @@ class MainViewModel(
     }
 
     /**
-     * Opens the meal builder/review flow for an already-logged meal, restoring each food and its
-     * ingredients from the stored hierarchy.
+     * Opens food review for a single-food log, or meal review for a multi-food meal.
      */
     fun editFoodLog(log: FoodLog) {
         viewModelScope.launch {
             val draft = repository.mealLogToMealDraft(log)
-            _analysisState.update {
-                it.copy(
-                    mealDraft = draft,
-                    foodDraft = null,
-                    editingFoodLogId = log.id,
-                    reviewMessage = null
-                )
+            if (draft.foods.size <= 1) {
+                val food = draft.foods.firstOrNull()
+                _analysisState.update {
+                    it.copy(
+                        foodDraft = food?.toFoodDraft(
+                            timestamp = log.timestamp,
+                            iconTopic = log.iconTopic
+                        ) ?: FoodDraft(
+                            dishName = log.dishName,
+                            timestamp = log.timestamp,
+                            ingredients = emptyList(),
+                            iconTopic = log.iconTopic
+                        ),
+                        mealDraft = null,
+                        editingFoodLogId = log.id,
+                        reviewMessage = null
+                    )
+                }
+            } else {
+                _analysisState.update {
+                    it.copy(
+                        mealDraft = draft,
+                        foodDraft = null,
+                        editingFoodLogId = log.id,
+                        reviewMessage = null
+                    )
+                }
             }
         }
     }
@@ -3198,23 +3241,37 @@ class MainViewModel(
     }
 
     /**
-     * Opens meal review prefilled from [log], stamped for real today. Save inserts a new row
-     * ([editingFoodLogId] stays null).
+     * Opens food or meal review prefilled from [log], stamped for real today. Save inserts a new
+     * row ([editingFoodLogId] stays null).
      */
     fun cloneFoodLogToToday(log: FoodLog) {
         viewModelScope.launch {
-            val draft = repository.mealLogToMealDraft(log).copy(
-                timestamp = DateUtils.timestampOnDate(_realToday.value)
-            )
-            _analysisState.update {
-                it.copy(
-                    mealDraft = draft,
-                    foodDraft = null,
-                    editingFoodLogId = null,
-                    reviewMessage = null
-                )
+            val todayTs = DateUtils.timestampOnDate(_realToday.value)
+            val draft = repository.mealLogToMealDraft(log).copy(timestamp = todayTs)
+            if (draft.foods.size <= 1) {
+                val food = draft.foods.firstOrNull()
+                _analysisState.update {
+                    it.copy(
+                        foodDraft = food?.toFoodDraft(
+                            timestamp = todayTs,
+                            iconTopic = draft.iconTopic
+                        ),
+                        mealDraft = null,
+                        editingFoodLogId = null,
+                        reviewMessage = null
+                    )
+                }
+            } else {
+                _analysisState.update {
+                    it.copy(
+                        mealDraft = draft,
+                        foodDraft = null,
+                        editingFoodLogId = null,
+                        reviewMessage = null
+                    )
+                }
+                _cloneMealRequest.value = draft
             }
-            _cloneMealRequest.value = draft
         }
     }
 
@@ -3352,11 +3409,35 @@ class MainViewModel(
                     state.copy(
                         isReanalyzing = false,
                         foodDraft = outcome.draft.copy(
-                            timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp
+                            timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp,
+                            quantity = state.foodDraft?.quantity ?: outcome.draft.quantity,
+                            iconTopic = state.foodDraft?.iconTopic ?: outcome.draft.iconTopic
                         ),
                         reviewMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
+
+                is AnalysisOutcome.MealReady -> {
+                    // Reanalyze is opened from food review — keep a single food sheet.
+                    val entry = outcome.draft.foods.firstOrNull()
+                    if (entry != null) {
+                        state.copy(
+                            isReanalyzing = false,
+                            foodDraft = entry.toFoodDraft(
+                                timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp,
+                                iconTopic = state.foodDraft?.iconTopic ?: outcome.draft.iconTopic
+                            ).copy(quantity = state.foodDraft?.quantity ?: entry.servings),
+                            reviewMessage = outcome.failoverNote,
+                            rawAiJson = rawJson
+                        )
+                    } else {
+                        state.copy(
+                            isReanalyzing = false,
+                            reviewMessage = "Couldn't recompute that dish",
+                            rawAiJson = rawJson
+                        )
+                    }
+                }
 
                 is AnalysisOutcome.NeedsClarification ->
                     state.copy(

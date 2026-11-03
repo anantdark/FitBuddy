@@ -74,8 +74,13 @@ fun List<FoodEntryDraft>.toMealDraft(mealName: String): MealDraft = MealDraft(
     foods = map { it.snapshot() }
 )
 
-fun FoodEntryDraft.toFoodDraft(): FoodDraft = FoodDraft(
+fun FoodEntryDraft.toFoodDraft(
+    timestamp: Long = System.currentTimeMillis(),
+    iconTopic: String? = null
+): FoodDraft = FoodDraft(
     dishName = name,
-    timestamp = System.currentTimeMillis(),
-    ingredients = ingredients.toList()
+    timestamp = timestamp,
+    ingredients = ingredients.toList(),
+    quantity = servings,
+    iconTopic = iconTopic
 )

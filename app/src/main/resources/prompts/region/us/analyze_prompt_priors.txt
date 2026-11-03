@@ -11,5 +11,5 @@ North America food priors (apply when identifying dishes from photos or loose te
   ranch/BBQ/other dipping sauces — call these out as separate ingredients when mentioned.
 - Portion cues: fast-food sizes (small/medium/large), "footlong" sub, "personal pan" pizza,
   "family size" — use these to scale weight/calories realistically.
-- Naming: use familiar American/Canadian dish names in "dish_name". Break combo meals
-  (e.g. burger + fries + soda) into named components rather than "mixed plate".
+- Naming: use familiar American/Canadian dish names in "meal_name" / food "name". Break
+  combo meals (e.g. burger + fries + soda) into separate foods rather than "mixed plate".

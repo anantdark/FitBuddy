@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.data.repository
 
 import com.anant.fitbuddy.data.model.FoodDraft
+import com.anant.fitbuddy.data.model.MealDraft
 
 /**
  * Result of routing an LLM payload. This is the clean contract the UI/ViewModel consume,
@@ -12,11 +13,20 @@ sealed interface AnalysisOutcome {
     val failoverNote: String?
 
     /**
-     * Food was recognised. NOT yet persisted: the UI shows the editable ingredient/macro
-     * breakdown for review, and only saves when the user confirms.
+     * Single food recognised. NOT yet persisted: the UI shows the editable food review sheet,
+     * and only saves when the user confirms.
      */
     data class FoodReady(
         val draft: FoodDraft,
+        override val failoverNote: String? = null
+    ) : AnalysisOutcome
+
+    /**
+     * Multi-food meal recognised. NOT yet persisted: the UI shows meal review, and only saves
+     * when the user confirms.
+     */
+    data class MealReady(
+        val draft: MealDraft,
         override val failoverNote: String? = null
     ) : AnalysisOutcome
 
@@ -51,6 +61,7 @@ fun AnalysisOutcome.withFailoverNote(note: String?): AnalysisOutcome {
     if (note.isNullOrBlank()) return this
     return when (this) {
         is AnalysisOutcome.FoodReady -> copy(failoverNote = note)
+        is AnalysisOutcome.MealReady -> copy(failoverNote = note)
         is AnalysisOutcome.ExerciseSaved -> copy(failoverNote = note)
         is AnalysisOutcome.NeedsClarification -> copy(failoverNote = note)
         is AnalysisOutcome.NotIdentified -> copy(failoverNote = note)

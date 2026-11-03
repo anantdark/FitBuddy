@@ -69,9 +69,6 @@ fun MealReviewDialog(
 
     fun savePreset() {
         onSaveAsPreset(confirmedDraft())
-        if (!saveAsPresetOnly) {
-            SystemToast.show(context, "Saved \"${draft.name}\" as meal preset")
-        }
     }
 
     Dialog(
@@ -105,7 +102,7 @@ fun MealReviewDialog(
                         ) {
                             Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Save as preset")
+                            Text("Save as meal preset")
                         }
                     }
                     Row(
@@ -126,7 +123,7 @@ fun MealReviewDialog(
                             Text(
                                 when {
                                     isEditing -> "Update meal"
-                                    saveAsPresetOnly -> "Save as preset"
+                                    saveAsPresetOnly -> "Save as meal preset"
                                     else -> "Save meal"
                                 }
                             )
@@ -219,13 +216,13 @@ private fun MealFoodReviewCard(
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
-                val servingLabel = if (food.servings % 1.0 == 0.0) {
+                val qtyLabel = if (food.servings % 1.0 == 0.0) {
                     food.servings.toInt().toString()
                 } else {
                     food.servings.toString()
                 }
                 Text(
-                    text = "$servingLabel serving(s) · ${food.totalWeightG} g · " +
+                    text = "Qty $qtyLabel · ${food.totalWeightG} g · " +
                         "${food.ingredients.size} ingredient(s)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

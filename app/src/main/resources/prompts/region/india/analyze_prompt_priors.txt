@@ -15,6 +15,6 @@ Indian food priors (apply when identifying dishes from photos or Hinglish text):
 - Cooking fats: when the dish is tadka, fried, buttery, or makhani and oil/ghee is not
   stated, include "ghee" or "oil" as its OWN ingredient with a typical home amount
   (often ~1 tsp / 5 g). Do not invent coconut oil unless the dish implies it.
-- Naming: use familiar Indian dish names in "dish_name" (Hinglish ok). Break
-  thalis and combos into named components (roti, dal, sabzi, rice, raita, bhatura)
+- Naming: use familiar Indian dish names in "meal_name" / food "name" (Hinglish ok).
+  Break thalis and combos into separate foods (roti, dal, sabzi, rice, raita, bhatura)
   rather than "mixed plate" — especially chole bhature, rajma chawal, dal chawal.

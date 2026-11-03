@@ -55,9 +55,9 @@ fun MealDraft.snapshot(): MealDraft = copy(
 
 fun FoodEntryDraft.snapshot(): FoodEntryDraft = copy(ingredients = ingredients.toList())
 
-fun FoodDraft.toFoodEntry(servings: Double = 1.0): FoodEntryDraft = FoodEntryDraft(
+fun FoodDraft.toFoodEntry(servings: Double? = null): FoodEntryDraft = FoodEntryDraft(
     name = dishName,
-    servings = servings,
+    servings = (servings ?: quantity).coerceAtLeast(0.0),
     ingredients = ingredients.toList()
 )
 
