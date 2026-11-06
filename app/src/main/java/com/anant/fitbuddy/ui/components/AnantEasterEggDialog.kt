@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -77,31 +81,30 @@ fun AnantEasterEggDialog(onDismiss: () -> Unit) {
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "You found the secret rep!",
+                        text = stringResource(R.string.about_you_found_the_secret_rep),
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "31 taps. Same energy as hitting your daily protein target.",
+                        text = stringResource(R.string.about_31_taps_same_energy_as_hitting),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "FitBuddy was crafted by Anant — for home kitchens, gym floors, " +
-                            "and everyone who logs a home-cooked meal without guilt.",
+                        text = stringResource(R.string.about_fitbuddy_was_crafted_by_anant_for),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Thanks for exploring every corner of the app. Now go drink some water.",
+                        text = stringResource(R.string.about_thanks_for_exploring_every_corner_of),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.size(4.dp))
                     TextButton(onClick = onDismiss) {
-                        Text("Back to gains")
+                        Text(stringResource(R.string.about_back_to_gains))
                     }
                 }
             }

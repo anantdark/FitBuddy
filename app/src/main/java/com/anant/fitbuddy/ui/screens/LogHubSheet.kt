@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -42,7 +46,7 @@ private data class LogAction(
     val label: String,
     val subtitle: String,
     val icon: ImageVector,
-    val section: String,
+    val sectionId: String,
     val onClick: () -> Unit
 )
 
@@ -59,15 +63,66 @@ fun LogHubSheet(
     onLogWorkout: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val foodSection = stringResource(R.string.log_hub_food)
+    val activitySection = stringResource(R.string.log_hub_activity)
 
     val actions = listOf(
-        LogAction("photo", "Photo", "Snap a meal", Icons.Filled.CameraAlt, "Food", onLogPhoto),
-        LogAction("gallery", "Gallery", "From photos", Icons.Filled.PhotoLibrary, "Food", onLogGallery),
-        LogAction("text", "Describe", "Type it loosely", Icons.Filled.Edit, "Food", onLogText),
-        LogAction("barcode", "Scan barcode", "Packaged food", Icons.Filled.QrCodeScanner, "Food", onScanBarcode),
-        LogAction("savedMeal", "Saved meal", "One tap", Icons.Filled.Bookmark, "Food", onLogSavedMeal),
-        LogAction("savedFood", "Saved food", "From library", Icons.Filled.RestaurantMenu, "Food", onLogSavedFood),
-        LogAction("workout", "Workout", "Gym or cardio", Icons.Filled.FitnessCenter, "Activity", onLogWorkout)
+        LogAction(
+            "photo",
+            stringResource(R.string.log_hub_photo),
+            stringResource(R.string.log_hub_snap_meal),
+            Icons.Filled.CameraAlt,
+            "food",
+            onLogPhoto,
+        ),
+        LogAction(
+            "gallery",
+            stringResource(R.string.log_hub_gallery),
+            stringResource(R.string.log_hub_photos),
+            Icons.Filled.PhotoLibrary,
+            "food",
+            onLogGallery,
+        ),
+        LogAction(
+            "text",
+            stringResource(R.string.log_hub_describe),
+            stringResource(R.string.log_hub_type_loosely),
+            Icons.Filled.Edit,
+            "food",
+            onLogText,
+        ),
+        LogAction(
+            "barcode",
+            stringResource(R.string.log_hub_scan_barcode),
+            stringResource(R.string.log_hub_packaged_food),
+            Icons.Filled.QrCodeScanner,
+            "food",
+            onScanBarcode,
+        ),
+        LogAction(
+            "savedMeal",
+            stringResource(R.string.log_hub_saved_meal),
+            stringResource(R.string.log_hub_one_tap),
+            Icons.Filled.Bookmark,
+            "food",
+            onLogSavedMeal,
+        ),
+        LogAction(
+            "savedFood",
+            stringResource(R.string.meal_saved_food),
+            stringResource(R.string.log_hub_library),
+            Icons.Filled.RestaurantMenu,
+            "food",
+            onLogSavedFood,
+        ),
+        LogAction(
+            "workout",
+            stringResource(R.string.log_hub_workout),
+            stringResource(R.string.log_hub_gym_cardio),
+            Icons.Filled.FitnessCenter,
+            "activity",
+            onLogWorkout,
+        ),
     )
 
     ModalBottomSheet(
@@ -81,34 +136,34 @@ fun LogHubSheet(
                 .padding(bottom = 28.dp)
         ) {
             Text(
-                text = "Log",
+                text = stringResource(R.string.log_log),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
             )
             Text(
-                text = "Pick what you're tracking — food options use AI when configured.",
+                text = stringResource(R.string.log_pick_what_you_re_tracking_food),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
             )
 
-            listOf("Food", "Activity").forEach { section ->
+            listOf("food" to foodSection, "activity" to activitySection).forEach { (sectionId, sectionLabel) ->
                 Text(
-                    text = section,
+                    text = sectionLabel,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp)
                 )
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(if (section == "Activity") 1 else 2),
+                    columns = GridCells.Fixed(if (sectionId == "activity") 1 else 2),
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(actions.filter { it.section == section }, key = { it.id }) { action ->
+                    items(actions.filter { it.sectionId == sectionId }, key = { it.id }) { action ->
                         LogActionTile(action)
                     }
                 }

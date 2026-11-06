@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.ui.components.MacroTextField
 import com.anant.fitbuddy.util.toMacroOrNull
 import com.anant.fitbuddy.util.formatMacro
@@ -55,34 +59,34 @@ fun EditSavedFoodDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit saved food") },
+        title = { Text(stringResource(R.string.food_edit_saved_food)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                food.barcode?.let { Text("Barcode: $it") }
+                food.barcode?.let { Text(stringResource(R.string.edit_saved_food_barcode, it)) }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.food_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = calories,
                     onValueChange = { calories = it.filter { ch -> ch.isDigit() }.take(5) },
-                    label = { Text("Calories") },
+                    label = { Text(stringResource(R.string.food_calories)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
-                        MacroTextField("Protein", protein, { protein = it }, Modifier.fillMaxWidth())
+                        MacroTextField(stringResource(R.string.dashboard_protein), protein, { protein = it }, Modifier.fillMaxWidth())
                     }
                     Box(Modifier.weight(1f)) {
-                        MacroTextField("Carbs", carbs, { carbs = it }, Modifier.fillMaxWidth())
+                        MacroTextField(stringResource(R.string.dashboard_carbs), carbs, { carbs = it }, Modifier.fillMaxWidth())
                     }
                     Box(Modifier.weight(1f)) {
-                        MacroTextField("Fats", fats, { fats = it }, Modifier.fillMaxWidth())
+                        MacroTextField(stringResource(R.string.dashboard_fats), fats, { fats = it }, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -91,10 +95,10 @@ fun EditSavedFoodDialog(
             TextButton(
                 enabled = buildFood() != null,
                 onClick = { buildFood()?.let(onSave) }
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.food_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

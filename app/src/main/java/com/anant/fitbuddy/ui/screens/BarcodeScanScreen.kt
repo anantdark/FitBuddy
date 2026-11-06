@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import android.Manifest
 import android.util.Log
 import android.util.Size
@@ -94,15 +98,15 @@ fun BarcodeScanDialog(
                     title = {
                         Text(
                             when {
-                                isLookingUp -> "Looking up product…"
-                                manualEntry -> "Enter barcode"
-                                else -> "Scan product barcode"
+                                isLookingUp -> stringResource(R.string.barcode_looking_up_product)
+                                manualEntry -> stringResource(R.string.barcode_enter_barcode)
+                                else -> stringResource(R.string.barcode_scan_product_barcode)
                             }
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss, enabled = !isLookingUp) {
-                            Icon(Icons.Filled.Close, contentDescription = "Close")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.donate_close))
                         }
                     }
                 )
@@ -130,7 +134,7 @@ fun BarcodeScanDialog(
                         when {
                             cameraPermission.status.isGranted -> {
                                 Text(
-                                    text = "Point at the barcode on the packet",
+                                    text = stringResource(R.string.barcode_point_at_the_barcode_on_the),
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
@@ -146,7 +150,7 @@ fun BarcodeScanDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(16.dp)
-                                ) { Text("Enter barcode instead") }
+                                ) { Text(stringResource(R.string.barcode_enter_barcode_instead)) }
                             }
                             else -> {
                                 Column(
@@ -155,18 +159,18 @@ fun BarcodeScanDialog(
                                         .padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text("Camera access is needed to scan barcodes.")
+                                    Text(stringResource(R.string.barcode_camera_access_is_needed_to_scan))
                                     Button(
                                         onClick = {
                                             requestedCameraOnce = true
                                             cameraPermission.launchPermissionRequest()
                                         },
                                         modifier = Modifier.fillMaxWidth()
-                                    ) { Text("Allow camera") }
+                                    ) { Text(stringResource(R.string.barcode_allow_camera)) }
                                     OutlinedButton(
                                         onClick = { manualEntry = true },
                                         modifier = Modifier.fillMaxWidth()
-                                    ) { Text("Enter barcode instead") }
+                                    ) { Text(stringResource(R.string.barcode_enter_barcode_instead)) }
                                 }
                             }
                         }
@@ -186,7 +190,7 @@ fun BarcodeScanDialog(
                         ) {
                             CircularProgressIndicator()
                             Text(
-                                text = "Looking up product…",
+                                text = stringResource(R.string.barcode_looking_up_product),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(top = 12.dp)
@@ -222,15 +226,17 @@ private fun ManualBarcodeEntry(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "Type the EAN or UPC digits printed under the barcode.",
+            text = stringResource(R.string.barcode_type_the_ean_or_upc_digits),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text("Barcode") },
-            placeholder = { Text("e.g. $barcodeExample") },
+            label = { Text(stringResource(R.string.barcode_barcode)) },
+            placeholder = {
+                Text(stringResource(R.string.barcode_e_g_s, barcodeExample))
+            },
             singleLine = true,
             enabled = enabled,
             keyboardOptions = KeyboardOptions(
@@ -244,12 +250,12 @@ private fun ManualBarcodeEntry(
             onClick = onSubmit,
             enabled = enabled && value.isNotBlank(),
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Look up") }
+        ) { Text(stringResource(R.string.barcode_look_up)) }
         TextButton(
             onClick = onUseCamera,
             enabled = enabled,
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Use camera instead") }
+        ) { Text(stringResource(R.string.barcode_use_camera_instead)) }
     }
 }
 
@@ -319,7 +325,8 @@ private fun BarcodeCameraPreview(
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Camera bind failed", e)
-                cameraError = e.message ?: "Couldn't open camera"
+                cameraError = e.message
+                    ?: context.getString(R.string.barcode_couldn_t_open_camera)
             }
         }
         cameraProviderFuture.addListener(bindListener, mainExecutor)

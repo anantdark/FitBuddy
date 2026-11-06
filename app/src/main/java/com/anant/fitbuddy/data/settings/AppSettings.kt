@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.data.settings
 
+import android.content.Context
+import androidx.annotation.StringRes
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.R
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 
@@ -12,12 +15,13 @@ enum class AppColorTheme {
     CATPPUCCIN_MACCHIATO,
     CATPPUCCIN_MOCHA;
 
-    fun displayName(): String = when (this) {
-        BRAND -> "FitBuddy"
-        CATPPUCCIN_LATTE -> "Catppuccin Latte"
-        CATPPUCCIN_FRAPPE -> "Catppuccin Frappé"
-        CATPPUCCIN_MACCHIATO -> "Catppuccin Macchiato"
-        CATPPUCCIN_MOCHA -> "Catppuccin Mocha"
+    @StringRes
+    fun displayNameRes(): Int = when (this) {
+        BRAND -> R.string.settings_fitbuddy
+        CATPPUCCIN_LATTE -> R.string.settings_catppuccin_latte
+        CATPPUCCIN_FRAPPE -> R.string.settings_catppuccin_frapp
+        CATPPUCCIN_MACCHIATO -> R.string.settings_catppuccin_macchiato
+        CATPPUCCIN_MOCHA -> R.string.settings_catppuccin_mocha
     }
 
     /** Latte is light; other Catppuccin flavors are dark. Brand follows the system. */
@@ -35,9 +39,10 @@ enum class AppFontOption {
     DEFAULT,
     JERSEY_25;
 
-    fun displayName(): String = when (this) {
-        DEFAULT -> "System default"
-        JERSEY_25 -> "Mako"
+    @StringRes
+    fun displayNameRes(): Int = when (this) {
+        DEFAULT -> R.string.settings_system_default
+        JERSEY_25 -> R.string.settings_mako
     }
 }
 
@@ -50,9 +55,10 @@ enum class AppComponentStyle {
     MATERIAL,
     MAKO;
 
-    fun displayName(): String = when (this) {
-        MATERIAL -> "Material"
-        MAKO -> "Mako"
+    @StringRes
+    fun displayNameRes(): Int = when (this) {
+        MATERIAL -> R.string.settings_material
+        MAKO -> R.string.settings_mako
     }
 }
 
@@ -65,12 +71,13 @@ enum class AiProvider {
     /** Any OpenAI-compatible host (LM Studio, vLLM, LocalAI, custom gateways). */
     CUSTOM;
 
-    fun displayName(): String = when (this) {
-        OPENROUTER -> "OpenRouter"
-        GEMINI -> "Gemini"
-        OLLAMA -> "Ollama"
-        OPENAI -> "OpenAI" // legacy; migrated to CUSTOM on load
-        CUSTOM -> "OpenAI-compatible"
+    @StringRes
+    fun displayNameRes(): Int = when (this) {
+        OPENROUTER -> R.string.settings_openrouter
+        GEMINI -> R.string.settings_gemini
+        OLLAMA -> R.string.settings_ollama
+        OPENAI -> R.string.settings_openai // legacy; migrated to CUSTOM on load
+        CUSTOM -> R.string.settings_openai_compatible
     }
 }
 
@@ -490,14 +497,14 @@ data class AppSettings(
         get() = isProviderConfigured(provider)
 
     /** Labels for Settings Auto status (photo and text tracked separately). */
-    fun activePhotoModelDisplay(): String {
-        val prov = activeAiProvider?.displayName() ?: provider.displayName()
+    fun activePhotoModelDisplay(context: Context): String {
+        val prov = context.getString((activeAiProvider ?: provider).displayNameRes())
         val id = activePhotoModel.ifBlank { model }.ifBlank { "(none)" }
         return "$prov: $id"
     }
 
-    fun activeTextModelDisplay(): String {
-        val prov = activeAiProvider?.displayName() ?: provider.displayName()
+    fun activeTextModelDisplay(context: Context): String {
+        val prov = context.getString((activeAiProvider ?: provider).displayNameRes())
         val id = activeTextModel.ifBlank { textModel }.ifBlank { "(none)" }
         return "$prov: $id"
     }

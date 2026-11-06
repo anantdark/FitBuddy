@@ -1,5 +1,10 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.Animatable
@@ -93,8 +98,8 @@ private data class CardPalette(
     val inner: Color,
     val ink: Color,
     val accent: Color,
-    val badgeLabel: String,
-    val subtitle: String,
+    @param:androidx.annotation.StringRes val badgeLabelRes: Int,
+    @param:androidx.annotation.StringRes val subtitleRes: Int,
 )
 
 private fun paletteFor(style: DonorCardStyle): CardPalette = when (style) {
@@ -106,8 +111,8 @@ private fun paletteFor(style: DonorCardStyle): CardPalette = when (style) {
         inner = Color(0xFFFFF3E0),
         ink = Color(0xFF3E2723),
         accent = Color(0xFFFFAB40),
-        badgeLabel = "OG SUPPORTER",
-        subtitle = "FitBuddy · Origin circle",
+        badgeLabelRes = R.string.donor_card_og_supporter,
+        subtitleRes = R.string.donate_fitbuddy_origin_circle,
     )
     // Bright emerald / mint — distinct from OG brown and Legendary purple.
     DonorCardStyle.GENEROUS -> CardPalette(
@@ -117,8 +122,8 @@ private fun paletteFor(style: DonorCardStyle): CardPalette = when (style) {
         inner = Color(0xFFE8F5E9),
         ink = Color(0xFF1B5E20),
         accent = Color(0xFF00E676),
-        badgeLabel = "GENEROUS",
-        subtitle = "FitBuddy · Warm boost",
+        badgeLabelRes = R.string.donor_card_generous,
+        subtitleRes = R.string.donate_fitbuddy_warm_boost,
     )
     // Electric violet / cyan foil on deep indigo.
     DonorCardStyle.LEGENDARY -> CardPalette(
@@ -128,8 +133,8 @@ private fun paletteFor(style: DonorCardStyle): CardPalette = when (style) {
         inner = Color(0xFF1A237E),
         ink = Color(0xFFE8EAF6),
         accent = Color(0xFF18FFFF),
-        badgeLabel = "LEGENDARY",
-        subtitle = "FitBuddy · Rare aura",
+        badgeLabelRes = R.string.donor_card_legendary,
+        subtitleRes = R.string.donate_fitbuddy_rare_aura,
     )
     // Obsidian + molten gold / crimson — top of the ladder.
     DonorCardStyle.GODLIKE -> CardPalette(
@@ -145,8 +150,8 @@ private fun paletteFor(style: DonorCardStyle): CardPalette = when (style) {
         inner = Color(0xFF1A0500),
         ink = Color(0xFFFFF8E1),
         accent = Color(0xFFFFD700),
-        badgeLabel = "GODLIKE",
-        subtitle = "FitBuddy · Mythic seal",
+        badgeLabelRes = R.string.donor_card_godlike,
+        subtitleRes = R.string.donate_fitbuddy_mythic_seal,
     )
     DonorCardStyle.STANDARD -> CardPalette(
         frame = listOf(Color(0xFF78909C), Color(0xFFECEFF1), Color(0xFF546E7A)),
@@ -155,8 +160,8 @@ private fun paletteFor(style: DonorCardStyle): CardPalette = when (style) {
         inner = Color(0xFFCFD8DC),
         ink = Color(0xFF263238),
         accent = Color(0xFF90A4AE),
-        badgeLabel = "SUPPORTER",
-        subtitle = "FitBuddy · Community",
+        badgeLabelRes = R.string.donor_card_supporter,
+        subtitleRes = R.string.donate_fitbuddy_community,
     )
 }
 
@@ -172,14 +177,23 @@ internal fun donorProfileKind(url: String): DonorProfileKind {
     }
 }
 
-internal fun donorProfileHandle(url: String, kind: DonorProfileKind): String {
+internal fun donorProfileHandle(url: String, kind: DonorProfileKind, context: Context): String {
     val path = runCatching { Uri.parse(url).path?.trim('/').orEmpty() }.getOrDefault("")
     val first = path.substringBefore('/').ifBlank { path }
     return when (kind) {
-        DonorProfileKind.GITHUB -> if (first.isNotBlank()) "@$first" else "GitHub"
-        DonorProfileKind.INSTAGRAM -> if (first.isNotBlank()) "@$first" else "Instagram"
-        DonorProfileKind.WEBSITE -> runCatching { Uri.parse(url).host ?: "Website" }
-            .getOrDefault("Website")
+        DonorProfileKind.GITHUB -> if (first.isNotBlank()) {
+            "@$first"
+        } else {
+            context.getString(R.string.donor_card_github)
+        }
+        DonorProfileKind.INSTAGRAM -> if (first.isNotBlank()) {
+            "@$first"
+        } else {
+            context.getString(R.string.donor_card_instagram)
+        }
+        DonorProfileKind.WEBSITE -> runCatching {
+            Uri.parse(url).host ?: context.getString(R.string.donor_card_website)
+        }.getOrDefault(context.getString(R.string.donor_card_website))
     }
 }
 
@@ -280,13 +294,15 @@ fun DonorTradingCardDialog(
                     ),
             ) {
                 Text(
-                    text = when (style) {
-                        DonorCardStyle.OG -> "OG SUPPORTER CARD"
-                        DonorCardStyle.GENEROUS -> "GENEROUS CARD"
-                        DonorCardStyle.LEGENDARY -> "LEGENDARY CARD"
-                        DonorCardStyle.GODLIKE -> "GODLIKE CARD"
-                        DonorCardStyle.STANDARD -> "SUPPORTER CARD"
-                    },
+                    text = stringResource(
+                        when (style) {
+                            DonorCardStyle.OG -> R.string.donor_card_og_supporter_card
+                            DonorCardStyle.GENEROUS -> R.string.donor_card_generous_card
+                            DonorCardStyle.LEGENDARY -> R.string.donor_card_legendary_card
+                            DonorCardStyle.GODLIKE -> R.string.donor_card_godlike_card
+                            DonorCardStyle.STANDARD -> R.string.donor_card_supporter_card
+                        }
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 3.sp,
@@ -365,12 +381,12 @@ fun DonorTradingCardDialog(
                 }
 
                 Text(
-                    text = "Tap card to flip",
+                    text = stringResource(R.string.donate_tap_card_to_flip),
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White.copy(alpha = 0.75f),
                 )
                 TextButton(onClick = onDismiss) {
-                    Text("Close", color = Color.White)
+                    Text(stringResource(R.string.donate_close), color = Color.White)
                 }
             }
 
@@ -467,8 +483,10 @@ private fun DonorCardFront(
                     )
                     Text(
                         text = buildString {
-                            if (supporterNumber != null) append("No. $supporterNumber  ·  ")
-                            append(palette.badgeLabel)
+                            if (supporterNumber != null) {
+                                append(stringResource(R.string.donor_card_no, supporterNumber))
+                            }
+                            append(stringResource(palette.badgeLabelRes))
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
@@ -533,7 +551,7 @@ private fun DonorCardFront(
                     maxLines = 2,
                 )
                 Text(
-                    text = palette.subtitle,
+                    text = stringResource(palette.subtitleRes),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = palette.accent,
@@ -542,7 +560,7 @@ private fun DonorCardFront(
 
             if (badges.isNotEmpty()) {
                 Text(
-                    text = "RANK CRESTS",
+                    text = stringResource(R.string.donate_rank_crests),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp,
@@ -567,9 +585,9 @@ private data class DonorInsight(
     val value: String,
 )
 
-private fun donorInsights(donor: DonorEntry): List<DonorInsight> {
+private fun donorInsights(donor: DonorEntry, context: Context): List<DonorInsight> {
     val dates = donor.donations.map { it.normalizedAt }.filter { it.isNotEmpty() }.sorted()
-    val since = dates.firstOrNull()?.let { formatDonorMonthYear(it) } ?: "—"
+    val since = dates.firstOrNull()?.let { formatDonorMonthYear(it, context) } ?: "—"
     val tips = donor.donations.size.coerceAtLeast(0)
     val tipsLabel = when (tips) {
         0 -> "—"
@@ -577,33 +595,35 @@ private fun donorInsights(donor: DonorEntry): List<DonorInsight> {
         else -> "${tips}×"
     }
     val home = when (val link = donor.profileLink) {
-        null -> "Private"
+        null -> context.getString(R.string.donor_card_private)
         else -> when (donorProfileKind(link)) {
-            DonorProfileKind.GITHUB -> "GitHub"
-            DonorProfileKind.INSTAGRAM -> "Instagram"
-            DonorProfileKind.WEBSITE -> "Web"
+            DonorProfileKind.GITHUB -> context.getString(R.string.donor_card_github)
+            DonorProfileKind.INSTAGRAM -> context.getString(R.string.donor_card_instagram)
+            DonorProfileKind.WEBSITE -> context.getString(R.string.donor_card_web)
         }
     }
     return listOf(
-        DonorInsight("Since", since),
-        DonorInsight("Tips", tipsLabel),
-        DonorInsight("Home", home),
+        DonorInsight(context.getString(R.string.donor_card_since), since),
+        DonorInsight(context.getString(R.string.donor_card_tips), tipsLabel),
+        DonorInsight(context.getString(R.string.donor_card_home), home),
     )
 }
 
 /** `yyyy-MM-dd` → `Jan '26` (no amounts). */
-private fun formatDonorMonthYear(isoDate: String): String {
+private fun formatDonorMonthYear(isoDate: String, context: Context): String {
     val parts = isoDate.trim().split('-')
     if (parts.size < 2) return "—"
     val year = parts[0]
     val month = parts[1].toIntOrNull() ?: return "—"
     val months = listOf(
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        R.string.donor_card_jan, R.string.donor_card_feb, R.string.donor_card_mar,
+        R.string.donor_card_apr, R.string.donor_card_may, R.string.donor_card_jun,
+        R.string.donor_card_jul, R.string.donor_card_aug, R.string.donor_card_sep,
+        R.string.donor_card_oct, R.string.donor_card_nov, R.string.donor_card_dec,
     )
-    val mon = months.getOrNull(month - 1) ?: return "—"
+    val monRes = months.getOrNull(month - 1) ?: return "—"
     val yy = year.takeLast(2)
-    return "$mon '$yy"
+    return "${context.getString(monRes)} '$yy"
 }
 
 @Composable
@@ -611,7 +631,8 @@ private fun DonorInsightRow(
     donor: DonorEntry,
     ink: Color,
 ) {
-    val insights = remember(donor) { donorInsights(donor) }
+    val context = LocalContext.current
+    val insights = remember(donor, context) { donorInsights(donor, context) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -679,7 +700,7 @@ private fun DonorCardBack(
                     modifier = Modifier.size(36.dp),
                 )
                 Text(
-                    text = "OFFICIAL LORE",
+                    text = stringResource(R.string.donate_official_lore),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp,
@@ -731,7 +752,7 @@ private fun DonorCardBack(
                                 modifier = Modifier.size(18.dp),
                             )
                             Text(
-                                text = "Open profile",
+                                text = stringResource(R.string.donate_open_profile),
                                 color = Color.White,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -739,7 +760,7 @@ private fun DonorCardBack(
                     }
                 }
                 Text(
-                    text = "FitBuddy Supporter Series",
+                    text = stringResource(R.string.donate_fitbuddy_supporter_series),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.55f),
                 )
@@ -766,7 +787,7 @@ private fun animeEmblemUrl(badge: SupporterBadge): String {
 
 private data class AnimeCrestTheme(
     val kanji: String,
-    val rankEn: String,
+    @param:androidx.annotation.StringRes val rankEnRes: Int,
     val aura: List<Color>,
     val core: List<Color>,
     val spark: Color,
@@ -776,7 +797,7 @@ private data class AnimeCrestTheme(
 private fun animeTheme(badge: SupporterBadge): AnimeCrestTheme = when (badge) {
     is SupporterBadge.Og -> AnimeCrestTheme(
         kanji = "始",
-        rankEn = "ORIGIN",
+        rankEnRes = R.string.donor_card_origin,
         aura = listOf(Color(0xFFFF8A65), Color(0xFFFFCC80), Color(0xFF6D4C41)),
         core = listOf(Color(0xFFFFF3E0), Color(0xFFE65100), Color(0xFF3E2723)),
         spark = Color(0xFFFFAB40),
@@ -784,7 +805,7 @@ private fun animeTheme(badge: SupporterBadge): AnimeCrestTheme = when (badge) {
     )
     is SupporterBadge.Generous -> AnimeCrestTheme(
         kanji = "慈",
-        rankEn = "BLESS",
+        rankEnRes = R.string.donor_card_bless,
         aura = listOf(Color(0xFF69F0AE), Color(0xFFB9F6CA), Color(0xFFFce4ec), Color(0xFF00C853)),
         core = listOf(Color(0xFFFFF0F5), Color(0xFF66BB6A), Color(0xFF1B5E20)),
         spark = Color(0xFFFF80AB),
@@ -792,7 +813,7 @@ private fun animeTheme(badge: SupporterBadge): AnimeCrestTheme = when (badge) {
     )
     is SupporterBadge.Legendary -> AnimeCrestTheme(
         kanji = "龍",
-        rankEn = "MYTHIC",
+        rankEnRes = R.string.donor_card_mythic,
         aura = listOf(Color(0xFF18FFFF), Color(0xFF7C4DFF), Color(0xFFE040FB), Color(0xFF304FFE)),
         core = listOf(Color(0xFFE8EAF6), Color(0xFF651FFF), Color(0xFF1A237E)),
         spark = Color(0xFF18FFFF),
@@ -800,7 +821,7 @@ private fun animeTheme(badge: SupporterBadge): AnimeCrestTheme = when (badge) {
     )
     is SupporterBadge.Godlike -> AnimeCrestTheme(
         kanji = "神",
-        rankEn = "DIVINE",
+        rankEnRes = R.string.donor_card_divine,
         aura = listOf(Color(0xFFFFD700), Color(0xFFFF1744), Color(0xFFFFEA00), Color(0xFFFF6D00)),
         core = listOf(Color(0xFFFFFDE7), Color(0xFFFF6F00), Color(0xFFB71C1C)),
         spark = Color(0xFFFFEA00),
@@ -808,7 +829,7 @@ private fun animeTheme(badge: SupporterBadge): AnimeCrestTheme = when (badge) {
     )
     is SupporterBadge.Custom -> AnimeCrestTheme(
         kanji = "印",
-        rankEn = "CREST",
+        rankEnRes = R.string.donor_card_crest,
         aura = listOf(Color(0xFF90A4AE), Color(0xFFCFD8DC), Color(0xFF546E7A)),
         core = listOf(Color(0xFFECEFF1), Color(0xFF607D8B), Color(0xFF263238)),
         spark = Color(0xFFB0BEC5),
@@ -1079,7 +1100,7 @@ private fun AnimeRankCrest(
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
             Text(
-                text = theme.rankEn,
+                text = stringResource(theme.rankEnRes),
                 color = Color.White,
                 fontWeight = FontWeight.Black,
                 fontSize = 9.sp,
@@ -1122,25 +1143,25 @@ private fun DonorProfileDestinationPanel(
 ) {
     val context = LocalContext.current
     val kind = remember(url) { donorProfileKind(url) }
-    val handle = remember(url, kind) { donorProfileHandle(url, kind) }
+    val handle = remember(url, kind, context) { donorProfileHandle(url, kind, context) }
     val (title, subtitle, panelBrush, cta) = when (kind) {
         DonorProfileKind.GITHUB -> Quad(
-            "GitHub",
-            "Explore $name's repos and stars",
+            stringResource(R.string.donor_card_github),
+            stringResource(R.string.donor_card_explore_s_repos_stars, name),
             Brush.verticalGradient(listOf(Color(0xFF24292F), Color(0xFF0D1117))),
-            "Open on GitHub",
+            stringResource(R.string.donor_card_open_github),
         )
         DonorProfileKind.INSTAGRAM -> Quad(
-            "Instagram",
-            "See what $name is sharing",
+            stringResource(R.string.donor_card_instagram),
+            stringResource(R.string.donor_card_see_what_sharing, name),
             Brush.verticalGradient(listOf(Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF))),
-            "Open on Instagram",
+            stringResource(R.string.donor_card_open_instagram),
         )
         DonorProfileKind.WEBSITE -> Quad(
-            "Personal site",
-            "Visit $name's corner of the web",
+            stringResource(R.string.donor_card_personal_site),
+            stringResource(R.string.donor_card_visit_s_corner_web, name),
             Brush.verticalGradient(listOf(Color(0xFF1B4332), Color(0xFF081C15))),
-            "Open website",
+            stringResource(R.string.donor_card_open_website),
         )
     }
 
@@ -1223,7 +1244,7 @@ private fun DonorProfileDestinationPanel(
                             .clickable {
                                 val uri = runCatching { Uri.parse(url) }.getOrNull()
                                 if (uri == null || uri.scheme.isNullOrBlank()) {
-                                    SystemToast.show(context, "Couldn't open link")
+                                    SystemToast.show(context, context.getString(R.string.donate_couldn_t_open_link))
                                     return@clickable
                                 }
                                 val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -1231,7 +1252,7 @@ private fun DonorProfileDestinationPanel(
                                 }
                                 runCatching { context.startActivity(intent) }
                                     .onFailure {
-                                        SystemToast.show(context, "Couldn't open link")
+                                        SystemToast.show(context, context.getString(R.string.donate_couldn_t_open_link))
                                     }
                             },
                     ) {
@@ -1246,7 +1267,7 @@ private fun DonorProfileDestinationPanel(
                         )
                     }
                     TextButton(onClick = onDismiss) {
-                        Text("Back to card", color = Color.White.copy(alpha = 0.85f))
+                        Text(stringResource(R.string.donate_back_to_card), color = Color.White.copy(alpha = 0.85f))
                     }
                 }
             }

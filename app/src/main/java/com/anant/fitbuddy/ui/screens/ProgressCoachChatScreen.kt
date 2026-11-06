@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -81,11 +85,10 @@ fun ProgressCoachChatScreen(
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("Leave conversation?") },
+            title = { Text(stringResource(R.string.coach_leave_conversation)) },
             text = {
                 Text(
-                    "You can keep this chat for next time, or clear it and start fresh " +
-                        "when you open the coach again."
+                    stringResource(R.string.coach_you_can_keep_this_chat_for)
                 )
             },
             confirmButton = {
@@ -95,7 +98,7 @@ fun ProgressCoachChatScreen(
                         onClearAndBack()
                     }
                 ) {
-                    Text("Clear & go back")
+                    Text(stringResource(R.string.coach_clear_go_back))
                 }
             },
             dismissButton = {
@@ -105,7 +108,7 @@ fun ProgressCoachChatScreen(
                         onBack()
                     }
                 ) {
-                    Text("Keep chat")
+                    Text(stringResource(R.string.coach_keep_chat))
                 }
             }
         )
@@ -115,10 +118,10 @@ fun ProgressCoachChatScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Progress Coach") },
+                title = { Text(stringResource(R.string.coach_progress_coach)) },
                 navigationIcon = {
                     IconButton(onClick = ::requestBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.backup_back))
                     }
                 }
             )
@@ -142,7 +145,7 @@ fun ProgressCoachChatScreen(
                         onValueChange = { chatInput = it },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = isAiConfigured && !state.isChatLoading,
-                        placeholder = { Text("Ask about your trends, macros, or body comp…") },
+                        placeholder = { Text(stringResource(R.string.coach_ask_about_your_trends_macros_or)) },
                         minLines = 1,
                         maxLines = 4,
                         trailingIcon = {
@@ -155,7 +158,7 @@ fun ProgressCoachChatScreen(
                                     isAiConfigured &&
                                     !state.isChatLoading
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.main_send))
                             }
                         }
                     )
@@ -186,7 +189,7 @@ fun ProgressCoachChatScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Thinking…",
+                            stringResource(R.string.coach_thinking),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

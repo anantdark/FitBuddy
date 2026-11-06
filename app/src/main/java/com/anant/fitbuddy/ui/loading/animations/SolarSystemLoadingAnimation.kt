@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.loading.animations
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
@@ -61,15 +65,15 @@ import androidx.compose.runtime.getValue
 /** Dashboard analyzing banner: miniature Keplerian solar system crossing the frame. */
 object SolarSystemLoadingAnimation : LoadingAnimation {
     override val id: String = "solar_system"
-    override val displayName: String = "Solar system"
+    override val displayNameRes: Int = R.string.loading_solar_system
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.ANALYZING)
-    override val defaultCaptions: List<String> = analyzingCaptions
+    override val defaultCaptionRes: List<Int> = analyzingCaptionRes
 
     @Composable
     override fun Content(scope: LoadingAnimationScope) {
         SolarSystemBanner(
             modelId = scope.label,
-            captions = scope.captions.ifEmpty { defaultCaptions },
+            captions = scope.captions.ifEmpty { analyzingCaptions() },
             modifier = scope.modifier
         )
     }

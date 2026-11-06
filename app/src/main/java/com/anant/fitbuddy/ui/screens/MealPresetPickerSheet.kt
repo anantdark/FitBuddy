@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,12 +64,12 @@ fun MealPresetPickerSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Text(
-                text = "Saved meals",
+                text = stringResource(R.string.meal_saved_meals),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = "Tap a meal to log it to the day you're viewing. Edit or delete saved meals anytime. Recently used meals stay on top.",
+                text = stringResource(R.string.meal_tap_a_meal_to_log_it),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -79,15 +83,15 @@ fun MealPresetPickerSheet(
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Create meal")
+                Text(stringResource(R.string.meal_create_meal))
             }
 
             if (presets.isNotEmpty()) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Search") },
-                    placeholder = { Text("Meal name") },
+                    label = { Text(stringResource(R.string.meal_search)) },
+                    placeholder = { Text(stringResource(R.string.meal_meal_name)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -98,7 +102,7 @@ fun MealPresetPickerSheet(
             when {
                 presets.isEmpty() -> {
                     Text(
-                        text = "No saved meals yet. Create one above, then save it as a preset on the review screen.",
+                        text = stringResource(R.string.meal_no_saved_meals_yet_create_one),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
@@ -106,7 +110,7 @@ fun MealPresetPickerSheet(
                 }
                 filtered.isEmpty() -> {
                     Text(
-                        text = "No meals match \"$query\".",
+                        text = stringResource(R.string.meal_preset_no_meals_match, query),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
@@ -167,7 +171,7 @@ private fun MealPresetRow(
             Text(
                 text = buildString {
                     append("${preset.calories} kcal")
-                    if (foodCount > 0) append(" · $foodCount food(s)")
+                    if (foodCount > 0) append(stringResource(R.string.meal_preset_food_s, foodCount))
                     append(" · P ${preset.proteinG.formatMacro()}g · C ${preset.carbsG.formatMacro()}g · F ${preset.fatsG.formatMacro()}g")
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -177,13 +181,13 @@ private fun MealPresetRow(
         IconButton(onClick = onEdit) {
             Icon(
                 Icons.Filled.Edit,
-                contentDescription = "Edit ${preset.name}"
+                contentDescription = stringResource(R.string.meal_preset_edit, preset.name)
             )
         }
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Filled.Delete,
-                contentDescription = "Delete ${preset.name}",
+                contentDescription = stringResource(R.string.meal_preset_delete, preset.name),
                 tint = MaterialTheme.colorScheme.error
             )
         }

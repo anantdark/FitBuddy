@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -79,10 +83,10 @@ fun MealReviewDialog(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
-                    title = { Text(if (isEditing) "Edit meal" else "Review meal") },
+                    title = { Text(if (isEditing) "Edit meal" else stringResource(R.string.meal_review_meal)) },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
                         }
                     }
                 )
@@ -102,7 +106,7 @@ fun MealReviewDialog(
                         ) {
                             Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Save as meal preset")
+                            Text(stringResource(R.string.meal_save_as_meal_preset))
                         }
                     }
                     Row(
@@ -112,7 +116,7 @@ fun MealReviewDialog(
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = onDismiss
-                        ) { Text("Cancel") }
+                        ) { Text(stringResource(R.string.common_cancel)) }
                         Button(
                             modifier = Modifier.weight(1f),
                             enabled = draft.foods.isNotEmpty(),
@@ -122,10 +126,10 @@ fun MealReviewDialog(
                         ) {
                             Text(
                                 when {
-                                    isEditing && saveAsPresetOnly -> "Update meal preset"
-                                    isEditing -> "Update meal"
-                                    saveAsPresetOnly -> "Save as meal preset"
-                                    else -> "Save meal"
+                                    isEditing && saveAsPresetOnly -> stringResource(R.string.meal_review_update_meal_preset)
+                                    isEditing -> stringResource(R.string.meal_review_update_meal)
+                                    saveAsPresetOnly -> stringResource(R.string.meal_save_as_meal_preset)
+                                    else -> stringResource(R.string.meal_review_save_meal)
                                 }
                             )
                         }
@@ -170,7 +174,7 @@ fun MealReviewDialog(
                 }
                 item {
                     Text(
-                        text = "Foods",
+                        text = stringResource(R.string.meal_foods),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -178,7 +182,7 @@ fun MealReviewDialog(
                 if (draft.foods.isEmpty()) {
                     item {
                         Text(
-                            text = "No foods in this meal. Go back and add at least one food.",
+                            text = stringResource(R.string.meal_no_foods_in_this_meal_go),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -223,8 +227,12 @@ private fun MealFoodReviewCard(
                     food.servings.toString()
                 }
                 Text(
-                    text = "Qty $qtyLabel · ${food.totalWeightG} g · " +
-                        "${food.ingredients.size} ingredient(s)",
+                    text = stringResource(
+                        R.string.meal_review_qty_g_ingredient_s,
+                        qtyLabel,
+                        food.totalWeightG.toString(),
+                        food.ingredients.size,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -242,7 +250,7 @@ private fun MealFoodReviewCard(
                     )
                 }
             }
-            Icon(Icons.Filled.Edit, contentDescription = "Edit food")
+            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.meal_edit_food))
         }
     }
 }

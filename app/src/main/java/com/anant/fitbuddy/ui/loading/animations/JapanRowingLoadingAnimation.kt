@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.loading.animations
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -38,23 +42,14 @@ import androidx.compose.runtime.getValue
 /** Compact Japan rowing scene used inside insight / AI-target buttons. */
 object JapanRowingLoadingAnimation : LoadingAnimation {
     override val id: String = "japan_rowing"
-    override val displayName: String = "Japan rowing"
+    override val displayNameRes: Int = R.string.loading_japan_rowing
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.INSIGHT)
-    override val defaultCaptions: List<String> = listOf(
-        "Generating insight…",
-        "Reading your charts…",
-        "Crunching the numbers…",
-        "Spotting trends…",
-        "Almost there…",
-        "Weighing the data…",
-        "Consulting the AI…",
-        "Mapping your progress…"
-    )
+    override val defaultCaptionRes: List<Int> = insightCaptionRes
 
     @Composable
     override fun Content(scope: LoadingAnimationScope) {
         JapanRowingContent(
-            captions = scope.captions.ifEmpty { defaultCaptions },
+            captions = scope.captions.ifEmpty { insightCaptions() },
             modifier = scope.modifier
         )
     }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -19,12 +18,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.anant.fitbuddy.R
 import com.anant.fitbuddy.ui.loading.animations.analyzingLabel
+import com.anant.fitbuddy.ui.theme.appShape
 
 /**
  * Shows a loading animation for [slot] according to [animationChoice]
@@ -50,16 +52,17 @@ fun LoadingAnimationHost(
             )
             LoadingAnimationSlot.INSIGHT -> InsightSpinnerContent(
                 message = captions?.firstOrNull()?.takeIf { it.isNotBlank() }
-                    ?: "Generating insight…",
+                    ?: stringResource(R.string.loading_generating_insight),
                 modifier = modifier
             )
         }
         return
     }
 
+    val defaultCaptions = animation.defaultCaptionRes.map { stringResource(it) }
     val resolvedCaptions = when {
         !captions.isNullOrEmpty() -> captions
-        animation.defaultCaptions.isNotEmpty() -> animation.defaultCaptions
+        defaultCaptions.isNotEmpty() -> defaultCaptions
         else -> emptyList()
     }
     animation.Content(

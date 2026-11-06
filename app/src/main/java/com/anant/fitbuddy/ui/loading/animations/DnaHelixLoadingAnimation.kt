@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.loading.animations
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
@@ -55,15 +59,15 @@ import androidx.compose.runtime.getValue
 /** Dashboard analyzing banner: vertical DNA helix on the right. */
 object DnaHelixLoadingAnimation : LoadingAnimation {
     override val id: String = "dna_helix"
-    override val displayName: String = "DNA helix"
+    override val displayNameRes: Int = R.string.loading_dna_helix
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.ANALYZING)
-    override val defaultCaptions: List<String> = analyzingCaptions
+    override val defaultCaptionRes: List<Int> = analyzingCaptionRes
 
     @Composable
     override fun Content(scope: LoadingAnimationScope) {
         DnaHelixBanner(
             modelId = scope.label,
-            captions = scope.captions.ifEmpty { defaultCaptions },
+            captions = scope.captions.ifEmpty { analyzingCaptions() },
             vertical = true,
             modifier = scope.modifier
         )
@@ -73,15 +77,15 @@ object DnaHelixLoadingAnimation : LoadingAnimation {
 /** Dashboard analyzing banner: full-width horizontal DNA helix. */
 object DnaHelixHorizontalLoadingAnimation : LoadingAnimation {
     override val id: String = "dna_helix_horizontal"
-    override val displayName: String = "DNA helix horizontal"
+    override val displayNameRes: Int = R.string.loading_dna_helix_horizontal
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.ANALYZING)
-    override val defaultCaptions: List<String> = analyzingCaptions
+    override val defaultCaptionRes: List<Int> = analyzingCaptionRes
 
     @Composable
     override fun Content(scope: LoadingAnimationScope) {
         DnaHelixBanner(
             modelId = scope.label,
-            captions = scope.captions.ifEmpty { defaultCaptions },
+            captions = scope.captions.ifEmpty { analyzingCaptions() },
             vertical = false,
             modifier = scope.modifier
         )

@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,8 +69,7 @@ fun RegionSelectionScreen(
     regionRequestAlreadySent: Boolean = false,
     onFinished: (region: AppRegion) -> Unit,
     onBack: (() -> Unit)? = null,
-    requestDisabledHint: String =
-        "Enable crash reporting on the previous page to request a custom region.",
+    requestDisabledHint: String? = null,
     onRequestRegionSent: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -78,10 +81,12 @@ fun RegionSelectionScreen(
     var alreadySent by remember(regionRequestAlreadySent) {
         mutableStateOf(regionRequestAlreadySent)
     }
+    val resolvedDisabledHint = requestDisabledHint
+        ?: stringResource(R.string.onboarding_enable_crash_reporting_previous_page_request_cus)
     val canRequest = crashReportingEnabled && !alreadySent
     val requestHint = when {
-        !crashReportingEnabled -> requestDisabledHint
-        alreadySent -> "You've already sent a region request from this install."
+        !crashReportingEnabled -> resolvedDisabledHint
+        alreadySent -> stringResource(R.string.region_you_ve_already_sent_a_region)
         else -> null
     }
     val context = LocalContext.current
@@ -100,14 +105,13 @@ fun RegionSelectionScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Choose your region",
+                text = stringResource(R.string.region_choose_your_region),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "We use this to personalise calorie estimates, staple foods, and " +
-                    "coaching tone for your diet and lifestyle.",
+                text = stringResource(R.string.region_we_use_this_to_personalise_calorie),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -151,7 +155,7 @@ fun RegionSelectionScreen(
                     .fillMaxWidth()
                     .alpha(if (canRequest) 1f else 0.45f)
             ) {
-                Text("Don't see your region? Request another")
+                Text(stringResource(R.string.region_don_t_see_your_region_request))
             }
             if (requestHint != null) {
                 Text(
@@ -169,7 +173,7 @@ fun RegionSelectionScreen(
                         onClick = onBack,
                         enabled = !isSaving,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Back") }
+                    ) { Text(stringResource(R.string.backup_back)) }
                     Spacer(modifier = Modifier.width(12.dp))
                 }
                 Button(
@@ -177,7 +181,7 @@ fun RegionSelectionScreen(
                     enabled = !isSaving,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(if (isSaving) "Saving…" else "Continue")
+                    Text(if (isSaving) stringResource(R.string.region_saving) else "Continue")
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))
@@ -187,18 +191,18 @@ fun RegionSelectionScreen(
     if (showRequestDialog) {
         AlertDialog(
             onDismissRequest = { showRequestDialog = false },
-            title = { Text("Request another region") },
+            title = { Text(stringResource(R.string.region_request_another_region)) },
             text = {
                 Column {
                     Text(
-                        text = "Tell us which country or region's diet to add next.",
+                        text = stringResource(R.string.region_tell_us_which_country_or_region),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = requestText,
                         onValueChange = { requestText = it },
-                        label = { Text("Region or country") },
+                        label = { Text(stringResource(R.string.region_region_or_country)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -211,10 +215,10 @@ fun RegionSelectionScreen(
                         showConsentDialog = true
                     },
                     enabled = requestText.isNotBlank()
-                ) { Text("Next") }
+                ) { Text(stringResource(R.string.region_next)) }
             },
             dismissButton = {
-                TextButton(onClick = { showRequestDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showRequestDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -222,22 +226,25 @@ fun RegionSelectionScreen(
     if (showConsentDialog) {
         AlertDialog(
             onDismissRequest = { if (!sendingRequest) showConsentDialog = false },
-            title = { Text("Send region request?") },
+            title = { Text(stringResource(R.string.region_send_region_request)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "This sends exactly the following, anonymously:",
+                        text = stringResource(R.string.region_this_sends_exactly_the_following_anonymously),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
-                    ConsentLine("Event", "Region request")
-                    ConsentLine("Requested region", requestText.trim())
-                    ConsentLine("Current / selected region", selectedRegion.displayName())
-                    ConsentLine("Anonymous Support ID", supportId.ifBlank { "(none yet)" })
-                    ConsentLine("App version", BuildConfig.VERSION_NAME)
+                    ConsentLine(stringResource(R.string.region_event), "Region request")
+                    ConsentLine(stringResource(R.string.region_requested_region), requestText.trim())
+                    ConsentLine(
+                        stringResource(R.string.region_current_selected_region),
+                        stringResource(selectedRegion.displayNameRes())
+                    )
+                    ConsentLine(stringResource(R.string.region_anonymous_support_id), supportId.ifBlank { "(none yet)" })
+                    ConsentLine(stringResource(R.string.region_app_version), BuildConfig.VERSION_NAME)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "No meals, photos, names, or API keys are ever included.",
+                        text = stringResource(R.string.region_no_meals_photos_names_or_api),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -256,7 +263,7 @@ fun RegionSelectionScreen(
                                 showConsentDialog = false
                                 SystemToast.show(
                                     context,
-                                    "You've already sent a region request from this install.",
+                                    context.getString(R.string.region_you_ve_already_sent_a_region),
                                 )
                                 return@launch
                             }
@@ -277,13 +284,13 @@ fun RegionSelectionScreen(
                         }
                     },
                     enabled = !sendingRequest
-                ) { Text(if (sendingRequest) "Sending…" else "Send") }
+                ) { Text(if (sendingRequest) stringResource(R.string.region_sending) else "Send") }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showConsentDialog = false },
                     enabled = !sendingRequest
-                ) { Text("Cancel") }
+                ) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -323,7 +330,7 @@ private fun RegionOptionCard(region: AppRegion, selected: Boolean, onClick: () -
                 Spacer(modifier = Modifier.width(16.dp))
             }
             Text(
-                text = region.displayName(),
+                text = stringResource(region.displayNameRes()),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 modifier = Modifier.weight(1f)

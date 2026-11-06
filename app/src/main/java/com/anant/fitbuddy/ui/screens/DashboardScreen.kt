@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -156,7 +160,7 @@ fun DashboardHomeScreen(
 
         item {
             Text(
-                text = "Today's Log",
+                text = stringResource(R.string.dashboard_today_s_log),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -214,7 +218,7 @@ private fun CalorieHeaderCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = if (state.isOverTarget) "Over target" else "Calories remaining",
+                text = if (state.isOverTarget) "Over target" else stringResource(R.string.dashboard_calories_remaining),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -222,7 +226,7 @@ private fun CalorieHeaderCard(
             CalorieRing(
                 progress = state.calorieProgress,
                 centerText = state.remainingCalories.toString(),
-                subText = "kcal left",
+                subText = stringResource(R.string.dashboard_kcal_left),
                 modifier = Modifier.size(200.dp),
                 progressColor = if (state.isOverTarget) {
                     MaterialTheme.colorScheme.error
@@ -235,9 +239,9 @@ private fun CalorieHeaderCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                HeaderStat("Eaten", state.consumedCalories)
-                HeaderStat("Exercise", state.burnedCalories)
-                HeaderStat("Target", state.targetCalories)
+                HeaderStat(stringResource(R.string.dashboard_eaten_2), state.consumedCalories)
+                HeaderStat(stringResource(R.string.dashboard_exercise), state.burnedCalories)
+                HeaderStat(stringResource(R.string.dashboard_target), state.targetCalories)
             }
         }
     }
@@ -249,38 +253,41 @@ private fun MacroRow(state: DashboardUiState) {
     // Tapping the same card again flips it back.
     var flippedLabel by remember { mutableStateOf<String?>(null) }
 
+    val proteinLabel = stringResource(R.string.dashboard_protein)
+    val carbsLabel = stringResource(R.string.dashboard_carbs)
+    val fatsLabel = stringResource(R.string.dashboard_fats)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         MacroCard(
-            label = "Protein",
+            label = proteinLabel,
             remaining = state.remainingProtein,
             consumed = state.consumedProtein,
             target = state.targetProtein,
             color = ProteinColor,
-            isFlipped = flippedLabel == "Protein",
-            onTap = { flippedLabel = if (flippedLabel == "Protein") null else "Protein" },
+            isFlipped = flippedLabel == proteinLabel,
+            onTap = { flippedLabel = if (flippedLabel == proteinLabel) null else proteinLabel },
             modifier = Modifier.weight(1f)
         )
         MacroCard(
-            label = "Carbs",
+            label = carbsLabel,
             remaining = state.remainingCarbs,
             consumed = state.consumedCarbs,
             target = state.targetCarbs,
             color = CarbsColor,
-            isFlipped = flippedLabel == "Carbs",
-            onTap = { flippedLabel = if (flippedLabel == "Carbs") null else "Carbs" },
+            isFlipped = flippedLabel == carbsLabel,
+            onTap = { flippedLabel = if (flippedLabel == carbsLabel) null else carbsLabel },
             modifier = Modifier.weight(1f)
         )
         MacroCard(
-            label = "Fats",
+            label = fatsLabel,
             remaining = state.remainingFats,
             consumed = state.consumedFats,
             target = state.targetFats,
             color = FatsColor,
-            isFlipped = flippedLabel == "Fats",
-            onTap = { flippedLabel = if (flippedLabel == "Fats") null else "Fats" },
+            isFlipped = flippedLabel == fatsLabel,
+            onTap = { flippedLabel = if (flippedLabel == fatsLabel) null else fatsLabel },
             modifier = Modifier.weight(1f)
         )
     }
@@ -345,7 +352,7 @@ private fun MacroCard(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "left",
+                    text = stringResource(R.string.dashboard_left),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -383,7 +390,7 @@ private fun MacroCard(
                     color = color
                 )
                 Text(
-                    text = "eaten",
+                    text = stringResource(R.string.dashboard_eaten),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -401,7 +408,7 @@ private fun MacroCard(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "of ${target}g",
+                    text = stringResource(R.string.dashboard_g, target.toString()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -439,8 +446,9 @@ fun WeekHistoryScreen(
     var actionItem by remember(selectedDate) { mutableStateOf<LogRowItem?>(null) }
 
     val isCurrentWeek = dates.lastOrNull() == realToday
-    val weekLabel = remember(dates, isCurrentWeek) {
-        if (isCurrentWeek) "This week" else DateUtils.weekRangeLabel(dates)
+    val thisWeekLabel = stringResource(R.string.dashboard_week)
+    val weekLabel = remember(dates, isCurrentWeek, thisWeekLabel) {
+        if (isCurrentWeek) thisWeekLabel else DateUtils.weekRangeLabel(dates)
     }
     val canGoNextWeek = dates.lastOrNull() != null && dates.last() < realToday
 
@@ -460,9 +468,9 @@ fun WeekHistoryScreen(
 
     val dayLabel = DateUtils.dayTitle(selectedDate, realToday)
     val logTitle = when (dayLabel) {
-        "Today" -> "Today's Log"
-        "Yesterday" -> "Yesterday's Log"
-        else -> "Log · $dayLabel"
+        "Today" -> stringResource(R.string.dashboard_today_s_log)
+        "Yesterday" -> stringResource(R.string.dashboard_yesterday_s_log)
+        else -> stringResource(R.string.dashboard_log, dayLabel)
     }
 
     LazyColumn(
@@ -497,16 +505,16 @@ fun WeekHistoryScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = if (isCurrentWeek) {
-                            "Calories this week"
+                            stringResource(R.string.dashboard_calories_week)
                         } else {
-                            "Calories · $weekLabel"
+                            stringResource(R.string.dashboard_calories, weekLabel)
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "Tap a bar for macros · selects that day's log",
+                        text = stringResource(R.string.dashboard_tap_a_bar_for_macros_selects),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -543,9 +551,9 @@ fun WeekHistoryScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                HeaderStat("Eaten", snap.consumedCalories)
-                HeaderStat("Burned", snap.burnedCalories)
-                HeaderStat("Target", profileState.targetCalories)
+                HeaderStat(stringResource(R.string.dashboard_eaten_2), snap.consumedCalories)
+                HeaderStat(stringResource(R.string.dashboard_burned), snap.burnedCalories)
+                HeaderStat(stringResource(R.string.dashboard_target), profileState.targetCalories)
             }
         }
 
@@ -604,9 +612,9 @@ private fun WeekMacroLegend() {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        LegendDot("Protein", ProteinColor)
-        LegendDot("Carbs", CarbsColor)
-        LegendDot("Fats", FatsColor)
+        LegendDot(stringResource(R.string.dashboard_protein), ProteinColor)
+        LegendDot(stringResource(R.string.dashboard_carbs), CarbsColor)
+        LegendDot(stringResource(R.string.dashboard_fats), FatsColor)
     }
 }
 
@@ -646,7 +654,7 @@ private fun WeekRangeNavigator(
         IconButton(onClick = onPrev, enabled = canGoPrev) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Previous week",
+                contentDescription = stringResource(R.string.dashboard_previous_week),
                 tint = if (canGoPrev) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -671,7 +679,7 @@ private fun WeekRangeNavigator(
         IconButton(onClick = onNext, enabled = canGoNext) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Next week",
+                contentDescription = stringResource(R.string.dashboard_next_week),
                 tint = if (canGoNext) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -698,7 +706,7 @@ private fun WeekDateNavigator(
         IconButton(onClick = onPrev, enabled = canGoPrev) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Previous day",
+                contentDescription = stringResource(R.string.dashboard_previous_day),
                 tint = if (canGoPrev) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -716,7 +724,7 @@ private fun WeekDateNavigator(
         IconButton(onClick = onNext, enabled = canGoNext) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Next day",
+                contentDescription = stringResource(R.string.dashboard_next_day),
                 tint = if (canGoNext) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -763,24 +771,24 @@ private fun LogActionSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             if (item.isFood) {
-                ActionRow(Icons.Filled.Edit, "Edit meal / foods", onClick = { runAfterHide(onEdit) })
+                ActionRow(Icons.Filled.Edit, stringResource(R.string.dashboard_edit_meal_foods), onClick = { runAfterHide(onEdit) })
             } else {
                 ActionRow(
                     Icons.Filled.FitnessCenter,
-                    "View / edit exercises",
+                    stringResource(R.string.dashboard_view_edit_exercises),
                     onClick = { runAfterHide(onViewExercise) }
                 )
             }
             if (showClone) {
                 ActionRow(
                     Icons.Filled.ContentCopy,
-                    "Clone item",
+                    stringResource(R.string.dashboard_clone_item),
                     onClick = { runAfterHide(onClone) }
                 )
             }
             ActionRow(
                 icon = Icons.Filled.DeleteOutline,
-                label = "Remove from log",
+                label = stringResource(R.string.dashboard_remove_from_log),
                 onClick = { runAfterHide(onDelete) },
                 tint = MaterialTheme.colorScheme.error
             )
@@ -899,12 +907,12 @@ private fun EmptyLogState() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "No entries yet",
+                text = stringResource(R.string.dashboard_no_entries_yet),
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Tap Log to add food or a workout.",
+                text = stringResource(R.string.dashboard_tap_log_to_add_food_or),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

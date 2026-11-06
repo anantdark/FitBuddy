@@ -57,10 +57,10 @@ class DonationReminderReceiver : BroadcastReceiver() {
                 .build()
             val channel = NotificationChannel(
                 DonationReminderScheduler.CHANNEL_ID,
-                "Donate reminders",
+                context.getString(R.string.donate_reminder_donate_reminders),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Optional reminder every few days to support FitBuddy development"
+                description = context.getString(R.string.donate_reminder_optional_reminder_every_few_days_to)
                 enableVibration(true)
                 vibrationPattern = VIBRATION_PATTERN
                 enableLights(true)
@@ -75,8 +75,12 @@ class DonationReminderReceiver : BroadcastReceiver() {
             val notifier = NotificationManagerCompat.from(app)
             if (!notifier.areNotificationsEnabled()) return false
             ensureChannel(app)
-            val message = DonationNotificationCopy.random()
-            val title = if (isTest) "Test · ${message.title}" else message.title
+            val message = DonationNotificationCopy.random().resolve(app)
+            val title = if (isTest) {
+                app.getString(R.string.donate_reminder_test_s, message.title)
+            } else {
+                message.title
+            }
             val contentIntent = PendingIntent.getActivity(
                 app,
                 if (isTest) 3 else 2,

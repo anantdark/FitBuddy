@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
@@ -55,13 +59,13 @@ fun OpenRouterConnectSection(
     ) {
         if (oauthConnected) {
             Text(
-                text = "Connected with OpenRouter",
+                text = stringResource(R.string.settings_connected_with_openrouter),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             if (hasManualKeys) {
                 Text(
-                    text = "API keys are preferred; OpenRouter sign-in is used only if they fail.",
+                    text = stringResource(R.string.settings_api_keys_are_preferred_openrouter_sign),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -71,7 +75,7 @@ fun OpenRouterConnectSection(
                 enabled = !oauthBusy,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Disconnect OpenRouter")
+                Text(stringResource(R.string.settings_disconnect_openrouter))
             }
         } else {
             Button(
@@ -79,13 +83,13 @@ fun OpenRouterConnectSection(
                 enabled = !oauthBusy && !apiKeysExpanded,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (oauthBusy) "Connecting…" else "Continue with OpenRouter")
+                Text(if (oauthBusy) "Connecting…" else stringResource(R.string.settings_continue_with_openrouter))
             }
             Text(
                 text = if (apiKeysExpanded) {
-                    "Collapse API keys below to use OpenRouter sign-in instead."
+                    stringResource(R.string.openrouter_collapse_api_keys_below_use_openrouter_sign)
                 } else {
-                    "Sign in or create an OpenRouter account. No API key paste required."
+                    stringResource(R.string.openrouter_sign_create_openrouter_account_no_api_key)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -100,13 +104,17 @@ fun OpenRouterConnectSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Use API keys instead",
+                text = stringResource(R.string.settings_use_api_keys_instead),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
             Icon(
                 imageVector = if (apiKeysExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (apiKeysExpanded) "Collapse" else "Expand"
+                contentDescription = if (apiKeysExpanded) {
+                    stringResource(R.string.openrouter_collapse)
+                } else {
+                    stringResource(R.string.openrouter_expand)
+                }
             )
         }
 
@@ -136,7 +144,7 @@ private fun OpenRouterApiKeyDocsLink() {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "How to create an OpenRouter API key",
+            text = stringResource(R.string.settings_how_to_create_an_openrouter_api),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.primary

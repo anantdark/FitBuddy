@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,16 +86,16 @@ fun SavedFoodPickerSheet(
                 .padding(bottom = 24.dp)
         ) {
             Text(
-                text = "Saved foods",
+                text = stringResource(R.string.food_saved_foods),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
                 text = when (mode) {
                     SavedFoodSheetMode.PICK_FOR_MEAL ->
-                        "Add a food to this meal. Edit or delete saved foods anytime. Recently used foods stay on top."
+                        stringResource(R.string.saved_food_add_food_meal_edit_delete_saved_foods)
                     SavedFoodSheetMode.LOG_TO_DAY ->
-                        "Tap a food to log it to the day you're viewing. Edit or delete saved foods anytime. Recently used foods stay on top."
+                        stringResource(R.string.saved_food_tap_food_log_day_re_viewing_edit)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -106,15 +110,15 @@ fun SavedFoodPickerSheet(
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Create food")
+                Text(stringResource(R.string.food_create_food))
             }
 
             if (foods.isNotEmpty()) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Search") },
-                    placeholder = { Text("Food name") },
+                    label = { Text(stringResource(R.string.meal_search)) },
+                    placeholder = { Text(stringResource(R.string.food_food_name)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -125,7 +129,7 @@ fun SavedFoodPickerSheet(
             when {
                 foods.isEmpty() -> {
                     Text(
-                        text = "No saved foods yet. Create one above, scan a barcode from Log, or save a food after AI review.",
+                        text = stringResource(R.string.food_no_saved_foods_yet_create_one),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
@@ -133,7 +137,7 @@ fun SavedFoodPickerSheet(
                 }
                 filtered.isEmpty() -> {
                     Text(
-                        text = "No foods match \"$query\".",
+                        text = stringResource(R.string.saved_food_no_foods_match, query),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
@@ -217,13 +221,13 @@ private fun SavedFoodRow(
         IconButton(onClick = onEdit) {
             Icon(
                 Icons.Filled.Edit,
-                contentDescription = "Edit ${food.name}"
+                contentDescription = stringResource(R.string.meal_preset_edit, food.name)
             )
         }
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Filled.Delete,
-                contentDescription = "Delete ${food.name}",
+                contentDescription = stringResource(R.string.meal_preset_delete, food.name),
                 tint = MaterialTheme.colorScheme.error
             )
         }

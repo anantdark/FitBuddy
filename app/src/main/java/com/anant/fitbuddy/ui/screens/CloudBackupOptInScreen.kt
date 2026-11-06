@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -55,13 +59,13 @@ fun CloudBackupOptInScreen(
                     OutlinedButton(
                         onClick = onBack,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Back") }
+                    ) { Text(stringResource(R.string.backup_back)) }
                     Spacer(modifier = Modifier.width(12.dp))
                 }
                 Button(
                     onClick = { onContinue(enabled) },
                     modifier = Modifier.weight(1f)
-                ) { Text("Continue") }
+                ) { Text(stringResource(R.string.backup_continue)) }
             }
         }
     ) { innerPadding ->
@@ -75,13 +79,13 @@ fun CloudBackupOptInScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Cloud backup",
+                text = stringResource(R.string.backup_cloud_backup),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Encrypted backup to FitBuddy’s cloud. Off by default — change anytime in Settings.",
+                text = stringResource(R.string.backup_encrypted_backup_to_fitbuddy_s_cloud),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -100,7 +104,7 @@ fun CloudBackupOptInScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Enable cloud backup",
+                        text = stringResource(R.string.backup_enable_cloud_backup),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
@@ -114,7 +118,7 @@ fun CloudBackupOptInScreen(
             if (enabled) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Crash reports will also be enabled.",
+                    text = stringResource(R.string.backup_crash_reports_will_also_be_enabled),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

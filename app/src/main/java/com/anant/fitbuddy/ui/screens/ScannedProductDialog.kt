@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import com.anant.fitbuddy.util.sanitizeMacroInput
 import com.anant.fitbuddy.util.toMacroOrNull
@@ -54,17 +58,17 @@ fun ScannedProductDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Product found") },
+        title = { Text(stringResource(R.string.food_product_found)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Barcode: ${product.barcode}")
+                Text(stringResource(R.string.edit_saved_food_barcode, product.barcode))
                 product.servingGrams?.let {
-                    Text("Reference serving: ${it}g (edit macros to match your packet)")
+                    Text(stringResource(R.string.scanned_product_reference_serving_g_edit_macros_match_packet, it.toString()))
                 }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.food_name)) },
                     singleLine = true,
                     enabled = !isSaving,
                     modifier = Modifier.fillMaxWidth()
@@ -72,16 +76,16 @@ fun ScannedProductDialog(
                 OutlinedTextField(
                     value = calories,
                     onValueChange = { calories = it.filter { c -> c.isDigit() }.take(5) },
-                    label = { Text("Calories per serving") },
+                    label = { Text(stringResource(R.string.food_calories_per_serving)) },
                     singleLine = true,
                     enabled = !isSaving,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { MacroField("Protein", protein, isSaving) { protein = it } }
-                    Box(Modifier.weight(1f)) { MacroField("Carbs", carbs, isSaving) { carbs = it } }
-                    Box(Modifier.weight(1f)) { MacroField("Fats", fats, isSaving) { fats = it } }
+                    Box(Modifier.weight(1f)) { MacroField(stringResource(R.string.dashboard_protein), protein, isSaving) { protein = it } }
+                    Box(Modifier.weight(1f)) { MacroField(stringResource(R.string.dashboard_carbs), carbs, isSaving) { carbs = it } }
+                    Box(Modifier.weight(1f)) { MacroField(stringResource(R.string.dashboard_fats), fats, isSaving) { fats = it } }
                 }
             }
         },
@@ -99,7 +103,7 @@ fun ScannedProductDialog(
                         onClick = { buildProduct()?.let(onSecondary) }
                     ) { Text(secondaryLabel) }
                 }
-                TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancel") }
+                TextButton(onClick = onDismiss, enabled = !isSaving) { Text(stringResource(R.string.common_cancel)) }
             }
         }
     )

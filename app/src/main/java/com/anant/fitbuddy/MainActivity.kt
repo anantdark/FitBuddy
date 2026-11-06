@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
                     val viewModel: MainViewModel = viewModel(
-                        factory = MainViewModelFactory(app.repository, app.settingsRepository, app.updateChecker)
+                        factory = MainViewModelFactory(app, app.repository, app.settingsRepository, app.updateChecker)
                     )
                     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
                     val needsRegionSelection by viewModel.needsRegionSelection.collectAsStateWithLifecycle()

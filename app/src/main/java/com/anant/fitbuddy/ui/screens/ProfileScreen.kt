@@ -1,5 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -74,13 +77,12 @@ import kotlin.math.abs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
-private val GOAL_OPTIONS = listOf(
-    "AUTO" to "Choose automatically",
-    "LOSE_WEIGHT" to "Lose weight",
-    "GAIN_MUSCLE" to "Gain muscle",
-    "RECOMP" to "Body recomposition"
+private val GOAL_OPTION_RES = listOf(
+    "AUTO" to R.string.onboarding_choose_automatically,
+    "LOSE_WEIGHT" to R.string.onboarding_lose_weight,
+    "GAIN_MUSCLE" to R.string.onboarding_gain_muscle,
+    "RECOMP" to R.string.onboarding_body_recomposition
 )
-private val ACTIVITY_OPTIONS = ActivityLevels.options
 
 @Composable
 fun BodyScreen(
@@ -135,12 +137,12 @@ fun BodyScreen(
         ?.takeIf { it.isFinite() && it > 0.0 }
     val targetWeightError = when {
         targetWeight.value.isBlank() -> null
-        parsedTargetWeight == null -> "Enter a valid weight milestone"
-        currentWeight == null -> "Add a current reading before setting a weight milestone"
+        parsedTargetWeight == null -> stringResource(R.string.profile_enter_valid_weight_milestone)
+        currentWeight == null -> stringResource(R.string.profile_add_current_reading_before_setting_weight_milest)
         goal.value == "GAIN_MUSCLE" && parsedTargetWeight < currentWeight ->
-            "A muscle-gain target cannot be below your current weight"
+            stringResource(R.string.profile_muscle_gain_target_cannot_below_current_weight)
         goal.value == "LOSE_WEIGHT" && parsedTargetWeight > currentWeight ->
-            "A weight-loss target cannot be above your current weight"
+            stringResource(R.string.profile_weight_loss_target_cannot_above_current_weight)
         else -> null
     }
     val targetWeightInputValid = targetWeightError == null
@@ -191,12 +193,12 @@ fun BodyScreen(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "Body & goals",
+                text = stringResource(R.string.profile_body_goals),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Track composition and set calorie and macro targets.",
+                text = stringResource(R.string.profile_track_composition_and_set_calorie_and),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -237,46 +239,55 @@ fun BodyScreen(
             onAddReading = { showAddReading = true }
         )
 
-        SectionCard(title = "Body basics") {
+        SectionCard(title = stringResource(R.string.profile_body_basics)) {
             OutlinedTextField(
                 value = currentWeight?.toString().orEmpty(),
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Current weight (kg)") },
+                label = { Text(stringResource(R.string.onboarding_current_weight_kg)) },
                 supportingText = {
                     Text(
                         if (latestMeasurement != null) {
-                            "Synced from the latest reading (${latestMeasurement.dateString})"
+                            stringResource(R.string.profile_synced_latest_reading, latestMeasurement.dateString)
                         } else {
-                            "Add a reading to update your current weight"
+                            stringResource(R.string.profile_add_reading_update_current_weight)
                         }
                     )
                 },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            NumberField("Weight milestone (kg, optional)", targetWeight.value, decimal = true) {
+            NumberField(stringResource(R.string.profile_weight_milestone_kg_optional), targetWeight.value, decimal = true) {
                 targetWeight.value = it
             }
             Text(
-                text = "Personalized targets set a bounded weight milestone when appropriate; " +
-                    "otherwise your current weight is used as a maintenance milestone.",
+                text = stringResource(R.string.profile_personalized_targets_set_a_bounded_weight),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            val activityContext = LocalContext.current
+            val activityOptions = remember(activityContext) {
+                ActivityLevels.optionRes.map { (value, res) ->
+                    value to activityContext.getString(res)
+                }
+            }
+            val activityDescriptions = remember(activityContext) {
+                ActivityLevels.descriptions(activityContext)
+            }
             LabeledDropdown(
-                "Typical overall activity",
+                stringResource(R.string.onboarding_typical_overall_activity),
                 activity.value,
-                ACTIVITY_OPTIONS,
-                ActivityLevels.descriptions
+                activityOptions,
+                activityDescriptions
             ) { activity.value = it }
             Text(
-                text = ActivityLevels.descriptions[activity.value].orEmpty() +
-                    ". Include workouts, daily movement, and physical work.",
+                text = activityDescriptions[activity.value].orEmpty() +
+                    stringResource(R.string.onboarding_include_workouts_daily_movement_physical_work),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            LabeledDropdown("Goal", goal.value, GOAL_OPTIONS) { goal.value = it }
+            val goalOptions = GOAL_OPTION_RES.map { it.first to stringResource(it.second) }
+            LabeledDropdown(stringResource(R.string.onboarding_goal), goal.value, goalOptions) { goal.value = it }
             targetWeightError?.let {
                 Text(
                     text = it,
@@ -299,7 +310,7 @@ fun BodyScreen(
         ) {
             Icon(Icons.Filled.Save, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Save body data")
+            Text(stringResource(R.string.profile_save_body_data))
         }
 
         if (measurements.isNotEmpty()) {
@@ -347,16 +358,16 @@ private fun LatestReadingCard(
     latest: BodyMeasurement?,
     onAddReading: () -> Unit
 ) {
-    SectionCard(title = "Body composition") {
+    SectionCard(title = stringResource(R.string.profile_body_composition)) {
         if (latest == null) {
             Text(
-                "No readings yet. Add your weight (and optional smart-scale metrics) to start tracking.",
+                stringResource(R.string.profile_no_readings_yet_add_your_weight),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
             Text(
-                "Latest reading · ${latest.dateString}",
+                stringResource(R.string.profile_latest_reading, latest.dateString),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -370,7 +381,7 @@ private fun LatestReadingCard(
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Add a reading")
+            Text(stringResource(R.string.profile_add_a_reading))
         }
     }
 }
@@ -380,10 +391,10 @@ private const val METRIC_GRID_COLUMNS = 2
 @Composable
 private fun MetricGrid(m: BodyMeasurement) {
     val chips = buildList {
-        add("Weight" to "${m.weightKg} kg")
-        m.bodyFatPct?.let { add("Body fat" to "$it%") }
-        m.bmr?.let { add("BMR" to "$it kcal") }
-        m.muscleMassKg?.let { add("Muscle mass" to "$it kg") }
+        add(stringResource(R.string.onboarding_weight) to "${m.weightKg} kg")
+        m.bodyFatPct?.let { add(stringResource(R.string.analytics_body_fat) to "$it%") }
+        m.bmr?.let { add(stringResource(R.string.analytics_bmr) to "$it kcal") }
+        m.muscleMassKg?.let { add(stringResource(R.string.analytics_muscle_mass) to "$it kg") }
     }
     // Fixed-column grid (not a wrapping FlowRow) so every chip in a column shares the same width
     // and the last, possibly-partial row still aligns instead of leaving a lone stray chip.
@@ -432,15 +443,15 @@ private fun MetricChip(label: String, value: String, modifier: Modifier = Modifi
     }
 }
 
-private val PLAN_CAPTIONS = listOf(
-    "Analysing…",
-    "Calculating targets…",
-    "Checking your profile…",
-    "Weighing the options…",
-    "Almost ready…",
-    "Consulting the AI…",
-    "Mapping your goals…",
-    "Fine-tuning numbers…"
+private val PLAN_CAPTION_RES = listOf(
+    R.string.profile_analysing,
+    R.string.profile_calculating_targets,
+    R.string.profile_checking_profile,
+    R.string.profile_weighing_options,
+    R.string.profile_almost_ready,
+    R.string.loading_consulting_ai,
+    R.string.profile_mapping_goals,
+    R.string.profile_fine_tuning_numbers
 )
 
 @Composable
@@ -469,23 +480,23 @@ private fun DailyTargetsCard(
     val carbsValue = targetCarbs.toIntOrNull()
     val fatsValue = targetFats.toIntOrNull()
     val caloriesError = when {
-        caloriesValue == null -> "Enter a whole number"
-        caloriesValue <= 0 -> "Must be greater than 0"
+        caloriesValue == null -> stringResource(R.string.onboarding_enter_whole_number)
+        caloriesValue <= 0 -> stringResource(R.string.profile_must_greater_than_0)
         else -> null
     }
     val proteinError = when {
-        proteinValue == null -> "Enter a whole number"
-        proteinValue <= 0 -> "Must be greater than 0"
+        proteinValue == null -> stringResource(R.string.onboarding_enter_whole_number)
+        proteinValue <= 0 -> stringResource(R.string.profile_must_greater_than_0)
         else -> null
     }
     val carbsError = when {
-        carbsValue == null -> "Enter a whole number"
-        carbsValue < 0 -> "Cannot be negative"
+        carbsValue == null -> stringResource(R.string.onboarding_enter_whole_number)
+        carbsValue < 0 -> stringResource(R.string.profile_cannot_negative)
         else -> null
     }
     val fatsError = when {
-        fatsValue == null -> "Enter a whole number"
-        fatsValue <= 0 -> "Must be greater than 0"
+        fatsValue == null -> stringResource(R.string.onboarding_enter_whole_number)
+        fatsValue <= 0 -> stringResource(R.string.profile_must_greater_than_0)
         else -> null
     }
     val targetsChanged = caloriesValue != savedTargetCalories ||
@@ -495,27 +506,27 @@ private fun DailyTargetsCard(
     val canSaveTargets = caloriesError == null && proteinError == null &&
         carbsError == null && fatsError == null && targetsChanged
 
-    SectionCard(title = "Daily targets") {
+    SectionCard(title = stringResource(R.string.profile_daily_targets)) {
         NumberField(
-            "Calories (kcal)",
+            stringResource(R.string.profile_calories_kcal),
             targetCalories,
             errorMessage = caloriesError,
             onValueChange = onCaloriesChange
         )
         NumberField(
-            "Protein (g)",
+            stringResource(R.string.profile_protein_g),
             targetProtein,
             errorMessage = proteinError,
             onValueChange = onProteinChange
         )
         NumberField(
-            "Carbs (g)",
+            stringResource(R.string.profile_carbs_g),
             targetCarbs,
             errorMessage = carbsError,
             onValueChange = onCarbsChange
         )
         NumberField(
-            "Fats (g)",
+            stringResource(R.string.profile_fats_g),
             targetFats,
             errorMessage = fatsError,
             onValueChange = onFatsChange
@@ -535,12 +546,10 @@ private fun DailyTargetsCard(
         ) {
             Icon(Icons.Filled.Save, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Save manual targets")
+            Text(stringResource(R.string.profile_save_manual_targets))
         }
         Text(
-            text = "Manual targets are applied across your dashboard. Personalized target " +
-                "calculation starts fresh from your body data and does not use these values. " +
-                "Consult a qualified health professional before changing health targets.",
+            text = stringResource(R.string.profile_manual_targets_are_applied_across_your),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -565,21 +574,20 @@ private fun DailyTargetsCard(
                 LoadingAnimationHost(
                     slot = LoadingAnimationSlot.INSIGHT,
                     animationChoice = animationChoice,
-                    captions = PLAN_CAPTIONS,
+                    captions = PLAN_CAPTION_RES.map { stringResource(it) },
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 )
             } else {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Calculate personalized targets")
+                Text(stringResource(R.string.profile_calculate_personalized_targets))
             }
         }
         Text(
             text = if (isAiConfigured) {
-                "Targets and safe trend adjustments are calculated on device; AI may choose " +
-                    "between those exact options and personalize the explanation."
+                stringResource(R.string.profile_targets_and_safe_trend_adjustments_are)
             } else {
-                "Targets and safe trend adjustments are calculated on device — no AI connection required."
+                stringResource(R.string.profile_targets_safe_trend_adjustments_calculated_device_2)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -595,7 +603,7 @@ private fun ReadingsHistoryCard(
     measurements: List<BodyMeasurement>,
     onDelete: (BodyMeasurement) -> Unit
 ) {
-    SectionCard(title = "Reading history") {
+    SectionCard(title = stringResource(R.string.profile_reading_history)) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
@@ -616,8 +624,8 @@ private fun ReadingsHistoryCard(
                         Text(
                             buildString {
                                 append("${m.weightKg} kg")
-                                m.bodyFatPct?.let { append(" · ${it}% fat") }
-                                m.muscleMassKg?.let { append(" · ${it}kg muscle") }
+                                m.bodyFatPct?.let { append(stringResource(R.string.profile_fat, it)) }
+                                m.muscleMassKg?.let { append(stringResource(R.string.profile_kg_muscle, it)) }
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -626,7 +634,7 @@ private fun ReadingsHistoryCard(
                     IconButton(onClick = { onDelete(m) }) {
                         Icon(
                             Icons.Filled.DeleteOutline,
-                            contentDescription = "Delete reading",
+                            contentDescription = stringResource(R.string.profile_delete_reading),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -646,7 +654,7 @@ private fun TargetProposalDialog(
     onApplyCurrentActivity: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val goalLabel = GOAL_OPTIONS.firstOrNull { it.first == plan.recommendedGoal }?.second
+    val goalLabel = GOAL_OPTION_RES.firstOrNull { it.first == plan.recommendedGoal }?.let { stringResource(it.second) }
         ?: plan.recommendedGoal
     val proposedTargetWeight = plan.targetWeightKg
         ?.takeIf { it.isFinite() && it > 0.0 }
@@ -657,8 +665,9 @@ private fun TargetProposalDialog(
     val activityChanged = recommendedActivity != null &&
         !recommendedActivity.equals(currentActivityLevel, ignoreCase = true)
     val activityUsed = recommendedActivity ?: currentActivityLevel
-    val activityUsedLabel = ActivityLevels.label(activityUsed)
-    val currentActivityLabel = ActivityLevels.label(currentActivityLevel)
+    val activityLabelContext = LocalContext.current
+    val activityUsedLabel = ActivityLevels.label(activityLabelContext, activityUsed)
+    val currentActivityLabel = ActivityLevels.label(activityLabelContext, currentActivityLevel)
     val weightMilestoneChanged = proposedTargetWeight != null &&
         (savedWeightMilestoneKg == null || abs(proposedTargetWeight - savedWeightMilestoneKg) >= 0.05)
     val canApply = plan.targetsChanged || weightMilestoneChanged || activityChanged
@@ -675,11 +684,11 @@ private fun TargetProposalDialog(
         plan.dailyTargetCalories - it - trendAdjustment
     } ?: 0
     val title = when {
-        plan.targetsChanged -> "Science-based recommendation"
-        weightMilestoneChanged && activityChanged -> "Health target recommendation"
-        weightMilestoneChanged -> "Weight milestone recommendation"
-        recommendedActivity != null -> "Activity recommendation"
-        else -> "You're on track"
+        plan.targetsChanged -> stringResource(R.string.profile_science_based_recommendation)
+        weightMilestoneChanged && activityChanged -> stringResource(R.string.profile_health_target_recommendation)
+        weightMilestoneChanged -> stringResource(R.string.profile_weight_milestone_recommendation)
+        recommendedActivity != null -> stringResource(R.string.profile_activity_recommendation)
+        else -> stringResource(R.string.profile_re_track)
     }
 
     AlertDialog(
@@ -693,9 +702,9 @@ private fun TargetProposalDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                RecommendationCard(title = "Daily plan") {
+                RecommendationCard(title = stringResource(R.string.profile_daily_plan)) {
                     Text(
-                        text = "${plan.dailyTargetCalories} kcal/day",
+                        text = stringResource(R.string.profile_kcal_day, plan.dailyTargetCalories),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -706,20 +715,24 @@ private fun TargetProposalDialog(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Protein ${plan.targetProteinG} g  ·  " +
-                            "Carbs ${plan.targetCarbsG} g  ·  Fats ${plan.targetFatsG} g",
+                        text = stringResource(
+                            R.string.profile_protein_g_carbs_g_fats_g,
+                            plan.targetProteinG.toString(),
+                            plan.targetCarbsG.toString(),
+                            plan.targetFatsG.toString(),
+                        ),
                         style = MaterialTheme.typography.bodySmall
                     )
                     if (!plan.targetsChanged) {
                         Text(
-                            text = "Your saved nutrition targets remain unchanged.",
+                            text = stringResource(R.string.profile_your_saved_nutrition_targets_remain_unchanged),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                RecommendationCard(title = "Activity used") {
+                RecommendationCard(title = stringResource(R.string.profile_activity_used)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -737,75 +750,78 @@ private fun TargetProposalDialog(
                     Text(
                         text = when {
                             activityChanged ->
-                                "This proposal uses the workout-suggested $activityUsedLabel " +
-                                    "level, not your selected $currentActivityLabel level. " +
-                                    "Choose Use current to recalculate before saving."
+                                stringResource(
+                                    R.string.profile_proposal_uses_workout_suggested_level_not_select,
+                                    activityUsedLabel,
+                                    currentActivityLabel
+                                )
                             recommendedActivity != null ->
-                                "The workout-based suggestion matches your selected " +
-                                    "$currentActivityLabel level."
+                                stringResource(
+                                    R.string.profile_workout_based_suggestion_matches_selected_level,
+                                    currentActivityLabel
+                                )
                             else ->
-                                "This proposal uses your selected $currentActivityLabel level."
+                                stringResource(R.string.profile_proposal_uses_selected_level, currentActivityLabel)
                         },
                         style = MaterialTheme.typography.bodySmall
                     )
                     recommendedActivity?.let {
                         Text(
-                            text = "Evidence: ${plan.activityWorkoutDays ?: 0} workout days, " +
-                                "${plan.activityWorkoutCount ?: 0} sessions, about " +
-                                "${plan.activityWeeklyMinutes ?: 0} min/week over " +
-                                "${plan.activityWindowDays ?: 28} days.",
+                            text = stringResource(
+                                R.string.profile_evidence_workout_days_sessions_about_min_week,
+                                plan.activityWorkoutDays ?: 0,
+                                plan.activityWorkoutCount ?: 0,
+                                plan.activityWeeklyMinutes ?: 0,
+                                plan.activityWindowDays ?: 28
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Workout logs may not include physical work, daily movement, " +
-                                "or unlogged exercise.",
+                            text = stringResource(R.string.profile_workout_logs_may_not_include_physical),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                RecommendationCard(title = "How these were calculated") {
+                RecommendationCard(title = stringResource(R.string.profile_how_these_were_calculated)) {
                     if (
                         restingCalories != null && activityFactor != null &&
                         maintenanceCalories != null && formulaTarget != null &&
                         goalAdjustment != null
                     ) {
                         Text(
-                            text = "Mifflin–St Jeor resting estimate, adjusted for the activity " +
-                                "level above and your goal.",
+                            text = stringResource(R.string.profile_mifflin_st_jeor_resting_estimate_adjusted),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        CalculationRow("Resting estimate", "$restingCalories kcal")
-                        CalculationRow("Activity multiplier", "×${formatActivityFactor(activityFactor)}")
-                        CalculationRow("Estimated maintenance", "$maintenanceCalories kcal")
-                        CalculationRow("Goal adjustment", "${signedInteger(goalAdjustment)} kcal")
-                        CalculationRow("Formula target", "$formulaTarget kcal")
+                        CalculationRow(stringResource(R.string.profile_resting_estimate), "$restingCalories kcal")
+                        CalculationRow(stringResource(R.string.profile_activity_multiplier), "×${formatActivityFactor(activityFactor)}")
+                        CalculationRow(stringResource(R.string.profile_estimated_maintenance), "$maintenanceCalories kcal")
+                        CalculationRow(stringResource(R.string.profile_goal_adjustment), "${signedInteger(goalAdjustment)} kcal")
+                        CalculationRow(stringResource(R.string.profile_formula_target), "$formulaTarget kcal")
                         if (stabilityAdjustment != 0) {
-                            CalculationRow("Target stability", "${signedInteger(stabilityAdjustment)} kcal")
+                            CalculationRow(stringResource(R.string.profile_target_stability), "${signedInteger(stabilityAdjustment)} kcal")
                             Text(
-                                text = "Small differences from your saved target are retained to " +
-                                    "avoid unnecessary changes.",
+                                text = stringResource(R.string.profile_small_differences_from_your_saved_target),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         if (trendAdjustment != 0) {
-                            CalculationRow("Body-trend adjustment", "${signedInteger(trendAdjustment)} kcal")
+                            CalculationRow(stringResource(R.string.profile_body_trend_adjustment), "${signedInteger(trendAdjustment)} kcal")
                         }
                         HorizontalDivider()
                         CalculationRow(
-                            label = "Final daily target",
+                            label = stringResource(R.string.profile_final_daily_target),
                             value = "${plan.dailyTargetCalories} kcal",
                             emphasized = true
                         )
                     } else {
                         Text(
                             text = localRationale
-                                ?: "This target was calculated locally from your profile, " +
-                                "activity level, and goal.",
+                                ?: stringResource(R.string.profile_this_target_was_calculated_locally_from),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -825,24 +841,40 @@ private fun TargetProposalDialog(
                 }
 
                 if (plan.bodyTrendStatus != null) {
-                    RecommendationCard(title = "Body trend (optional)") {
+                    RecommendationCard(title = stringResource(R.string.profile_body_trend_optional)) {
                         if (plan.bodyTrendStatus == "SUFFICIENT") {
                             Text(
-                                text = "${plan.bodyTrendSampleCount ?: 0} measurement days over " +
-                                    "${plan.bodyTrendSpanDays ?: 0} days",
+                                text = stringResource(
+                                    R.string.profile_measurement_days_over_days,
+                                    plan.bodyTrendSampleCount ?: 0,
+                                    plan.bodyTrendSpanDays ?: 0
+                                ),
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Weight ${signedTwoDecimals(plan.bodyTrendWeightChangeKg ?: 0.0)} kg " +
-                                    "· ${signedTwoDecimals(plan.bodyTrendWeeklyChangePct ?: 0.0)}%/week",
+                                text = stringResource(
+                                    R.string.profile_weight_kg_week,
+                                    signedTwoDecimals(plan.bodyTrendWeightChangeKg ?: 0.0),
+                                    signedTwoDecimals(plan.bodyTrendWeeklyChangePct ?: 0.0)
+                                ),
                                 style = MaterialTheme.typography.bodySmall
                             )
                             val compositionParts = buildList {
                                 plan.bodyTrendBodyFatChangePct?.let {
-                                    add("Body fat ${signedTwoDecimals(it)} points")
+                                    add(
+                                        stringResource(
+                                            R.string.profile_body_fat_points,
+                                            signedTwoDecimals(it)
+                                        )
+                                    )
                                 }
                                 plan.bodyTrendMuscleMassChangeKg?.let {
-                                    add("Muscle ${signedTwoDecimals(it)} kg")
+                                    add(
+                                        stringResource(
+                                            R.string.profile_muscle_kg,
+                                            signedTwoDecimals(it)
+                                        )
+                                    )
                                 }
                             }
                             if (compositionParts.isNotEmpty()) {
@@ -853,30 +885,32 @@ private fun TargetProposalDialog(
                             }
                             Text(
                                 text = if (trendAdjustment == 0) {
-                                    "The formula target was retained after reviewing the trend."
+                                    stringResource(R.string.profile_formula_target_retained_after_reviewing_trend)
                                 } else {
-                                    "A ${signedInteger(trendAdjustment)} kcal/day bounded trend " +
-                                        "adjustment was applied."
+                                    stringResource(
+                                        R.string.profile_kcal_day_bounded_trend_adjustment_applied,
+                                        signedInteger(trendAdjustment)
+                                    )
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
-                                text = "Food logs: ${plan.bodyTrendFoodDaysLogged ?: 0} of the " +
-                                    "previous 28 completed days. Composition readings are " +
-                                    "supporting evidence and can vary with hydration.",
+                                text = stringResource(
+                                    R.string.profile_food_logs_previous_28_completed_days_composition,
+                                    plan.bodyTrendFoodDaysLogged ?: 0
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             Text(
                                 text = plan.bodyTrendReason
-                                    ?: "More consistent readings are needed.",
+                                    ?: stringResource(R.string.profile_more_consistent_readings_needed),
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = "No trend adjustment was applied; the profile-based " +
-                                    "formula remains available without scale history.",
+                                text = stringResource(R.string.profile_no_trend_adjustment_was_applied_the),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -885,7 +919,7 @@ private fun TargetProposalDialog(
                 }
 
                 proposedTargetWeight?.let {
-                    RecommendationCard(title = "Weight milestone") {
+                    RecommendationCard(title = stringResource(R.string.profile_weight_milestone)) {
                         Text(
                             text = "${formatOneDecimal(it)} kg",
                             style = MaterialTheme.typography.titleLarge,
@@ -893,11 +927,9 @@ private fun TargetProposalDialog(
                         )
                         Text(
                             text = if (isMaintenanceWeight) {
-                                "No automatic scale-weight change is recommended, so your " +
-                                    "current weight is used as a maintenance milestone."
+                                stringResource(R.string.profile_no_automatic_scale_weight_change_is)
                             } else {
-                                "An initial milestone of up to 5% based on your selected " +
-                                    "weight-loss goal."
+                                stringResource(R.string.profile_initial_milestone_up_5_based_selected_weight)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -906,7 +938,7 @@ private fun TargetProposalDialog(
                 }
 
                 coachingNote?.let {
-                    RecommendationCard(title = "AI coaching note") {
+                    RecommendationCard(title = stringResource(R.string.profile_ai_coaching_note)) {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.bodyMedium
@@ -915,8 +947,7 @@ private fun TargetProposalDialog(
                 }
 
                 Text(
-                    text = "These are adult planning estimates, not medical advice. Reassess " +
-                        "progress regularly and seek professional guidance when needed.",
+                    text = stringResource(R.string.profile_these_are_adult_planning_estimates_not),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -927,24 +958,24 @@ private fun TargetProposalDialog(
                 TextButton(onClick = onApply) {
                     Text(
                         when {
-                            plan.targetsChanged -> "Apply"
-                            weightMilestoneChanged && activityChanged -> "Apply recommendations"
-                            weightMilestoneChanged -> "Save weight milestone"
-                            else -> "Apply activity level"
+                            plan.targetsChanged -> stringResource(R.string.profile_apply)
+                            weightMilestoneChanged && activityChanged -> stringResource(R.string.profile_apply_recommendations)
+                            weightMilestoneChanged -> stringResource(R.string.profile_save_weight_milestone)
+                            else -> stringResource(R.string.profile_apply_activity_level)
                         }
                     )
                 }
             } else {
-                TextButton(onClick = onDismiss) { Text("OK") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ok)) }
             }
         },
         dismissButton = {
             if (canApply) {
                 Row {
                     if (activityChanged) {
-                        TextButton(onClick = onApplyCurrentActivity) { Text("Use current") }
+                        TextButton(onClick = onApplyCurrentActivity) { Text(stringResource(R.string.profile_use_current)) }
                     }
-                    TextButton(onClick = onDismiss) { Text("Discard") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_discard)) }
                 }
             }
         }
@@ -1017,12 +1048,16 @@ private fun CalculationRow(
 }
 
 /** Optional smart-scale fields, rendered generically. First element is the state key. */
-private data class MetricSpec(val key: String, val label: String, val decimal: Boolean = true)
+private data class MetricSpec(
+    val key: String,
+    @androidx.annotation.StringRes val labelRes: Int,
+    val decimal: Boolean = true
+)
 
 private val OPTIONAL_METRICS = listOf(
-    MetricSpec("bodyFatPct", "Body fat (%)"),
-    MetricSpec("bmr", "BMR (kcal)", decimal = false),
-    MetricSpec("muscleMassKg", "Muscle mass (kg)"),
+    MetricSpec("bodyFatPct", R.string.profile_body_fat_2),
+    MetricSpec("bmr", R.string.profile_bmr_kcal, decimal = false),
+    MetricSpec("muscleMassKg", R.string.profile_muscle_mass_kg),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1057,7 +1092,7 @@ private fun AddMeasurementSheet(
         m.bmr?.let { optional["bmr"] = it.toString() } ?: optional.remove("bmr")
         put("muscleMassKg", m.muscleMassKg)
         showAdvanced = optional.isNotEmpty()
-        pullStatus = "Loaded FreeScale reading — review and tap Save."
+        pullStatus = context.getString(R.string.profile_loaded_freescale_reading_review_tap_save)
         pullError = null
     }
 
@@ -1071,7 +1106,7 @@ private fun AddMeasurementSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Add a reading", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.profile_add_a_reading), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
@@ -1092,13 +1127,13 @@ private fun AddMeasurementSheet(
                         result.fold(
                             onSuccess = { applyPulled(it) },
                             onFailure = { e ->
-                                pullError = e.message ?: "Could not load FreeScale reading"
+                                pullError = e.message ?: context.getString(R.string.profile_could_not_load_freescale_reading)
                             },
                         )
                     }
                 },
             ) {
-                Text(if (pullBusy) "Loading from FreeScale…" else "Pull latest from FreeScale")
+                Text(if (pullBusy) stringResource(R.string.profile_loading_from_freescale) else stringResource(R.string.profile_pull_latest_from_freescale))
             }
             pullStatus?.let {
                 Text(
@@ -1115,21 +1150,20 @@ private fun AddMeasurementSheet(
                 )
             }
 
-            NumberField("Weight (kg)", weight, decimal = true) { weight = it }
+            NumberField(context.getString(R.string.workout_weight_kg), weight, decimal = true) { weight = it }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Smart-scale metrics (optional)",
+                Text(stringResource(R.string.profile_smart_scale_metrics_optional),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { showAdvanced = !showAdvanced }) {
                     Icon(
                         if (showAdvanced) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (showAdvanced) "Collapse" else "Expand"
+                        contentDescription = if (showAdvanced) context.getString(R.string.openrouter_collapse) else stringResource(R.string.openrouter_expand)
                     )
                 }
             }
@@ -1138,7 +1172,7 @@ private fun AddMeasurementSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OPTIONAL_METRICS.forEach { spec ->
                         NumberField(
-                            label = spec.label,
+                            label = stringResource(spec.labelRes),
                             value = optional[spec.key] ?: "",
                             decimal = spec.decimal
                         ) { optional[spec.key] = it }
@@ -1166,7 +1200,7 @@ private fun AddMeasurementSheet(
             ) {
                 Icon(Icons.Filled.Save, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Save reading")
+                Text(stringResource(R.string.profile_save_reading))
             }
         }
     }
@@ -1174,11 +1208,9 @@ private fun AddMeasurementSheet(
     if (showInstallFreeScale) {
         AlertDialog(
             onDismissRequest = { showInstallFreeScale = false },
-            title = { Text("FreeScale not installed") },
+            title = { Text(stringResource(R.string.profile_freescale_not_installed)) },
             text = {
-                Text(
-                    "Install FreeScale to pull the latest scale reading into this form. " +
-                        "Open the FreeScale page to download it, then come back and try again.",
+                Text(stringResource(R.string.profile_install_freescale_to_pull_the_latest),
                 )
             },
             confirmButton = {
@@ -1188,12 +1220,12 @@ private fun AddMeasurementSheet(
                         uriHandler.openUri(FREESCALE_WEBSITE_URL)
                     },
                 ) {
-                    Text("Get FreeScale")
+                    Text(stringResource(R.string.profile_get_freescale))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showInstallFreeScale = false }) {
-                    Text("Not now")
+                    Text(stringResource(R.string.donate_not_now))
                 }
             },
         )

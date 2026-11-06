@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -29,27 +33,28 @@ fun LogDateField(
     onTimestampChange: (Long) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    label: String = "Log date",
+    label: String? = null,
     realToday: String = DateUtils.today()
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val dateString = DateUtils.format(timestamp)
     val title = DateUtils.dayTitle(dateString, realToday = realToday)
     val subtitle = DateUtils.displayDateSubtitle(dateString)
+    val resolvedLabel = label ?: stringResource(R.string.log_date_log_date)
 
     OutlinedTextField(
         value = title,
         onValueChange = {},
         readOnly = true,
         enabled = enabled,
-        label = { Text(label) },
+        label = { Text(resolvedLabel) },
         supportingText = { Text(subtitle) },
         trailingIcon = {
             IconButton(
                 onClick = { if (enabled) showPicker = true },
                 enabled = enabled
             ) {
-                Icon(Icons.Filled.CalendarMonth, contentDescription = "Pick log date")
+                Icon(Icons.Filled.CalendarMonth, contentDescription = stringResource(R.string.common_pick_log_date))
             }
         },
         modifier = modifier.fillMaxWidth()
@@ -71,10 +76,10 @@ fun LogDateField(
                         }
                         showPicker = false
                     }
-                ) { Text("OK") }
+                ) { Text(stringResource(R.string.common_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         ) {
             DatePicker(state = pickerState)

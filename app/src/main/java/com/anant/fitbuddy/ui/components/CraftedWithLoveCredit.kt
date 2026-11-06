@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -109,7 +113,7 @@ fun CraftedWithLoveCredit(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Crafted with",
+            text = stringResource(R.string.about_crafted_with),
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             fontSize = 28.sp,
@@ -117,7 +121,7 @@ fun CraftedWithLoveCredit(
         )
         Icon(
             imageVector = Icons.Filled.Favorite,
-            contentDescription = "Double-tap to celebrate",
+            contentDescription = stringResource(R.string.about_double_tap_to_celebrate),
             tint = heartColor,
             modifier = Modifier
                 .padding(vertical = 16.dp)
@@ -137,7 +141,7 @@ fun CraftedWithLoveCredit(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
             )
             Text(
-                text = "Anant",
+                text = stringResource(R.string.about_anant),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 fontSize = 28.sp,

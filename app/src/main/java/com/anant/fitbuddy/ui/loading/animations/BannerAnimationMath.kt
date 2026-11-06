@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.ui.loading.animations
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import com.anant.fitbuddy.R
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.pow
@@ -253,13 +256,41 @@ internal fun solarSystemPlanets(protein: Color, carbs: Color, fats: Color): List
     }
 }
 
-internal val analyzingCaptions: List<String> = listOf(
-    "reading the plate…",
-    "counting macros…",
-    "weighing portions…",
-    "estimating calories…",
-    "crunching the numbers…"
+internal val analyzingCaptionRes: List<Int> = listOf(
+    R.string.loading_reading_plate,
+    R.string.loading_counting_macros,
+    R.string.loading_weighing_portions,
+    R.string.loading_estimating_calories,
+    R.string.loading_crunching_numbers,
 )
 
-internal fun analyzingLabel(modelId: String?): String =
+@Composable
+internal fun analyzingCaptions(): List<String> =
+    analyzingCaptionRes.map { stringResource(it) }
+
+/** English-format contract for JVM tests; UI uses [analyzingLabel]. */
+internal fun formatAnalyzingLabel(modelId: String?): String =
     if (!modelId.isNullOrBlank()) "ANALYZING $modelId" else "ANALYZING"
+
+@Composable
+internal fun analyzingLabel(modelId: String?): String =
+    if (!modelId.isNullOrBlank()) {
+        stringResource(R.string.loading_analyzing, modelId)
+    } else {
+        stringResource(R.string.loading_analyzing_2)
+    }
+
+internal val insightCaptionRes: List<Int> = listOf(
+    R.string.loading_generating_insight,
+    R.string.loading_reading_charts,
+    R.string.loading_crunching_numbers_2,
+    R.string.loading_spotting_trends,
+    R.string.loading_almost_there,
+    R.string.loading_weighing_data,
+    R.string.loading_consulting_ai,
+    R.string.loading_mapping_progress,
+)
+
+@Composable
+internal fun insightCaptions(): List<String> =
+    insightCaptionRes.map { stringResource(it) }

@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,13 +58,13 @@ fun CrashReportingOptInScreen(
                     OutlinedButton(
                         onClick = onBack,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Back") }
+                    ) { Text(stringResource(R.string.backup_back)) }
                     Spacer(modifier = Modifier.width(12.dp))
                 }
                 Button(
                     onClick = { onContinue(enabled) },
                     modifier = Modifier.weight(1f)
-                ) { Text("Continue") }
+                ) { Text(stringResource(R.string.backup_continue)) }
             }
         }
     ) { innerPadding ->
@@ -74,13 +78,13 @@ fun CrashReportingOptInScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Crash reports",
+                text = stringResource(R.string.privacy_crash_reports),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Anonymous reports help fix bugs. Off by default — change anytime in Settings.",
+                text = stringResource(R.string.privacy_anonymous_reports_help_fix_bugs_off),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -99,7 +103,7 @@ fun CrashReportingOptInScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Send crash reports",
+                        text = stringResource(R.string.privacy_send_crash_reports),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)

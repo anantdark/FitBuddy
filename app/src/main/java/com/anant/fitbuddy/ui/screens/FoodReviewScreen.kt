@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import com.anant.fitbuddy.util.qtyFieldText
 import com.anant.fitbuddy.util.roundQty
@@ -76,16 +80,19 @@ fun FoodReviewDialog(
     onSaveAsPreset: (FoodDraft) -> Unit,
     onReanalyze: (String) -> Unit,
     onAskForPortion: (String) -> Unit = {},
-    askPortionHint: String =
-        "Know the dish but not grams? Estimates a standard home serving.",
+    askPortionHint: String? = null,
     /** When false (editing a food inside a meal), the meal owns the log date. */
     showLogDate: Boolean = true,
-    /** Primary confirm button label (e.g. "Log food" vs "Save food"). */
-    confirmLabel: String = "Log food",
-    /** When false, hides the secondary "Save as food preset" action (library create flow). */
+    /** Primary confirm button label (e.g. Log food vs Save food). */
+    confirmLabel: String? = null,
+    /** When false, hides the secondary save-as-preset action (library create flow). */
     showSaveAsPreset: Boolean = true,
     onDismiss: () -> Unit
 ) {
+    val resolvedAskPortionHint = askPortionHint
+        ?: stringResource(R.string.food_review_know_dish_but_not_grams_estimates_standard)
+    val resolvedConfirmLabel = confirmLabel
+        ?: stringResource(R.string.food_review_log_food)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -145,10 +152,10 @@ fun FoodReviewDialog(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
-                    title = { Text("Review food") },
+                    title = { Text(stringResource(R.string.food_review_food)) },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
                         }
                     }
                 )
@@ -171,13 +178,13 @@ fun FoodReviewDialog(
                                 onSaveAsPreset(confirmed)
                                 SystemToast.show(
                                     context,
-                                    "Saved \"${confirmed.dishName}\" as food preset"
+                                    context.getString(R.string.food_review_saved_food_preset, confirmed.dishName)
                                 )
                             }
                         ) {
                             Icon(Icons.Filled.BookmarkAdd, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Save as food preset")
+                            Text(stringResource(R.string.food_save_as_food_preset))
                         }
                     }
                     Row(
@@ -187,12 +194,12 @@ fun FoodReviewDialog(
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = onDismiss
-                        ) { Text("Cancel") }
+                        ) { Text(stringResource(R.string.common_cancel)) }
                         Button(
                             modifier = Modifier.weight(1f),
                             enabled = canSave,
                             onClick = { onConfirm(confirmedDraft()) }
-                        ) { Text(confirmLabel) }
+                        ) { Text(resolvedConfirmLabel) }
                     }
                 }
             }
@@ -241,7 +248,7 @@ fun FoodReviewDialog(
                                     }
                                 }
                             },
-                            label = { Text("Total weight (g)") },
+                            label = { Text(stringResource(R.string.food_total_weight_g)) },
                             singleLine = true,
                             enabled = !isReanalyzing && ingredients.isNotEmpty(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -259,8 +266,7 @@ fun FoodReviewDialog(
                                 }
                         )
                         Text(
-                            text = "Change this to scale every ingredient's weight (and macros) " +
-                                "proportionally. Use ingredient Qty for counts (supports decimals).",
+                            text = stringResource(R.string.food_change_this_to_scale_every_ingredient),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -272,7 +278,7 @@ fun FoodReviewDialog(
                         OutlinedTextField(
                             value = dishName,
                             onValueChange = { dishName = it },
-                            label = { Text("Food name") },
+                            label = { Text(stringResource(R.string.food_food_name)) },
                             singleLine = true,
                             enabled = !isReanalyzing,
                             trailingIcon = {
@@ -288,7 +294,7 @@ fun FoodReviewDialog(
                                     ) {
                                         Icon(
                                             Icons.Filled.AutoAwesome,
-                                            contentDescription = "Recalculate with AI"
+                                            contentDescription = stringResource(R.string.food_recalculate_with_ai)
                                         )
                                     }
                                 }
@@ -297,10 +303,9 @@ fun FoodReviewDialog(
                         )
                         Text(
                             text = if (isReanalyzing) {
-                                "Recalculating with AI…"
+                                stringResource(R.string.food_review_recalculating_ai)
                             } else {
-                                "Wrong item? Rename it (e.g. \"pineapple cake\") and tap ✨ to let " +
-                                    "AI recompute calories, macros and ingredients."
+                                stringResource(R.string.food_review_wrong_item_rename_e_g_pineapple_cake)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -309,10 +314,10 @@ fun FoodReviewDialog(
                             onClick = { onAskForPortion(dishName) },
                             enabled = dishName.isNotBlank() && !isReanalyzing
                         ) {
-                            Text("Ask for portion")
+                            Text(stringResource(R.string.food_ask_for_portion))
                         }
                         Text(
-                            text = askPortionHint,
+                            text = resolvedAskPortionHint,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -325,13 +330,13 @@ fun FoodReviewDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Ingredients",
+                            text = stringResource(R.string.food_ingredients),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "adjust weight or edit macros",
+                            text = stringResource(R.string.food_adjust_weight_or_edit_macros),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -361,7 +366,7 @@ fun FoodReviewDialog(
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Add ingredient")
+                        Text(stringResource(R.string.food_add_ingredient))
                     }
                 }
             }
@@ -393,7 +398,7 @@ fun TotalsCard(calories: Int, protein: Double, carbs: Double, fats: Double) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(
-                text = "Total for this food",
+                text = stringResource(R.string.food_total_for_this_food),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -402,9 +407,9 @@ fun TotalsCard(calories: Int, protein: Double, carbs: Double, fats: Double) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MacroPill("Protein", protein)
-                MacroPill("Carbs", carbs)
-                MacroPill("Fats", fats)
+                MacroPill(stringResource(R.string.dashboard_protein), protein)
+                MacroPill(stringResource(R.string.dashboard_carbs), carbs)
+                MacroPill(stringResource(R.string.dashboard_fats), fats)
             }
         }
     }
@@ -447,7 +452,7 @@ private fun IngredientCard(
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "Remove ${ingredient.name}",
+                        contentDescription = stringResource(R.string.food_review_remove, ingredient.name),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -470,7 +475,7 @@ private fun IngredientCard(
                         qtyText = sanitized
                         onQuantityChange(sanitized.toQtyOrNull() ?: 0.0)
                     },
-                    label = { Text("Qty") },
+                    label = { Text(stringResource(R.string.food_qty)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.width(84.dp)
@@ -483,7 +488,7 @@ private fun IngredientCard(
                     onValueChange = { input ->
                         onUnitWeightChange(input.filter { it.isDigit() }.take(4).toIntOrNull() ?: 0)
                     },
-                    label = { Text("g / unit") },
+                    label = { Text(stringResource(R.string.food_g_unit)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.width(110.dp)
@@ -492,13 +497,13 @@ private fun IngredientCard(
 
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "= ${ingredient.weightG} g total",
+                text = stringResource(R.string.food_review_g_total, ingredient.weightG.toString()),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Macros for this ingredient (from packet label)",
+                text = stringResource(R.string.food_macros_for_this_ingredient_from_packet),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -506,14 +511,14 @@ private fun IngredientCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1.2f)) {
                     MacroEditField(
-                        label = "kcal",
+                        label = stringResource(R.string.food_kcal),
                         value = ingredient.calories,
                         enabled = ingredient.weightG > 0
                     ) { onMacrosChange(it, ingredient.protein, ingredient.carbs, ingredient.fats) }
                 }
                 Box(Modifier.weight(1f)) {
                     MacroValueField(
-                        label = "Protein",
+                        label = stringResource(R.string.dashboard_protein),
                         value = ingredient.protein,
                         onValueChange = { onMacrosChange(ingredient.calories, it, ingredient.carbs, ingredient.fats) },
                         modifier = Modifier.fillMaxWidth(),
@@ -522,7 +527,7 @@ private fun IngredientCard(
                 }
                 Box(Modifier.weight(1f)) {
                     MacroValueField(
-                        label = "Carbs",
+                        label = stringResource(R.string.dashboard_carbs),
                         value = ingredient.carbs,
                         onValueChange = { onMacrosChange(ingredient.calories, ingredient.protein, it, ingredient.fats) },
                         modifier = Modifier.fillMaxWidth(),
@@ -531,7 +536,7 @@ private fun IngredientCard(
                 }
                 Box(Modifier.weight(1f)) {
                     MacroValueField(
-                        label = "Fats",
+                        label = stringResource(R.string.dashboard_fats),
                         value = ingredient.fats,
                         onValueChange = { onMacrosChange(ingredient.calories, ingredient.protein, ingredient.carbs, it) },
                         modifier = Modifier.fillMaxWidth(),
@@ -578,34 +583,34 @@ private fun AddIngredientDialog(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add ingredient") },
+        title = { Text(stringResource(R.string.food_add_ingredient)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.food_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
-                        QtyField2("Quantity", quantity) { quantity = it }
+                        QtyField2(stringResource(R.string.food_review_quantity), quantity) { quantity = it }
                     }
                     Box(Modifier.weight(1f)) {
-                        NumberField2("Weight (g / unit)", weight) { weight = it }
+                        NumberField2(stringResource(R.string.food_review_weight_g_unit), weight) { weight = it }
                     }
                 }
                 Text(
-                    text = "Enter values for ONE unit; quantity multiplies them.",
+                    text = stringResource(R.string.food_enter_values_for_one_unit_quantity),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                NumberField2("Calories per unit (kcal)", calories) { calories = it }
+                NumberField2(stringResource(R.string.food_review_calories_per_unit_kcal), calories) { calories = it }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { MacroTextField("Protein", protein, { protein = it }, Modifier.fillMaxWidth()) }
-                    Box(Modifier.weight(1f)) { MacroTextField("Carbs", carbs, { carbs = it }, Modifier.fillMaxWidth()) }
-                    Box(Modifier.weight(1f)) { MacroTextField("Fats", fats, { fats = it }, Modifier.fillMaxWidth()) }
+                    Box(Modifier.weight(1f)) { MacroTextField(stringResource(R.string.dashboard_protein), protein, { protein = it }, Modifier.fillMaxWidth()) }
+                    Box(Modifier.weight(1f)) { MacroTextField(stringResource(R.string.dashboard_carbs), carbs, { carbs = it }, Modifier.fillMaxWidth()) }
+                    Box(Modifier.weight(1f)) { MacroTextField(stringResource(R.string.dashboard_fats), fats, { fats = it }, Modifier.fillMaxWidth()) }
                 }
             }
         },
@@ -629,10 +634,10 @@ private fun AddIngredientDialog(
                         )
                     )
                 }
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.food_add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

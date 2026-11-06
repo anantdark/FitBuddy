@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -137,10 +141,18 @@ fun WorkoutLogDialog(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
-                    title = { Text(if (isEditing) "Edit Workout" else "Log Workout") },
+                    title = {
+                        Text(
+                            if (isEditing) {
+                                stringResource(R.string.workout_edit_workout)
+                            } else {
+                                stringResource(R.string.workout_log_workout)
+                            }
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onDismiss, enabled = !state.isSaving) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
                         }
                     }
                 )
@@ -173,9 +185,15 @@ fun WorkoutLogDialog(
                         if (state.isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(8.dp))
-                            Text("Estimating calories…")
+                            Text(stringResource(R.string.workout_estimating_calories))
                         } else {
-                            Text(if (isEditing) "Save Changes" else "Save & Estimate Calories")
+                            Text(
+                                if (isEditing) {
+                                    stringResource(R.string.workout_save_changes)
+                                } else {
+                                    stringResource(R.string.workout_save_estimate_calories)
+                                }
+                            )
                         }
                     }
                 }
@@ -192,7 +210,7 @@ fun WorkoutLogDialog(
                     OutlinedTextField(
                         value = sessionName,
                         onValueChange = { sessionName = it },
-                        label = { Text("Session name") },
+                        label = { Text(stringResource(R.string.workout_session_name)) },
                         singleLine = true,
                         enabled = !state.isSaving,
                         trailingIcon = {
@@ -215,7 +233,7 @@ fun WorkoutLogDialog(
                                 ) {
                                     Icon(
                                         Icons.Filled.AutoAwesome,
-                                        contentDescription = "Suggest name with AI"
+                                        contentDescription = stringResource(R.string.workout_suggest_name_with_ai)
                                     )
                                 }
                             }
@@ -232,9 +250,9 @@ fun WorkoutLogDialog(
                                 durationTouched = true
                                 durationText = input.filter { it.isDigit() }.take(3)
                             },
-                            label = { Text("Session duration (minutes)") },
+                            label = { Text(stringResource(R.string.workout_session_duration_minutes)) },
                             supportingText = {
-                                Text("Used to estimate calories burned — not a substitute for logging reps.")
+                                Text(stringResource(R.string.workout_used_to_estimate_calories_burned_not))
                             },
                             singleLine = true,
                             enabled = !state.isSaving,
@@ -249,12 +267,15 @@ fun WorkoutLogDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Est. ${durationText.ifBlank { "—" }} min session",
+                                    text = stringResource(
+                                        R.string.workout_est_min_session,
+                                        durationText.ifBlank { "—" },
+                                    ),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = "Auto-calculated for calorie burn (cardio time + ~3 min per strength set).",
+                                    text = stringResource(R.string.workout_auto_calculated_for_calorie_burn_cardio),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -262,14 +283,14 @@ fun WorkoutLogDialog(
                             TextButton(
                                 onClick = { showDurationEdit = true },
                                 enabled = !state.isSaving
-                            ) { Text("Edit") }
+                            ) { Text(stringResource(R.string.workout_edit)) }
                         }
                     }
                 }
 
                 item {
                     Text(
-                        text = "Exercises",
+                        text = stringResource(R.string.workout_exercises),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -278,8 +299,7 @@ fun WorkoutLogDialog(
                 if (exercises.isEmpty()) {
                     item {
                         Text(
-                            "No exercises added yet. Tap below to browse the exercise catalog " +
-                                "(with demo GIFs), filter by body part or equipment, or add with AI.",
+                            stringResource(R.string.workout_no_exercises_added_yet_tap_below),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -306,7 +326,7 @@ fun WorkoutLogDialog(
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Add exercise")
+                        Text(stringResource(R.string.workout_add_exercise))
                     }
                 }
             }
@@ -406,12 +426,12 @@ private fun ExerciseRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(exercise.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 Text(
-                    exerciseSummary(exercise),
+                    exerciseSummary(exercise, stringResource(R.string.workout_cardio)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Tap to edit",
+                    stringResource(R.string.workout_tap_to_edit),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -419,7 +439,7 @@ private fun ExerciseRow(
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Filled.Delete,
-                    contentDescription = "Remove ${exercise.name}",
+                    contentDescription = stringResource(R.string.food_review_remove, exercise.name),
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -458,12 +478,12 @@ private fun EditExerciseDialog(
     var duration by remember { mutableStateOf(exercise.durationMinutes?.toString() ?: "30") }
     var distance by remember { mutableStateOf(exercise.distanceKm?.let { formatDistanceKm(it) } ?: "") }
     val needsWeight = !isCardio && (isCarry || exercise.equipment != Equipment.BODYWEIGHT)
-    val timedLabel = if (isCarry) "Time (sec)" else "Hold (sec)"
+    val timedLabel = if (isCarry) stringResource(R.string.workout_time_sec) else stringResource(R.string.workout_hold_sec)
     val timedPresets = if (isCarry) CARRY_SEC_PRESETS else HOLD_SEC_PRESETS
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit ${exercise.name}") },
+        title = { Text(stringResource(R.string.meal_preset_edit, exercise.name)) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -480,12 +500,12 @@ private fun EditExerciseDialog(
                 if (isCardio) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) {
-                            DetailField("Duration (min)", duration) {
+                            DetailField(stringResource(R.string.workout_duration_min), duration) {
                                 duration = it.filter { c -> c.isDigit() }.take(3)
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            DetailField("Distance (km)", distance, decimal = true) {
+                            DetailField(stringResource(R.string.workout_distance_km), distance, decimal = true) {
                                 distance = it.filter { c -> c.isDigit() || c == '.' }
                             }
                         }
@@ -494,7 +514,7 @@ private fun EditExerciseDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(modifier = Modifier.weight(1f)) {
                             PresetNumberField(
-                                label = "Sets",
+                                label = stringResource(R.string.workout_sets),
                                 value = sets,
                                 presets = SET_PRESETS,
                                 onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
@@ -511,7 +531,7 @@ private fun EditExerciseDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = "Weight (kg)",
+                            label = stringResource(R.string.workout_weight_kg),
                             value = weight,
                             presets = WEIGHT_PRESETS,
                             decimal = true,
@@ -522,7 +542,7 @@ private fun EditExerciseDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(modifier = Modifier.weight(1f)) {
                             PresetNumberField(
-                                label = "Sets",
+                                label = stringResource(R.string.workout_sets),
                                 value = sets,
                                 presets = SET_PRESETS,
                                 onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
@@ -530,7 +550,7 @@ private fun EditExerciseDialog(
                         }
                         Box(modifier = Modifier.weight(1f)) {
                             PresetNumberField(
-                                label = "Reps",
+                                label = stringResource(R.string.workout_reps),
                                 value = reps,
                                 presets = REP_PRESETS,
                                 onValueChange = { reps = it.filter { c -> c.isDigit() }.take(3) }
@@ -539,7 +559,7 @@ private fun EditExerciseDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = "Weight (kg)",
+                            label = stringResource(R.string.workout_weight_kg),
                             value = weight,
                             presets = WEIGHT_PRESETS,
                             decimal = true,
@@ -589,10 +609,10 @@ private fun EditExerciseDialog(
                         )
                     }
                 }
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.food_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }
@@ -618,7 +638,7 @@ private fun AddExerciseDetailsDialog(
     var duration by remember { mutableStateOf("30") }
     var distance by remember { mutableStateOf("") }
     val needsWeight = !isCardio && (isCarry || equipment != Equipment.BODYWEIGHT)
-    val timedLabel = if (isCarry) "Time (sec)" else "Hold (sec)"
+    val timedLabel = if (isCarry) stringResource(R.string.workout_time_sec) else stringResource(R.string.workout_hold_sec)
     val timedPresets = if (isCarry) CARRY_SEC_PRESETS else HOLD_SEC_PRESETS
 
     AlertDialog(
@@ -640,12 +660,12 @@ private fun AddExerciseDetailsDialog(
                 if (isCardio) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) {
-                            DetailField("Duration (min)", duration) {
+                            DetailField(stringResource(R.string.workout_duration_min), duration) {
                                 duration = it.filter { c -> c.isDigit() }.take(3)
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            DetailField("Distance (km, optional)", distance, decimal = true) {
+                            DetailField(stringResource(R.string.workout_distance_km_optional), distance, decimal = true) {
                                 distance = it.filter { c -> c.isDigit() || c == '.' }
                             }
                         }
@@ -654,7 +674,7 @@ private fun AddExerciseDetailsDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(modifier = Modifier.weight(1f)) {
                             PresetNumberField(
-                                label = "Sets",
+                                label = stringResource(R.string.workout_sets),
                                 value = sets,
                                 presets = SET_PRESETS,
                                 onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
@@ -671,7 +691,7 @@ private fun AddExerciseDetailsDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = "Weight (kg, optional)",
+                            label = stringResource(R.string.workout_weight_kg_optional),
                             value = weight,
                             presets = WEIGHT_PRESETS,
                             decimal = true,
@@ -682,7 +702,7 @@ private fun AddExerciseDetailsDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(modifier = Modifier.weight(1f)) {
                             PresetNumberField(
-                                label = "Sets",
+                                label = stringResource(R.string.workout_sets),
                                 value = sets,
                                 presets = SET_PRESETS,
                                 onValueChange = { sets = it.filter { c -> c.isDigit() }.take(2) }
@@ -690,7 +710,7 @@ private fun AddExerciseDetailsDialog(
                         }
                         Box(modifier = Modifier.weight(1f)) {
                             PresetNumberField(
-                                label = "Reps",
+                                label = stringResource(R.string.workout_reps),
                                 value = reps,
                                 presets = REP_PRESETS,
                                 onValueChange = { reps = it.filter { c -> c.isDigit() }.take(3) }
@@ -699,7 +719,7 @@ private fun AddExerciseDetailsDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = "Weight (kg, optional)",
+                            label = stringResource(R.string.workout_weight_kg_optional),
                             value = weight,
                             presets = WEIGHT_PRESETS,
                             decimal = true,
@@ -759,20 +779,20 @@ private fun AddExerciseDetailsDialog(
                         )
                     }
                 }
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.food_add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }
 
-private fun exerciseSummary(exercise: ExerciseDraft): String {
+private fun exerciseSummary(exercise: ExerciseDraft, cardioLabel: String): String {
     if (exercise.isCardio()) {
         return buildList {
             exercise.durationMinutes?.let { add("$it min") }
             exercise.distanceKm?.let { km -> add("${formatDistanceKm(km)} km") }
-        }.joinToString(" · ").ifBlank { "Cardio" }
+        }.joinToString(" · ").ifBlank { cardioLabel }
     }
     val weightText = exercise.weightKg?.let { " @ ${it}kg" } ?: ""
     if (exercise.isTimedHold()) {

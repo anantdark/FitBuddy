@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.loading.animations
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -31,14 +35,14 @@ import androidx.compose.runtime.getValue
 /** Compact tiranga wash used inside insight / health-target buttons. */
 object TirangaInsightLoadingAnimation : LoadingAnimation {
     override val id: String = "tiranga_insight"
-    override val displayName: String = "Indian flag"
+    override val displayNameRes: Int = R.string.loading_indian_flag
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.INSIGHT)
-    override val defaultCaptions: List<String> = JapanRowingLoadingAnimation.defaultCaptions
+    override val defaultCaptionRes: List<Int> = insightCaptionRes
 
     @Composable
     override fun Content(scope: LoadingAnimationScope) {
         TirangaInsightContent(
-            captions = scope.captions.ifEmpty { defaultCaptions },
+            captions = scope.captions.ifEmpty { insightCaptions() },
             modifier = scope.modifier
         )
     }
@@ -100,7 +104,7 @@ private fun TirangaInsightContent(
             )
         }
         Text(
-            text = "CRAFTED IN INDIA",
+            text = stringResource(R.string.loading_crafted_india),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,

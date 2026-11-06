@@ -1,5 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+import androidx.compose.ui.res.stringResource
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -84,35 +87,34 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
-private val GOAL_OPTIONS = listOf(
-    "AUTO" to "Choose automatically",
-    "LOSE_WEIGHT" to "Lose weight",
-    "GAIN_MUSCLE" to "Gain muscle",
-    "RECOMP" to "Body recomposition"
+private val GOAL_OPTION_RES = listOf(
+    "AUTO" to R.string.onboarding_choose_automatically,
+    "LOSE_WEIGHT" to R.string.onboarding_lose_weight,
+    "GAIN_MUSCLE" to R.string.onboarding_gain_muscle,
+    "RECOMP" to R.string.onboarding_body_recomposition
 )
-private val SEX_OPTIONS = listOf(
-    "" to "Prefer not to say",
-    "MALE" to "Male",
-    "FEMALE" to "Female"
+private val SEX_OPTION_RES = listOf(
+    "" to R.string.onboarding_prefer_not_say,
+    "MALE" to R.string.onboarding_male,
+    "FEMALE" to R.string.onboarding_female
 )
-private val ACTIVITY_OPTIONS = ActivityLevels.options
 
 /** Per-provider setup on the FitBuddy onboarding site (API key walkthroughs + videos). */
-private val AI_SETUP_DOCS: Map<AiProvider, Pair<String, String>> = mapOf(
+private val AI_SETUP_DOC_RES: Map<AiProvider, Pair<Int, String>> = mapOf(
     AiProvider.OPENROUTER to (
-        "How to create an OpenRouter API key" to
+        R.string.settings_how_to_create_an_openrouter_api to
             "https://anantdark.github.io/FitBuddy/onboarding.html#openrouter"
     ),
     AiProvider.GEMINI to (
-        "How to create a Gemini API key" to
+        R.string.onboarding_how_create_gemini_api_key to
             "https://anantdark.github.io/FitBuddy/onboarding.html#gemini"
     ),
     AiProvider.OLLAMA to (
-        "Ollama install & setup guide" to
+        R.string.onboarding_ollama_install_setup_guide to
             "https://anantdark.github.io/FitBuddy/onboarding.html#ollama"
     ),
     AiProvider.CUSTOM to (
-        "OpenAI API keys & compatible APIs" to
+        R.string.onboarding_openai_api_keys_compatible_apis to
             "https://anantdark.github.io/FitBuddy/onboarding.html#openai"
     )
 )
@@ -271,29 +273,32 @@ fun OnboardingScreen(
     val firstNameError = onboardingRequiredTextError(
         value = firstName,
         attempted = profileAttempted && !skipNameInOnboarding,
-        blankMessage = "Enter your first name",
+        blankMessage = stringResource(R.string.onboarding_enter_first_name),
     )
     val ageError = onboardingIntRangeError(
         value = age,
         range = 18..120,
         attempted = profileAttempted,
-        label = "Age",
+        label = stringResource(R.string.onboarding_age),
+        context = context,
     )
     val heightError = onboardingDoubleRangeError(
         value = height,
         min = 100.0,
         max = 250.0,
         attempted = profileAttempted,
-        label = "Height",
+        label = stringResource(R.string.onboarding_height),
         unit = "cm",
+        context = context,
     )
     val weightError = onboardingDoubleRangeError(
         value = weight,
         min = 25.0,
         max = 400.0,
         attempted = profileAttempted,
-        label = "Weight",
+        label = stringResource(R.string.onboarding_weight),
         unit = "kg",
+        context = context,
     )
     // Completeness for Continue (independent of whether red hints are visible yet).
     // Last name is optional.
@@ -329,22 +334,22 @@ fun OnboardingScreen(
     }
     val aiKeysError = if (showAiFieldErrors && aiKeysMissing) {
         when (aiProvider) {
-            AiProvider.OPENROUTER -> "Add an API key or continue with OpenRouter sign-in"
-            AiProvider.OLLAMA -> "Add an Ollama Cloud API key"
-            AiProvider.CUSTOM, AiProvider.OPENAI -> "Add an API key"
-            else -> "Add an API key"
+            AiProvider.OPENROUTER -> stringResource(R.string.onboarding_add_api_key_continue_openrouter_sign)
+            AiProvider.OLLAMA -> stringResource(R.string.onboarding_add_ollama_cloud_api_key)
+            AiProvider.CUSTOM, AiProvider.OPENAI -> stringResource(R.string.onboarding_add_api_key)
+            else -> stringResource(R.string.onboarding_add_api_key)
         }
     } else {
         null
     }
     val ollamaUrlError = when {
         aiProvider != AiProvider.OLLAMA || ollamaUseCloud -> null
-        ollamaUrl.isBlank() -> if (showAiFieldErrors) "Enter your Ollama server URL" else null
+        ollamaUrl.isBlank() -> if (showAiFieldErrors) stringResource(R.string.onboarding_enter_ollama_server_url) else null
         else -> null
     }
     val customUrlError = when {
         aiProvider != AiProvider.CUSTOM && aiProvider != AiProvider.OPENAI -> null
-        customUrl.isBlank() -> if (showAiFieldErrors) "Enter a base URL" else null
+        customUrl.isBlank() -> if (showAiFieldErrors) stringResource(R.string.onboarding_enter_base_url) else null
         else -> null
     }
 
@@ -458,7 +463,7 @@ fun OnboardingScreen(
                 onCompleteAiOnly(buildAiSettings())
             } else {
                 aiValidated = false
-                aiError = error ?: "Couldn't validate that API key"
+                aiError = error ?: context.getString(R.string.onboarding_couldn_t_validate_api_key)
             }
         }
     }
@@ -480,7 +485,7 @@ fun OnboardingScreen(
                 step = 1
             } else {
                 aiValidated = false
-                aiError = error ?: "Couldn't validate that API key"
+                aiError = error ?: context.getString(R.string.onboarding_couldn_t_validate_api_key)
             }
         }
     }
@@ -560,9 +565,9 @@ fun OnboardingScreen(
             },
             onBack = { step = stepBeforeRegion() },
             requestDisabledHint = if (showCrashStep) {
-                "Enable crash reporting on the previous page to request a custom region."
+                stringResource(R.string.onboarding_enable_crash_reporting_previous_page_request_cus)
             } else {
-                "Enable Send crash reports in Settings to request a custom region."
+                context.getString(R.string.onboarding_enable_send_crash_reports_settings_request_custo)
             },
             onRequestRegionSent = onRegionRequestSent,
             modifier = modifier.fillMaxSize()
@@ -590,7 +595,7 @@ fun OnboardingScreen(
             ) {
             Spacer(Modifier.height(24.dp))
             Text(
-                text = if (aiOnly) "Reconnect AI" else "Welcome to FitBuddy",
+                text = if (aiOnly) context.getString(R.string.onboarding_reconnect_ai) else stringResource(R.string.onboarding_welcome_to_fitbuddy),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -598,13 +603,11 @@ fun OnboardingScreen(
             Text(
                 text = when {
                     aiOnly ->
-                        "Your data was restored, but AI credentials are missing or no longer work. " +
-                            "Connect a provider to continue."
+                        stringResource(R.string.onboarding_your_data_was_restored_but_ai)
                     onPathPicker ->
-                        "Start fresh, or restore a previous backup from the cloud or a local file."
+                        stringResource(R.string.onboarding_start_fresh_restore_previous_backup_cloud_local)
                     else ->
-                        "Connect an AI provider first, then tell us about yourself so we can " +
-                            "personalise calorie targets, workout estimates, and meal logging."
+                        stringResource(R.string.onboarding_connect_ai_provider_first_then_tell_us)
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -619,9 +622,9 @@ fun OnboardingScreen(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = if (aiOnly) {
-                        "AI setup"
+                        context.getString(R.string.onboarding_ai_setup)
                     } else {
-                        "Step ${step + 1} of $totalSteps"
+                        context.getString(R.string.onboarding_step, (step + 1).toString(), totalSteps.toString())
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -643,12 +646,12 @@ fun OnboardingScreen(
                         onPathPicker && step == -2 -> {
                             // Cloud Support ID form (nested under path picker).
                             Text(
-                                text = "Restore from cloud",
+                                text = stringResource(R.string.onboarding_restore_from_cloud),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Enter the Support ID from the device that created the backup.",
+                                text = stringResource(R.string.onboarding_enter_the_support_id_from_the),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -659,7 +662,7 @@ fun OnboardingScreen(
                                     cloudError = null
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Support ID") },
+                                label = { Text(stringResource(R.string.donate_reminder_support_id)) },
                                 singleLine = true,
                                 enabled = !busy,
                                 isError = cloudError != null,
@@ -677,7 +680,7 @@ fun OnboardingScreen(
                         onPathPicker -> {
                             val uriHandler = LocalUriHandler.current
                             Text(
-                                text = "How do you want to start?",
+                                text = stringResource(R.string.onboarding_how_do_you_want_to_start),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -689,7 +692,7 @@ fun OnboardingScreen(
                                 enabled = !busy,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Start Fresh")
+                                Text(stringResource(R.string.onboarding_start_fresh))
                             }
                             if (cloudRestoreAvailable) {
                                 OutlinedButton(
@@ -701,7 +704,7 @@ fun OnboardingScreen(
                                     enabled = !busy,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Restore from cloud backup")
+                                    Text(stringResource(R.string.onboarding_restore_from_cloud_backup))
                                 }
                             }
                             OutlinedButton(
@@ -714,8 +717,7 @@ fun OnboardingScreen(
                                 enabled = !busy,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    if (isRestoring) "Restoring…" else "Restore from local backup"
+                                Text(if (isRestoring) stringResource(R.string.onboarding_restoring) else stringResource(R.string.onboarding_restore_from_local_backup)
                                 )
                             }
                             localRestoreError?.let { err ->
@@ -734,22 +736,21 @@ fun OnboardingScreen(
 
                         step == 0 -> {
                             Text(
-                                text = "Connect an AI",
+                                text = stringResource(R.string.onboarding_connect_an_ai),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "FitBuddy needs an LLM to read food photos, freeform text logs, " +
-                                    "and set your initial calorie targets. Connect a provider to continue.",
+                                text = stringResource(R.string.onboarding_fitbuddy_needs_an_llm_to_read),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
                             val providerOptions = listOf(
-                                AiProvider.OPENROUTER to "OpenRouter",
-                                AiProvider.GEMINI to "Gemini",
-                                AiProvider.OLLAMA to "Ollama",
-                                AiProvider.CUSTOM to "OpenAI-compatible"
+                                AiProvider.OPENROUTER to context.getString(R.string.settings_openrouter),
+                                AiProvider.GEMINI to context.getString(R.string.settings_gemini),
+                                AiProvider.OLLAMA to context.getString(R.string.settings_ollama),
+                                AiProvider.CUSTOM to context.getString(R.string.settings_openai_compatible)
                             )
                             ProviderSelectorGrid(
                                 options = providerOptions,
@@ -790,8 +791,8 @@ fun OnboardingScreen(
                                 }
 
                                 AiProvider.GEMINI -> {
-                                    AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
-                                        OnboardingDocsLink(label = label, url = url)
+                                    AI_SETUP_DOC_RES[aiProvider]?.let { (labelRes, url) ->
+                                        OnboardingDocsLink(label = stringResource(labelRes), url = url)
                                     }
                                     ApiKeyChipEditor(
                                         label = "API keys",
@@ -806,10 +807,10 @@ fun OnboardingScreen(
                                 }
 
                                 AiProvider.OLLAMA -> {
-                                    AI_SETUP_DOCS[aiProvider]?.let { (label, url) ->
-                                        OnboardingDocsLink(label = label, url = url)
+                                    AI_SETUP_DOC_RES[aiProvider]?.let { (labelRes, url) ->
+                                        OnboardingDocsLink(label = stringResource(labelRes), url = url)
                                     }
-                                    val modeOptions = listOf(false to "Local", true to "Cloud")
+                                    val modeOptions = listOf(false to context.getString(R.string.onboarding_local), true to context.getString(R.string.settings_cloud))
                                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                                         modeOptions.forEachIndexed { index, (useCloud, label) ->
                                             SegmentedButton(
@@ -858,14 +859,12 @@ fun OnboardingScreen(
 
                                 AiProvider.CUSTOM, AiProvider.OPENAI -> {
                                     Text(
-                                        text = "Use OpenAI or any compatible server (LM Studio, vLLM, " +
-                                            "LocalAI, Together, Groq, …). The URL defaults to OpenAI; " +
-                                            "change it for other hosts. Local servers usually need no key.",
+                                        text = stringResource(R.string.onboarding_use_openai_or_any_compatible_server),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    AI_SETUP_DOCS[AiProvider.CUSTOM]?.let { (label, url) ->
-                                        OnboardingDocsLink(label = label, url = url)
+                                    AI_SETUP_DOC_RES[AiProvider.CUSTOM]?.let { (labelRes, url) ->
+                                        OnboardingDocsLink(label = stringResource(labelRes), url = url)
                                     }
                                     OnboardingTextField(
                                         label = "Base URL",
@@ -879,9 +878,9 @@ fun OnboardingScreen(
                                     }
                                     ApiKeyChipEditor(
                                         label = if (AppSettings.isOfficialOpenAiBaseUrl(customUrl)) {
-                                            "API keys"
+                                            context.getString(R.string.onboarding_api_keys)
                                         } else {
-                                            "API keys (optional)"
+                                            context.getString(R.string.onboarding_api_keys_optional)
                                         },
                                         keys = customKeys,
                                         onKeysChange = {
@@ -903,7 +902,7 @@ fun OnboardingScreen(
                             }
 
                             Text(
-                                text = "Your credentials stay on-device and only go to the provider you chose.",
+                                text = stringResource(R.string.onboarding_your_credentials_stay_on_device_and),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -911,7 +910,7 @@ fun OnboardingScreen(
 
                         step == 1 -> {
                             Text(
-                                text = "About you",
+                                text = stringResource(R.string.onboarding_about_you),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -947,35 +946,43 @@ fun OnboardingScreen(
                                 isError = weightError != null,
                                 errorMessage = weightError,
                             ) { weight = it }
-                            OnboardingDropdown("Sex", sex, SEX_OPTIONS) { sex = it }
+                            val sexOptions = SEX_OPTION_RES.map { it.first to stringResource(it.second) }
+                            OnboardingDropdown(stringResource(R.string.settings_sex), sex, sexOptions) { sex = it }
                         }
 
                         else -> {
                             Text(
-                                text = "Your lifestyle",
+                                text = stringResource(R.string.onboarding_your_lifestyle),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "We'll calculate adult calorie and macro targets on your " +
-                                    "device from these details when you open the dashboard. If AI " +
-                                    "is connected, it can personalize the explanation but not the math.",
+                                text = stringResource(R.string.onboarding_we_ll_calculate_adult_calorie_and),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            val activityOptions = remember(context) {
+                                ActivityLevels.optionRes.map { (value, res) ->
+                                    value to context.getString(res)
+                                }
+                            }
+                            val activityDescriptions = remember(context) {
+                                ActivityLevels.descriptions(context)
+                            }
                             OnboardingDropdown(
-                                label = "Typical overall activity",
+                                label = stringResource(R.string.onboarding_typical_overall_activity),
                                 selectedValue = activity,
-                                options = ACTIVITY_OPTIONS,
-                                descriptions = ActivityLevels.descriptions
+                                options = activityOptions,
+                                descriptions = activityDescriptions
                             ) { activity = it }
                             Text(
-                                text = ActivityLevels.descriptions[activity].orEmpty() +
-                                    ". Include workouts, daily movement, and physical work.",
+                                text = activityDescriptions[activity].orEmpty() +
+                                    stringResource(R.string.onboarding_include_workouts_daily_movement_physical_work),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            OnboardingDropdown("Goal", goal, GOAL_OPTIONS) { goal = it }
+                            val goalOptions = GOAL_OPTION_RES.map { it.first to stringResource(it.second) }
+                            OnboardingDropdown(stringResource(R.string.onboarding_goal), goal, goalOptions) { goal = it }
                         }
                     }
                 }
@@ -991,7 +998,7 @@ fun OnboardingScreen(
                             enabled = !busy,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Back")
+                            Text(stringResource(R.string.backup_back))
                         }
                         Spacer(Modifier.width(12.dp))
                         Button(
@@ -1012,13 +1019,13 @@ fun OnboardingScreen(
                                     }
                                 ) { ok, error ->
                                     if (!ok) {
-                                        cloudError = error ?: "Restore failed"
+                                        cloudError = error ?: context.getString(R.string.onboarding_restore_failed)
                                     }
                                     // On success, needsOnboarding / aiOnly gates update via VM.
                                 }
                             }
                         ) {
-                            Text(if (isRestoring) "Restoring…" else "Restore")
+                            Text(if (isRestoring) stringResource(R.string.onboarding_restoring) else stringResource(R.string.onboarding_restore))
                         }
                     }
                 }
@@ -1031,7 +1038,7 @@ fun OnboardingScreen(
                                 enabled = !busy,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Back")
+                                Text(stringResource(R.string.backup_back))
                             }
                             Spacer(Modifier.width(12.dp))
                         }
@@ -1064,10 +1071,10 @@ fun OnboardingScreen(
                         ) {
                             Text(
                                 when {
-                                    isValidating -> "Validating…"
-                                    isSaving -> "Setting up…"
-                                    aiOnly -> "Save & continue"
-                                    else -> "Continue"
+                                    isValidating -> stringResource(R.string.onboarding_validating)
+                                    isSaving -> stringResource(R.string.onboarding_setting_up)
+                                    aiOnly -> stringResource(R.string.onboarding_save_continue)
+                                    else -> stringResource(R.string.backup_continue)
                                 }
                             )
                         }
@@ -1110,19 +1117,17 @@ fun OnboardingScreen(
             }
             AlertDialog(
                 onDismissRequest = { resume(null) },
-                title = { Text("Password required") },
+                title = { Text(stringResource(R.string.main_password_required)) },
                 text = {
                     Column {
-                        Text(
-                            "This cloud backup is protected by a custom password. " +
-                                "Enter it to restore.",
+                        Text(stringResource(R.string.onboarding_this_cloud_backup_is_protected_by),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.size(12.dp))
                         OutlinedTextField(
                             value = cloudRestorePassword,
                             onValueChange = { cloudRestorePassword = it },
-                            label = { Text("Password") },
+                            label = { Text(stringResource(R.string.main_password)) },
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -1134,10 +1139,10 @@ fun OnboardingScreen(
                     TextButton(
                         onClick = { resume(cloudRestorePassword.toCharArray()) },
                         enabled = cloudRestorePassword.isNotEmpty()
-                    ) { Text("Unlock") }
+                    ) { Text(stringResource(R.string.main_unlock)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { resume(null) }) { Text("Cancel") }
+                    TextButton(onClick = { resume(null) }) { Text(stringResource(R.string.common_cancel)) }
                 }
             )
         }
@@ -1151,17 +1156,15 @@ fun OnboardingScreen(
             }
             AlertDialog(
                 onDismissRequest = { resume(null) },
-                title = { Text("Password required") },
+                title = { Text(stringResource(R.string.main_password_required)) },
                 text = {
                     Column {
-                        Text(
-                            "This backup is password-protected. Enter the password to restore it.",
+                        Text(stringResource(R.string.onboarding_this_backup_is_password_protected_enter),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         if (localRestorePasswordAttempts > 0) {
                             Spacer(Modifier.size(4.dp))
-                            Text(
-                                "Incorrect password (attempt ${localRestorePasswordAttempts + 1} of 5)",
+                            Text(stringResource(R.string.onboarding_incorrect_password_attempt_5, (localRestorePasswordAttempts + 1).toString()),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -1170,7 +1173,7 @@ fun OnboardingScreen(
                         OutlinedTextField(
                             value = localRestorePassword,
                             onValueChange = { localRestorePassword = it },
-                            label = { Text("Password") },
+                            label = { Text(stringResource(R.string.main_password)) },
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -1185,10 +1188,10 @@ fun OnboardingScreen(
                             resume(localRestorePassword.toCharArray())
                         },
                         enabled = localRestorePassword.isNotEmpty()
-                    ) { Text("Unlock") }
+                    ) { Text(stringResource(R.string.main_unlock)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { resume(null) }) { Text("Cancel") }
+                    TextButton(onClick = { resume(null) }) { Text(stringResource(R.string.common_cancel)) }
                 }
             )
         }
@@ -1275,17 +1278,18 @@ private fun onboardingIntRangeError(
     range: IntRange,
     attempted: Boolean,
     label: String,
+    context: android.content.Context,
 ): String? {
     val trimmed = value.trim()
     if (trimmed.isEmpty()) {
-        return if (attempted) "$label is required (${range.first}–${range.last})" else null
+        return if (attempted) context.getString(R.string.onboarding_required, label, range.first, range.last) else null
     }
     val parsed = trimmed.toIntOrNull()
-        ?: return "Enter a whole number"
+        ?: return context.getString(R.string.onboarding_enter_whole_number)
     return if (parsed in range) {
         null
     } else {
-        "Must be between ${range.first} and ${range.last}"
+        context.getString(R.string.onboarding_must_between, range.first, range.last)
     }
 }
 
@@ -1296,21 +1300,22 @@ private fun onboardingDoubleRangeError(
     attempted: Boolean,
     label: String,
     unit: String,
+    context: android.content.Context,
 ): String? {
     val trimmed = value.trim()
     if (trimmed.isEmpty()) {
         return if (attempted) {
-            "$label is required (${min.toInt()}–${max.toInt()} $unit)"
+            context.getString(R.string.onboarding_required_2, label, min.toInt(), max.toInt(), unit)
         } else {
             null
         }
     }
     val parsed = trimmed.toDoubleOrNull()
-        ?: return "Enter a valid number"
+        ?: return context.getString(R.string.onboarding_enter_valid_number)
     return if (parsed in min..max) {
         null
     } else {
-        "Must be between ${min.toInt()} and ${max.toInt()} $unit"
+        context.getString(R.string.onboarding_must_between_2, min.toInt(), max.toInt(), unit)
     }
 }
 
@@ -1374,7 +1379,7 @@ private fun OnboardingGuideCard(
                 Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "NEED A HAND?",
+                        text = stringResource(R.string.onboarding_need_a_hand),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = scheme.primary.copy(alpha = 0.9f),
@@ -1382,13 +1387,13 @@ private fun OnboardingGuideCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Onboarding guide",
+                        text = stringResource(R.string.onboarding_onboarding_guide),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = scheme.onPrimaryContainer
                     )
                     Text(
-                        text = "Walk through first-run setup in your browser",
+                        text = stringResource(R.string.onboarding_walk_through_first_run_setup_in),
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onPrimaryContainer.copy(alpha = 0.78f)
                     )
@@ -1403,7 +1408,7 @@ private fun OnboardingGuideCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Open",
+                        text = stringResource(R.string.onboarding_open),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = scheme.primary

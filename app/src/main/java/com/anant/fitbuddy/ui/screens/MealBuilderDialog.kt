@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.roundMacro
 import com.anant.fitbuddy.util.sanitizeMacroInput
 import com.anant.fitbuddy.util.toMacroOrNull
@@ -64,7 +68,10 @@ fun MealBuilderDialog(
     onDismiss: () -> Unit
 ) {
     val isEditing = initialDraft != null
-    var mealName by remember(initialDraft) { mutableStateOf(initialDraft?.name ?: "Meal") }
+    val defaultMealName = stringResource(R.string.meal_builder_meal)
+    var mealName by remember(initialDraft) {
+        mutableStateOf(initialDraft?.name ?: defaultMealName)
+    }
     var showManualAdd by remember { mutableStateOf(false) }
 
     val totalCalories = items.sumOf { it.totalCalories }
@@ -80,10 +87,10 @@ fun MealBuilderDialog(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
-                    title = { Text(if (isEditing) "Edit meal" else "Build a meal") },
+                    title = { Text(if (isEditing) "Edit meal" else stringResource(R.string.meal_build_a_meal)) },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
                         }
                     }
                 )
@@ -102,7 +109,7 @@ fun MealBuilderDialog(
                             )
                         )
                     }
-                ) { Text(if (isEditing) "Review changes" else "Review & save as preset") }
+                ) { Text(if (isEditing) "Review changes" else stringResource(R.string.meal_review_save_as_preset)) }
             }
         ) { innerPadding ->
             LazyColumn(
@@ -116,8 +123,8 @@ fun MealBuilderDialog(
                     OutlinedTextField(
                         value = mealName,
                         onValueChange = { mealName = it },
-                        label = { Text("Meal name") },
-                        placeholder = { Text("e.g. Breakfast") },
+                        label = { Text(stringResource(R.string.meal_meal_name)) },
+                        placeholder = { Text(stringResource(R.string.meal_e_g_breakfast)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -127,12 +134,12 @@ fun MealBuilderDialog(
                 }
                 item {
                     Text(
-                        text = "Foods in this meal",
+                        text = stringResource(R.string.meal_foods_in_this_meal),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Each food has its own ingredients — like exercises in a workout.",
+                        text = stringResource(R.string.meal_each_food_has_its_own_ingredients),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -140,8 +147,7 @@ fun MealBuilderDialog(
                 if (items.isEmpty()) {
                     item {
                         Text(
-                            "Add saved foods (presets), scan packaged items, create a new food, " +
-                                "or enter macros manually.",
+                            stringResource(R.string.meal_add_saved_foods_presets_scan_packaged),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -169,7 +175,7 @@ fun MealBuilderDialog(
                         ) {
                             Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
                             Spacer(Modifier.width(4.dp))
-                            Text("Scan")
+                            Text(stringResource(R.string.meal_scan))
                         }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
@@ -177,7 +183,7 @@ fun MealBuilderDialog(
                         ) {
                             Icon(Icons.Filled.Restaurant, contentDescription = null)
                             Spacer(Modifier.width(4.dp))
-                            Text("Saved food")
+                            Text(stringResource(R.string.meal_saved_food))
                         }
                     }
                 }
@@ -188,7 +194,7 @@ fun MealBuilderDialog(
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Create new food")
+                        Text(stringResource(R.string.meal_create_new_food))
                     }
                 }
                 item {
@@ -198,7 +204,7 @@ fun MealBuilderDialog(
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Add food manually")
+                        Text(stringResource(R.string.meal_add_food_manually))
                     }
                 }
             }
@@ -243,18 +249,18 @@ private fun MealFoodCard(
                     }
                 }
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit ingredients")
+                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.meal_edit_ingredients))
                 }
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "Remove",
+                        contentDescription = stringResource(R.string.meal_remove),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Servings:", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.meal_servings), style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { onServingsChange((item.servings - 0.5).coerceAtLeast(0.25)) }) {
                     Text("−", style = MaterialTheme.typography.titleLarge)
@@ -288,20 +294,20 @@ private fun ManualFoodEntryDialog(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add food") },
+        title = { Text(stringResource(R.string.meal_add_food)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Food name") },
+                    label = { Text(stringResource(R.string.food_food_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = calories,
                     onValueChange = { calories = it.filter { it.isDigit() }.take(5) },
-                    label = { Text("Calories (1 serving)") },
+                    label = { Text(stringResource(R.string.meal_calories_1_serving)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -310,7 +316,7 @@ private fun ManualFoodEntryDialog(
                     OutlinedTextField(
                         value = protein,
                         onValueChange = { protein = it.sanitizeMacroInput() },
-                        label = { Text("Protein") },
+                        label = { Text(stringResource(R.string.dashboard_protein)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f)
@@ -318,7 +324,7 @@ private fun ManualFoodEntryDialog(
                     OutlinedTextField(
                         value = carbs,
                         onValueChange = { carbs = it.sanitizeMacroInput() },
-                        label = { Text("Carbs") },
+                        label = { Text(stringResource(R.string.dashboard_carbs)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f)
@@ -326,7 +332,7 @@ private fun ManualFoodEntryDialog(
                     OutlinedTextField(
                         value = fats,
                         onValueChange = { fats = it.sanitizeMacroInput() },
-                        label = { Text("Fats") },
+                        label = { Text(stringResource(R.string.dashboard_fats)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f)
@@ -354,10 +360,10 @@ private fun ManualFoodEntryDialog(
                         }
                     )
                 }
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.food_add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

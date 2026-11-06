@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.components
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import com.anant.fitbuddy.util.formatMacro
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -58,6 +62,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -226,6 +231,7 @@ fun CustomLineChart(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val context = LocalContext.current
     var selectedIndex by remember(foodSummaries) { mutableIntStateOf(-1) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -240,7 +246,7 @@ fun CustomLineChart(
 
     if (dataPoints.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No log data available yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.charts_no_log_data_available_yet), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -380,9 +386,9 @@ fun CustomLineChart(
             val labelTarget = dayTargets.lastOrNull() ?: dayTargets.first()
             val labelY = targetY(labelTarget)
             val targetLabel = if (dayTargets.distinct().size <= 1) {
-                "Target · $labelTarget"
+                context.getString(R.string.chart_target, labelTarget.toString())
             } else {
-                "Target (varies)"
+                context.getString(R.string.chart_target_varies)
             }
             drawText(
                 textMeasurer = textMeasurer,
@@ -472,9 +478,9 @@ fun CustomLineChart(
             val vsTarget = net - dayTarget
             val statusColor = dayColor(net, dayTarget)
             val statusText = when {
-                vsTarget > 0 -> "Over by $vsTarget kcal"
-                vsTarget < 0 -> "Under by ${-vsTarget} kcal"
-                else -> "On target"
+                vsTarget > 0 -> context.getString(R.string.chart_over_kcal, vsTarget.toString())
+                vsTarget < 0 -> context.getString(R.string.chart_under_kcal, (-vsTarget).toString())
+                else -> context.getString(R.string.chart_target_2)
             }
             val bubbleMaxWidth = with(density) { 220.dp.toPx() }
             val bubbleApproxHeight = with(density) { 78.dp.toPx() }
@@ -502,7 +508,7 @@ fun CustomLineChart(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "$net kcal · target $dayTarget",
+                        stringResource(R.string.chart_kcal_target, net.toString(), dayTarget.toString()),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -841,12 +847,13 @@ fun MetricLineChart(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val context = LocalContext.current
     var selectedIndex by remember(points) { mutableIntStateOf(-1) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     if (points.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No readings yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.charts_no_readings_yet), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -964,7 +971,7 @@ fun MetricLineChart(
                 )
                 drawText(
                     textMeasurer = textMeasurer,
-                    text = "Target · ${formatMetric(target)} kg",
+                    text = context.getString(R.string.chart_target_kg, formatMetric(target)),
                     topLeft = Offset(leftPad + 6f, targetY - 28f),
                     style = TextStyle(
                         color = targetLineColor,
@@ -1053,9 +1060,15 @@ fun MetricLineChart(
             val targetStatusColor = chartTarget?.let { targetColor(pair.second) }
             val targetStatusText = targetDifference?.let { difference ->
                 when {
-                    kotlin.math.abs(difference) < 0.05 -> "On target"
-                    difference > 0.0 -> "Above target by ${formatMetric(difference)} kg"
-                    else -> "Below target by ${formatMetric(-difference)} kg"
+                    kotlin.math.abs(difference) < 0.05 -> context.getString(R.string.chart_target_2)
+                    difference > 0.0 -> context.getString(
+                        R.string.chart_above_target_kg,
+                        formatMetric(difference),
+                    )
+                    else -> context.getString(
+                        R.string.chart_below_target_kg,
+                        formatMetric(-difference),
+                    )
                 }
             }
             val valueText = "${formatMetric(pair.second)}$unit"
@@ -1099,7 +1112,11 @@ fun MetricLineChart(
                     } else if (delta != null && trend != null) {
                         val rose = delta > 0.0
                         // Direction of change (not health judgment — color carries that).
-                        val hint = if (rose) "Increased" else "Decreased"
+                        val hint = if (rose) {
+                            context.getString(R.string.chart_increased)
+                        } else {
+                            context.getString(R.string.chart_decreased)
+                        }
                         val sign = if (delta > 0) "+" else ""
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1123,7 +1140,7 @@ fun MetricLineChart(
                         }
                     } else if (selectedIndex == 0) {
                         Text(
-                            "First reading in range",
+                            stringResource(R.string.charts_first_reading_in_range),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1258,7 +1275,7 @@ fun CaloriesBurnedHeatmap(
 
     if (grid.weekCount == 0) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No calendar days to show", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.charts_no_calendar_days_to_show), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -1276,6 +1293,12 @@ fun CaloriesBurnedHeatmap(
     val scrollState = rememberScrollState()
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val context = LocalContext.current
+    val weekdayMon = stringResource(R.string.chart_mon)
+    val weekdayWed = stringResource(R.string.chart_wed)
+    val weekdayFri = stringResource(R.string.chart_fri)
+    val noDaySelected = stringResource(R.string.chart_no_day_selected)
+    val noHeatmapDaySelected = stringResource(R.string.chart_no_heatmap_day_selected)
     val cellSize = 11.dp
     val cellGap = 3.dp
     val cellStride = cellSize + cellGap
@@ -1306,7 +1329,7 @@ fun CaloriesBurnedHeatmap(
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.width(26.dp)) {
                 Spacer(Modifier.height(monthLabelHeight))
-                listOf("", "Mon", "", "Wed", "", "Fri", "").forEach { label ->
+                listOf("", weekdayMon, "", weekdayWed, "", weekdayFri, "").forEach { label ->
                     Box(
                         modifier = Modifier
                             .width(26.dp)
@@ -1325,16 +1348,21 @@ fun CaloriesBurnedHeatmap(
                 }
             }
             Spacer(Modifier.width(6.dp))
+            val calendarContentDescription =
+                stringResource(R.string.charts_calories_burned_contribution_calendar)
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(scrollState)
                     .semantics {
-                        contentDescription = "Calories burned contribution calendar"
+                        contentDescription = calendarContentDescription
                         stateDescription = selectedDay?.let {
-                            "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
-                                "${it.calories} calories burned"
-                        } ?: "No day selected"
+                            context.getString(
+                                R.string.chart_selected_calories_burned,
+                                DateUtils.displayDateSubtitle(it.date),
+                                it.calories.toString(),
+                            )
+                        } ?: noDaySelected
                     }
             ) {
                 Box(
@@ -1404,16 +1432,24 @@ fun CaloriesBurnedHeatmap(
                                 .width(cellStride * (endWeek - startWeek))
                                 .height(canvasHeight)
                                 .semantics {
-                                    contentDescription =
-                                        "${DateUtils.monthLabel(month)} calories burned"
+                                    contentDescription = context.getString(
+                                        R.string.chart_calories_burned,
+                                        DateUtils.monthLabel(month),
+                                    )
                                     stateDescription = selectedMonthDay?.let {
-                                        "Selected ${DateUtils.displayDateSubtitle(it.date)}, " +
-                                            "${it.calories} calories burned"
-                                    } ?: "No day selected"
+                                        context.getString(
+                                            R.string.chart_selected_calories_burned,
+                                            DateUtils.displayDateSubtitle(it.date),
+                                            it.calories.toString(),
+                                        )
+                                    } ?: noDaySelected
                                     customActions = days.map { day ->
                                         CustomAccessibilityAction(
-                                            label = "${DateUtils.displayDateSubtitle(day.date)}, " +
-                                                "${day.calories} calories burned"
+                                            label = context.getString(
+                                                R.string.chart_calories_burned_2,
+                                                DateUtils.displayDateSubtitle(day.date),
+                                                day.calories.toString(),
+                                            )
                                         ) {
                                             selectedDate = if (selectedDate == day.date) {
                                                 null
@@ -1436,15 +1472,19 @@ fun CaloriesBurnedHeatmap(
                 .semantics {
                     liveRegion = LiveRegionMode.Polite
                     contentDescription = selectedDay?.let {
-                        "${DateUtils.displayDateSubtitle(it.date)}, ${it.calories} calories burned"
-                    } ?: "No heatmap day selected"
+                        context.getString(
+                            R.string.chart_calories_burned_2,
+                            DateUtils.displayDateSubtitle(it.date),
+                            it.calories.toString(),
+                        )
+                    } ?: noHeatmapDaySelected
                 },
             shape = appShape(10.dp),
             color = baseColor
         ) {
             if (selectedDay == null) {
                 Text(
-                    text = "Swipe the calendar and tap a square for details",
+                    text = stringResource(R.string.charts_swipe_the_calendar_and_tap_a),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.labelMedium,
                     color = colorScheme.onSurfaceVariant
@@ -1475,7 +1515,7 @@ fun CaloriesBurnedHeatmap(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = "Less",
+                text = stringResource(R.string.charts_less),
                 style = MaterialTheme.typography.labelSmall,
                 color = colorScheme.onSurfaceVariant
             )
@@ -1488,7 +1528,7 @@ fun CaloriesBurnedHeatmap(
                 )
             }
             Text(
-                text = "More",
+                text = stringResource(R.string.charts_more),
                 style = MaterialTheme.typography.labelSmall,
                 color = colorScheme.onSurfaceVariant
             )

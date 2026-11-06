@@ -1,5 +1,6 @@
 package com.anant.fitbuddy.ui.loading.animations
 
+import com.anant.fitbuddy.R
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -40,15 +41,15 @@ import androidx.compose.runtime.getValue
 /** Dashboard analyzing banner: flowing tiranga wash with a steady spinning chakra. */
 object TirangaLoadingAnimation : LoadingAnimation {
     override val id: String = "tiranga"
-    override val displayName: String = "Indian flag"
+    override val displayNameRes: Int = R.string.loading_indian_flag
     override val slots: Set<LoadingAnimationSlot> = setOf(LoadingAnimationSlot.ANALYZING)
-    override val defaultCaptions: List<String> = analyzingCaptions
+    override val defaultCaptionRes: List<Int> = analyzingCaptionRes
 
     @Composable
     override fun Content(scope: LoadingAnimationScope) {
         TirangaBanner(
             modelId = scope.label,
-            captions = scope.captions.ifEmpty { defaultCaptions },
+            captions = scope.captions.ifEmpty { analyzingCaptions() },
             modifier = scope.modifier
         )
     }

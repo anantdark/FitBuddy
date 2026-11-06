@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -94,10 +98,13 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
-private enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    PROGRESS("Progress", Icons.Filled.Insights),
-    DASHBOARD("Dashboard", Icons.Filled.Dashboard),
-    BODY("Body", Icons.Filled.MonitorWeight)
+private enum class Tab(
+    @param:androidx.annotation.StringRes val labelRes: Int,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+) {
+    PROGRESS(R.string.main_progress, Icons.Filled.Insights),
+    DASHBOARD(R.string.main_dashboard, Icons.Filled.Dashboard),
+    BODY(R.string.main_body, Icons.Filled.MonitorWeight),
 }
 
 private enum class ScanFlow { SAVE_FOOD, ADD_TO_MEAL }
@@ -114,12 +121,12 @@ private enum class FoodEditorTarget {
     SAVE_LIBRARY
 }
 
-private fun blankFoodDraft(): FoodDraft =
+private fun blankFoodDraft(dishName: String, ingredientName: String): FoodDraft =
     FoodDraft(
-        dishName = "New food",
+        dishName = dishName,
         timestamp = System.currentTimeMillis(),
         ingredients = listOf(
-            IngredientDraft.fromAbsolute("Ingredient", 100, 0, 0.0, 0.0, 0.0)
+            IngredientDraft.fromAbsolute(ingredientName, 100, 0, 0.0, 0.0, 0.0)
         )
     )
 
@@ -133,6 +140,8 @@ fun MainScreen(
     onOpenDonateReminderConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val blankFoodName = stringResource(R.string.main_new_food)
+    val blankIngredientName = stringResource(R.string.main_ingredient)
     val dismissKeyboard = rememberDismissKeyboard()
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
@@ -374,13 +383,13 @@ fun MainScreen(
     fun launchCameraPreview() {
         val capture = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
         if (capture.resolveActivity(context.packageManager) == null) {
-            SystemToast.show(context, "No camera app available. Use Gallery instead.")
+            SystemToast.show(context, context.getString(R.string.main_no_camera_app_available_use_gallery))
             return
         }
         try {
             cameraLauncher.launch(null)
         } catch (_: ActivityNotFoundException) {
-            SystemToast.show(context, "No camera app available. Use Gallery instead.")
+            SystemToast.show(context, context.getString(R.string.main_no_camera_app_available_use_gallery))
         }
     }
 
@@ -391,7 +400,7 @@ fun MainScreen(
             viewModel.notifyExternalMediaLaunch()
             launchCameraPreview()
         } else {
-            SystemToast.show(context, "Camera permission not allowed.")
+            SystemToast.show(context, context.getString(R.string.main_camera_permission_not_allowed))
         }
     }
 
@@ -435,10 +444,10 @@ fun MainScreen(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
-                    title = { Text("Settings") },
+                    title = { Text(stringResource(R.string.donate_settings)) },
                     navigationIcon = {
                         IconButton(onClick = { showSettings = false }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.backup_back))
                         }
                     }
                 )
@@ -472,11 +481,14 @@ fun MainScreen(
                     viewModel.markEasterEggDiscovered()
                 },
                 onAnantTapHint = { remaining ->
-                    SystemToast.show(context, "$remaining taps to go")
+                    SystemToast.show(
+                        context,
+                        context.getString(R.string.main_taps_go, remaining),
+                    )
                 },
                 onAnantTapHintDismiss = { },
                 onAnantTapWhenUnlocked = {
-                    SystemToast.show(context, "Don't be greedy")
+                    SystemToast.show(context, context.getString(R.string.main_don_t_be_greedy))
                 },
                 onResetEasterEggData = {
                     viewModel.resetEasterEggData()
@@ -497,23 +509,36 @@ fun MainScreen(
                     val ok = viewModel.stopDiagnosticLoggingAndExport(context)
                     SystemToast.show(
                         context,
-                        if (ok) "Choose an app to share the log" else "No diagnostic log yet",
+                        if (ok) {
+                            context.getString(R.string.main_choose_an_app_to_share_the)
+                        } else {
+                            context.getString(R.string.main_no_diagnostic_log_yet)
+                        },
                     )
                 },
                 onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap,
                 onSupportIdCopied = {
-                    SystemToast.show(context, "Support ID copied")
+                    SystemToast.show(
+                        context,
+                        context.getString(R.string.donate_reminder_support_id_copied),
+                    )
                 },
                 onDeveloperUnlockHint = { remaining ->
-                    SystemToast.show(context, "$remaining taps to go")
+                    SystemToast.show(
+                        context,
+                        context.getString(R.string.main_taps_go, remaining),
+                    )
                 },
                 onDeveloperUnlockHintDismiss = { },
                 onDeveloperModeToggled = { unlocked ->
                     viewModel.setDeveloperModeUnlocked(unlocked)
                     SystemToast.show(
                         context,
-                        if (unlocked) "Developer settings unlocked"
-                        else "Developer settings hidden",
+                        if (unlocked) {
+                            context.getString(R.string.main_developer_settings_unlocked)
+                        } else {
+                            context.getString(R.string.main_developer_settings_hidden)
+                        },
                     )
                 },
                 onClearModelCooldowns = viewModel::clearModelCooldowns,
@@ -523,7 +548,11 @@ fun MainScreen(
                     val ok = DonationReminderReceiver.postDonationNotification(context, isTest = true)
                     SystemToast.show(
                         context,
-                        if (ok) "Donate test notification sent" else "Couldn't send notification",
+                        if (ok) {
+                            context.getString(R.string.main_donate_test_notification_sent)
+                        } else {
+                            context.getString(R.string.main_couldn_t_send_notification)
+                        },
                     )
                 },
                 onShowTestDonateReminderDialog = viewModel::showTestDonationReminderDialog,
@@ -551,7 +580,11 @@ fun MainScreen(
                 onTestNotificationSent = { ok ->
                     SystemToast.show(
                         context,
-                        if (ok) "Test notification sent" else "Couldn't send notification",
+                        if (ok) {
+                            context.getString(R.string.main_test_notification_sent)
+                        } else {
+                            context.getString(R.string.main_couldn_t_send_notification)
+                        },
                     )
                 },
                 onPermissionDenied = { message ->
@@ -572,7 +605,9 @@ fun MainScreen(
                             suspendCancellableCoroutine { cont ->
                                 cloudRestorePasswordContinuation = cont
                                 cloudRestorePasswordError =
-                                    "Incorrect password — enter the password you set for this backup"
+                                    context.getString(
+                                        R.string.main_incorrect_password_enter_password_set_backup,
+                                    )
                                 cloudRestorePasswordPrompt = true
                             }
                         }
@@ -605,7 +640,7 @@ fun MainScreen(
                 if (selectedTab == Tab.DASHBOARD && settings.hasUserName) {
                     TopAppBar(
                         title = {
-                            Text(dashboardGreeting(settings.displayFirstName))
+                            Text(dashboardGreeting(context, settings.displayFirstName))
                         },
                         navigationIcon = {
                             MainTopBarTelegramButton(
@@ -624,7 +659,7 @@ fun MainScreen(
                     )
                 } else {
                     CenterAlignedTopAppBar(
-                        title = { Text(selectedTab.label) },
+                        title = { Text(stringResource(selectedTab.labelRes)) },
                         navigationIcon = {
                             MainTopBarTelegramButton(
                                 onClick = { showTelegramJoinDialog = true },
@@ -651,8 +686,10 @@ fun MainScreen(
                                 dismissKeyboard()
                                 selectedTab = tab
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
+                            icon = {
+                                Icon(tab.icon, contentDescription = stringResource(tab.labelRes))
+                            },
+                            label = { Text(stringResource(tab.labelRes)) },
                         )
                     }
                 }
@@ -665,7 +702,7 @@ fun MainScreen(
                             showLogHub = true
                         },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                        text = { Text("Log") },
+                        text = { Text(stringResource(R.string.log_log)) },
                         shape = appControlShape(
                             FloatingActionButtonDefaults.extendedFabShape
                         )
@@ -766,7 +803,7 @@ fun MainScreen(
                     containerColor = MaterialTheme.colorScheme.background,
                     topBar = {
                         TopAppBar(
-                            title = { Text("Week history") },
+                            title = { Text(stringResource(R.string.main_week_history)) },
                             navigationIcon = {
                                 IconButton(onClick = {
                                     showWeekHistory = false
@@ -774,7 +811,7 @@ fun MainScreen(
                                 }) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back"
+                                        contentDescription = stringResource(R.string.backup_back)
                                     )
                                 }
                             },
@@ -799,7 +836,7 @@ fun MainScreen(
                                 showLogHub = true
                             },
                             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                            text = { Text("Log") },
+                            text = { Text(stringResource(R.string.log_log)) },
                             shape = appControlShape(
                                 FloatingActionButtonDefaults.extendedFabShape
                             )
@@ -934,12 +971,12 @@ fun MainScreen(
                     SavedFoodSheetMode.PICK_FOR_MEAL -> {
                         foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
                         mealFoodEditIndex = null
-                        viewModel.openFoodEditor(blankFoodDraft())
+                        viewModel.openFoodEditor(blankFoodDraft(blankFoodName, blankIngredientName))
                     }
                     SavedFoodSheetMode.LOG_TO_DAY -> {
                         foodEditorTarget = FoodEditorTarget.SAVE_LIBRARY
                         mealFoodEditIndex = null
-                        viewModel.openFoodEditor(blankFoodDraft())
+                        viewModel.openFoodEditor(blankFoodDraft(blankFoodName, blankIngredientName))
                     }
                 }
             },
@@ -965,7 +1002,7 @@ fun MainScreen(
             onCreateFood = {
                 foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
                 mealFoodEditIndex = null
-                viewModel.openFoodEditor(blankFoodDraft())
+                viewModel.openFoodEditor(blankFoodDraft(blankFoodName, blankIngredientName))
             },
             onEditFood = { index ->
                 foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
@@ -1013,7 +1050,7 @@ fun MainScreen(
                 scanFlow = null
             },
             onCameraPermissionDenied = {
-                SystemToast.show(context, "Camera permission not allowed.")
+                SystemToast.show(context, context.getString(R.string.main_camera_permission_not_allowed))
             }
         )
     }
@@ -1033,7 +1070,7 @@ fun MainScreen(
         ScannedProductDialog(
             product = product,
             isSaving = false,
-            primaryLabel = if (isMealAdd) "Add to meal" else "Save food",
+            primaryLabel = if (isMealAdd) stringResource(R.string.main_add_to_meal) else "Save food",
             onPrimary = { confirmed ->
                 when (scanFlow) {
                     ScanFlow.ADD_TO_MEAL -> mealItems.add(confirmed.toFoodEntry())
@@ -1042,7 +1079,7 @@ fun MainScreen(
                 pendingProduct = null
                 scanFlow = null
             },
-            secondaryLabel = if (isMealAdd) null else "Log today",
+            secondaryLabel = if (isMealAdd) null else stringResource(R.string.main_log_today),
             onSecondary = if (isMealAdd) {
                 null
             } else {
@@ -1210,10 +1247,10 @@ fun MainScreen(
                 val existing = editingMealPreset
                 if (existing != null) {
                     viewModel.updateMealPreset(existing, mealDraft)
-                    SystemToast.show(context, "Updated \"${mealDraft.name}\"")
+                    SystemToast.show(context, context.getString(R.string.main_updated, mealDraft.name))
                 } else {
                     viewModel.saveMealDraftAsPreset(mealDraft)
-                    SystemToast.show(context, "Saved \"${mealDraft.name}\" as meal preset")
+                    SystemToast.show(context, context.getString(R.string.main_saved_meal_preset, mealDraft.name))
                 }
                 if (saveAsPresetOnly) {
                     mealReviewDraft = null
@@ -1244,11 +1281,11 @@ fun MainScreen(
             onReviewMessageShown = viewModel::consumeReviewMessage,
             showLogDate = foodEditorTarget == FoodEditorTarget.LOG_MEAL,
             confirmLabel = when (foodEditorTarget) {
-                FoodEditorTarget.SAVE_LIBRARY -> "Save food"
+                FoodEditorTarget.SAVE_LIBRARY -> stringResource(R.string.main_save_food)
                 FoodEditorTarget.MEAL_BUILDER,
-                FoodEditorTarget.MEAL_REVIEW -> "Add to meal"
+                FoodEditorTarget.MEAL_REVIEW -> stringResource(R.string.main_add_to_meal)
                 FoodEditorTarget.LOG_MEAL ->
-                    if (analysisState.editingFoodLogId != null) "Update food" else "Log food"
+                    if (analysisState.editingFoodLogId != null) stringResource(R.string.main_update_food) else stringResource(R.string.food_review_log_food)
             },
             showSaveAsPreset = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY,
             onConfirm = { confirmed ->
@@ -1287,7 +1324,7 @@ fun MainScreen(
                     }
                     FoodEditorTarget.SAVE_LIBRARY -> {
                         viewModel.saveDraftAsSavedFood(confirmed)
-                        SystemToast.show(context, "Saved \"${confirmed.dishName}\" to food library")
+                        SystemToast.show(context, context.getString(R.string.main_saved_food_library, confirmed.dishName))
                         viewModel.dismissFoodDraft()
                     }
                 }
@@ -1307,7 +1344,7 @@ fun MainScreen(
         val clipboard = LocalClipboardManager.current
         AlertDialog(
             onDismissRequest = viewModel::consumeRawAiJson,
-            title = { Text("Raw AI JSON") },
+            title = { Text(stringResource(R.string.main_raw_ai_json)) },
             text = {
                 Column(
                     modifier = Modifier
@@ -1319,22 +1356,22 @@ fun MainScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = viewModel::consumeRawAiJson) { Text("Close") }
+                TextButton(onClick = viewModel::consumeRawAiJson) { Text(stringResource(R.string.donate_close)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
                         clipboard.setText(AnnotatedString(json))
-                        SystemToast.show(context, "Copied")
+                        SystemToast.show(context, context.getString(R.string.main_copied))
                     }
-                ) { Text("Copy") }
+                ) { Text(stringResource(R.string.main_copy)) }
             }
         )
     }
 
     analysisState.errorDialogMessage?.let { message ->
         AiErrorDialog(
-            title = analysisState.errorDialogTitle ?: "Something went wrong",
+            title = analysisState.errorDialogTitle ?: stringResource(R.string.main_something_went_wrong),
             message = message,
             onDismiss = viewModel::dismissErrorDialog
         )
@@ -1343,13 +1380,10 @@ fun MainScreen(
     pendingImportUri?.let { uri ->
         AlertDialog(
             onDismissRequest = { pendingImportUri = null },
-            title = { Text("Replace all data?") },
+            title = { Text(stringResource(R.string.main_replace_all_data)) },
             text = {
                 Text(
-                    "Importing this backup will replace your current profile, readings, logs, " +
-                        "and custom foods/meals/exercises with the file's contents. Settings " +
-                        "(including AI keys) are replaced when the backup includes them. " +
-                        "This can't be undone."
+                    stringResource(R.string.main_importing_this_backup_will_replace_your)
                 )
             },
             confirmButton = {
@@ -1367,15 +1401,19 @@ fun MainScreen(
                             suspendCancellableCoroutine { cont ->
                                 importPasswordContinuation = cont
                                 importPasswordError =
-                                    if (importPasswordAttempts > 0) "Incorrect password" else null
+                                    if (importPasswordAttempts > 0) {
+                                        context.getString(R.string.main_incorrect_password)
+                                    } else {
+                                        null
+                                    }
                                 importPasswordPromptUri = importUri
                             }
                         }
                     }
-                }) { Text("Replace") }
+                }) { Text(stringResource(R.string.main_replace)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingImportUri = null }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -1387,10 +1425,10 @@ fun MainScreen(
         val exportLengthValid = exportIsBlank || exportPassword.length in 8..128
         val exportValidationError = when {
             !exportLengthValid && exportPassword.length < 8 ->
-                "Password must be at least 8 characters"
-            !exportLengthValid -> "Password must be 128 characters or fewer"
+                stringResource(R.string.main_password_must_be_at_least_8)
+            !exportLengthValid -> stringResource(R.string.main_password_must_be_128_characters_or)
             !exportIsBlank && exportConfirmPassword.isNotEmpty() && !exportPasswordsMatch ->
-                "Passwords do not match"
+                stringResource(R.string.main_passwords_do_not_match)
             else -> null
         }
         val canExport = exportValidationError == null && (exportIsBlank || exportPasswordsMatch)
@@ -1400,23 +1438,23 @@ fun MainScreen(
                 exportPassword = ""
                 exportConfirmPassword = ""
             },
-            title = { Text("Share backup") },
+            title = { Text(stringResource(R.string.main_share_backup)) },
             text = {
                 Column {
                     Text(
-                        "Optionally protect this backup with a password, then choose where to send it.",
+                        stringResource(R.string.main_optionally_protect_this_backup_with_a),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.size(12.dp))
                     OutlinedTextField(
                         value = exportPassword,
                         onValueChange = { exportPassword = it },
-                        label = { Text("Password (optional)") },
+                        label = { Text(stringResource(R.string.main_password_optional)) },
                         singleLine = true,
                         visualTransformation =
                             androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         isError = exportValidationError != null &&
-                            exportValidationError != "Passwords do not match",
+                            exportValidationError != stringResource(R.string.main_passwords_do_not_match),
                         supportingText = exportValidationError?.let { error ->
                             { Text(error, color = MaterialTheme.colorScheme.error) }
                         },
@@ -1427,7 +1465,7 @@ fun MainScreen(
                         OutlinedTextField(
                             value = exportConfirmPassword,
                             onValueChange = { exportConfirmPassword = it },
-                            label = { Text("Confirm password") },
+                            label = { Text(stringResource(R.string.main_confirm_password)) },
                             singleLine = true,
                             visualTransformation =
                                 androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -1448,14 +1486,14 @@ fun MainScreen(
                         showExportDialog = false
                     },
                     enabled = canExport
-                ) { Text("Share") }
+                ) { Text(stringResource(R.string.main_share)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showExportDialog = false
                     exportPassword = ""
                     exportConfirmPassword = ""
-                }) { Text("Cancel") }
+                }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -1470,11 +1508,11 @@ fun MainScreen(
                 importPassword = ""
                 importPasswordError = null
             },
-            title = { Text("Password required") },
+            title = { Text(stringResource(R.string.main_password_required)) },
             text = {
                 Column {
                     Text(
-                        "This backup is encrypted. Enter the password to import it.",
+                        stringResource(R.string.main_this_backup_is_encrypted_enter_the),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     if (importPasswordAttempts > 0 && importPasswordError != null) {
@@ -1489,14 +1527,14 @@ fun MainScreen(
                     OutlinedTextField(
                         value = importPassword,
                         onValueChange = { importPassword = it },
-                        label = { Text("Password") },
+                        label = { Text(stringResource(R.string.main_password)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (importPasswordAttempts > 0) {
                         Spacer(Modifier.size(4.dp))
                         Text(
-                            "Attempt ${importPasswordAttempts + 1} of 5",
+                            stringResource(R.string.main_attempt_5, (importPasswordAttempts + 1).toString()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1514,7 +1552,7 @@ fun MainScreen(
                         importPasswordContinuation = null
                     },
                     enabled = importPassword.isNotEmpty()
-                ) { Text("Unlock") }
+                ) { Text(stringResource(R.string.main_unlock)) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -1523,7 +1561,7 @@ fun MainScreen(
                     importPasswordPromptUri = null
                     importPassword = ""
                     importPasswordError = null
-                }) { Text("Cancel") }
+                }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -1538,11 +1576,11 @@ fun MainScreen(
                 cloudRestorePassword = ""
                 cloudRestorePasswordError = null
             },
-            title = { Text("Password required") },
+            title = { Text(stringResource(R.string.main_password_required)) },
             text = {
                 Column {
                     Text(
-                        cloudRestorePasswordError ?: "Enter the password for this cloud backup.",
+                        cloudRestorePasswordError ?: stringResource(R.string.main_enter_password_cloud_backup),
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (cloudRestorePasswordError != null)
                             MaterialTheme.colorScheme.error
@@ -1553,7 +1591,7 @@ fun MainScreen(
                     OutlinedTextField(
                         value = cloudRestorePassword,
                         onValueChange = { cloudRestorePassword = it },
-                        label = { Text("Password") },
+                        label = { Text(stringResource(R.string.main_password)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1570,7 +1608,7 @@ fun MainScreen(
                         cloudRestorePasswordContinuation = null
                     },
                     enabled = cloudRestorePassword.isNotEmpty()
-                ) { Text("Unlock") }
+                ) { Text(stringResource(R.string.main_unlock)) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -1579,7 +1617,7 @@ fun MainScreen(
                     cloudRestorePasswordPrompt = false
                     cloudRestorePassword = ""
                     cloudRestorePasswordError = null
-                }) { Text("Cancel") }
+                }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -1599,7 +1637,8 @@ fun MainScreen(
             viewModel.onUpdateDownloadOpened()
         } catch (e: Exception) {
             viewModel.failOpenUpdateDownload(
-                e.message?.takeIf { it.isNotBlank() } ?: "Could not open download link"
+                e.message?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.main_could_not_open_download_link)
             )
         }
     }
@@ -1639,12 +1678,10 @@ private fun OpenFoodFactsProductUnavailableDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.ErrorOutline, contentDescription = null) },
-        title = { Text("Product not found") },
+        title = { Text(stringResource(R.string.main_product_not_found)) },
         text = {
             Text(
-                "Barcode $barcode was read, but Open Food Facts has no usable product or " +
-                    "nutrition data for it. Install Open Food Facts and add this product to " +
-                    "its public database, then scan it again here."
+                stringResource(R.string.main_barcode_read_but_open_food_facts_has, barcode)
             )
         },
         confirmButton = {
@@ -1653,10 +1690,10 @@ private fun OpenFoodFactsProductUnavailableDialog(
                     onDismiss()
                     uriHandler.openUri(OPEN_FOOD_FACTS_APP_URL)
                 }
-            ) { Text("Install & add") }
+            ) { Text(stringResource(R.string.main_install_add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Keep scanning") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_keep_scanning)) }
         }
     )
 }
@@ -1673,7 +1710,7 @@ private fun AiErrorDialog(
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ok)) }
         }
     )
 }
@@ -1687,7 +1724,7 @@ private fun TextLogDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Describe it") },
+        title = { Text(stringResource(R.string.main_describe_it)) },
         text = {
             Column {
                 Text(
@@ -1698,7 +1735,7 @@ private fun TextLogDialog(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("Food or activity") },
+                    label = { Text(stringResource(R.string.main_food_or_activity)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1707,10 +1744,10 @@ private fun TextLogDialog(
             TextButton(
                 onClick = { onSubmit(text.trim()) },
                 enabled = text.isNotBlank()
-            ) { Text("Analyze") }
+            ) { Text(stringResource(R.string.main_analyze)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }
@@ -1724,7 +1761,7 @@ private fun ClarificationDialog(
     var answer by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Quick question") },
+        title = { Text(stringResource(R.string.main_quick_question)) },
         text = {
             Column {
                 Text(message)
@@ -1732,7 +1769,7 @@ private fun ClarificationDialog(
                 OutlinedTextField(
                     value = answer,
                     onValueChange = { answer = it },
-                    label = { Text("Your answer") },
+                    label = { Text(stringResource(R.string.main_your_answer)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1741,21 +1778,21 @@ private fun ClarificationDialog(
             TextButton(
                 onClick = { onSubmit(answer.trim()) },
                 enabled = answer.isNotBlank()
-            ) { Text("Send") }
+            ) { Text(stringResource(R.string.main_send)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }
 
-private fun dashboardGreeting(firstName: String): String {
+private fun dashboardGreeting(context: android.content.Context, firstName: String): String {
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val period = when (hour) {
-        in 5..11 -> "Good morning"
-        in 12..16 -> "Good afternoon"
-        in 17..20 -> "Good evening"
-        else -> "Good night"
+        in 5..11 -> context.getString(R.string.main_good_morning)
+        in 12..16 -> context.getString(R.string.main_good_afternoon)
+        in 17..20 -> context.getString(R.string.main_good_evening)
+        else -> context.getString(R.string.main_good_night)
     }
     val name = firstName.trim()
     return if (name.isEmpty()) period else "$period, $name"
@@ -1768,11 +1805,11 @@ private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Un
     val canSave = firstName.trim().isNotEmpty()
     AlertDialog(
         onDismissRequest = {},
-        title = { Text("What’s your name?") },
+        title = { Text(stringResource(R.string.main_what_s_your_name)) },
         text = {
             Column {
                 Text(
-                    text = "We’ll use your first name in the dashboard greeting.",
+                    text = stringResource(R.string.main_we_ll_use_your_first_name),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1780,7 +1817,7 @@ private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Un
                 OutlinedTextField(
                     value = firstName,
                     onValueChange = { firstName = it },
-                    label = { Text("First name") },
+                    label = { Text(stringResource(R.string.main_first_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1788,7 +1825,7 @@ private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Un
                 OutlinedTextField(
                     value = lastName,
                     onValueChange = { lastName = it },
-                    label = { Text("Last name (optional)") },
+                    label = { Text(stringResource(R.string.main_last_name_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1798,7 +1835,7 @@ private fun NamePromptDialog(onSave: (firstName: String, lastName: String) -> Un
             TextButton(
                 onClick = { onSave(firstName.trim(), lastName.trim()) },
                 enabled = canSave
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.food_save)) }
         }
     )
 }

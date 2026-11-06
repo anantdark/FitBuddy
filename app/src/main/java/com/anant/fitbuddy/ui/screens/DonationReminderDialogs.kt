@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -73,31 +77,30 @@ internal fun DonationReminderDialog(
     val labels = remember { DonationReminderCopy.randomLabels() }
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text("Support FitBuddy?") },
+        title = { Text(stringResource(R.string.donate_reminder_support_fitbuddy)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "FitBuddy is free and open source. Optional tips keep the chai " +
-                        "(and the features) flowing. No guilt, just an occasional nudge.",
+                    stringResource(R.string.donate_reminder_fitbuddy_is_free_and_open_source),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Button(
                     onClick = onPay,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(labels.pay)
+                    Text(stringResource(labels.pay))
                 }
                 FilledTonalButton(
                     onClick = onAlreadyPaid,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(labels.paid)
+                    Text(stringResource(labels.paid))
                 }
                 OutlinedButton(
                     onClick = onSoftDismiss,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(labels.soft)
+                    Text(stringResource(labels.soft))
                 }
             }
         },
@@ -113,23 +116,30 @@ internal fun AlreadyPaidDonorPrompt(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val notGeneratedYet = stringResource(R.string.donate_reminder_not_generated_yet)
+    val emailHi = stringResource(R.string.donate_reminder_hi)
+    val emailBodyLead = stringResource(R.string.donate_reminder_i_d_like_added_fitbuddy_donor_list)
+    val emailNameLabel = stringResource(R.string.donate_reminder_name)
+    val emailSupportIdLabel = stringResource(R.string.donate_reminder_support_id_2, supportId)
+    val emailThanks = stringResource(R.string.donate_reminder_thanks)
+    val emailSubject = stringResource(R.string.donate_reminder_fitbuddy_donor_list)
+    val clipboardLabel = stringResource(R.string.donate_reminder_fitbuddy_support_id)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Get on the donor list") },
+        title = { Text(stringResource(R.string.donate_reminder_get_on_the_donor_list)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Email me your name and Support ID so I can add you. " +
-                        "Reminders stop once your ID is on the list.",
+                    stringResource(R.string.donate_reminder_email_me_your_name_and_support),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "Support ID",
+                    stringResource(R.string.donate_reminder_support_id),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    supportId.ifBlank { "(not generated yet)" },
+                    supportId.ifBlank { notGeneratedYet },
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -138,28 +148,28 @@ internal fun AlreadyPaidDonorPrompt(
             TextButton(
                 onClick = {
                     val body = buildString {
-                        appendLine("Hi,")
+                        appendLine(emailHi)
                         appendLine()
-                        appendLine("I'd like to be added to the FitBuddy donor list.")
+                        appendLine(emailBodyLead)
                         appendLine()
-                        appendLine("Name: ")
-                        appendLine("Support ID: $supportId")
+                        appendLine(emailNameLabel)
+                        appendLine(emailSupportIdLabel)
                         appendLine()
-                        appendLine("Thanks!")
+                        appendLine(emailThanks)
                     }
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
                         data = Uri.parse("mailto:")
                         putExtra(Intent.EXTRA_EMAIL, arrayOf(developerEmail))
-                        putExtra(Intent.EXTRA_SUBJECT, "FitBuddy donor list")
+                        putExtra(Intent.EXTRA_SUBJECT, emailSubject)
                         putExtra(Intent.EXTRA_TEXT, body)
                     }
                     runCatching { context.startActivity(intent) }
                         .onFailure {
-                            SystemToast.show(context, "No email app found")
+                            SystemToast.show(context, context.getString(R.string.donate_reminder_no_email_app_found))
                         }
                 }
             ) {
-                Text("Email developer")
+                Text(stringResource(R.string.donate_reminder_email_developer))
             }
         },
         dismissButton = {
@@ -170,14 +180,14 @@ internal fun AlreadyPaidDonorPrompt(
                             android.content.ClipboardManager::class.java
                         )
                         clipboard?.setPrimaryClip(
-                            android.content.ClipData.newPlainText("FitBuddy Support ID", supportId)
+                            android.content.ClipData.newPlainText(clipboardLabel, supportId)
                         )
-                        SystemToast.show(context, "Support ID copied")
+                        SystemToast.show(context, context.getString(R.string.donate_reminder_support_id_copied))
                     }
                     onDismiss()
                 }
             ) {
-                Text("Copy ID & close")
+                Text(stringResource(R.string.donate_reminder_copy_id_close))
             }
         },
     )
@@ -193,15 +203,13 @@ internal fun NewDonorsThankYouDialog(
     SupportersListDialog(
         donors = donors,
         onDismiss = onDismiss,
-        titleSingular = "Thanks to our newest supporter",
-        titlePlural = "Thanks to our newest supporters",
-        bodySingular = "This person helped keep FitBuddy free and open. " +
-            "Take a moment to celebrate them.",
-        bodyPlural = "These folks helped keep FitBuddy free and open. " +
-            "Take a moment to celebrate them.",
+        titleSingular = stringResource(R.string.donate_reminder_thanks_our_newest_supporter),
+        titlePlural = stringResource(R.string.donate_reminder_thanks_our_newest_supporters),
+        bodySingular = stringResource(R.string.donate_reminder_this_person_helped_keep_fitbuddy_free),
+        bodyPlural = stringResource(R.string.donate_reminder_these_folks_helped_keep_fitbuddy_free_open),
         lockSeconds = THANK_YOU_LOCK_SECONDS,
         confetti = true,
-        confirmLabel = "Cheers",
+        confirmLabel = stringResource(R.string.donate_reminder_cheers),
     )
 }
 
@@ -213,12 +221,12 @@ internal fun DonorsGalleryDialog(
     if (donors.isEmpty()) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Supporters") },
+            title = { Text(stringResource(R.string.donate_reminder_supporters)) },
             text = {
-                Text("No public supporters yet. Be the first — tip from the heart button.")
+                Text(stringResource(R.string.donate_reminder_no_public_supporters_yet_be_the))
             },
             confirmButton = {
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.donate_close)) }
             },
         )
         return
@@ -226,13 +234,13 @@ internal fun DonorsGalleryDialog(
     SupportersListDialog(
         donors = donors,
         onDismiss = onDismiss,
-        titleSingular = "FitBuddy supporter",
-        titlePlural = "FitBuddy supporters",
-        bodySingular = "Tap a row to open their supporter card.",
-        bodyPlural = "Tap a row to open a supporter card. Profiles live on the flip side.",
+        titleSingular = stringResource(R.string.donate_reminder_fitbuddy_supporter),
+        titlePlural = stringResource(R.string.donate_reminder_fitbuddy_supporters),
+        bodySingular = stringResource(R.string.donate_reminder_tap_row_open_their_supporter_card),
+        bodyPlural = stringResource(R.string.donate_reminder_tap_row_open_supporter_card_profiles_live),
         lockSeconds = 0,
         confetti = false,
-        confirmLabel = "Close",
+        confirmLabel = stringResource(R.string.donate_close),
     )
 }
 
@@ -426,7 +434,7 @@ internal fun DonorRow(
                 if (!showLetterAvatar && photo.isNotEmpty()) {
                     AsyncImage(
                         model = photo,
-                        contentDescription = "Photo of $name",
+                        contentDescription = stringResource(R.string.donate_reminder_photo, name),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
@@ -466,7 +474,7 @@ internal fun DonorRow(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "Tap for supporter card",
+                    text = stringResource(R.string.donate_reminder_tap_for_supporter_card),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f),
                 )
@@ -480,13 +488,12 @@ internal fun DemoDonorsPreview(donors: List<DonorEntry>) {
     var expandedDonor by remember { mutableStateOf<DonorEntry?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            "Demo donor data",
+            stringResource(R.string.donate_reminder_demo_donor_data),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            "Preview of named donors (and hash-only rows). Thank-you skips hash-only. " +
-                "Tap a row for the trading card.",
+            stringResource(R.string.donate_reminder_preview_of_named_donors_and_hash),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -503,7 +510,7 @@ internal fun DemoDonorsPreview(donors: List<DonorEntry>) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "Hash-only · hidden from thank-you (${donor.hash.take(12)}…)",
+                        text = stringResource(R.string.donate_reminder_hash_only_hidden_thank, donor.hash.take(12)),
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

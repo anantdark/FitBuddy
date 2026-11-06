@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.ui.viewmodel
 
 import com.anant.fitbuddy.util.roundMacro
+import android.app.Application
+import androidx.annotation.StringRes
+import com.anant.fitbuddy.R
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -288,10 +291,14 @@ private data class TargetPlanningContext(
 )
 
 class MainViewModel(
+    private val app: Application,
     private val repository: FitnessRepository,
     private val settingsRepository: SettingsRepository,
     private val updateChecker: UpdateChecker
 ) : ViewModel() {
+
+    private fun str(@StringRes id: Int, vararg args: Any): String =
+        if (args.isEmpty()) app.getString(id) else app.getString(id, *args)
 
     // --- Selected calendar day (rolling week dashboard) ------------------------------------
 
@@ -417,7 +424,7 @@ class MainViewModel(
                     it.copy(
                         isChecking = false,
                         updateInfo = null,
-                        statusMessage = if (silent) null else "You're on the latest version",
+                        statusMessage = if (silent) null else str(R.string.vm_re_latest_version),
                         statusIsError = false,
                         backupCompleted = false,
                         isExportingBackup = false,
@@ -472,7 +479,7 @@ class MainViewModel(
         _updateState.update {
             it.copy(
                 updateInfo = null,
-                statusMessage = "Download started in your browser — install the APK when it finishes",
+                statusMessage = str(R.string.vm_download_started_browser_install_apk_when_finish),
                 statusIsError = false,
                 backupCompleted = false,
                 isExportingBackup = false,
@@ -527,7 +534,7 @@ class MainViewModel(
                 it.copy(
                     isAwaitingBackupFilePick = false,
                     pendingDownloadUrlAfterBackup = null,
-                    backupStatusMessage = "Could not open share sheet",
+                    backupStatusMessage = str(R.string.vm_could_not_open_share_sheet),
                     backupStatusIsError = true
                 )
             }
@@ -550,7 +557,7 @@ class MainViewModel(
                     BackupShare.shareJsonFile(
                         context!!.applicationContext,
                         file,
-                        chooserTitle = "Share FitBuddy backup",
+                        chooserTitle = str(R.string.vm_share_fitbuddy_backup),
                     )
                     count
                 }
@@ -564,16 +571,16 @@ class MainViewModel(
                                 isExportingBackup = false,
                                 backupCompleted = false,
                                 pendingDownloadUrlAfterBackup = null,
-                                backupStatusMessage = "Backup timestamp missing or too old; update cancelled",
+                                backupStatusMessage = str(R.string.vm_backup_timestamp_missing_too_old_update_cancelle),
                                 backupStatusIsError = true
                             )
                         }
                         return@onSuccess
                     }
                     val message = if (useCloud) {
-                        "Uploaded $count records to cloud backup"
+                        str(R.string.vm_uploaded_records_cloud_backup, count)
                     } else {
-                        "Shared $count records"
+                        str(R.string.vm_shared_records, count)
                     }
                     _updateState.update {
                         it.copy(
@@ -586,9 +593,9 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     val message = if (useCloud) {
-                        "Cloud upload failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
+                        str(R.string.vm_cloud_upload_failed, BackupErrorMessages.encryptionFailed(e.message))
                     } else {
-                        "Export failed: ${e.message}"
+                        str(R.string.vm_export_failed, e.message ?: "")
                     }
                     _updateState.update {
                         it.copy(
@@ -612,8 +619,7 @@ class MainViewModel(
                     versionName = "99.0.0-test",
                     versionCode = BuildConfig.VERSION_CODE + 999,
                     downloadUrl = "https://example.invalid/fitbuddy-test-update.apk",
-                    releaseNotes = "- Test update prompt for backup-before-update UI\n" +
-                        "- Browser open will fail (invalid host)",
+                    releaseNotes = str(R.string.vm_test_update_prompt_backup_before_update_ui),
                     htmlUrl = "",
                     channel = if (BuildConfig.IS_FDROID) {
                         UpdateChannel.FDROID
@@ -638,14 +644,14 @@ class MainViewModel(
         val destination = runCatching { FdroidUpdateLauncher.open(context) }
             .getOrElse { e ->
                 failOpenUpdateDownload(
-                    e.message ?: "Couldn't open F-Droid. Visit f-droid.org/packages/com.anant.fitbuddy"
+                    e.message ?: str(R.string.vm_couldn_t_open_f_droid_visit_f)
                 )
                 return
             }
         val status = when (destination) {
-            "app picker" -> "Choose an app to update"
-            "website" -> "Opened update on the website"
-            else -> "Opened update in $destination"
+            "app picker" -> str(R.string.vm_choose_app_update)
+            "website" -> str(R.string.vm_opened_update_website)
+            else -> str(R.string.vm_opened_update, destination)
         }
         _updateState.update {
             it.copy(
@@ -804,7 +810,7 @@ class MainViewModel(
         viewModelScope.launch {
             settingsRepository.clearLastSeenDonorDonationDate()
             _lastSeenDonorDonationDate.value = null
-            showTransientMessage("Donor last-seen cleared")
+            showTransientMessage(str(R.string.vm_donor_last_seen_cleared))
         }
     }
 
@@ -818,12 +824,12 @@ class MainViewModel(
                     com.anant.fitbuddy.data.donors.DonorsFile(donors = DemoDonors.all),
                 )
             if (latest == null) {
-                showTransientMessage("No donation dates found")
+                showTransientMessage(str(R.string.vm_no_donation_dates_found))
                 return@launch
             }
             settingsRepository.setLastSeenDonorDonationDate(latest)
             _lastSeenDonorDonationDate.value = latest
-            showTransientMessage("Donor last-seen set to $latest")
+            showTransientMessage(str(R.string.vm_donor_last_seen_set, latest))
         }
     }
 
@@ -834,12 +840,12 @@ class MainViewModel(
             if (normalized.isEmpty()) {
                 settingsRepository.clearLastSeenDonorDonationDate()
                 _lastSeenDonorDonationDate.value = null
-                showTransientMessage("Donor last-seen cleared")
+                showTransientMessage(str(R.string.vm_donor_last_seen_cleared))
                 return@launch
             }
             settingsRepository.setLastSeenDonorDonationDate(normalized)
             _lastSeenDonorDonationDate.value = normalized
-            showTransientMessage("Donor last-seen set to $normalized")
+            showTransientMessage(str(R.string.vm_donor_last_seen_set, normalized))
         }
     }
 
@@ -866,7 +872,7 @@ class MainViewModel(
                     donationReminderEnabled = true,
                 )
             )
-            showTransientMessage("Donate reminder timers reset")
+            showTransientMessage(str(R.string.vm_donate_reminder_timers_reset))
         }
     }
 
@@ -1024,7 +1030,7 @@ class MainViewModel(
         viewModelScope.launch {
             settingsRepository.save(newSettings)
             if (announce) {
-                _analysisState.update { it.copy(userMessage = "Settings saved") }
+                _analysisState.update { it.copy(userMessage = str(R.string.vm_settings_saved)) }
             }
         }
     }
@@ -1041,7 +1047,7 @@ class MainViewModel(
     fun clearModelCooldowns() {
         viewModelScope.launch {
             settingsRepository.clearModelCooldowns()
-            _analysisState.update { it.copy(userMessage = "Model cooldowns cleared") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_model_cooldowns_cleared)) }
         }
     }
 
@@ -1060,7 +1066,7 @@ class MainViewModel(
                 )
             )
             _analysisState.update {
-                it.copy(userMessage = "Built-in model defaults applied")
+                it.copy(userMessage = str(R.string.vm_built_model_defaults_applied))
             }
         }
     }
@@ -1097,11 +1103,11 @@ class MainViewModel(
         _forceAiSetup.value = false
         _forceFullOnboarding.value = true
         _analysisState.update {
-            it.copy(userMessage = "Onboarding preview — no data will be saved")
+            it.copy(userMessage = str(R.string.vm_onboarding_preview_no_data_saved))
         }
     }
 
-    private fun finishOnboardingPreview(message: String = "Onboarding preview closed — no data changed") {
+    private fun finishOnboardingPreview(message: String = str(R.string.vm_onboarding_preview_closed_no_data_changed)) {
         _forceFullOnboarding.value = false
         _forceAiSetup.value = false
         _analysisState.update { it.copy(userMessage = message) }
@@ -1166,9 +1172,9 @@ class MainViewModel(
             _analysisState.update {
                 it.copy(
                     userMessage = when {
-                        enabled -> "Crash reports enabled"
-                        disableCloud -> "Crash reports and cloud backup disabled"
-                        else -> "Crash reports disabled"
+                        enabled -> str(R.string.vm_crash_reports_enabled)
+                        disableCloud -> str(R.string.vm_crash_reports_cloud_backup_disabled)
+                        else -> str(R.string.vm_crash_reports_disabled)
                     }
                 )
             }
@@ -1183,9 +1189,9 @@ class MainViewModel(
             _analysisState.update {
                 it.copy(
                     userMessage = if (enabled) {
-                        "Diagnostic logging on — reproduce the issue, then stop & export"
+                        str(R.string.vm_diagnostic_logging_reproduce_issue_then_stop_exp)
                     } else {
-                        "Diagnostic logging off"
+                        str(R.string.vm_diagnostic_logging_off)
                     }
                 )
             }
@@ -1200,11 +1206,11 @@ class MainViewModel(
             if (current.diagnosticLoggingEnabled) {
                 settingsRepository.save(current.copy(diagnosticLoggingEnabled = false))
             }
-            _analysisState.update { it.copy(userMessage = "Diagnostic logging stopped") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_diagnostic_logging_stopped)) }
         }
         val file = DiagnosticLogger.exportToShareFile(context) ?: return false
         return runCatching {
-            BackupShare.shareTextFile(context, file, chooserTitle = "Share diagnostic log")
+            BackupShare.shareTextFile(context, file, chooserTitle = str(R.string.vm_share_diagnostic_log))
             true
         }.getOrDefault(false)
     }
@@ -1321,7 +1327,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _models.update {
-                        it.copy(isLoading = false, error = e.message ?: "Could not load models")
+                        it.copy(isLoading = false, error = e.message ?: str(R.string.vm_could_not_load_models))
                     }
                 }
         }
@@ -1380,7 +1386,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _textModels.update {
-                        it.copy(isLoading = false, error = e.message ?: "Could not load models")
+                        it.copy(isLoading = false, error = e.message ?: str(R.string.vm_could_not_load_models))
                     }
                 }
         }
@@ -1461,9 +1467,9 @@ class MainViewModel(
             AiProvider.OPENAI -> return
         }
         settingsRepository.save(updated)
-        val label = if (forPhoto) "Photo" else "Text"
+        val label = if (forPhoto) str(R.string.log_hub_photo) else str(R.string.vm_text)
         _analysisState.update {
-            it.copy(userMessage = "$label model unavailable · switched to $next")
+            it.copy(userMessage = str(R.string.vm_model_unavailable_switched, label, next))
         }
     }
 
@@ -1644,7 +1650,7 @@ class MainViewModel(
         viewModelScope.launch {
             repository.logMealPreset(preset, activeDayTimestamp())
             _analysisState.update {
-                it.copy(userMessage = "Logged ${preset.name} · ${preset.calories} kcal")
+                it.copy(userMessage = str(R.string.vm_logged_kcal, preset.name, preset.calories))
             }
         }
     }
@@ -1653,7 +1659,7 @@ class MainViewModel(
         viewModelScope.launch {
             repository.logSavedFood(food, activeDayTimestamp())
             _analysisState.update {
-                it.copy(userMessage = "Logged ${food.name} · ${food.calories} kcal")
+                it.copy(userMessage = str(R.string.vm_logged_kcal, food.name, food.calories))
             }
         }
     }
@@ -1661,14 +1667,14 @@ class MainViewModel(
     fun deleteMealPreset(preset: MealPreset) {
         viewModelScope.launch {
             repository.deleteMealPreset(preset)
-            _analysisState.update { it.copy(userMessage = "Deleted meal preset ${preset.name}") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_deleted_meal_preset, preset.name)) }
         }
     }
 
     fun deleteSavedFood(food: SavedFood) {
         viewModelScope.launch {
             repository.deleteSavedFood(food)
-            _analysisState.update { it.copy(userMessage = "Deleted saved food ${food.name}") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_deleted_saved_food, food.name)) }
         }
     }
 
@@ -1676,11 +1682,11 @@ class MainViewModel(
         viewModelScope.launch {
             runCatching { repository.updateSavedFood(food) }
                 .onSuccess {
-                    _analysisState.update { it.copy(userMessage = "Updated \"${food.name}\"") }
+                    _analysisState.update { it.copy(userMessage = str(R.string.main_updated, food.name)) }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't update food")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_update_food))
                     }
                 }
         }
@@ -1690,11 +1696,11 @@ class MainViewModel(
         viewModelScope.launch {
             runCatching { repository.updateMealPreset(existing, draft) }
                 .onSuccess {
-                    _analysisState.update { it.copy(userMessage = "Updated \"${draft.name}\"") }
+                    _analysisState.update { it.copy(userMessage = str(R.string.main_updated, draft.name)) }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't update meal preset")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_update_meal_preset))
                     }
                 }
         }
@@ -1728,8 +1734,8 @@ class MainViewModel(
             } catch (e: Exception) {
                 _analysisState.update {
                     it.copy(
-                        errorDialogTitle = "Couldn't look up product",
-                        errorDialogMessage = e.message ?: "Check your connection and try again."
+                        errorDialogTitle = str(R.string.vm_couldn_t_look_up_product),
+                        errorDialogMessage = e.message ?: str(R.string.vm_check_connection_try_again)
                     )
                 }
             } finally {
@@ -1743,12 +1749,12 @@ class MainViewModel(
             runCatching { repository.saveScannedProductAsSavedFood(product) }
                 .onSuccess {
                     _analysisState.update {
-                        it.copy(userMessage = "Saved \"${product.name}\" to your food library")
+                        it.copy(userMessage = str(R.string.vm_saved_food_library, product.name))
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't save food")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_save_food))
                     }
                 }
         }
@@ -1762,12 +1768,12 @@ class MainViewModel(
             }
                 .onSuccess {
                     _analysisState.update {
-                        it.copy(userMessage = "Logged ${product.name} · ${product.calories} kcal")
+                        it.copy(userMessage = str(R.string.vm_logged_kcal, product.name, product.calories))
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't log food")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_log_food))
                     }
                 }
         }
@@ -1876,7 +1882,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't recognise that exercise")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_recognise_exercise))
                     }
                 }
             _customExerciseClassifying.value = false
@@ -1916,14 +1922,14 @@ class MainViewModel(
                 .onSuccess { drafts ->
                     onResolved(drafts)
                     _analysisState.update {
-                        it.copy(userMessage = "Added ${drafts.size} exercise(s) from your description")
+                        it.copy(userMessage = str(R.string.vm_added_exercise_s_description, drafts.size))
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(
-                            errorDialogTitle = "Couldn't infer exercises",
-                            errorDialogMessage = e.message ?: "AI request failed"
+                            errorDialogTitle = str(R.string.vm_couldn_t_infer_exercises),
+                            errorDialogMessage = e.message ?: str(R.string.vm_ai_request_failed)
                         )
                     }
                 }
@@ -1944,7 +1950,7 @@ class MainViewModel(
                 .onSuccess { name -> onResolved(name) }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't suggest a name")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_suggest_name))
                     }
                 }
             _workoutNaming.value = false
@@ -2026,14 +2032,14 @@ class MainViewModel(
             repository.upsertMeasurementByTimestamp(
                 measurement.copy(timestamp = ts, dateString = dateString)
             )
-            _analysisState.update { it.copy(userMessage = "Reading saved") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_reading_saved)) }
         }
     }
 
     fun deleteMeasurement(measurement: BodyMeasurement) {
         viewModelScope.launch {
             repository.deleteMeasurement(measurement)
-            _analysisState.update { it.copy(userMessage = "Reading removed") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_reading_removed)) }
         }
     }
 
@@ -2074,12 +2080,12 @@ class MainViewModel(
                     val name = result.sessionName ?: draft.name
                     _workoutLog.update { WorkoutLogUiState(savedSuccessfully = true) }
                     _analysisState.update {
-                        it.copy(userMessage = "Logged $name · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = str(R.string.vm_logged_kcal_4, name, result.caloriesBurned))
                     }
                 }
                 .onFailure { e ->
                     _workoutLog.update {
-                        it.copy(isSaving = false, error = e.message ?: "Couldn't log this workout")
+                        it.copy(isSaving = false, error = e.message ?: str(R.string.vm_couldn_t_log_workout))
                     }
                 }
         }
@@ -2185,12 +2191,12 @@ class MainViewModel(
                     _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
-                        it.copy(userMessage = "Cloned $name · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = str(R.string.vm_cloned_kcal, name, result.caloriesBurned))
                     }
                 }
                 .onFailure { e ->
                     _workoutLog.update {
-                        it.copy(isSaving = false, error = e.message ?: "Couldn't clone this workout")
+                        it.copy(isSaving = false, error = e.message ?: str(R.string.vm_couldn_t_clone_workout))
                     }
                 }
         }
@@ -2227,12 +2233,12 @@ class MainViewModel(
                     _workoutLog.value = WorkoutLogUiState()
                     _editingWorkout.value = null
                     _analysisState.update {
-                        it.copy(userMessage = "Updated $name · -${result.caloriesBurned} kcal")
+                        it.copy(userMessage = str(R.string.vm_updated_kcal, name, result.caloriesBurned))
                     }
                 }
                 .onFailure { e ->
                     _workoutLog.update {
-                        it.copy(isSaving = false, error = e.message ?: "Couldn't update this workout")
+                        it.copy(isSaving = false, error = e.message ?: str(R.string.vm_couldn_t_update_workout))
                     }
                 }
         }
@@ -2288,7 +2294,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _targetPlan.update {
-                        it.copy(isLoading = false, error = e.message ?: "Couldn't calculate targets")
+                        it.copy(isLoading = false, error = e.message ?: str(R.string.vm_couldn_t_calculate_targets))
                     }
                 }
         }
@@ -2390,7 +2396,7 @@ class MainViewModel(
             _targetPlan.update {
                 TargetPlanUiState(appliedRevision = it.appliedRevision + 1)
             }
-            _analysisState.update { it.copy(userMessage = "Targets applied") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_targets_applied)) }
         }
     }
 
@@ -2426,7 +2432,7 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _progressInsight.update {
-                        it.copy(isLoading = false, error = friendlyThrowableMessage(e, "Couldn't generate insight"))
+                        it.copy(isLoading = false, error = friendlyThrowableMessage(e, str(R.string.vm_couldn_t_generate_insight)))
                     }
                 }
         }
@@ -2467,7 +2473,7 @@ class MainViewModel(
                     _progressInsight.update {
                         it.copy(
                             isChatLoading = false,
-                            error = friendlyThrowableMessage(e, "Couldn't get a reply")
+                            error = friendlyThrowableMessage(e, str(R.string.vm_couldn_t_get_reply))
                         )
                     }
                 }
@@ -2493,9 +2499,9 @@ class MainViewModel(
 
     private fun formatProgressInsightForChat(response: ProgressInsightResponse): String = buildString {
         append(response.summary)
-        response.bodyScore?.let { append("\n\nBody score: $it/100") }
+        response.bodyScore?.let { append(str(R.string.vm_body_score_100, it)) }
         if (response.recommendations.isNotEmpty()) {
-            append("\n\nRecommendations:")
+            append(str(R.string.vm_recommendations))
             response.recommendations.forEach { append("\n• $it") }
         }
     }
@@ -2523,14 +2529,14 @@ class MainViewModel(
                 BackupShare.shareJsonFile(
                     context.applicationContext,
                     file,
-                    chooserTitle = "Share FitBuddy backup",
+                    chooserTitle = str(R.string.vm_share_fitbuddy_backup),
                 )
-                _analysisState.update { it.copy(userMessage = "Sharing $count records…") }
+                _analysisState.update { it.copy(userMessage = str(R.string.vm_sharing_records, count)) }
             } catch (e: Exception) {
                 val msg = if (password != null && password.isNotEmpty()) {
-                    "Export failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
+                    str(R.string.vm_export_failed, BackupErrorMessages.encryptionFailed(e.message))
                 } else {
-                    "Export failed: ${e.message}"
+                    str(R.string.vm_export_failed, e.message ?: "")
                 }
                 _analysisState.update { it.copy(userMessage = msg) }
             } finally {
@@ -2550,13 +2556,13 @@ class MainViewModel(
                 val result = try {
                     repository.importData(uri, passwordProvider)
                 } catch (e: Exception) {
-                    _analysisState.update { it.copy(userMessage = "Import failed: ${e.message}") }
+                    _analysisState.update { it.copy(userMessage = str(R.string.vm_import_failed, e.message ?: "")) }
                     return@launch
                 }
                 when (result) {
                     is BackupImportResult.Success -> {
                         _analysisState.update {
-                            it.copy(userMessage = "Imported ${result.recordCount} records")
+                            it.copy(userMessage = str(R.string.vm_imported_records, result.recordCount))
                         }
                         return@launch
                     }
@@ -2578,13 +2584,13 @@ class MainViewModel(
                     }
                     BackupImportResult.Corrupt -> {
                         _analysisState.update {
-                            it.copy(userMessage = "Import failed: ${BackupErrorMessages.BACKUP_CORRUPT}")
+                            it.copy(userMessage = str(R.string.vm_import_failed, BackupErrorMessages.BACKUP_CORRUPT))
                         }
                         return@launch
                     }
                     BackupImportResult.Unrecognized -> {
                         _analysisState.update {
-                            it.copy(userMessage = "Import failed: ${BackupErrorMessages.NOT_VALID_BACKUP}")
+                            it.copy(userMessage = str(R.string.vm_import_failed, BackupErrorMessages.NOT_VALID_BACKUP))
                         }
                         return@launch
                     }
@@ -2599,7 +2605,7 @@ class MainViewModel(
     fun uploadMongoBackup() {
         if (BuildConfig.DEBUG) {
             _analysisState.update {
-                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+                it.copy(userMessage = str(R.string.vm_cloud_backup_uploads_disabled_debug_builds))
             }
             return
         }
@@ -2611,16 +2617,16 @@ class MainViewModel(
                         it.copy(
                             userMessage = when {
                                 result.skippedNoActivity ->
-                                    "Log a meal or workout before uploading a cloud backup"
-                                result.skipped -> "Cloud backup already up to date"
-                                else -> "Uploaded ${result.recordCount} records to cloud backup"
+                                    str(R.string.vm_log_meal_workout_before_uploading_cloud_backup)
+                                result.skipped -> str(R.string.vm_cloud_backup_already_up_date)
+                                else -> str(R.string.vm_uploaded_records_cloud_backup, result.recordCount)
                             }
                         )
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = "Cloud upload failed: ${BackupErrorMessages.encryptionFailed(e.message)}")
+                        it.copy(userMessage = str(R.string.vm_cloud_upload_failed, BackupErrorMessages.encryptionFailed(e.message)))
                     }
                 }
             _mongoBackupBusy.value = false
@@ -2631,7 +2637,7 @@ class MainViewModel(
     fun forceNewCloudBackupChunk() {
         if (BuildConfig.DEBUG) {
             _analysisState.update {
-                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+                it.copy(userMessage = str(R.string.vm_cloud_backup_uploads_disabled_debug_builds))
             }
             return
         }
@@ -2643,10 +2649,10 @@ class MainViewModel(
                         it.copy(
                             userMessage = when {
                                 result.skippedNoActivity ->
-                                    "Log a meal or workout before uploading a cloud backup"
+                                    str(R.string.vm_log_meal_workout_before_uploading_cloud_backup)
                                 else -> {
-                                    val tip = result.newTipChunkId?.let { " · tip $it" }.orEmpty()
-                                    "Created new cloud chunk$tip"
+                                    val tip = result.newTipChunkId?.let { str(R.string.vm_tip, it) }.orEmpty()
+                                    str(R.string.vm_created_new_cloud_chunk, tip)
                                 }
                             }
                         )
@@ -2655,7 +2661,7 @@ class MainViewModel(
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(
-                            userMessage = "Create chunk failed: ${e.message ?: e.javaClass.simpleName}"
+                            userMessage = str(R.string.vm_create_chunk_failed, e.message ?: e.javaClass.simpleName)
                         )
                     }
                 }
@@ -2674,8 +2680,7 @@ class MainViewModel(
         if (BuildConfig.DEBUG) {
             _analysisState.update {
                 it.copy(
-                    userMessage = "In debug builds, restore from cloud only during onboarding " +
-                        "(enter a Support ID)."
+                    userMessage = str(R.string.vm_debug_builds_restore_cloud_only_during_onboardin)
                 )
             }
             return
@@ -2703,7 +2708,7 @@ class MainViewModel(
             }
                 .onSuccess { count ->
                     _analysisState.update {
-                        it.copy(userMessage = "Restored $count records from cloud backup")
+                        it.copy(userMessage = str(R.string.vm_restored_records_cloud_backup, count))
                     }
                 }
                 .onFailure { e ->
@@ -2719,7 +2724,7 @@ class MainViewModel(
         if (BuildConfig.DEBUG) {
             newPassword?.fill('\u0000')
             _analysisState.update {
-                it.copy(userMessage = "Cloud backup uploads are disabled in debug builds")
+                it.copy(userMessage = str(R.string.vm_cloud_backup_uploads_disabled_debug_builds))
             }
             return
         }
@@ -2730,16 +2735,16 @@ class MainViewModel(
             runCatching { repository.changeCloudPassword(newPassword) }
                 .onSuccess {
                     val msg = if (isBlank) {
-                        "Cloud backup reset to default (Support ID) protection"
+                        str(R.string.vm_cloud_backup_reset_default_support_id_protection)
                     } else {
-                        "Cloud backup password updated"
+                        str(R.string.vm_cloud_backup_password_updated)
                     }
                     _analysisState.update { it.copy(userMessage = msg) }
                 }
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(
-                            userMessage = "Password change failed: ${BackupErrorMessages.encryptionFailed(e.message)}"
+                            userMessage = str(R.string.vm_password_change_failed, BackupErrorMessages.encryptionFailed(e.message))
                         )
                     }
                 }
@@ -2756,7 +2761,7 @@ class MainViewModel(
     fun setCloudBackupEnabled(enabled: Boolean) {
         if (BuildConfig.DEBUG && enabled) {
             _analysisState.update {
-                it.copy(userMessage = "Cloud backup is disabled in debug builds")
+                it.copy(userMessage = str(R.string.vm_cloud_backup_disabled_debug_builds))
             }
             return
         }
@@ -2795,7 +2800,7 @@ class MainViewModel(
         if (BuildConfig.DEBUG) {
             password?.fill('\u0000')
             _analysisState.update {
-                it.copy(userMessage = "Cloud backup is disabled in debug builds")
+                it.copy(userMessage = str(R.string.vm_cloud_backup_disabled_debug_builds))
             }
             return
         }
@@ -2820,16 +2825,16 @@ class MainViewModel(
                     _analysisState.update {
                         it.copy(
                             userMessage = if (isBlank) {
-                                "Cloud backup enabled with default (Support ID) protection"
+                                str(R.string.vm_cloud_backup_enabled_default_support_id_protecti)
                             } else {
-                                "Cloud backup enabled and encrypted"
+                                str(R.string.vm_cloud_backup_enabled_encrypted)
                             }
                         )
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = "Cloud backup enable failed: ${e.message}")
+                        it.copy(userMessage = str(R.string.vm_cloud_backup_enable_failed, e.message ?: ""))
                     }
                 }
             _mongoBackupBusy.value = false
@@ -2861,7 +2866,7 @@ class MainViewModel(
         onResult: (Boolean, String?) -> Unit
     ) {
         if (_forceFullOnboarding.value) {
-            onResult(false, "Preview mode — restore is disabled")
+            onResult(false, str(R.string.vm_preview_mode_restore_disabled))
             return
         }
         if (_onboardingRestoring.value) return
@@ -2893,7 +2898,7 @@ class MainViewModel(
             result
                 .onSuccess { onResult(true, null) }
                 .onFailure { e ->
-                    onResult(false, e.message ?: "Couldn't restore from cloud")
+                    onResult(false, e.message ?: str(R.string.vm_couldn_t_restore_cloud))
                 }
         }
     }
@@ -2909,7 +2914,7 @@ class MainViewModel(
         onResult: (Boolean, String?) -> Unit
     ) {
         if (_forceFullOnboarding.value) {
-            onResult(false, "Preview mode — restore is disabled")
+            onResult(false, str(R.string.vm_preview_mode_restore_disabled))
             return
         }
         if (_onboardingRestoring.value) return
@@ -2946,7 +2951,7 @@ class MainViewModel(
             result
                 .onSuccess { onResult(true, null) }
                 .onFailure { e ->
-                    onResult(false, e.message ?: "Couldn't restore from file")
+                    onResult(false, e.message ?: str(R.string.vm_couldn_t_restore_file))
                 }
         }
     }
@@ -2960,7 +2965,7 @@ class MainViewModel(
             CrashReporter.setSupportId(id)
             refreshSupporterStatus(id)
             _analysisState.update {
-                it.copy(userMessage = "New Support ID generated — copy it from Backup settings")
+                it.copy(userMessage = str(R.string.vm_new_support_id_generated_copy_backup_settings))
             }
         }
     }
@@ -3013,7 +3018,7 @@ class MainViewModel(
                 _forceAiSetup.value = false
             }.onFailure { e ->
                 _analysisState.update {
-                    it.copy(userMessage = e.message ?: "Couldn't save AI settings")
+                    it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_save_ai_settings))
                 }
             }
             _onboardingSaving.value = false
@@ -3108,7 +3113,7 @@ class MainViewModel(
                         analyzingModel = null,
                         clarificationMessage = null,
                         userMessage = outcome.failoverNote
-                            ?: "Logged ${outcome.activityName} · -${outcome.caloriesBurned} kcal",
+                            ?: str(R.string.vm_logged_kcal_4, outcome.activityName, outcome.caloriesBurned),
                         rawAiJson = rawJson
                     )
                 }
@@ -3130,7 +3135,7 @@ class MainViewModel(
                     it.copy(
                         isLoading = false,
                         analyzingModel = null,
-                        errorDialogTitle = "Item not identified",
+                        errorDialogTitle = str(R.string.vm_item_not_identified),
                         errorDialogMessage = outcome.message,
                         userMessage = outcome.failoverNote,
                         rawAiJson = rawJson
@@ -3144,7 +3149,7 @@ class MainViewModel(
                     it.copy(
                         isLoading = false,
                         analyzingModel = null,
-                        errorDialogTitle = "Couldn't reach AI",
+                        errorDialogTitle = str(R.string.vm_couldn_t_reach_ai),
                         errorDialogMessage = outcome.message,
                         rawAiJson = rawJson
                     )
@@ -3184,9 +3189,9 @@ class MainViewModel(
                     mealDraft = null,
                     editingFoodLogId = null,
                     userMessage = if (editingId != null) {
-                        "Updated ${draft.name} · ${draft.totalCalories} kcal"
+                        str(R.string.vm_updated_kcal_2, draft.name, draft.totalCalories)
                     } else {
-                        "Logged ${draft.name} · ${draft.totalCalories} kcal"
+                        str(R.string.vm_logged_kcal, draft.name, draft.totalCalories)
                     }
                 )
             }
@@ -3234,7 +3239,7 @@ class MainViewModel(
     fun deleteFoodLog(log: FoodLog) {
         viewModelScope.launch {
             repository.deleteFood(log)
-            _analysisState.update { it.copy(userMessage = "Removed ${log.dishName}") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_removed, log.dishName)) }
         }
     }
 
@@ -3242,7 +3247,7 @@ class MainViewModel(
     fun deleteExerciseLog(log: ExerciseLog) {
         viewModelScope.launch {
             repository.deleteExercise(log)
-            _analysisState.update { it.copy(userMessage = "Removed ${log.activityName}") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_removed, log.activityName)) }
         }
     }
 
@@ -3447,7 +3452,7 @@ class MainViewModel(
                     } else {
                         state.copy(
                             isReanalyzing = false,
-                            reviewMessage = "Couldn't recompute that dish",
+                            reviewMessage = str(R.string.vm_couldn_t_recompute_dish),
                             rawAiJson = rawJson
                         )
                     }
@@ -3477,7 +3482,7 @@ class MainViewModel(
                 is AnalysisOutcome.ExerciseSaved ->
                     state.copy(
                         isReanalyzing = false,
-                        reviewMessage = "That looks like an activity, not a food item.",
+                        reviewMessage = str(R.string.vm_looks_like_activity_not_food_item),
                         rawAiJson = rawJson
                     )
             }
@@ -3518,7 +3523,7 @@ class MainViewModel(
     fun startOpenRouterOAuth(context: Context) {
         if (_forceFullOnboarding.value) {
             _analysisState.update {
-                it.copy(userMessage = "Preview mode — OpenRouter sign-in is disabled")
+                it.copy(userMessage = str(R.string.vm_preview_mode_openrouter_sign_disabled))
             }
             return
         }
@@ -3542,7 +3547,7 @@ class MainViewModel(
             openRouterOAuthCallbackServer = server
             val port = runCatching { server.start(viewModelScope) }.getOrElse {
                 _analysisState.update {
-                    it.copy(userMessage = "Couldn't start OpenRouter sign-in listener")
+                    it.copy(userMessage = str(R.string.vm_couldn_t_start_openrouter_sign_listener))
                 }
                 return@launch
             }
@@ -3571,7 +3576,7 @@ class MainViewModel(
         val code = OpenRouterOAuth.codeFromCallback(uri)
         if (code.isNullOrBlank()) {
             _analysisState.update {
-                it.copy(userMessage = "OpenRouter sign-in was cancelled or incomplete")
+                it.copy(userMessage = str(R.string.vm_openrouter_sign_cancelled_incomplete))
             }
             return
         }
@@ -3589,7 +3594,7 @@ class MainViewModel(
             pendingOpenRouterCodeVerifier = null
             if (verifier.isNullOrBlank()) {
                 _analysisState.update {
-                    it.copy(userMessage = "OpenRouter sign-in expired — try Connect again")
+                    it.copy(userMessage = str(R.string.vm_openrouter_sign_expired_try_connect_again))
                 }
                 _openRouterOAuthBusy.value = false
                 return@launch
@@ -3601,12 +3606,12 @@ class MainViewModel(
             }
                 .onSuccess {
                     _analysisState.update {
-                        it.copy(userMessage = "Connected with OpenRouter")
+                        it.copy(userMessage = str(R.string.settings_connected_with_openrouter))
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = e.message ?: "Couldn't connect OpenRouter")
+                        it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_connect_openrouter))
                     }
                 }
             _openRouterOAuthBusy.value = false
@@ -3616,7 +3621,7 @@ class MainViewModel(
     fun disconnectOpenRouterOAuth() {
         if (_forceFullOnboarding.value) {
             _analysisState.update {
-                it.copy(userMessage = "Preview mode — OpenRouter disconnect is disabled")
+                it.copy(userMessage = str(R.string.vm_preview_mode_openrouter_disconnect_disabled))
             }
             return
         }
@@ -3626,7 +3631,7 @@ class MainViewModel(
             openRouterOAuthCallbackServer = null
             settingsRepository.takePendingOpenRouterPkceVerifier()
             settingsRepository.clearOpenRouterOAuthKey()
-            _analysisState.update { it.copy(userMessage = "OpenRouter disconnected") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_openrouter_disconnected)) }
         }
     }
 
@@ -3643,7 +3648,7 @@ class MainViewModel(
             result
                 .onSuccess { onResult(true, null) }
                 .onFailure { e ->
-                    onResult(false, e.message ?: "Couldn't validate that API key")
+                    onResult(false, e.message ?: str(R.string.onboarding_couldn_t_validate_api_key))
                 }
         }
     }
@@ -3760,7 +3765,7 @@ class MainViewModel(
                 _forceFullOnboarding.value = false
             }.onFailure { e ->
                 _analysisState.update {
-                    it.copy(userMessage = e.message ?: "Couldn't save your profile")
+                    it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_save_profile))
                 }
             }
             _onboardingSaving.value = false
@@ -3825,7 +3830,7 @@ class MainViewModel(
                 effectiveFromDate = DateUtils.today(),
                 recordNutritionTargets = false
             )
-            _analysisState.update { it.copy(userMessage = "Profile saved") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_profile_saved)) }
         }
     }
 
@@ -3840,7 +3845,7 @@ class MainViewModel(
             val profile = repository.activeProfile
                 .mapNotNull { p -> p?.takeIf { it.hasBasicsConfigured() } }
                 .first()
-            _analysisState.update { it.copy(userMessage = "Calculating your science-based targets…") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_calculating_science_based_targets)) }
             runCatching {
                 val planning = buildTargetPlanningContext(
                     age = profile.age,
@@ -3893,14 +3898,14 @@ class MainViewModel(
                         recordNutritionTargets = true
                     )
                     _analysisState.update {
-                        it.copy(userMessage = "Your science-based targets are ready")
+                        it.copy(userMessage = str(R.string.vm_science_based_targets_ready))
                     }
                 }
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(
                             userMessage = e.message
-                                ?: "Using default targets — refine anytime in Body"
+                                ?: str(R.string.vm_using_default_targets_refine_anytime_body)
                         )
                     }
                 }
@@ -3990,16 +3995,16 @@ class MainViewModel(
                         goal = goal,
                         activityLevel = activityLevel
                     )
-                ) { "Complete your profile before saving body data" }
+                ) { str(R.string.vm_complete_profile_before_saving_body_data) }
             }
                 .onSuccess {
                     _analysisState.update {
-                        it.copy(userMessage = "Body saved · dashboard recalibrated")
+                        it.copy(userMessage = str(R.string.vm_body_saved_dashboard_recalibrated))
                     }
                 }
                 .onFailure { error ->
                     _analysisState.update {
-                        it.copy(userMessage = error.message ?: "Couldn't save body data")
+                        it.copy(userMessage = error.message ?: str(R.string.vm_couldn_t_save_body_data))
                     }
                 }
         }
@@ -4015,7 +4020,7 @@ class MainViewModel(
             dailyTargetCalories <= 0 || targetProteinG <= 0 ||
             targetCarbsG < 0 || targetFatsG <= 0
         ) {
-            _analysisState.update { it.copy(userMessage = "Enter valid daily targets") }
+            _analysisState.update { it.copy(userMessage = str(R.string.vm_enter_valid_daily_targets)) }
             return
         }
         manualTargetsOverride = true
@@ -4029,7 +4034,7 @@ class MainViewModel(
                         targetFatsG = targetFatsG,
                         effectiveFromDate = DateUtils.today()
                     )
-                ) { "Complete your body profile before saving targets" }
+                ) { str(R.string.vm_complete_body_profile_before_saving_targets) }
                 repository.activeProfile.first { profile ->
                     profile != null && profile.goalRationale == null
                 }
@@ -4037,13 +4042,13 @@ class MainViewModel(
                 .onSuccess {
                     manualTargetsOverride = false
                     _analysisState.update {
-                        it.copy(userMessage = "Manual targets saved · dashboard recalibrated")
+                        it.copy(userMessage = str(R.string.vm_manual_targets_saved_dashboard_recalibrated))
                     }
                 }
                 .onFailure { error ->
                     manualTargetsOverride = false
                     _analysisState.update {
-                        it.copy(userMessage = error.message ?: "Couldn't save manual targets")
+                        it.copy(userMessage = error.message ?: str(R.string.vm_couldn_t_save_manual_targets))
                     }
                 }
         }
@@ -4184,7 +4189,7 @@ class MainViewModel(
         val savedRationale = current.profile?.goalRationale
         val currentTargetsCalculated = !manualTargetsOverride && !forceRecalculation &&
             savedRationale?.startsWith("Evidence-based v3:") == true &&
-            savedRationale.contains("Trend-adjusted locally").not()
+            savedRationale.contains(str(R.string.vm_trend_adjusted_locally)).not()
         return HealthTargetInput(
             age = age,
             heightCm = heightCm,
@@ -4212,7 +4217,7 @@ class MainViewModel(
         val currentRationale = dashboardState.value.profile?.goalRationale
         val currentTargetsCalculated = !manualTargetsOverride &&
             currentRationale?.startsWith("Evidence-based v3:") == true &&
-            currentRationale.contains("Trend-adjusted locally").not()
+            currentRationale.contains(str(R.string.vm_trend_adjusted_locally)).not()
         put("age", if (age > 0) age else JSONObject.NULL)
         put("sex", sex ?: JSONObject.NULL)
         put("height_cm", if (heightCm > 0) heightCm else JSONObject.NULL)
@@ -4536,6 +4541,7 @@ class MainViewModel(
 
 /** Manual ViewModel factory (no DI framework); wires the shared repositories in. */
 class MainViewModelFactory(
+    private val app: Application,
     private val repository: FitnessRepository,
     private val settingsRepository: SettingsRepository,
     private val updateChecker: UpdateChecker
@@ -4545,6 +4551,6 @@ class MainViewModelFactory(
         require(modelClass.isAssignableFrom(MainViewModel::class.java)) {
             "Unknown ViewModel class: ${modelClass.name}"
         }
-        return MainViewModel(repository, settingsRepository, updateChecker) as T
+        return MainViewModel(app, repository, settingsRepository, updateChecker) as T
     }
 }

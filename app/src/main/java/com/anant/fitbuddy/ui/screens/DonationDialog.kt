@@ -1,5 +1,7 @@
 package com.anant.fitbuddy.ui.screens
 
+import androidx.compose.ui.res.stringResource
+
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -127,12 +129,12 @@ internal fun MainTopBarActions(
     IconButton(onClick = onDonate) {
         Icon(
             imageVector = Icons.Filled.Favorite,
-            contentDescription = "Support FitBuddy",
+            contentDescription = stringResource(R.string.donate_support_fitbuddy),
             tint = donationColor,
         )
     }
     IconButton(onClick = onSettings) {
-        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.donate_settings))
     }
 }
 
@@ -158,7 +160,7 @@ private fun TelegramTopBarIcon(
     }
     Icon(
         painter = painterResource(R.drawable.ic_telegram),
-        contentDescription = "Join Telegram group",
+        contentDescription = stringResource(R.string.donate_join_telegram_group),
         modifier = Modifier
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
@@ -198,11 +200,10 @@ internal fun TelegramJoinDialog(
                 modifier = Modifier.size(40.dp),
             )
         },
-        title = { Text("Join the Telegram group") },
+        title = { Text(stringResource(R.string.donate_join_the_telegram_group)) },
         text = {
             Text(
-                "Come hang out for release notes, questions about the app, " +
-                    "and casual chat with the developer.",
+                stringResource(R.string.donate_come_hang_out_for_release_notes),
             )
         },
         confirmButton = {
@@ -212,12 +213,12 @@ internal fun TelegramJoinDialog(
                     onDismiss()
                 },
             ) {
-                Text(if (hasTelegramClient) "Open in Telegram" else "Open in browser")
+                Text(if (hasTelegramClient) stringResource(R.string.donate_open_in_telegram) else "Open in browser")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Not now")
+                Text(stringResource(R.string.donate_not_now))
             }
         },
     )
@@ -232,10 +233,10 @@ internal fun DonationDialog(
     var step by rememberSaveable { mutableStateOf(DonationStep.REGION) }
     var showQr by rememberSaveable { mutableStateOf(false) }
     val title = when (step) {
-        DonationStep.REGION -> "Fuel the free app"
-        DonationStep.INDIA -> "Donate from India"
-        DonationStep.INTERNATIONAL -> "Donate internationally"
-        DonationStep.UPI -> "Pay with UPI"
+        DonationStep.REGION -> stringResource(R.string.donate_reminder_fuel_the_free_app)
+        DonationStep.INDIA -> stringResource(R.string.donate_donate_india)
+        DonationStep.INTERNATIONAL -> stringResource(R.string.donate_donate_internationally)
+        DonationStep.UPI -> stringResource(R.string.donate_pay_with_upi)
     }
     val navigateBack = {
         step = when (step) {
@@ -284,7 +285,7 @@ internal fun DonationDialog(
         confirmButton = {},
         dismissButton = {
             if (step == DonationStep.REGION) {
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.donate_close)) }
             } else {
                 DonationNavigationActions(
                     onBack = navigateBack,
@@ -304,17 +305,16 @@ private fun DonationRegionContent(
 ) {
     DonationInfoCard(
         icon = Icons.Filled.Favorite,
-        text = "FitBuddy stays free and open source because of optional tips. " +
-            "Buy the dev a chai. No account, no pressure.",
+        text = stringResource(R.string.donate_fitbuddy_stays_free_and_open_source),
     )
-    DonationSectionTitle("Where are you?")
+    DonationSectionTitle(stringResource(R.string.donate_where))
     Button(
         onClick = onIndia,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Icon(Icons.Filled.LocationOn, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("India · UPI or card")
+        Text(stringResource(R.string.donate_india_upi_or_card))
     }
     FilledTonalButton(
         onClick = onInternational,
@@ -322,10 +322,10 @@ private fun DonationRegionContent(
     ) {
         Icon(Icons.Filled.Public, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("International · GitHub Sponsors")
+        Text(stringResource(R.string.donate_international_github_sponsors))
     }
     HorizontalDivider()
-    DonationSectionTitle("Say hi")
+    DonationSectionTitle(stringResource(R.string.donate_say_hi))
     Text(
         DEVELOPER_EMAIL,
         style = MaterialTheme.typography.bodyMedium,
@@ -337,7 +337,7 @@ private fun DonationRegionContent(
     ) {
         Icon(Icons.Filled.ContentCopy, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Copy email")
+        Text(stringResource(R.string.donate_copy_email))
     }
     OutlinedButton(
         onClick = onShowDonors,
@@ -345,7 +345,7 @@ private fun DonationRegionContent(
     ) {
         Icon(Icons.Filled.Favorite, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Show donors")
+        Text(stringResource(R.string.donate_show_donors))
     }
 }
 
@@ -356,16 +356,16 @@ private fun IndiaDonationContent(
 ) {
     DonationInfoCard(
         icon = Icons.Filled.AccountBalanceWallet,
-        text = "UPI is fastest. Razorpay works if you prefer a debit or credit card.",
+        text = stringResource(R.string.donate_upi_is_fastest_razorpay_works_if),
     )
-    DonationSectionTitle("Payment method")
+    DonationSectionTitle(stringResource(R.string.donate_payment_method))
     Button(
         onClick = onUpi,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Pay with UPI")
+        Text(stringResource(R.string.donate_pay_with_upi))
     }
     OutlinedButton(
         onClick = { openRazorpayPaymentPage(context) },
@@ -373,10 +373,10 @@ private fun IndiaDonationContent(
     ) {
         Icon(Icons.Filled.CreditCard, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Pay by card with Razorpay")
+        Text(stringResource(R.string.donate_pay_by_card_with_razorpay))
     }
     DonationPrivacyNote(
-        "Payment apps open only when you choose them. FitBuddy never sees your card details.",
+        stringResource(R.string.donate_payment_apps_open_only_when_choose_them),
     )
 }
 
@@ -384,19 +384,19 @@ private fun IndiaDonationContent(
 private fun InternationalDonationContent(context: Context) {
     DonationInfoCard(
         icon = Icons.Filled.Public,
-        text = "GitHub Sponsors is the easiest way to tip from outside India.",
+        text = stringResource(R.string.donate_github_sponsors_is_the_easiest_way),
     )
-    DonationSectionTitle("International payment")
+    DonationSectionTitle(stringResource(R.string.donate_international_payment))
     Button(
         onClick = { openGitHubSponsorsPage(context) },
         modifier = Modifier.fillMaxWidth(),
     ) {
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Sponsor on GitHub")
+        Text(stringResource(R.string.donate_sponsor_on_github))
     }
     DonationPrivacyNote(
-        "GitHub opens only when you tap. FitBuddy does not store payment details.",
+        stringResource(R.string.donate_github_opens_only_when_tap_fitbuddy_does),
     )
 }
 
@@ -408,7 +408,7 @@ private fun UpiDonationContent(
 ) {
     DonationInfoCard(
         icon = Icons.Filled.AccountBalanceWallet,
-        text = "Open a UPI app on this phone, or scan the QR from another device.",
+        text = stringResource(R.string.donate_open_a_upi_app_on_this),
     )
     Button(
         onClick = { openUpiApp(context) },
@@ -416,7 +416,7 @@ private fun UpiDonationContent(
     ) {
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Pay with UPI app")
+        Text(stringResource(R.string.donate_pay_with_upi_app))
     }
     OutlinedButton(
         onClick = onShowQr,
@@ -424,15 +424,15 @@ private fun UpiDonationContent(
     ) {
         Icon(Icons.Filled.QrCode2, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Show UPI QR")
+        Text(stringResource(R.string.donate_show_upi_qr))
     }
 
     if (showQr) {
         HorizontalDivider()
-        DonationSectionTitle("Scan from another device")
+        DonationSectionTitle(stringResource(R.string.donate_scan_another_device))
         Image(
             painter = painterResource(R.drawable.donation_upi_qr),
-            contentDescription = "UPI QR code for supporting FitBuddy development",
+            contentDescription = stringResource(R.string.donate_upi_qr_code_for_supporting_fitbuddy),
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxWidth()
@@ -440,7 +440,7 @@ private fun UpiDonationContent(
                 .clip(appShape(12.dp)),
         )
         Text(
-            "Before paying, verify that the recipient is Anantdark.",
+            stringResource(R.string.donate_before_paying_verify_that_the_recipient),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -517,8 +517,8 @@ private fun DonationNavigationActions(
     onClose: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        TextButton(onClick = onBack) { Text("Back") }
-        TextButton(onClick = onClose) { Text("Close") }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.backup_back)) }
+        TextButton(onClick = onClose) { Text(stringResource(R.string.donate_close)) }
     }
 }
 
@@ -529,9 +529,9 @@ private fun donationDialogModifier(): Modifier = Modifier
 private fun copyDeveloperEmail(context: Context) {
     copyToClipboard(
         context = context,
-        label = "FitBuddy developer email",
+        label = context.getString(R.string.donate_fitbuddy_developer_email),
         text = DEVELOPER_EMAIL,
-        confirmation = "Email copied",
+        confirmation = context.getString(R.string.donate_email_copied),
     )
 }
 
@@ -543,7 +543,7 @@ private fun copyToClipboard(
 ) {
     val clipboard = context.getSystemService(ClipboardManager::class.java)
     if (clipboard == null) {
-        SystemToast.show(context, "Couldn't access the clipboard")
+        SystemToast.show(context, context.getString(R.string.donate_couldn_t_access_the_clipboard))
         return
     }
     clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
@@ -554,7 +554,7 @@ private fun openUpiApp(context: Context) {
     launchExternalIntent(
         context = context,
         intent = Intent(Intent.ACTION_VIEW, Uri.parse(UPI_PAYMENT_URI)),
-        errorMessage = "No UPI app found",
+        errorMessage = context.getString(R.string.donate_no_upi_app_found),
     )
 }
 
@@ -562,19 +562,19 @@ private fun openRazorpayPaymentPage(context: Context) {
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(RAZORPAY_DONATION_URL)).apply {
         addCategory(Intent.CATEGORY_BROWSABLE)
     }
-    launchExternalIntent(context, intent, "Couldn't open the payment page")
+    launchExternalIntent(context, intent, context.getString(R.string.donate_couldn_t_open_payment_page))
 }
 
 private fun openGitHubSponsorsPage(context: Context) {
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_SPONSORS_URL)).apply {
         addCategory(Intent.CATEGORY_BROWSABLE)
     }
-    launchExternalIntent(context, intent, "Couldn't open GitHub Sponsors")
+    launchExternalIntent(context, intent, context.getString(R.string.donate_couldn_t_open_github_sponsors))
 }
 
 private fun openTelegramGroup(context: Context) {
     runCatching { TelegramGroupLauncher.open(context) }
-        .onFailure { SystemToast.show(context, "Couldn't open Telegram") }
+        .onFailure { SystemToast.show(context, context.getString(R.string.donate_couldn_t_open_telegram)) }
 }
 
 private fun launchExternalIntent(

@@ -1,4 +1,5 @@
 package com.anant.fitbuddy.ui.screens
+import androidx.compose.ui.res.stringResource
 
 import android.Manifest
 import android.graphics.ImageDecoder
@@ -158,10 +159,10 @@ private const val DEVELOPER_UNLOCK_TAPS = 31
 // Start showing the "N taps left" hint only when 5 or fewer taps remain.
 private const val DEVELOPER_HINT_START = DEVELOPER_UNLOCK_TAPS - 5
 
-private val PROFILE_SEX_OPTIONS = listOf(
-    "" to "Not set",
-    "MALE" to "Male",
-    "FEMALE" to "Female"
+private val PROFILE_SEX_OPTION_RES = listOf(
+    "" to R.string.settings_not_set,
+    "MALE" to R.string.onboarding_male,
+    "FEMALE" to R.string.onboarding_female
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -315,9 +316,7 @@ fun SettingsScreen(
                 pendingEnableReminder = false
                 onSave(settings.copy(dailyLogReminderEnabled = true))
                 if (!ReminderScheduler.canScheduleExactAlarms(context)) {
-                    onPermissionDenied(
-                        "Exact alarms not allowed — reminders may be delayed."
-                    )
+                    onPermissionDenied(context.getString(R.string.settings_exact_alarms_not_allowed_reminders_may_delayed))
                 }
             }
             if (pendingTestNotification) {
@@ -331,11 +330,11 @@ fun SettingsScreen(
                 if (settings.dailyLogReminderEnabled) {
                     onSave(settings.copy(dailyLogReminderEnabled = false))
                 }
-                onPermissionDenied("Notifications not allowed — reminder turned off.")
+                onPermissionDenied(context.getString(R.string.settings_notifications_not_allowed_reminder_turned_off))
             }
             if (pendingTestNotification) {
                 pendingTestNotification = false
-                onPermissionDenied("Notifications not allowed.")
+                onPermissionDenied(context.getString(R.string.settings_notifications_not_allowed))
             }
         }
     }
@@ -406,7 +405,7 @@ fun SettingsScreen(
             !pendingEnableReminder
         ) {
             onSave(settings.copy(dailyLogReminderEnabled = false))
-            onPermissionDenied("Notifications not allowed — reminder turned off.")
+            onPermissionDenied(context.getString(R.string.settings_notifications_not_allowed_reminder_turned_off))
         }
     }
 
@@ -418,9 +417,7 @@ fun SettingsScreen(
             ) {
                 awaitingExactAlarmSettings = false
                 if (!ReminderScheduler.canScheduleExactAlarms(context)) {
-                    onPermissionDenied(
-                        "Exact alarms not allowed — reminders may be delayed."
-                    )
+                    onPermissionDenied(context.getString(R.string.settings_exact_alarms_not_allowed_reminders_may_delayed))
                 }
             }
         }
@@ -441,9 +438,9 @@ fun SettingsScreen(
         AiStatusBanner(isConfigured = settings.isConfigured, provider = settings.provider)
 
         // --- AI provider -----------------------------------------------------------------
-        SettingsCard(title = "AI Provider", initiallyExpanded = false) {
+        SettingsCard(title = stringResource(R.string.settings_ai_provider), initiallyExpanded = false) {
             SettingToggleRow(
-                title = "Auto failover",
+                title = stringResource(R.string.settings_auto_failover),
                 checked = aiAutoFailover,
                 enabled = !showPaidModels,
                 onCheckedChange = { enabled ->
@@ -451,21 +448,17 @@ fun SettingsScreen(
                     // Persist immediately; leave other draft AI fields for Save AI Settings.
                     onSaveQuiet(settings.withAutoFailover(provider, enabled))
                 },
-                hintTitle = "Auto failover",
+                hintTitle = stringResource(R.string.settings_auto_failover),
                 hint = if (showPaidModels) {
-                    "Unavailable while Show paid models is on — pick one model yourself. " +
-                        "Turn paid models off to use Auto failover again."
+                    stringResource(R.string.settings_unavailable_while_show_paid_models_pick_one)
                 } else {
-                    "When on, FitBuddy tries other API keys, then other models on the " +
-                        "same platform. When off, only your selected model is used, but " +
-                        "other API keys are still tried on failure. Change platform " +
-                        "manually if everything fails."
+                    stringResource(R.string.settings_when_fitbuddy_tries_other_api_keys_then)
                 }
             )
 
             if (provider == AiProvider.OPENROUTER || provider == AiProvider.GEMINI) {
                 SettingToggleRow(
-                    title = "Show paid models",
+                    title = stringResource(R.string.settings_show_paid_models),
                     checked = showPaidModels,
                     enabled = true,
                     onCheckedChange = { enabled ->
@@ -487,10 +480,8 @@ fun SettingsScreen(
                             )
                         }
                     },
-                    hintTitle = "Paid models",
-                    hint = "Off (default): free models only. On: also list paid models and turn " +
-                        "Auto failover off so you pick one model yourself. Refresh skips " +
-                        "reachability checks while paid models are shown."
+                    hintTitle = stringResource(R.string.settings_paid_models),
+                    hint = stringResource(R.string.settings_off_default_free_models_only_also_list)
                 )
             }
 
@@ -501,33 +492,30 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Photo · ${settings.activePhotoModelDisplay()}",
+                            text = stringResource(R.string.settings_photo, settings.activePhotoModelDisplay(context)),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Text · ${settings.activeTextModelDisplay()}",
+                            text = stringResource(R.string.settings_text, settings.activeTextModelDisplay(context)),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                     HintIconButton(
-                        title = "Active models",
-                        message = "Green lines show the models last used successfully (reset to " +
-                            "your dropdown picks when you Save AI Settings). Rate-limited models " +
-                            "are skipped until the next UTC midnight, unless you save that model " +
-                            "again — Save clears its cooldown so Auto retries your selection."
+                        title = stringResource(R.string.settings_active_models),
+                        message = stringResource(R.string.settings_green_lines_show_the_models_last)
                     )
                 }
             }
 
             val options = listOf(
-                AiProvider.OPENROUTER to "OpenRouter",
-                AiProvider.GEMINI to "Gemini",
-                AiProvider.OLLAMA to "Ollama",
-                AiProvider.CUSTOM to "OpenAI-compatible"
+                AiProvider.OPENROUTER to stringResource(R.string.settings_openrouter),
+                AiProvider.GEMINI to stringResource(R.string.settings_gemini),
+                AiProvider.OLLAMA to stringResource(R.string.settings_ollama),
+                AiProvider.CUSTOM to stringResource(R.string.settings_openai_compatible)
             )
             ProviderSelectorGrid(
                 options = options,
@@ -568,18 +556,18 @@ fun SettingsScreen(
                         context = context
                     ) {
                         ApiKeyChipEditor(
-                            label = "API keys",
+                            label = stringResource(R.string.onboarding_api_keys),
                             keys = openRouterKeys,
                             onKeysChange = { openRouterKeys = it }
                         )
                     }
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Photo model (vision)"
+                            stringResource(R.string.settings_photo_model_vision)
                         } else {
-                            "Photo model (free + vision)"
+                            stringResource(R.string.settings_photo_model_free_vision)
                         },
-                        noun = if (showPaidModels) "vision" else "free vision",
+                        noun = if (showPaidModels) stringResource(R.string.settings_vision) else stringResource(R.string.settings_free_vision),
                         selectedModel = openRouterModel,
                         onModelChange = { openRouterModel = it },
                         modelsState = modelsState,
@@ -589,8 +577,8 @@ fun SettingsScreen(
                         showPaidModels = showPaidModels
                     )
                     ModelDropdown(
-                        label = if (showPaidModels) "Text model" else "Text model (free)",
-                        noun = if (showPaidModels) "chat" else "free",
+                        label = if (showPaidModels) stringResource(R.string.settings_text_model) else stringResource(R.string.settings_text_model_free),
+                        noun = if (showPaidModels) stringResource(R.string.settings_chat) else stringResource(R.string.settings_free),
                         selectedModel = openRouterTextModel,
                         onModelChange = { openRouterTextModel = it },
                         modelsState = textModelsState,
@@ -598,25 +586,24 @@ fun SettingsScreen(
                         apiKey = openRouterKey,
                         onLoad = onLoadTextModels,
                         showPaidModels = showPaidModels,
-                        hintTitle = "Text model",
-                        hint = "Used for typed logs and \"recalculate with AI\" (no photo). " +
-                            "Leave blank to reuse the photo model. Order follows the failover ladder."
+                        hintTitle = stringResource(R.string.settings_text_model),
+                        hint = stringResource(R.string.settings_used_for_typed_logs_and_recalculate)
                     )
                 }
 
                 AiProvider.GEMINI -> {
                     ApiKeyChipEditor(
-                        label = "API keys",
+                        label = stringResource(R.string.onboarding_api_keys),
                         keys = geminiKeys,
                         onKeysChange = { geminiKeys = it }
                     )
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Photo model (vision)"
+                            stringResource(R.string.settings_photo_model_vision)
                         } else {
-                            "Photo model (free + vision)"
+                            stringResource(R.string.settings_photo_model_free_vision)
                         },
-                        noun = if (showPaidModels) "vision" else "free vision",
+                        noun = if (showPaidModels) stringResource(R.string.settings_vision) else stringResource(R.string.settings_free_vision),
                         selectedModel = geminiModel,
                         onModelChange = { geminiModel = it },
                         modelsState = modelsState,
@@ -624,23 +611,22 @@ fun SettingsScreen(
                         apiKey = geminiKey,
                         onLoad = onLoadModels,
                         showPaidModels = showPaidModels,
-                        hintTitle = "Gemini",
-                        hint = "Get a key from Google AI Studio (aistudio.google.com). " +
+                        hintTitle = stringResource(R.string.settings_gemini),
+                        hint = stringResource(R.string.settings_get_key_google_ai_studio_aistudio_google) +
                             (if (showPaidModels) {
-                                "Free Flash plus paid Pro. "
+                                stringResource(R.string.settings_free_flash_plus_paid_pro)
                             } else {
-                                "Free Flash models only. "
+                                stringResource(R.string.settings_free_flash_models_only)
                             }) +
-                            "Dropdown order follows the approved failover ladder. " +
-                            "With Auto failover on, failed keys then models rotate on Gemini only."
+                            stringResource(R.string.settings_dropdown_order_follows_approved_failover_ladder)
                     )
                     ModelDropdown(
                         label = if (showPaidModels) {
-                            "Text model"
+                            stringResource(R.string.settings_text_model)
                         } else {
-                            "Text model (free)"
+                            stringResource(R.string.settings_text_model_free)
                         },
-                        noun = if (showPaidModels) "chat" else "free",
+                        noun = if (showPaidModels) stringResource(R.string.settings_chat) else stringResource(R.string.settings_free),
                         selectedModel = geminiTextModel,
                         onModelChange = { geminiTextModel = it },
                         modelsState = textModelsState,
@@ -652,7 +638,7 @@ fun SettingsScreen(
                 }
 
                 AiProvider.OLLAMA -> {
-                    val modeOptions = listOf(false to "Local", true to "Cloud")
+                    val modeOptions = listOf(false to stringResource(R.string.onboarding_local), true to stringResource(R.string.settings_cloud))
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         modeOptions.forEachIndexed { index, (useCloud, label) ->
                             SegmentedButton(
@@ -664,19 +650,19 @@ fun SettingsScreen(
                     }
                     if (ollamaUseCloud) {
                         ApiKeyChipEditor(
-                            label = "API keys",
+                            label = stringResource(R.string.onboarding_api_keys),
                             keys = ollamaKeys,
                             onKeysChange = { ollamaKeys = it }
                         )
                     } else {
                         SettingField(
-                            label = "Server URL",
+                            label = stringResource(R.string.onboarding_server_url),
                             value = ollamaUrl,
                             onValueChange = { ollamaUrl = it },
                             keyboardType = KeyboardType.Uri,
-                            trailingHintTitle = "Server URL",
-                            trailingHint = "Reachable from the phone, e.g. http://192.168.1.10:11434. " +
-                                "Use a vision model (llava/gemma) for food photos."
+                            trailingHintTitle = stringResource(R.string.onboarding_server_url),
+                            trailingHint = stringResource(R.string.settings_reachable_phone_e_g_http_192_168) +
+                                stringResource(R.string.settings_use_vision_model_llava_gemma_food_photos)
                         )
                     }
                     val ollamaListKey = if (ollamaUseCloud) ollamaApiKey else ""
@@ -687,7 +673,7 @@ fun SettingsScreen(
                     }
                     ModelDropdown(
                         label = "Photo model (vision)",
-                        noun = "vision",
+                        noun = stringResource(R.string.settings_vision),
                         selectedModel = ollamaModel,
                         onModelChange = { ollamaModel = it },
                         modelsState = modelsState,
@@ -696,19 +682,17 @@ fun SettingsScreen(
                         baseUrl = ollamaListUrl,
                         onLoad = onLoadModels,
                         showPaidModels = showPaidModels,
-                        hintTitle = if (ollamaUseCloud) "Ollama Cloud" else "Ollama Local",
+                        hintTitle = if (ollamaUseCloud) stringResource(R.string.settings_ollama_cloud) else stringResource(R.string.settings_ollama_local),
                         hint = if (ollamaUseCloud) {
-                            "Cloud uses https://ollama.com. Create keys at ollama.com/settings/keys. " +
-                                "Gemma models are preferred. Leave text model blank to reuse the photo model."
+                            stringResource(R.string.settings_cloud_uses_https_ollama_com_create_keys) +
+                                stringResource(R.string.settings_gemma_models_preferred_leave_text_model_blank)
                         } else {
-                            "Use a vision model (llava/gemma) for food photos. Leave text model " +
-                                "blank to reuse the photo model. For LM Studio / vLLM / other " +
-                                "OpenAI-compatible hosts, prefer the Custom provider."
+                            stringResource(R.string.settings_use_vision_model_llava_gemma_food_photos_2)
                         }
                     )
                     ModelDropdown(
                         label = "Text model",
-                        noun = "Ollama",
+                        noun = stringResource(R.string.settings_ollama),
                         selectedModel = ollamaTextModel,
                         onModelChange = { ollamaTextModel = it },
                         modelsState = textModelsState,
@@ -721,28 +705,26 @@ fun SettingsScreen(
 
                 AiProvider.CUSTOM, AiProvider.OPENAI -> {
                     Text(
-                        text = "Works with OpenAI and any OpenAI-compatible API — LM Studio, " +
-                            "vLLM, LocalAI, Together, Groq, Azure OpenAI-compatible gateways, and more. " +
-                            "Defaults to OpenAI’s official URL; change the Base URL for other hosts.",
+                        text = stringResource(R.string.settings_works_with_openai_and_any_openai),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     SettingField(
-                        label = "Base URL",
+                        label = stringResource(R.string.onboarding_base_url),
                         value = customUrl,
                         onValueChange = { customUrl = it },
                         keyboardType = KeyboardType.Uri,
-                        trailingHintTitle = "Base URL",
-                        trailingHint = "Official OpenAI is https://api.openai.com. For a local " +
-                            "server try http://192.168.x.x:1234 (LM Studio) or :11434 (Ollama’s " +
-                            "OpenAI layer). Enter the host only — no /v1 suffix. FitBuddy calls " +
-                            "{base}/v1/chat/completions and {base}/v1/models."
+                        trailingHintTitle = stringResource(R.string.onboarding_base_url),
+                        trailingHint = stringResource(R.string.settings_official_openai_https_api_openai_com_local) +
+                            stringResource(R.string.settings_server_try_http_192_168_x_x) +
+                            stringResource(R.string.settings_openai_layer_enter_host_only_no_v1) +
+                            stringResource(R.string.settings_base_v1_chat_completions_base_v1_models)
                     )
                     ApiKeyChipEditor(
                         label = if (AppSettings.isOfficialOpenAiBaseUrl(customUrl)) {
-                            "API keys"
+                            stringResource(R.string.onboarding_api_keys)
                         } else {
-                            "API keys (optional for local servers)"
+                            stringResource(R.string.settings_api_keys_optional_local_servers)
                         },
                         keys = customKeys,
                         onKeysChange = { customKeys = it }
@@ -750,7 +732,7 @@ fun SettingsScreen(
                     val openAiFallbacks = AppSettings.isOfficialOpenAiBaseUrl(customUrl)
                     ModelDropdown(
                         label = "Photo model (vision)",
-                        noun = "vision",
+                        noun = stringResource(R.string.settings_vision),
                         selectedModel = customModel,
                         onModelChange = { customModel = it },
                         modelsState = modelsState,
@@ -760,14 +742,12 @@ fun SettingsScreen(
                         onLoad = onLoadModels,
                         showPaidModels = showPaidModels,
                         fallbackOptions = if (openAiFallbacks) OpenAiCatalog.VISION_MODELS else emptyList(),
-                        hintTitle = "OpenAI-compatible",
-                        hint = "Paste an OpenAI key for api.openai.com (paid). Local servers often " +
-                            "need no key — leave keys empty. Leave text model blank to reuse the " +
-                            "photo model."
+                        hintTitle = stringResource(R.string.settings_openai_compatible),
+                        hint = stringResource(R.string.settings_paste_openai_key_api_openai_com_paid)
                     )
                     ModelDropdown(
                         label = "Text model",
-                        noun = "chat",
+                        noun = stringResource(R.string.settings_chat),
                         selectedModel = customTextModel,
                         onModelChange = { customTextModel = it },
                         modelsState = textModelsState,
@@ -817,11 +797,11 @@ fun SettingsScreen(
                         )
                     )
                 }
-            ) { Text("Save AI Settings") }
+            ) { Text(stringResource(R.string.settings_save_ai_settings)) }
         }
 
         // --- Profile (name + permanent body attrs) ---------------------------------------
-        SettingsCard(title = "Profile", initiallyExpanded = false) {
+        SettingsCard(title = stringResource(R.string.settings_profile), initiallyExpanded = false) {
             SettingField(
                 label = "First name",
                 value = profileFirstName,
@@ -868,7 +848,7 @@ fun SettingsScreen(
                     )
                 }
             ) {
-                Text("Save profile")
+                Text(stringResource(R.string.settings_save_profile))
             }
         }
 
@@ -877,12 +857,12 @@ fun SettingsScreen(
         var showThemesSupportDialog by remember { mutableStateOf(false) }
         val themesUnlocked = isSupporter || settings.developerUnlockThemes
         SettingsCard(
-            title = "Themes",
+            title = stringResource(R.string.settings_themes),
             titleBadge = {
                 SupporterExclusiveBadge(muted = themesUnlocked)
             },
             initiallyExpanded = false,
-            // Developer "Surface lab" toggle unlocks for local testing; shipping UI stays supporter-gated.
+            // Developer stringResource(R.string.settings_surface_lab) toggle unlocks for local testing; shipping UI stays supporter-gated.
             unlocked = themesUnlocked,
             onLockedExpandAttempt = {
                 val now = SystemClock.elapsedRealtime()
@@ -890,17 +870,16 @@ fun SettingsScreen(
                     showThemesSupportDialog = true
                 } else {
                     themesLockToastAt = now
-                    SystemToast.show(context, "Available for supporters")
+                    SystemToast.show(context, context.getString(R.string.settings_available_for_supporters))
                 }
             },
         ) {
             SettingToggleRow(
-                title = "Material You",
+                title = stringResource(R.string.settings_material_you),
                 checked = settings.dynamicColor,
                 onCheckedChange = onDynamicColorChange,
-                hintTitle = "Material You",
-                hint = "Use wallpaper-based dynamic colors (Android 12+). " +
-                    "Turn off to pick a static FitBuddy or Catppuccin palette."
+                hintTitle = stringResource(R.string.settings_material_you),
+                hint = stringResource(R.string.settings_use_wallpaper_based_dynamic_colors_android_12)
             )
             if (!settings.dynamicColor) {
                 var themeExpanded by remember { mutableStateOf(false) }
@@ -909,10 +888,10 @@ fun SettingsScreen(
                     onExpandedChange = { themeExpanded = it }
                 ) {
                     OutlinedTextField(
-                        value = settings.colorTheme.displayName(),
+                        value = stringResource(settings.colorTheme.displayNameRes()),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Color theme") },
+                        label = { Text(stringResource(R.string.settings_color_theme)) },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = themeExpanded)
                         },
@@ -927,7 +906,7 @@ fun SettingsScreen(
                     ) {
                         AppColorTheme.entries.forEach { theme ->
                             DropdownMenuItem(
-                                text = { Text(theme.displayName()) },
+                                text = { Text(stringResource(theme.displayNameRes())) },
                                 onClick = {
                                     onSaveQuiet(settings.copy(colorTheme = theme))
                                     themeExpanded = false
@@ -938,15 +917,14 @@ fun SettingsScreen(
                     }
                 }
                 Text(
-                    text = "FitBuddy follows system light/dark. Catppuccin Latte is light; " +
-                        "Frappé, Macchiato, and Mocha are dark.",
+                    text = stringResource(R.string.settings_fitbuddy_follows_system_light_dark_catppuccin),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             HorizontalDivider()
             Text(
-                text = "Components",
+                text = stringResource(R.string.settings_components),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -956,10 +934,10 @@ fun SettingsScreen(
                 onExpandedChange = { componentExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = settings.componentStyle.displayName(),
+                    value = stringResource(settings.componentStyle.displayNameRes()),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Component style") },
+                    label = { Text(stringResource(R.string.settings_component_style)) },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = componentExpanded)
                     },
@@ -974,7 +952,7 @@ fun SettingsScreen(
                 ) {
                     AppComponentStyle.entries.forEach { style ->
                         DropdownMenuItem(
-                            text = { Text(style.displayName()) },
+                            text = { Text(stringResource(style.displayNameRes())) },
                             onClick = {
                                 onSaveQuiet(settings.copy(componentStyle = style))
                                 componentExpanded = false
@@ -985,14 +963,13 @@ fun SettingsScreen(
                 }
             }
             Text(
-                text = "Material keeps soft rounded corners. Mako uses sharp, flat panels " +
-                    "and mixes with any color theme or font.",
+                text = stringResource(R.string.settings_material_keeps_soft_rounded_corners_mako),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             HorizontalDivider()
             Text(
-                text = "Font",
+                text = stringResource(R.string.settings_font),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -1002,10 +979,10 @@ fun SettingsScreen(
                 onExpandedChange = { fontExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = settings.fontOption.displayName(),
+                    value = stringResource(settings.fontOption.displayNameRes()),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("App font") },
+                    label = { Text(stringResource(R.string.settings_app_font)) },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = fontExpanded)
                     },
@@ -1020,7 +997,7 @@ fun SettingsScreen(
                 ) {
                     AppFontOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.displayName()) },
+                            text = { Text(stringResource(option.displayNameRes())) },
                             onClick = {
                                 onSaveQuiet(settings.copy(fontOption = option))
                                 fontExpanded = false
@@ -1031,7 +1008,7 @@ fun SettingsScreen(
                 }
             }
             Text(
-                text = "Applies app-wide. The Mako font pairs well with Mako components.",
+                text = stringResource(R.string.settings_applies_app_wide_the_mako_font),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1039,11 +1016,10 @@ fun SettingsScreen(
         if (showThemesSupportDialog) {
             AlertDialog(
                 onDismissRequest = { showThemesSupportDialog = false },
-                title = { Text("Themes") },
+                title = { Text(stringResource(R.string.settings_themes)) },
                 text = {
                     Text(
-                        "Themes are available exclusively for supporters. " +
-                            "Donate to get access.",
+                        stringResource(R.string.settings_themes_are_available_exclusively_for_supporters),
                     )
                 },
                 confirmButton = {
@@ -1053,21 +1029,21 @@ fun SettingsScreen(
                             onDonate()
                         },
                     ) {
-                        Text("Donate")
+                        Text(stringResource(R.string.settings_donate))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showThemesSupportDialog = false }) {
-                        Text("Not now")
+                        Text(stringResource(R.string.donate_not_now))
                     }
                 },
             )
         }
 
         // --- Preferences (reminders + animations + region) -------------------------------
-        SettingsCard(title = "Preferences", initiallyExpanded = false) {
+        SettingsCard(title = stringResource(R.string.settings_preferences), initiallyExpanded = false) {
             SettingToggleRow(
-                title = "Daily log reminder",
+                title = stringResource(R.string.settings_daily_log_reminder),
                 checked = settings.dailyLogReminderEnabled,
                 onCheckedChange = { enabled ->
                     if (!enabled) {
@@ -1084,15 +1060,12 @@ fun SettingsScreen(
                     } else {
                         onSave(settings.copy(dailyLogReminderEnabled = true))
                         if (!ReminderScheduler.canScheduleExactAlarms(context)) {
-                            onPermissionDenied(
-                                "Exact alarms not allowed — reminders may be delayed."
-                            )
+                            onPermissionDenied(context.getString(R.string.settings_exact_alarms_not_allowed_reminders_may_delayed))
                         }
                     }
                 },
-                hintTitle = "Daily log reminder",
-                hint = "Local notification once a day (no Google Play Services). " +
-                    "Default time is 8:00 PM."
+                hintTitle = stringResource(R.string.settings_daily_log_reminder),
+                hint = stringResource(R.string.settings_local_notification_once_day_no_google_play)
             )
             if (settings.dailyLogReminderEnabled) {
                 val hour12 = settings.dailyLogReminderHour % 12
@@ -1118,7 +1091,7 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Reminder time", style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.settings_reminder_time), style = MaterialTheme.typography.bodyLarge)
                         Text(
                             timeLabel,
                             style = MaterialTheme.typography.bodyMedium,
@@ -1128,8 +1101,7 @@ fun SettingsScreen(
                 }
                 if (!ReminderScheduler.canScheduleExactAlarms(context)) {
                     Text(
-                        text = "Exact alarms are off for FitBuddy. Reminders may be delayed " +
-                            "until you allow Alarms & reminders in system settings.",
+                        text = stringResource(R.string.settings_exact_alarms_are_off_for_fitbuddy),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -1147,17 +1119,17 @@ fun SettingsScreen(
                             }
                             runCatching { context.startActivity(intent) }
                         }
-                    ) { Text("Allow exact alarms") }
+                    ) { Text(stringResource(R.string.settings_allow_exact_alarms)) }
                 }
             }
             SettingToggleRow(
-                title = "Loading animations",
+                title = stringResource(R.string.settings_loading_animations),
                 checked = settings.animationsEnabled,
                 onCheckedChange = { enabled ->
                     onSaveQuiet(settings.withAnimationsEnabled(enabled))
                 },
-                hintTitle = "Loading animations",
-                hint = "Play wait animations while AI analyses food or generates insights. Off shows a simple spinner."
+                hintTitle = stringResource(R.string.settings_loading_animations),
+                hint = stringResource(R.string.settings_play_wait_animations_while_ai_analyses_food)
             )
             if (settings.animationsEnabled) {
                 LoadingAnimationChoiceDropdown(
@@ -1173,7 +1145,7 @@ fun SettingsScreen(
                     onSelect = { onSaveQuiet(settings.withInsightAnimationChoice(it)) }
                 )
                 Text(
-                    text = "Per-slot wait UI: Random, Off (spinner), or a fixed animation for that slot.",
+                    text = stringResource(R.string.settings_per_slot_wait_ui_random_off),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1182,7 +1154,7 @@ fun SettingsScreen(
             // Day-change hour — dropdown 12AM (midnight) … 11AM
             val dayChangeOptions = (0..11).toList()
             var dayChangeExpanded by remember { mutableStateOf(false) }
-            fun hourLabel(h: Int): String = if (h == 0) "12AM (midnight)" else "${h}AM"
+            fun hourLabel(h: Int): String = if (h == 0) context.getString(R.string.settings_12am_midnight) else "${h}AM"
             ExposedDropdownMenuBox(
                 expanded = dayChangeExpanded,
                 onExpandedChange = { dayChangeExpanded = it }
@@ -1191,7 +1163,7 @@ fun SettingsScreen(
                     value = hourLabel(settings.dayChangeHour),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Day starts at") },
+                    label = { Text(stringResource(R.string.settings_day_starts_at)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dayChangeExpanded) },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
@@ -1215,19 +1187,18 @@ fun SettingsScreen(
                 }
             }
             Text(
-                text = "Logs before this hour count toward the previous day. " +
-                    "Useful if you eat late at night.",
+                text = stringResource(R.string.settings_logs_before_this_hour_count_toward),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             HorizontalDivider()
             Text(
-                text = "Region",
+                text = stringResource(R.string.settings_region),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Personalises food log examples, portion units, staples, and coaching.",
+                text = stringResource(R.string.settings_personalises_food_log_examples_portion_units),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1239,7 +1210,7 @@ fun SettingsScreen(
                         onClick = { onRegionChange(region) },
                         shape = SegmentedButtonDefaults.itemShape(index, AppRegion.entries.size)
                     ) {
-                        Text(region.shortDisplayName())
+                        Text(stringResource(region.shortDisplayNameRes()))
                     }
                 }
             }
@@ -1253,7 +1224,7 @@ fun SettingsScreen(
             )
             AlertDialog(
                 onDismissRequest = { showReminderTimePicker = false },
-                title = { Text("Reminder time") },
+                title = { Text(stringResource(R.string.settings_reminder_time)) },
                 text = { TimePicker(state = pickerState) },
                 confirmButton = {
                     TextButton(
@@ -1267,30 +1238,28 @@ fun SettingsScreen(
                             )
                             showReminderTimePicker = false
                         }
-                    ) { Text("OK") }
+                    ) { Text(stringResource(R.string.common_ok)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showReminderTimePicker = false }) { Text("Cancel") }
+                    TextButton(onClick = { showReminderTimePicker = false }) { Text(stringResource(R.string.common_cancel)) }
                 }
             )
         }
 
         // --- Backup ----------------------------------------------------------------------
         SettingsCard(
-            title = "Backup",
+            title = context.getString(R.string.settings_backup),
             initiallyExpanded = false,
-            hintTitle = "Backup",
-            hint = "Share a JSON backup anytime. Cloud uploads use your Support ID as the " +
-                "document key — keep that ID safe to restore after reinstalling. Restore from " +
-                "cloud or local file is offered during onboarding (import also in Developer tools)."
+            hintTitle = context.getString(R.string.settings_backup),
+            hint = stringResource(R.string.settings_share_json_backup_anytime_cloud_uploads_use)
         ) {
             Text(
-                text = "Support ID",
+                text = stringResource(R.string.donate_reminder_support_id),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Share this if you report a bug, and keep it safe for cloud restore.",
+                text = stringResource(R.string.settings_share_this_if_you_report_a),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1300,7 +1269,7 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = settings.supportId.ifBlank { "(generating…)" },
+                    text = settings.supportId.ifBlank { context.getString(R.string.settings_generating) },
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
@@ -1314,18 +1283,18 @@ fun SettingsScreen(
                     },
                     enabled = settings.supportId.isNotBlank()
                 ) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "Copy support ID")
+                    Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.settings_copy_support_id))
                 }
             }
 
             Text(
-                text = "Local backups",
+                text = stringResource(R.string.settings_local_backups),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                text = "Share a JSON backup (Drive, Files, email, etc.).",
+                text = stringResource(R.string.settings_share_a_json_backup_drive_files),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1335,47 +1304,45 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Filled.FileUpload, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Share")
+                Text(stringResource(R.string.main_share))
             }
 
             Text(
-                text = "Cloud",
+                text = stringResource(R.string.settings_cloud),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 4.dp)
             )
             if (!cloudVaultAvailable) {
                 Text(
-                    text = "Cloud backup is not available in this build.",
+                    text = stringResource(R.string.settings_cloud_backup_is_not_available_in),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else if (BuildConfig.DEBUG) {
                 Text(
-                    text = "Cloud backup uploads are disabled in debug builds. You can still " +
-                        "pull an existing backup during onboarding with a Support ID. " +
-                        "Use a release build to enable uploads.",
+                    text = stringResource(R.string.settings_cloud_backup_uploads_are_disabled_in),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 SettingToggleRow(
-                    title = "Enable cloud backup",
+                    title = context.getString(R.string.backup_enable_cloud_backup),
                     checked = false,
                     onCheckedChange = {},
                     enabled = false,
-                    hintTitle = "Enable cloud backup",
-                    hint = "Unavailable in debug builds."
+                    hintTitle = context.getString(R.string.backup_enable_cloud_backup),
+                    hint = stringResource(R.string.settings_unavailable_debug_builds)
                 )
                 SettingToggleRow(
-                    title = "Auto-upload on startup",
+                    title = context.getString(R.string.settings_auto_upload_on_startup),
                     checked = false,
                     onCheckedChange = {},
                     enabled = false,
-                    hintTitle = "Auto-upload",
-                    hint = "Unavailable in debug builds."
+                    hintTitle = context.getString(R.string.settings_auto_upload),
+                    hint = stringResource(R.string.settings_unavailable_debug_builds)
                 )
                 Text(
-                    text = "Cloud backup off (debug)",
+                    text = stringResource(R.string.settings_cloud_backup_off_debug),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1384,18 +1351,18 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = false
                 ) {
-                    Text("Upload now")
+                    Text(stringResource(R.string.settings_upload_now))
                 }
                 OutlinedButton(
                     onClick = {},
                     modifier = Modifier.fillMaxWidth(),
                     enabled = false
                 ) {
-                    Text("Change cloud backup password")
+                    Text(stringResource(R.string.settings_change_cloud_backup_password))
                 }
             } else {
                 SettingToggleRow(
-                    title = "Enable cloud backup",
+                    title = context.getString(R.string.backup_enable_cloud_backup),
                     checked = settings.cloudBackupEnabled,
                     onCheckedChange = { enabled ->
                         if (enabled) {
@@ -1405,27 +1372,24 @@ fun SettingsScreen(
                             onCloudBackupEnabledChange(false)
                         }
                     },
-                    hintTitle = "Enable cloud backup",
-                    hint = "When on, you can upload manually or automatically after you log a " +
-                        "meal or workout. Uploads use your Support ID as the cloud document key. " +
-                        "Also turns on crash reports (turning crash reports off disables cloud backup)."
+                    hintTitle = context.getString(R.string.backup_enable_cloud_backup),
+                    hint = stringResource(R.string.settings_when_can_upload_manually_automatically_after_log)
                 )
                 SettingToggleRow(
-                    title = "Auto-upload on startup",
+                    title = context.getString(R.string.settings_auto_upload_on_startup),
                     checked = settings.cloudAutoUploadEnabled,
                     onCheckedChange = onCloudAutoUploadChange,
                     enabled = settings.cloudBackupEnabled,
-                    hintTitle = "Auto-upload",
-                    hint = "When enabled, FitBuddy uploads on app start if the last upload was " +
-                        "more than 12 hours ago. Manual Upload now always runs immediately."
+                    hintTitle = context.getString(R.string.settings_auto_upload),
+                    hint = stringResource(R.string.settings_when_enabled_fitbuddy_uploads_app_start_if)
                 )
                 val statusText = when {
-                    !settings.cloudBackupEnabled -> "Cloud backup off"
-                    settings.mongoLastUploadAt <= 0L -> "Enabled — no upload yet"
+                    !settings.cloudBackupEnabled -> stringResource(R.string.settings_cloud_backup_off)
+                    settings.mongoLastUploadAt <= 0L -> stringResource(R.string.settings_enabled_no_upload_yet)
                     settings.mongoLastUploadOk ->
-                        "Last upload OK · ${formatMongoUploadTime(settings.mongoLastUploadAt)}"
+                        stringResource(R.string.settings_last_upload_ok, {formatMongoUploadTime(context, settings.mongoLastUploadAt)})
                     else ->
-                        "Last upload failed · ${formatMongoUploadTime(settings.mongoLastUploadAt)}" +
+                        "Last upload failed · ${formatMongoUploadTime(context, settings.mongoLastUploadAt)}" +
                             settings.mongoLastError.takeIf { it.isNotBlank() }?.let { "\n$it" }
                                 .orEmpty()
                 }
@@ -1442,34 +1406,34 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = settings.cloudBackupEnabled && !mongoBackupBusy
                 ) {
-                    Text("Upload now")
+                    Text(stringResource(R.string.settings_upload_now))
                 }
                 OutlinedButton(
                     onClick = { showChangeCloudPasswordDialog = true },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = settings.cloudBackupEnabled && !mongoBackupBusy
                 ) {
-                    Text("Change cloud backup password")
+                    Text(stringResource(R.string.settings_change_cloud_backup_password))
                 }
             }
         }
 
         // --- Updates & support (updates + crash reports) ---------------------------------
-        SettingsCard(title = "Updates & support", initiallyExpanded = false) {
+        SettingsCard(title = context.getString(R.string.settings_updates_support), initiallyExpanded = false) {
             Text(
                 text = "Installed ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             SettingToggleRow(
-                title = "Check for updates automatically",
+                title = context.getString(R.string.settings_check_for_updates_automatically),
                 checked = settings.autoCheckUpdates,
                 onCheckedChange = onAutoCheckUpdatesChange,
-                hintTitle = "Automatic updates",
+                hintTitle = context.getString(R.string.settings_automatic_updates),
                 hint = if (BuildConfig.IS_FDROID) {
-                    "Looks for a newer build on f-droid.org shortly after startup."
+                    context.getString(R.string.settings_looks_newer_build_f_droid_org_shortly)
                 } else {
-                    "Looks for a newer GitHub release shortly after startup."
+                    context.getString(R.string.settings_looks_newer_github_release_shortly_after_startup)
                 }
             )
             OutlinedButton(
@@ -1480,11 +1444,11 @@ fun SettingsScreen(
                 if (updateState.isChecking) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.size(8.dp))
-                    Text("Checking...")
+                    Text(stringResource(R.string.settings_checking))
                 } else {
                     Icon(Icons.Filled.Refresh, contentDescription = null)
                     Spacer(Modifier.size(8.dp))
-                    Text("Check for Updates")
+                    Text(stringResource(R.string.settings_check_for_updates))
                 }
             }
             updateState.statusMessage?.let { message ->
@@ -1504,11 +1468,9 @@ fun SettingsScreen(
             if (showCrashOffDisablesCloudWarning) {
                 AlertDialog(
                     onDismissRequest = { showCrashOffDisablesCloudWarning = false },
-                    title = { Text("Disable crash reports?") },
+                    title = { Text(stringResource(R.string.settings_disable_crash_reports)) },
                     text = {
-                        Text(
-                            "Turning off crash reports will also disable cloud backup. " +
-                                "You can turn either back on later in Settings."
+                        Text(stringResource(R.string.settings_turning_off_crash_reports_will_also)
                         )
                     },
                     confirmButton = {
@@ -1517,17 +1479,17 @@ fun SettingsScreen(
                                 showCrashOffDisablesCloudWarning = false
                                 onCrashReportingChange(false)
                             }
-                        ) { Text("Disable both") }
+                        ) { Text(stringResource(R.string.settings_disable_both)) }
                     },
                     dismissButton = {
                         TextButton(onClick = { showCrashOffDisablesCloudWarning = false }) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.common_cancel))
                         }
                     }
                 )
             }
             SettingToggleRow(
-                title = "Send crash reports",
+                title = context.getString(R.string.privacy_send_crash_reports),
                 checked = settings.crashReportingEnabled || settings.cloudBackupEnabled,
                 onCheckedChange = { enabled ->
                     if (!enabled && settings.cloudBackupEnabled) {
@@ -1536,16 +1498,11 @@ fun SettingsScreen(
                         onCrashReportingChange(enabled)
                     }
                 },
-                hintTitle = "Crash reports",
+                hintTitle = context.getString(R.string.privacy_crash_reports),
                 hint = if (settings.cloudBackupEnabled) {
-                    "Cloud backup is on — turning this off will also disable cloud backup. " +
-                        "Anonymous stack traces help fix bugs. No meals, photos, names, or API keys. " +
-                        "Privacy & deletion: anantdark.github.io/FitBuddy/privacy.html"
+                    context.getString(R.string.settings_cloud_backup_turning_off_also_disable_cloud)
                 } else {
-                    "Anonymous stack traces help fix bugs. No meals, photos, names, or API keys. " +
-                        "Your Support ID (under Backup) identifies reports. Turn off anytime. " +
-                        "Enabling cloud backup turns this on automatically. " +
-                        "Privacy & deletion: anantdark.github.io/FitBuddy/privacy.html"
+                    context.getString(R.string.settings_anonymous_stack_traces_help_fix_bugs_no)
                 }
             )
             val diagnosticEntries by DiagnosticLogger.entryCount.collectAsState()
@@ -1554,27 +1511,25 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Diagnostic log",
+                    text = stringResource(R.string.settings_diagnostic_log),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f)
                 )
                 HintIconButton(
-                    title = "Diagnostic log",
-                    message = "Captures AI connection steps (provider, model, HTTP status) so you can " +
-                        "share them when something fails. No meals, photos, or API keys. " +
-                        "Start logging, reproduce the issue, then stop & export."
+                    title = context.getString(R.string.settings_diagnostic_log),
+                    message = stringResource(R.string.settings_captures_ai_connection_steps_provider_model)
                 )
             }
             Text(
                 text = when {
                     settings.diagnosticLoggingEnabled && diagnosticEntries > 0 ->
-                        "Logging… $diagnosticEntries lines — stop & export when done"
+                        stringResource(R.string.settings_logging_lines_stop_export_when_done, diagnosticEntries)
                     settings.diagnosticLoggingEnabled ->
-                        "Logging… reproduce the issue, then stop & export"
+                        stringResource(R.string.settings_logging_reproduce_issue_then_stop_export)
                     diagnosticEntries > 0 ->
-                        "$diagnosticEntries lines from last session"
+                        stringResource(R.string.settings_lines_last_session, diagnosticEntries)
                     else ->
-                        "Off until you start logging"
+                        stringResource(R.string.settings_off_until_start_logging)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1592,24 +1547,24 @@ fun SettingsScreen(
                 if (settings.diagnosticLoggingEnabled) {
                     Icon(Icons.Filled.FileUpload, contentDescription = null)
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Stop logging & export")
+                    Text(stringResource(R.string.settings_stop_logging_export))
                 } else {
-                    Text("Start logging")
+                    Text(stringResource(R.string.settings_start_logging))
                 }
             }
         }
 
         // --- About -----------------------------------------------------------------------
         SettingsCard(
-            title = "About",
+            title = context.getString(R.string.settings_about),
             collapsible = false,
-            hintTitle = "About FitBuddy",
+            hintTitle = context.getString(R.string.settings_about_fitbuddy),
             hint = "AI-powered health tracker with region-aware diets. " +
                 "Log meals and workouts via photo or loose text; the AI estimates calories " +
                 "and macros.\n\nBuilt with Kotlin, Jetpack Compose, MVVM + Room. Data stays " +
                 "on your device."
         ) {
-            AboutRow("App", "FitBuddy")
+            AboutRow(context.getString(R.string.settings_app), context.getString(R.string.settings_fitbuddy))
             AboutRow(
                 label = "Version",
                 value = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
@@ -1662,35 +1617,35 @@ fun SettingsScreen(
                     }
                     // Hue cycle stays on permanently (not gated by unlock).
                     RainbowCreditBadge(
-                        name = "Anant",
+                        name = context.getString(R.string.about_anant),
                         onClick = onAnantClick
                     )
                 }
             )
-            AboutLinkRow("GitHub", "github.com/anantdark", "https://github.com/anantdark")
+            AboutLinkRow(context.getString(R.string.donor_card_github), context.getString(R.string.settings_github_com_anantdark), "https://github.com/anantdark")
             AboutLinkRow(
-                "Docs",
-                "anantdark.github.io/FitBuddy",
+                context.getString(R.string.settings_docs),
+                context.getString(R.string.settings_anantdark_github_io_fitbuddy),
                 "https://anantdark.github.io/FitBuddy/"
             )
             AboutLinkRow(
-                "Privacy",
-                "Privacy & data deletion",
+                context.getString(R.string.settings_privacy),
+                context.getString(R.string.settings_privacy_data_deletion),
                 "https://anantdark.github.io/FitBuddy/privacy.html"
             )
         }
 
         if (developerUnlocked) {
-            SettingsCard(title = "Developer", initiallyExpanded = false) {
+            SettingsCard(title = context.getString(R.string.settings_developer), initiallyExpanded = false) {
                 Text(
-                    text = "Debug tools. Tap Package 31 times again to hide this card.",
+                    text = stringResource(R.string.settings_debug_tools_tap_package_31_times),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 DeveloperSection(
-                    title = "Backup & identity",
-                    description = "Local import and Support ID. Export is under Backup → Local backups."
+                    title = context.getString(R.string.settings_backup_identity),
+                    description = stringResource(R.string.settings_local_import_and_support_id_export)
                 ) {
                     OutlinedButton(
                         onClick = onImport,
@@ -1698,27 +1653,27 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Filled.FileDownload, contentDescription = null)
                         Spacer(Modifier.size(8.dp))
-                        Text("Import backup JSON")
+                        Text(stringResource(R.string.settings_import_backup_json))
                     }
                     OutlinedButton(
                         onClick = onRegenerateSupportId,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Generate new Support ID")
+                        Text(stringResource(R.string.settings_generate_new_support_id))
                     }
                     Text(
-                        text = "New ID for crash reports and future cloud uploads. " +
-                            "Existing cloud docs stay under the old ID.",
+                        text = stringResource(R.string.settings_new_id_for_crash_reports_and),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 DeveloperSection(
-                    title = "Cloud (Atlas)",
-                    description = "Device-local db/collection overrides. Defaults: " +
-                        "${AppSettings.DEFAULT_MONGO_DB_NAME} / " +
-                        AppSettings.DEFAULT_MONGO_COLLECTION
+                    title = context.getString(R.string.settings_cloud_atlas),
+                    description = stringResource(
+                        R.string.settings_device_local_db_collection_overrides_defaults,
+                        AppSettings.DEFAULT_MONGO_DB_NAME
+                    ) + AppSettings.DEFAULT_MONGO_COLLECTION
                 ) {
                     var mongoDbNameDraft by remember(settings.mongoDbName) {
                         mutableStateOf(
@@ -1736,7 +1691,7 @@ fun SettingsScreen(
                         value = mongoDbNameDraft,
                         onValueChange = { mongoDbNameDraft = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Database name") },
+                        label = { Text(stringResource(R.string.settings_database_name)) },
                         singleLine = true,
                         placeholder = { Text(AppSettings.DEFAULT_MONGO_DB_NAME) }
                     )
@@ -1744,7 +1699,7 @@ fun SettingsScreen(
                         value = mongoCollectionDraft,
                         onValueChange = { mongoCollectionDraft = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Collection name") },
+                        label = { Text(stringResource(R.string.settings_collection_name)) },
                         singleLine = true,
                         placeholder = { Text(AppSettings.DEFAULT_MONGO_COLLECTION) }
                     )
@@ -1761,7 +1716,7 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Save Atlas db / collection")
+                        Text(stringResource(R.string.settings_save_atlas_db_collection))
                     }
                     if (mongoBackupBusy) {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -1776,12 +1731,11 @@ fun SettingsScreen(
                             cloudVaultAvailable &&
                             !mongoBackupBusy
                     ) {
-                        Text("Download & restore from cloud")
+                        Text(stringResource(R.string.settings_download_restore_from_cloud))
                     }
                     if (BuildConfig.DEBUG) {
                         Text(
-                            text = "Debug builds restore from cloud only during onboarding " +
-                                "(Support ID). Uploads stay off.",
+                            text = stringResource(R.string.settings_debug_builds_restore_from_cloud_only),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1794,115 +1748,111 @@ fun SettingsScreen(
                             settings.cloudBackupEnabled &&
                             !mongoBackupBusy
                     ) {
-                        Text("Create new cloud chunk")
+                        Text(stringResource(R.string.settings_create_new_cloud_chunk))
                     }
                     Text(
-                        text = "Freezes tip log rows into the active chunk and appends a new tip " +
-                            "(same as size-based rollover). Needs at least one tip log row.",
+                        text = stringResource(R.string.settings_freezes_tip_log_rows_into_the),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 DeveloperSection(
-                    title = "AI debugging",
-                    description = "Toggles and tools for the live AI path. Does not change ranking rules."
+                    title = context.getString(R.string.settings_ai_debugging),
+                    description = stringResource(R.string.settings_toggles_and_tools_for_the_live)
                 ) {
                     SettingToggleRow(
-                        title = "Force offline AI simulator",
+                        title = context.getString(R.string.settings_force_offline_ai_simulator),
                         checked = settings.forceOfflineAiSimulator,
                         onCheckedChange = {
                             onSave(settings.copy(forceOfflineAiSimulator = it))
                         },
-                        hintTitle = "Force offline AI",
-                        hint = "Bypass live API and use the bundled text simulator " +
-                            "(photos still need a real provider)."
+                        hintTitle = context.getString(R.string.settings_force_offline_ai),
+                        hint = stringResource(R.string.settings_bypass_live_api_use_bundled_text_simulator)
                     )
                     SettingToggleRow(
-                        title = "Show raw AI JSON",
+                        title = context.getString(R.string.settings_show_raw_ai_json),
                         checked = settings.showRawAiJson,
                         onCheckedChange = {
                             onSave(settings.copy(showRawAiJson = it))
                         },
-                        hintTitle = "Raw AI JSON",
-                        hint = "After each analysis, show the last raw JSON response."
+                        hintTitle = context.getString(R.string.main_raw_ai_json),
+                        hint = stringResource(R.string.settings_after_each_analysis_show_last_raw_json)
                     )
                     SettingToggleRow(
-                        title = "Strict clarification",
+                        title = context.getString(R.string.settings_strict_clarification),
                         checked = settings.strictClarification,
                         onCheckedChange = {
                             onSave(settings.copy(strictClarification = it))
                         },
-                        hintTitle = "Strict clarification",
-                        hint = "Experimental: prefer asking for portions when counts are ambiguous."
+                        hintTitle = context.getString(R.string.settings_strict_clarification),
+                        hint = stringResource(R.string.settings_experimental_prefer_asking_portions_when_counts)
                     )
                     SettingToggleRow(
-                        title = "Verbose HTTP logging",
+                        title = context.getString(R.string.settings_verbose_http_logging),
                         checked = settings.verboseHttpLogging,
                         onCheckedChange = {
                             onSave(settings.copy(verboseHttpLogging = it))
                         },
-                        hintTitle = "Verbose HTTP",
-                        hint = "Log full OkHttp request/response bodies (including on release builds). " +
-                            "May include API keys in logcat — keep off unless debugging."
+                        hintTitle = context.getString(R.string.settings_verbose_http),
+                        hint = stringResource(R.string.settings_log_full_okhttp_request_response_bodies_includin)
                     )
                     OutlinedButton(
                         onClick = onClearModelCooldowns,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Clear model cooldowns")
+                        Text(stringResource(R.string.settings_clear_model_cooldowns))
                     }
                     OutlinedButton(
                         onClick = onApplyBuiltInModelDefaults,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Apply built-in model defaults")
+                        Text(stringResource(R.string.settings_apply_built_in_model_defaults))
                     }
                     Text(
-                        text = "Resets OpenRouter / Gemini / Ollama photo and text to app defaults " +
-                            "(not OpenAI). Save also clears cooldowns for the active provider’s picks.",
+                        text = stringResource(R.string.settings_resets_openrouter_gemini_ollama_photo_and),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 DeveloperSection(
-                    title = "UI preview",
-                    description = "Preview themes and loading animations without waiting on AI."
+                    title = context.getString(R.string.settings_ui_preview),
+                    description = stringResource(R.string.settings_preview_themes_and_loading_animations_without)
                 ) {
                     SettingToggleRow(
-                        title = "Surface lab",
+                        title = context.getString(R.string.settings_surface_lab),
                         checked = settings.developerUnlockThemes,
                         onCheckedChange = {
                             onSave(settings.copy(developerUnlockThemes = it))
                         },
-                        hintTitle = "Surface lab",
-                        hint = "Experimental surface/token previews for local QA."
+                        hintTitle = context.getString(R.string.settings_surface_lab),
+                        hint = stringResource(R.string.settings_experimental_surface_token_previews_local_qa)
                     )
                     SettingToggleRow(
-                        title = "Keep animations visible",
+                        title = context.getString(R.string.settings_keep_animations_visible),
                         checked = settings.forceShowLoadingAnimations,
                         onCheckedChange = {
                             onSaveQuiet(settings.copy(forceShowLoadingAnimations = it))
                         },
-                        hintTitle = "Keep animations visible",
-                        hint = "Always show the analyzing banner and insight wait animations."
+                        hintTitle = context.getString(R.string.settings_keep_animations_visible),
+                        hint = stringResource(R.string.settings_always_show_analyzing_banner_insight_wait_animat)
                     )
                 }
 
                 DeveloperSection(
-                    title = "Testing",
-                    description = "One-shot checks for update UI, donations, notifications, crash reporting, and onboarding."
+                    title = context.getString(R.string.settings_testing),
+                    description = stringResource(R.string.settings_one_shot_checks_for_update_ui)
                 ) {
                     DemoDonorsPreview(donors = com.anant.fitbuddy.data.donors.DemoDonors.all)
                     OutlinedButton(
                         onClick = onShowTestUpdatePrompt,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Show test update prompt")
+                        Text(stringResource(R.string.settings_show_test_update_prompt))
                     }
                     Text(
-                        text = "Fake release dialog for backup-before-update. Download fails on purpose.",
+                        text = stringResource(R.string.settings_fake_release_dialog_for_backup_before),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1919,28 +1869,28 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Show donate reminder notification")
+                        Text(stringResource(R.string.settings_show_donate_reminder_notification))
                     }
                     OutlinedButton(
                         onClick = onShowTestDonateReminderDialog,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Show donate reminder dialog")
+                        Text(stringResource(R.string.settings_show_donate_reminder_dialog))
                     }
                     OutlinedButton(
                         onClick = onShowTestNewDonorsThankYou,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Show new-donors thank-you")
+                        Text(stringResource(R.string.settings_show_new_donors_thank_you))
                     }
                     OutlinedButton(
                         onClick = onShowTestDonorGallery,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Show donors")
+                        Text(stringResource(R.string.donate_show_donors))
                     }
                     Text(
-                        text = "Opens the supporters gallery with demo donor cards.",
+                        text = stringResource(R.string.settings_opens_the_supporters_gallery_with_demo),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1948,10 +1898,14 @@ fun SettingsScreen(
                         onClick = onShowTestDonationDialog,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Open donation dialog")
+                        Text(stringResource(R.string.settings_open_donation_dialog))
                     }
                     Text(
-                        text = "Donor last-seen: ${lastSeenDonorDonationDate ?: "(cleared)"}",
+                        text = stringResource(
+                            R.string.settings_donor_last_seen_lastseendonordonationdate,
+                            lastSeenDonorDonationDate
+                                ?: stringResource(R.string.settings_cleared_paren)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1959,22 +1913,22 @@ fun SettingsScreen(
                         onClick = onClearLastSeenDonorDonationDate,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Clear donor last-seen date")
+                        Text(stringResource(R.string.settings_clear_donor_last_seen_date))
                     }
                     OutlinedButton(
                         onClick = onSetLastSeenDonorDonationDateToLatest,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Set donor last-seen to latest")
+                        Text(stringResource(R.string.settings_set_donor_last_seen_to_latest))
                     }
                     OutlinedButton(
                         onClick = { onSetLastSeenDonorDonationDate("2020-01-01") },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Set donor last-seen to 2020-01-01")
+                        Text(stringResource(R.string.settings_set_donor_last_seen_to_2020))
                     }
                     Text(
-                        text = "Clear / old date → thank-you can show again. Latest → mark all current donations seen.",
+                        text = stringResource(R.string.settings_clear_old_date_thank_you_can),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1982,10 +1936,10 @@ fun SettingsScreen(
                         onClick = onResetDonateReminderTimers,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Reset donate reminder timers")
+                        Text(stringResource(R.string.settings_reset_donate_reminder_timers))
                     }
                     Text(
-                        text = "Donate test actions bypass the 3–8 day schedule. Demo thank-you does not change last-seen donors.",
+                        text = stringResource(R.string.settings_donate_test_actions_bypass_the_3),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1993,12 +1947,10 @@ fun SettingsScreen(
                         onClick = onRestartOnboarding,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Preview onboarding flow")
+                        Text(stringResource(R.string.settings_preview_onboarding_flow))
                     }
                     Text(
-                        text = "Opens the full first-run UI as a throwaway preview. Does not change " +
-                            "profile, AI keys, region, or crash reporting. Force-stop the app to " +
-                            "return home, or finish the preview — nothing is saved.",
+                        text = stringResource(R.string.settings_opens_the_full_first_run_ui),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2017,15 +1969,15 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Send test notification")
+                        Text(stringResource(R.string.settings_send_test_notification))
                     }
                     OutlinedButton(
                         onClick = {
-                            throw RuntimeException("FitBuddy Sentry test crash")
+                            throw RuntimeException(context.getString(R.string.settings_fitbuddy_sentry_test_crash))
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Force test crash")
+                        Text(stringResource(R.string.settings_force_test_crash))
                     }
                 }
             }
@@ -2063,20 +2015,18 @@ fun SettingsScreen(
         if (showMongoRestoreConfirm) {
             AlertDialog(
                 onDismissRequest = { showMongoRestoreConfirm = false },
-                title = { Text("Restore from cloud?") },
+                title = { Text(stringResource(R.string.settings_restore_from_cloud)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "Enter the Support ID of the backup to restore. " +
-                                "This replaces all local FitBuddy data (same as file import)."
+                        Text(stringResource(R.string.settings_enter_the_support_id_of_the)
                         )
                         OutlinedTextField(
                             value = mongoRestoreSupportIdDraft,
                             onValueChange = { mongoRestoreSupportIdDraft = it },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Support ID") },
+                            label = { Text(stringResource(R.string.donate_reminder_support_id)) },
                             singleLine = true,
-                            placeholder = { Text("xxxxxxxx-xxxx-…") }
+                            placeholder = { Text(stringResource(R.string.settings_xxxxxxxx_xxxx)) }
                         )
                     }
                 },
@@ -2088,12 +2038,12 @@ fun SettingsScreen(
                         },
                         enabled = mongoRestoreSupportIdDraft.isNotBlank()
                     ) {
-                        Text("Restore")
+                        Text(stringResource(R.string.onboarding_restore))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showMongoRestoreConfirm = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.common_cancel))
                     }
                 }
             )
@@ -2124,8 +2074,8 @@ fun SettingsScreen(
     }
 }
 
-private fun formatMongoUploadTime(epochMs: Long): String {
-    if (epochMs <= 0L) return "never"
+private fun formatMongoUploadTime(context: android.content.Context, epochMs: Long): String {
+    if (epochMs <= 0L) return context.getString(R.string.settings_never)
     return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
         .format(java.util.Date(epochMs))
 }
@@ -2166,7 +2116,7 @@ fun UpdatePromptDialogs(
                     tint = MaterialTheme.colorScheme.primary
                 )
             },
-            title = { Text("Update available") },
+            title = { Text(stringResource(R.string.settings_update_available)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
@@ -2181,7 +2131,7 @@ fun UpdatePromptDialogs(
                     )
                     if (highlights.isNotEmpty()) {
                         Text(
-                            text = "What's new",
+                            text = stringResource(R.string.settings_what_s_new),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Medium
                         )
@@ -2210,20 +2160,20 @@ fun UpdatePromptDialogs(
                             onClick = { uriHandler.openUri(info.htmlUrl) },
                             modifier = Modifier.padding(start = 0.dp)
                         ) {
-                            Text(if (isFdroidChannel) "View on f-droid.org" else "View on GitHub")
+                            Text(if (isFdroidChannel) stringResource(R.string.settings_view_on_f_droid_org) else stringResource(R.string.settings_view_on_github))
                         }
                     }
                     Text(
                         text = buildString {
                             append(
                                 if (cloudBackupEnabled) {
-                                    "Back up your data to the cloud before updating."
+                                    stringResource(R.string.settings_back_up_data_cloud_before_updating)
                                 } else {
-                                    "Export a local backup before updating."
+                                    stringResource(R.string.settings_export_local_backup_before_updating)
                                 }
                             )
                             if (isFdroidChannel) {
-                                append(" Then opens F-Droid to install the update.")
+                                append(stringResource(R.string.settings_then_opens_f_droid_to_install))
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -2252,7 +2202,7 @@ fun UpdatePromptDialogs(
                             onClick = { onExportBackupAndUpdate(info.downloadUrl) },
                             enabled = !busy && !updateState.backupCompleted,
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Export backup & update") }
+                        ) { Text(stringResource(R.string.settings_export_backup_update)) }
                         OutlinedButton(
                             onClick = { onSkipBackupAndUpdate(info.downloadUrl) },
                             enabled = skipEnabled,
@@ -2260,9 +2210,9 @@ fun UpdatePromptDialogs(
                         ) {
                             Text(
                                 if (skipCountdownSec > 0) {
-                                    "Skip backup & update ($skipCountdownSec)"
+                                    stringResource(R.string.settings_skip_backup_update, skipCountdownSec)
                                 } else {
-                                    "Skip backup & update"
+                                    stringResource(R.string.settings_skip_backup_update_2)
                                 }
                             )
                         }
@@ -2321,7 +2271,7 @@ private fun ModelDropdown(
         onExpandedChange = { expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selectedModel.ifBlank { "Select a model" },
+            value = selectedModel.ifBlank { stringResource(R.string.settings_select_model) },
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
@@ -2349,14 +2299,14 @@ private fun ModelDropdown(
                     text = {
                         Text(
                             when {
-                                modelsState.isLoading -> "Loading $noun models…"
+                                modelsState.isLoading -> stringResource(R.string.settings_loading_models, noun)
                                 provider == AiProvider.GEMINI && apiKey.isBlank() ->
-                                    "Enter your API key first"
-                                ollamaNeedsKey -> "Enter your Ollama Cloud API key first"
-                                ollamaNeedsUrl -> "Enter your Ollama server URL first"
-                                customNeedsUrl -> "Enter your custom base URL first"
-                                modelsState.error != null -> "Couldn't load models"
-                                else -> "No $noun models found"
+                                    stringResource(R.string.settings_enter_api_key_first)
+                                ollamaNeedsKey -> stringResource(R.string.settings_enter_ollama_cloud_api_key_first)
+                                ollamaNeedsUrl -> stringResource(R.string.settings_enter_ollama_server_url_first)
+                                customNeedsUrl -> stringResource(R.string.settings_enter_custom_base_url_first)
+                                modelsState.error != null -> stringResource(R.string.settings_couldn_t_load_models)
+                                else -> stringResource(R.string.settings_no_models_found, noun)
                             }
                         )
                     },
@@ -2389,21 +2339,21 @@ private fun ModelDropdown(
     OutlinedTextField(
         value = selectedModel,
         onValueChange = onModelChange,
-        label = { Text("Model id") },
+        label = { Text(stringResource(R.string.settings_model_id)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         val statusText = when {
-            modelsState.isLoading -> "Loading $noun models…"
+            modelsState.isLoading -> stringResource(R.string.settings_loading_models, noun)
             modelsState.error != null -> "Couldn't load list: ${modelsState.error}"
             options.isNotEmpty() -> "${options.size} $noun models available"
-            provider == AiProvider.GEMINI && apiKey.isBlank() -> "Enter your API key to load models"
-            ollamaNeedsKey -> "Enter your Ollama Cloud API key to load models"
-            ollamaNeedsUrl -> "Enter your Ollama server URL to load models"
-            modelsState.loaded -> "No reachable $noun models; type an id above"
-            else -> "Pick an image-capable model"
+            provider == AiProvider.GEMINI && apiKey.isBlank() -> stringResource(R.string.settings_enter_api_key_load_models)
+            ollamaNeedsKey -> stringResource(R.string.settings_enter_ollama_cloud_api_key_load_models)
+            ollamaNeedsUrl -> stringResource(R.string.settings_enter_ollama_server_url_load_models)
+            modelsState.loaded -> stringResource(R.string.settings_no_reachable_models_type_id_above, noun)
+            else -> stringResource(R.string.settings_pick_image_capable_model)
         }
         Text(
             text = statusText,
@@ -2420,7 +2370,7 @@ private fun ModelDropdown(
             },
             enabled = !modelsState.isLoading
         ) {
-            Icon(Icons.Filled.Refresh, contentDescription = "Reload models")
+            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.settings_reload_models))
         }
     }
 }
@@ -2451,7 +2401,7 @@ private fun AiStatusBanner(isConfigured: Boolean, provider: AiProvider) {
             )
             Column {
                 Text(
-                    text = if (isConfigured) "AI online" else "AI offline (simulator)",
+                    text = if (isConfigured) stringResource(R.string.settings_ai_online) else stringResource(R.string.settings_ai_offline_simulator),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -2459,7 +2409,7 @@ private fun AiStatusBanner(isConfigured: Boolean, provider: AiProvider) {
                     text = if (isConfigured) {
                         "Using ${provider.name.lowercase()}"
                     } else {
-                        "Add a key/server below to enable live analysis"
+                        stringResource(R.string.settings_add_key_server_below_enable_live_analysis)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2584,7 +2534,7 @@ private fun SettingsCard(
                 if (collapsible) {
                     Icon(
                         imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        contentDescription = if (expanded) stringResource(R.string.openrouter_collapse) else stringResource(R.string.openrouter_expand),
                         tint = if (locked) {
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         } else {
@@ -2620,7 +2570,7 @@ private fun SupporterExclusiveBadge(
         MaterialTheme.colorScheme.onTertiaryContainer
     }
     Text(
-        text = "Supporter exclusive",
+        text = stringResource(R.string.settings_supporter_exclusive),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
         color = foreground,
@@ -2642,14 +2592,17 @@ private fun LoadingAnimationChoiceDropdown(
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val options = remember(slot) {
+    val randomLabel = stringResource(R.string.settings_random)
+    val offLabel = stringResource(R.string.settings_off_spinner)
+    val animLabels = LoadingAnimationRegistry.forSlot(slot).associate { it.id to stringResource(it.displayNameRes) }
+    val options = remember(slot, randomLabel, offLabel, animLabels) {
         listOf(
-            AppSettings.LOADING_ANIM_RANDOM to "Random",
-            AppSettings.LOADING_ANIM_OFF to "Off (spinner)"
-        ) + LoadingAnimationRegistry.forSlot(slot).map { it.id to it.displayName }
+            AppSettings.LOADING_ANIM_RANDOM to randomLabel,
+            AppSettings.LOADING_ANIM_OFF to offLabel
+        ) + LoadingAnimationRegistry.forSlot(slot).map { it.id to (animLabels[it.id] ?: it.id) }
     }
     val displayLabel = options.firstOrNull { it.first == selected }?.second
-        ?: selected.ifBlank { "Random" }
+        ?: selected.ifBlank { randomLabel }
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it }
@@ -2756,15 +2709,16 @@ private fun ProfileSexDropdown(
     onSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val display = PROFILE_SEX_OPTIONS.firstOrNull { it.first == selectedValue }?.second
-        ?: PROFILE_SEX_OPTIONS.first().second
+    val sexOptions = PROFILE_SEX_OPTION_RES.map { it.first to stringResource(it.second) }
+    val display = sexOptions.firstOrNull { it.first == selectedValue }?.second
+        ?: sexOptions.first().second
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
             value = display,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Sex") },
+            label = { Text(stringResource(R.string.settings_sex)) },
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
@@ -2772,7 +2726,7 @@ private fun ProfileSexDropdown(
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            PROFILE_SEX_OPTIONS.forEach { (value, text) ->
+            sexOptions.forEach { (value, text) ->
                 DropdownMenuItem(
                     text = { Text(text) },
                     onClick = {
@@ -2817,9 +2771,8 @@ fun ApiKeyChipEditor(
                 modifier = Modifier.weight(1f)
             )
             HintIconButton(
-                title = "API keys",
-                message = "Paste multiple keys separated by commas or new lines. Keys are " +
-                    "masked and can't be copied after adding."
+                title = stringResource(R.string.onboarding_api_keys),
+                message = stringResource(R.string.settings_paste_multiple_keys_separated_by_commas)
             )
         }
         if (keys.isNotEmpty()) {
@@ -2835,7 +2788,7 @@ fun ApiKeyChipEditor(
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Filled.Close,
-                                contentDescription = "Remove key",
+                                contentDescription = stringResource(R.string.settings_remove_key),
                                 modifier = Modifier
                                     .size(18.dp)
                                     .clickable { onKeysChange(keys - key) }
@@ -2868,7 +2821,7 @@ fun ApiKeyChipEditor(
                             draft = new
                         }
                     },
-                    label = { Text("Add key (paste several)") },
+                    label = { Text(stringResource(R.string.settings_add_key_paste_several)) },
                     singleLine = true,
                     isError = isError && keys.isEmpty(),
                     visualTransformation = PasswordVisualTransformation(),
@@ -2879,7 +2832,7 @@ fun ApiKeyChipEditor(
                 onClick = {
                     if (commitRaw(draft)) draft = ""
                 }
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.food_add)) }
         }
         if (isError && !errorMessage.isNullOrBlank()) {
             Text(
@@ -2935,7 +2888,7 @@ private fun HintIconButton(
     ) {
         Icon(
             imageVector = Icons.Filled.Info,
-            contentDescription = "About $title",
+            contentDescription = stringResource(R.string.settings_about_2, title),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -2958,7 +2911,7 @@ private fun HintIconButton(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { show = false }) { Text("Got it") }
+                TextButton(onClick = { show = false }) { Text(stringResource(R.string.settings_got_it)) }
             }
         )
     }
@@ -3034,13 +2987,13 @@ private fun RainbowCreditBadge(name: String, onClick: () -> Unit) {
 @Composable
 private fun PartyParrot(modifier: Modifier = Modifier) {
     AndroidView(
-        factory = { context ->
-            ImageView(context).apply {
-                contentDescription = "Party parrot"
+        factory = { ctx ->
+            ImageView(ctx).apply {
+                contentDescription = ctx.getString(R.string.settings_party_parrot)
                 adjustViewBounds = true
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 val drawable = ImageDecoder.decodeDrawable(
-                    ImageDecoder.createSource(context.resources, R.raw.party_parrot)
+                    ImageDecoder.createSource(ctx.resources, R.raw.party_parrot)
                 )
                 setImageDrawable(drawable)
                 if (drawable is Animatable) drawable.start()
@@ -3146,42 +3099,38 @@ private fun EnableCloudBackupDialog(
     val lengthValid = isBlank || password.length in 8..128
 
     val validationError = when {
-        !lengthValid && password.length < 8 -> "Password must be at least 8 characters"
-        !lengthValid -> "Password must be 128 characters or fewer"
-        !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch -> "Passwords do not match"
+        !lengthValid && password.length < 8 -> stringResource(R.string.main_password_must_be_at_least_8)
+        !lengthValid -> stringResource(R.string.main_password_must_be_128_characters_or)
+        !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch -> stringResource(R.string.main_passwords_do_not_match)
         else -> null
     }
     val canConfirm = !busy && (isBlank || (lengthValid && passwordsMatch))
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Enable cloud backup") },
+        title = { Text(stringResource(R.string.backup_enable_cloud_backup)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Your backup is encrypted on this device before it's uploaded — the cloud only " +
-                        "ever stores encrypted data."
+                    stringResource(R.string.settings_your_backup_is_encrypted_on_this)
                 )
                 Text(
-                    "Cloud backups are keyed by your Support ID. Copy it now and store it safely — " +
-                        "you'll need it to restore after reinstalling."
+                    stringResource(R.string.settings_cloud_backups_are_keyed_by_your)
                 )
                 Text(
-                    text = supportId.ifBlank { "(generating…)" },
+                    text = supportId.ifBlank { stringResource(R.string.settings_generating) },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Optionally set a password. Leave blank to use default (Support ID) protection. " +
-                        "To request remote deletion later, email fitbuddy31@proton.me with your Support ID " +
-                        "(see Privacy in About).",
+                    stringResource(R.string.settings_optionally_set_a_password_leave_blank),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password (optional)") },
+                    label = { Text(stringResource(R.string.main_password_optional)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     isError = validationError != null && confirmPassword.isNotEmpty(),
@@ -3191,7 +3140,7 @@ private fun EnableCloudBackupDialog(
                     OutlinedTextField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
-                        label = { Text("Confirm password") },
+                        label = { Text(stringResource(R.string.main_confirm_password)) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         isError = confirmPassword.isNotEmpty() && !passwordsMatch,
@@ -3217,10 +3166,10 @@ private fun EnableCloudBackupDialog(
                     onConfirm(if (isBlank) null else password.toCharArray())
                 },
                 enabled = canConfirm
-            ) { Text("Copy ID & enable") }
+            ) { Text(stringResource(R.string.settings_copy_id_enable)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
+            TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }
@@ -3240,9 +3189,9 @@ private fun ChangeCloudPasswordDialog(
 
     // Derive validation error
     val validationError = when {
-        !lengthValid && newPassword.length < 8 -> "Password must be at least 8 characters"
-        !lengthValid -> "Password must be 128 characters or fewer"
-        !isBlank && !passwordsMatch && confirmPassword.isNotEmpty() -> "Passwords do not match"
+        !lengthValid && newPassword.length < 8 -> stringResource(R.string.main_password_must_be_at_least_8)
+        !lengthValid -> stringResource(R.string.main_password_must_be_128_characters_or)
+        !isBlank && !passwordsMatch && confirmPassword.isNotEmpty() -> stringResource(R.string.main_passwords_do_not_match)
         else -> null
     }
     val canConfirm = !busy && (isBlank || (lengthValid && passwordsMatch))
@@ -3251,18 +3200,17 @@ private fun ChangeCloudPasswordDialog(
         onDismissRequest = {
             if (!busy) onDismiss()
         },
-        title = { Text("Change cloud backup password") },
+        title = { Text(stringResource(R.string.settings_change_cloud_backup_password)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Set a new password to protect your cloud backup. " +
-                        "Leave blank to use default (Support ID) protection.",
+                    stringResource(R.string.settings_set_a_new_password_to_protect),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it },
-                    label = { Text("New password") },
+                    label = { Text(stringResource(R.string.settings_new_password)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     isError = validationError != null && confirmPassword.isNotEmpty(),
@@ -3271,7 +3219,7 @@ private fun ChangeCloudPasswordDialog(
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text("Confirm password") },
+                    label = { Text(stringResource(R.string.main_confirm_password)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     isError = !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch,
@@ -3296,13 +3244,13 @@ private fun ChangeCloudPasswordDialog(
                     onConfirm(password)
                 },
                 enabled = canConfirm
-            ) { Text("Change") }
+            ) { Text(stringResource(R.string.settings_change)) }
         },
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
                 enabled = !busy
-            ) { Text("Cancel") }
+            ) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

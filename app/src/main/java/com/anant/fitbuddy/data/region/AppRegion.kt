@@ -1,22 +1,27 @@
 package com.anant.fitbuddy.data.region
 
+import androidx.annotation.StringRes
+import com.anant.fitbuddy.R
+
 /** User-facing dietary/lifestyle region used to pick region-specific AI prompt content. */
 enum class AppRegion {
     INDIA, US, EUROPE, LATIN_AMERICA;
 
-    fun displayName(): String = when (this) {
-        INDIA -> "India"
-        US -> "North America"
-        EUROPE -> "Europe"
-        LATIN_AMERICA -> "Latin America"
+    @StringRes
+    fun displayNameRes(): Int = when (this) {
+        INDIA -> R.string.region_india
+        US -> R.string.region_north_america
+        EUROPE -> R.string.region_europe
+        LATIN_AMERICA -> R.string.region_latin_america
     }
 
     /** Compact label for tight UI (e.g. Settings segmented control). */
-    fun shortDisplayName(): String = when (this) {
-        INDIA -> "India"
-        US -> "N.Am"
-        EUROPE -> "Europe"
-        LATIN_AMERICA -> "LatAm"
+    @StringRes
+    fun shortDisplayNameRes(): Int = when (this) {
+        INDIA -> R.string.region_india
+        US -> R.string.region_n_am
+        EUROPE -> R.string.region_europe
+        LATIN_AMERICA -> R.string.region_latam
     }
 
     /**

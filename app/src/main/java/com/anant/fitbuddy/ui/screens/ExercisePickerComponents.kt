@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -308,13 +312,13 @@ fun ExercisePickerSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Choose exercise",
+                                    text = stringResource(R.string.workout_choose_exercise),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
                                     text = when {
-                                        catalogLoading -> "Updating catalog…"
+                                        catalogLoading -> stringResource(R.string.exercise_picker_updating_catalog)
                                         filtered.size == exercises.size ->
                                             "${exercises.size} exercises"
                                         else -> "${filtered.size} of ${exercises.size}"
@@ -334,7 +338,7 @@ fun ExercisePickerSheet(
                         OutlinedTextField(
                             value = query,
                             onValueChange = { query = it },
-                            placeholder = { Text("Search or describe a workout") },
+                            placeholder = { Text(stringResource(R.string.workout_search_or_describe_a_workout)) },
                             minLines = 1,
                             maxLines = 3,
                             enabled = !isBusy,
@@ -344,7 +348,7 @@ fun ExercisePickerSheet(
                             trailingIcon = {
                                 if (query.isNotEmpty()) {
                                     IconButton(onClick = { query = "" }) {
-                                        Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                        Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.workout_clear_search))
                                     }
                                 }
                             },
@@ -368,16 +372,16 @@ fun ExercisePickerSheet(
                                         strokeWidth = 2.dp
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Inferring…")
+                                    Text(stringResource(R.string.workout_inferring))
                                 } else {
                                     Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Infer with AI")
+                                    Text(stringResource(R.string.workout_infer_with_ai))
                                 }
                             }
                             if (!isAiOnline) {
                                 Text(
-                                    "Connect an AI provider in Settings to infer from text.",
+                                    stringResource(R.string.workout_connect_an_ai_provider_in_settings),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -386,7 +390,7 @@ fun ExercisePickerSheet(
 
                         if (rankedBodyParts.isNotEmpty()) {
                             FilterSection(
-                                title = "Body part",
+                                title = stringResource(R.string.workout_body_part),
                                 labels = rankedBodyParts,
                                 selected = selectedBodyPart,
                                 enabled = !isBusy,
@@ -398,7 +402,7 @@ fun ExercisePickerSheet(
                         }
                         if (rankedEquipment.isNotEmpty()) {
                             FilterSection(
-                                title = "Equipment",
+                                title = stringResource(R.string.workout_equipment),
                                 labels = rankedEquipment,
                                 selected = selectedEquipment,
                                 enabled = !isBusy,
@@ -424,7 +428,7 @@ fun ExercisePickerSheet(
                                         selectedBodyPart = null
                                         selectedEquipment = null
                                     },
-                                    label = { Text("Clear") },
+                                    label = { Text(stringResource(R.string.workout_clear)) },
                                     colors = AssistChipDefaults.assistChipColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                                     )
@@ -484,7 +488,7 @@ fun ExercisePickerSheet(
                             }
                         }
                         if (frequent.isNotEmpty()) {
-                            item(key = "hdr-frequent") { SectionHeader("Most used") }
+                            item(key = "hdr-frequent") { SectionHeader(stringResource(R.string.exercise_picker_most_used)) }
                             items(frequent, key = { "f-${it.name}" }) { exercise ->
                                 ExercisePickerRow(
                                     exercise = exercise,
@@ -503,16 +507,16 @@ fun ExercisePickerSheet(
                         item(key = "hdr-all") {
                             SectionHeader(
                                 if (favorites.isEmpty() && recent.isEmpty() && frequent.isEmpty()) {
-                                    "All exercises"
+                                    stringResource(R.string.exercise_picker_all_exercises)
                                 } else {
-                                    "Browse all"
+                                    stringResource(R.string.exercise_picker_browse_all)
                                 }
                             )
                         }
                         if (allRest.isEmpty() && favorites.isEmpty() && recent.isEmpty() && frequent.isEmpty()) {
                             item(key = "empty") {
                                 Text(
-                                    "No exercises match those filters.",
+                                    stringResource(R.string.workout_no_exercises_match_those_filters),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(vertical = 24.dp)
@@ -715,17 +719,17 @@ private fun ExercisePreviewPane(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete \"${exercise.name}\"?") },
-            text = { Text("This removes it from your exercise picker. Already-logged workouts keep their history.") },
+            title = { Text(stringResource(R.string.exercise_picker_delete, exercise.name)) },
+            text = { Text(stringResource(R.string.workout_this_removes_it_from_your_exercise)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     onDeleteCustom()
                     onBack()
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.workout_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -741,7 +745,7 @@ private fun ExercisePreviewPane(
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to list")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.workout_back_to_list))
             }
             Text(
                 text = exercise.name,
@@ -755,7 +759,7 @@ private fun ExercisePreviewPane(
                 IconButton(onClick = { confirmDelete = true }) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "Delete custom exercise",
+                        contentDescription = stringResource(R.string.workout_delete_custom_exercise),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -763,7 +767,11 @@ private fun ExercisePreviewPane(
             IconButton(onClick = { onToggleFavorite(!isFavorite) }) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Remove favourite" else "Add favourite",
+                    contentDescription = if (isFavorite) {
+                        stringResource(R.string.exercise_picker_remove_favourite)
+                    } else {
+                        stringResource(R.string.exercise_picker_add_favourite)
+                    },
                     tint = if (isFavorite) {
                         MaterialTheme.colorScheme.error
                     } else {
@@ -804,7 +812,7 @@ private fun ExercisePreviewPane(
 
             if (exercise.instructions.isNotEmpty()) {
                 Text(
-                    "How to",
+                    stringResource(R.string.workout_how_to),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -846,7 +854,7 @@ private fun ExercisePreviewPane(
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Add to workout")
+            Text(stringResource(R.string.workout_add_to_workout))
         }
     }
 }
@@ -918,7 +926,11 @@ fun ExercisePickerRow(
             }
             Icon(
                 imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = if (isFavorite) "Remove favourite" else "Add favourite",
+                contentDescription = if (isFavorite) {
+                    stringResource(R.string.exercise_picker_remove_favourite)
+                } else {
+                    stringResource(R.string.exercise_picker_add_favourite)
+                },
                 tint = if (isFavorite) {
                     MaterialTheme.colorScheme.error
                 } else {
@@ -938,7 +950,7 @@ fun ExercisePickerRow(
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Icon(
                         Icons.Filled.Add,
-                        contentDescription = "View ${exercise.name}",
+                        contentDescription = stringResource(R.string.exercise_picker_view, exercise.name),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(20.dp)
                     )
@@ -970,7 +982,11 @@ fun CustomExerciseRow(name: String, isLoading: Boolean, onPick: () -> Unit) {
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                if (isLoading) "Recognising \"$name\"…" else "Add custom \"$name\"",
+                if (isLoading) {
+                    stringResource(R.string.exercise_picker_recognising, name)
+                } else {
+                    stringResource(R.string.exercise_picker_add_custom, name)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium
             )
@@ -1028,12 +1044,12 @@ fun GifSuggestionDialog(
     onDeny: () -> Unit,
 ) {
     val sourceLabel = when (suggestion.source) {
-        GifSuggestionSource.EXERCISE_DB -> "ExerciseDB"
-        GifSuggestionSource.GYM_GIFS -> "GymGifs"
+        GifSuggestionSource.EXERCISE_DB -> stringResource(R.string.exercise_picker_exercisedb)
+        GifSuggestionSource.GYM_GIFS -> stringResource(R.string.exercise_picker_gymgifs)
     }
     AlertDialog(
         onDismissRequest = onDeny,
-        title = { Text("Use this GIF for \"${suggestion.exerciseName}\"?") },
+        title = { Text(stringResource(R.string.exercise_picker_use_gif, suggestion.exerciseName)) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 ExerciseGifThumb(
@@ -1043,17 +1059,17 @@ fun GifSuggestionDialog(
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Best match: \"${suggestion.matchedName}\" ($sourceLabel)",
+                    stringResource(R.string.exercise_picker_best_match, suggestion.matchedName, sourceLabel),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onAccept) { Text("Use GIF") }
+            TextButton(onClick = onAccept) { Text(stringResource(R.string.workout_use_gif)) }
         },
         dismissButton = {
-            TextButton(onClick = onDeny) { Text("No thanks") }
+            TextButton(onClick = onDeny) { Text(stringResource(R.string.workout_no_thanks)) }
         }
     )
 }

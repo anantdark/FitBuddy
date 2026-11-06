@@ -1,5 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
+import com.anant.fitbuddy.R
+
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -71,7 +75,7 @@ import androidx.compose.runtime.setValue
 private const val BODY_COMPOSITION_READING_LIMIT = 15
 
 private data class BodyMetric(
-    val label: String,
+    @param:androidx.annotation.StringRes val labelRes: Int,
     val unit: String,
     /** True when a lower value is healthier (fat, weight, etc.). */
     val decreaseIsPositive: Boolean,
@@ -79,10 +83,10 @@ private data class BodyMetric(
 )
 
 private val BODY_METRICS = listOf(
-    BodyMetric("Weight", " kg", decreaseIsPositive = true) { it.weightKg },
-    BodyMetric("Body fat", "%", decreaseIsPositive = true) { it.bodyFatPct },
-    BodyMetric("BMR", " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
-    BodyMetric("Muscle mass", " kg", decreaseIsPositive = false) { it.muscleMassKg },
+    BodyMetric(R.string.onboarding_weight, " kg", decreaseIsPositive = true) { it.weightKg },
+    BodyMetric(R.string.analytics_body_fat, "%", decreaseIsPositive = true) { it.bodyFatPct },
+    BodyMetric(R.string.analytics_bmr, " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
+    BodyMetric(R.string.analytics_muscle_mass, " kg", decreaseIsPositive = false) { it.muscleMassKg },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,13 +115,14 @@ fun AnalyticsScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedRange by remember { mutableIntStateOf(0) } // 0 = Weekly, 1 = Monthly
-    val options = listOf("Weekly", "Monthly")
+    val options = listOf(stringResource(R.string.analytics_weekly), stringResource(R.string.analytics_monthly))
     val preferSurplus = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     val foodSummaries = if (selectedRange == 0) weeklyFood else monthlyFood
     val isLatestWindow = monthlyEndDate == realToday
-    val rangeLabel = remember(monthlyEndDate, isLatestWindow) {
-        if (isLatestWindow) "Last 30 days" else DateUtils.rolling30DayLabel(monthlyEndDate)
+    val last30DaysLabel = stringResource(R.string.analytics_last_30_days)
+    val rangeLabel = remember(monthlyEndDate, isLatestWindow, last30DaysLabel) {
+        if (isLatestWindow) last30DaysLabel else DateUtils.rolling30DayLabel(monthlyEndDate)
     }
 
     progressInsightState.summary?.let {
@@ -184,7 +189,7 @@ fun AnalyticsScreen(
         }
 
         item {
-            ChartCard(title = "Calories Eaten vs Target") {
+            ChartCard(title = stringResource(R.string.analytics_calories_eaten_vs_target)) {
                 CustomLineChart(
                     foodSummaries = foodSummaries,
                     targetCaloriesForDate = targetCaloriesForDate,
@@ -234,7 +239,7 @@ private fun MonthRangeNavigator(
         IconButton(onClick = onPrev, enabled = canGoPrev) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Previous 30 days",
+                contentDescription = stringResource(R.string.analytics_previous_30_days),
                 tint = if (canGoPrev) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -262,7 +267,7 @@ private fun MonthRangeNavigator(
         IconButton(onClick = onNext, enabled = canGoNext) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Next 30 days",
+                contentDescription = stringResource(R.string.analytics_next_30_days),
                 tint = if (canGoNext) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -285,7 +290,7 @@ private fun BodyMetricCard(
     val weightTarget = targetWeightKg?.takeIf { it.isFinite() && it > 0.0 }
     val preferHigherWeight = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
-    ChartCard(title = "Body Composition") {
+    ChartCard(title = stringResource(R.string.analytics_body_composition)) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -310,7 +315,7 @@ private fun BodyMetricCard(
                 points = points,
                 unit = metric.unit,
                 decreaseIsPositive = metric.decreaseIsPositive,
-                targetValue = if (metric.label == "Weight") weightTarget else null,
+                targetValue = if (metric.labelRes == R.string.onboarding_weight) weightTarget else null,
                 targetPreferHigher = preferHigherWeight,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -335,7 +340,7 @@ private fun BodyMetricCard(
             val first = currentPoints.first().second
             val delta = latest - first
             Text(
-                text = "Latest ${trim(latest)}${currentMetric.unit}",
+                text = stringResource(R.string.analytics_latest, trim(latest), currentMetric.unit),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -349,13 +354,13 @@ private fun BodyMetricCard(
             }
         }
 
-        if (currentMetric.label == "Weight" && weightTarget != null) {
+        if (currentMetric.labelRes == R.string.onboarding_weight && weightTarget != null) {
             Spacer(Modifier.height(4.dp))
             Text(
                 text = if (preferHigherWeight) {
-                    "Within ±1 kg green · above by >1 kg yellow · below by >1 kg red"
+                    stringResource(R.string.analytics_within_1_kg_green_above_1_kg)
                 } else {
-                    "Within ±1 kg green · below by >1 kg yellow · above by >1 kg red"
+                    stringResource(R.string.analytics_within_1_kg_green_below_1_kg)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -376,7 +381,7 @@ private fun BodyMetricCard(
                 Tab(
                     selected = pagerState.currentPage == index,
                     onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                    text = { Text(metric.label) }
+                    text = { Text(stringResource(metric.labelRes)) }
                 )
             }
         }
@@ -395,11 +400,11 @@ private fun ExerciseCard(
     val totalBurned = visibleSummaries.sumOf { it.totalBurned }
     val activeDays = visibleSummaries.count { it.totalBurned > 0 }
 
-    ChartCard(title = "Calories Burned · Last 6 months") {
+    ChartCard(title = stringResource(R.string.analytics_calories_burned_last_6_months)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SummaryStat("Total", "$totalBurned")
-            SummaryStat("Active days", "$activeDays")
-            SummaryStat("Avg/day", if (activeDays > 0) "${totalBurned / activeDays}" else "0")
+            SummaryStat(stringResource(R.string.analytics_total), "$totalBurned")
+            SummaryStat(stringResource(R.string.analytics_active_days), "$activeDays")
+            SummaryStat(stringResource(R.string.analytics_avg_day), if (activeDays > 0) "${totalBurned / activeDays}" else "0")
         }
         Spacer(Modifier.height(12.dp))
         CaloriesBurnedHeatmap(
@@ -427,9 +432,9 @@ private fun InsightCard(
     forceShowAnimation: Boolean = false,
     onRequestInsight: () -> Unit
 ) {
-    ChartCard(title = "AI Progress Coach") {
+    ChartCard(title = stringResource(R.string.analytics_ai_progress_coach)) {
         Text(
-            "Generate an insight from your charts, then ask follow-up questions in a dedicated chat.",
+            stringResource(R.string.analytics_generate_an_insight_from_your_charts),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -467,13 +472,13 @@ private fun InsightCard(
             } else {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Generate insight")
+                Text(stringResource(R.string.analytics_generate_insight))
             }
         }
         if (!isAiConfigured) {
             Spacer(Modifier.height(4.dp))
             Text(
-                "Connect an AI provider in Settings to enable insights.",
+                stringResource(R.string.analytics_connect_an_ai_provider_in_settings),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -491,7 +496,7 @@ private fun ProgressInsightDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-        title = { Text("Progress insight") },
+        title = { Text(stringResource(R.string.analytics_progress_insight)) },
         text = {
             Column(
                 modifier = Modifier
@@ -504,7 +509,7 @@ private fun ProgressInsightDialog(
                 if (state.recommendations.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            "Recommendations",
+                            stringResource(R.string.analytics_recommendations),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -523,12 +528,12 @@ private fun ProgressInsightDialog(
                 Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    if (state.chatMessages.size > 1) "Continue chat" else "Ask follow-up"
+                    if (state.chatMessages.size > 1) "Continue chat" else stringResource(R.string.analytics_ask_follow_up)
                 )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.donate_close)) }
         }
     )
 }
@@ -553,15 +558,15 @@ private fun BodyScoreGauge(score: Int) {
         Spacer(Modifier.width(16.dp))
         Column {
             Text(
-                "Body Score",
+                stringResource(R.string.analytics_body_score),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 when {
-                    clamped >= 75 -> "Great alignment with your goal"
-                    clamped >= 50 -> "Making progress, room to improve"
-                    else -> "Trend needs attention"
+                    clamped >= 75 -> stringResource(R.string.analytics_great_alignment_with_your_goal)
+                    clamped >= 50 -> stringResource(R.string.analytics_making_progress_room_to_improve)
+                    else -> stringResource(R.string.analytics_trend_needs_attention)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

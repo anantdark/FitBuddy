@@ -1,80 +1,88 @@
 package com.anant.fitbuddy.reminders
 
+import android.content.Context
+import androidx.annotation.StringRes
+import com.anant.fitbuddy.R
 import java.util.concurrent.ThreadLocalRandom
 
 /** Motivational title + body pairs for daily log reminders. */
 data class ReminderMessage(
-    val title: String,
-    val body: String
-)
+    @StringRes val titleRes: Int,
+    @StringRes val bodyRes: Int,
+) {
+    fun resolve(context: Context): Resolved =
+        Resolved(context.getString(titleRes), context.getString(bodyRes))
+
+    data class Resolved(val title: String, val body: String)
+}
 
 object ReminderCopy {
 
     private val MESSAGES = listOf(
         ReminderMessage(
-            "Small log, big clarity",
-            "Got a minute? Log today’s food or a workout so FitBuddy can keep your day honest."
+            R.string.reminder_small_log_big_clarity,
+            R.string.reminder_got_a_minute_log_today_s,
         ),
         ReminderMessage(
-            "Your future self says thanks",
-            "Quick check-in: add what you ate or how you moved — consistency beats perfection."
+            R.string.reminder_your_future_self_says_thanks,
+            R.string.reminder_quick_check_in_add_what_you,
         ),
         ReminderMessage(
-            "Thali tracked is progress",
-            "Roti, dal, or a walk — log a meal or activity now and stay on top of your goals."
+            R.string.reminder_thali_tracked_is_progress,
+            R.string.reminder_roti_dal_or_a_walk_log,
         ),
         ReminderMessage(
-            "Don’t leave the day blank",
-            "Even one entry helps. Log food or exercise before the evening slips away."
+            R.string.reminder_don_t_leave_the_day_blank,
+            R.string.reminder_even_one_entry_helps_log_food,
         ),
         ReminderMessage(
-            "Fuel & movement matter",
-            "Snap a plate or note a workout — FitBuddy is ready when you are."
+            R.string.reminder_fuel_movement_matter,
+            R.string.reminder_snap_a_plate_or_note_a,
         ),
         ReminderMessage(
-            "Steady beats perfect",
-            "Missed a meal earlier? Log what you can now — food or activity, both count."
+            R.string.reminder_steady_beats_perfect,
+            R.string.reminder_missed_a_meal_earlier_log_what,
         ),
         ReminderMessage(
-            "Evening check-in",
-            "How did today go? Log a meal or some movement and keep your streak of awareness going."
+            R.string.reminder_evening_check_in,
+            R.string.reminder_how_did_today_go_log_a,
         ),
         ReminderMessage(
-            "One tap toward your goal",
-            "Open FitBuddy and log food or activity — tiny habits compound."
+            R.string.reminder_one_tap_toward_your_goal,
+            R.string.reminder_open_fitbuddy_and_log_food_or,
         ),
         ReminderMessage(
-            "Kitchen & gym, same story",
-            "Whether it’s dinner or a session, capture it so your macros and burn stay accurate."
+            R.string.reminder_kitchen_gym_same_story,
+            R.string.reminder_whether_it_s_dinner_or_a,
         ),
         ReminderMessage(
-            "You’re building the habit",
-            "Log today’s meals or workouts. Future-you will love the clearer dashboard."
+            R.string.reminder_you_re_building_the_habit,
+            R.string.reminder_log_today_s_meals_or_workouts,
         ),
         ReminderMessage(
-            "Progress loves receipts",
-            "Got chai and a snack? Or a walk? Log food or activity — FitBuddy’s listening."
+            R.string.reminder_progress_loves_receipts,
+            R.string.reminder_got_chai_and_a_snack_or,
         ),
         ReminderMessage(
-            "Keep the chain going",
-            "A quick food or exercise log keeps your Progress chart meaningful. Tap to add one."
+            R.string.reminder_keep_the_chain_going,
+            R.string.reminder_a_quick_food_or_exercise_log,
         ),
         ReminderMessage(
-            "Honesty over guessing",
-            "Don’t estimate tomorrow — log what you ate or did today while it’s fresh."
+            R.string.reminder_honesty_over_guessing,
+            R.string.reminder_don_t_estimate_tomorrow_log_what,
         ),
         ReminderMessage(
-            "Your body keeps score",
-            "Help FitBuddy keep up: log a meal or an activity in under a minute."
+            R.string.reminder_your_body_keeps_score,
+            R.string.reminder_help_fitbuddy_keep_up_log_a,
         ),
         ReminderMessage(
-            "Tonight’s nudge",
-            "Before you wind down, jot a meal or workout. Small logs → smarter insights."
+            R.string.reminder_tonight_s_nudge,
+            R.string.reminder_before_you_wind_down_jot_a,
         ),
         ReminderMessage(
-            "Still time to show up",
-            "Log food or movement now — every entry makes your targets more useful."
-        )
+            R.string.reminder_still_time_to_show_up,
+            R.string.reminder_log_food_or_movement_now_every,
+        ),
     )
 
     /** Picks a random motivational reminder (unique each call). */

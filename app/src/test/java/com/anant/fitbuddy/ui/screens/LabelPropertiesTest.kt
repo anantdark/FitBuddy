@@ -1,7 +1,8 @@
 package com.anant.fitbuddy.ui.screens
 
-import com.anant.fitbuddy.ui.loading.animations.analyzingCaptions
-import com.anant.fitbuddy.ui.loading.animations.analyzingLabel
+import com.anant.fitbuddy.R
+import com.anant.fitbuddy.ui.loading.animations.analyzingCaptionRes
+import com.anant.fitbuddy.ui.loading.animations.formatAnalyzingLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,12 +29,9 @@ class LabelPropertiesTest {
     @Test
     fun `Property 8 - non-blank id yields ANALYZING space id with no newline`() {
         val rng = Random(seed = 42L)
-        // Build a helper that produces random non-blank strings (at least one non-whitespace char).
         fun randomNonBlankId(): String {
             val length = rng.nextInt(1, 30)
-            // Build a string guaranteed to have at least one printable non-whitespace character.
             val chars = CharArray(length) {
-                // Use ASCII printable range 33..126 (excludes space and control chars)
                 rng.nextInt(33, 127).toChar()
             }
             return String(chars)
@@ -41,7 +39,7 @@ class LabelPropertiesTest {
 
         repeat(100) {
             val id = randomNonBlankId()
-            val label = analyzingLabel(id)
+            val label = formatAnalyzingLabel(id)
             assertEquals("ANALYZING $id", label)
             assertFalse("Label must not contain newline for id='$id'", label.contains('\n'))
         }
@@ -52,9 +50,8 @@ class LabelPropertiesTest {
      */
     @Test
     fun `Property 8 - null id yields ANALYZING`() {
-        // null is deterministic, but run it through the same loop count for consistency.
         repeat(100) {
-            val label = analyzingLabel(null)
+            val label = formatAnalyzingLabel(null)
             assertEquals("ANALYZING", label)
         }
     }
@@ -65,19 +62,17 @@ class LabelPropertiesTest {
     @Test
     fun `Property 8 - blank or whitespace-only id yields ANALYZING`() {
         val rng = Random(seed = 99L)
-        // Produce empty string, single space, tab, newline, and random multi-whitespace strings.
         val fixedBlanks = listOf("", " ", "\t", "\n", "   ", "\t \n")
         repeat(100) { i ->
             val id: String = when {
                 i < fixedBlanks.size -> fixedBlanks[i]
                 else -> {
-                    // Random string composed purely of whitespace characters.
                     val wsChars = charArrayOf(' ', '\t', '\n', '\r')
                     val len = rng.nextInt(1, 20)
                     String(CharArray(len) { wsChars[rng.nextInt(wsChars.size)] })
                 }
             }
-            val label = analyzingLabel(id)
+            val label = formatAnalyzingLabel(id)
             assertEquals("Expected 'ANALYZING' for blank id='${id.replace("\n", "\\n")}'", "ANALYZING", label)
         }
     }
@@ -88,38 +83,36 @@ class LabelPropertiesTest {
     // Validates: Requirements 6.3
     // -----------------------------------------------------------------------
 
-    private val expectedCaptions: Set<String> = setOf(
-        "reading the plate\u2026",
-        "counting macros\u2026",
-        "weighing portions\u2026",
-        "estimating calories\u2026",
-        "crunching the numbers\u2026"
+    private val expectedCaptionRes: List<Int> = listOf(
+        R.string.loading_reading_plate,
+        R.string.loading_counting_macros,
+        R.string.loading_weighing_portions,
+        R.string.loading_estimating_calories,
+        R.string.loading_crunching_numbers,
     )
 
     /**
-     * Every random pick from [analyzingCaptions] must be a member of the fixed five-caption set.
+     * Every random pick from [analyzingCaptionRes] must be a member of the fixed five-caption set.
      */
     @Test
     fun `Property 9 - random caption selection always returns a member of the fixed five-caption set`() {
         val rng = Random(seed = 7L)
         repeat(100) {
-            val picked = analyzingCaptions.random(rng)
+            val picked = analyzingCaptionRes.random(rng)
             assertTrue(
-                "Picked caption '$picked' is not in the expected set",
-                expectedCaptions.contains(picked)
+                "Picked caption res '$picked' is not in the expected set",
+                expectedCaptionRes.contains(picked)
             )
         }
     }
 
     /**
-     * The [analyzingCaptions] list itself must contain exactly the five expected captions
+     * The [analyzingCaptionRes] list itself must contain exactly the five expected captions
      * (no more, no less) — guards against accidental additions/removals.
      */
     @Test
-    fun `Property 9 - analyzingCaptions contains exactly the five fixed captions`() {
-        assertEquals(5, analyzingCaptions.size)
-        expectedCaptions.forEach { caption ->
-            assertTrue("Missing caption: '$caption'", analyzingCaptions.contains(caption))
-        }
+    fun `Property 9 - analyzingCaptionRes contains exactly the five fixed captions`() {
+        assertEquals(5, analyzingCaptionRes.size)
+        assertEquals(expectedCaptionRes, analyzingCaptionRes)
     }
 }

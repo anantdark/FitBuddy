@@ -56,10 +56,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 .build()
             val channel = NotificationChannel(
                 ReminderScheduler.CHANNEL_ID,
-                "Daily log reminders",
+                context.getString(R.string.reminder_daily_log_reminders),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Reminds you to log meals once a day"
+                description = context.getString(R.string.reminder_reminds_you_to_log_meals_once)
                 enableVibration(true)
                 vibrationPattern = VIBRATION_PATTERN
                 enableLights(true)
@@ -81,8 +81,12 @@ class ReminderReceiver : BroadcastReceiver() {
             val notifier = NotificationManagerCompat.from(app)
             if (!notifier.areNotificationsEnabled()) return false
             ensureChannel(app)
-            val message = ReminderCopy.random()
-            val title = if (isTest) "Test · ${message.title}" else message.title
+            val message = ReminderCopy.random().resolve(app)
+            val title = if (isTest) {
+                app.getString(R.string.reminder_test_s, message.title)
+            } else {
+                message.title
+            }
             val contentIntent = PendingIntent.getActivity(
                 app,
                 if (isTest) 1 else 0,
