@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.model
 
 import androidx.compose.runtime.Immutable
 import com.anant.fitbuddy.util.roundMacro
+import com.anant.fitbuddy.util.roundQty
 import kotlin.math.roundToInt
 
 /**
@@ -13,7 +14,7 @@ import kotlin.math.roundToInt
 @Immutable
 data class IngredientDraft(
     val name: String,
-    val quantity: Int,
+    val quantity: Double,
     val unitWeightG: Int,
     val kcalPer100: Double,
     val proteinPer100: Double,
@@ -21,7 +22,7 @@ data class IngredientDraft(
     val fatsPer100: Double
 ) {
     /** Total grams of this ingredient (quantity × per-unit weight); drives macro scaling. */
-    val weightG: Int get() = quantity * unitWeightG
+    val weightG: Int get() = (quantity * unitWeightG).roundToInt()
 
     val calories: Int get() = scale(kcalPer100)
     val protein: Double get() = scaleMacro(proteinPer100)
@@ -57,11 +58,11 @@ data class IngredientDraft(
             protein: Double,
             carbs: Double,
             fats: Double,
-            quantity: Int = 1
+            quantity: Double = 1.0
         ): IngredientDraft {
-            val qty = quantity.coerceAtLeast(1)
+            val qty = quantity.roundQty().coerceAtLeast(0.1)
             val unit = if (weightG > 0) (weightG.toDouble() / qty).roundToInt().coerceAtLeast(1) else 0
-            val effectiveWeight = qty * unit
+            val effectiveWeight = (qty * unit).roundToInt()
             val factor = if (effectiveWeight > 0) 100.0 / effectiveWeight else 0.0
             return IngredientDraft(
                 name = name,
@@ -81,11 +82,22 @@ data class FoodDraft(
     val dishName: String,
     val timestamp: Long,
     val ingredients: List<IngredientDraft>,
+    /** Food-level count (e.g. 2 bananas). Ingredient macros are for one unit; totals × this. */
+    val quantity: Double = 1.0,
     /** AI [LogIconTopic] id; carried through review → save. */
     val iconTopic: String? = null
 ) {
-    val totalCalories: Int get() = ingredients.sumOf { it.calories }
-    val totalProtein: Double get() = ingredients.sumOf { it.protein }.roundMacro()
-    val totalCarbs: Double get() = ingredients.sumOf { it.carbs }.roundMacro()
-    val totalFats: Double get() = ingredients.sumOf { it.fats }.roundMacro()
+    private val qty: Double get() = quantity.roundQty().coerceAtLeast(0.0)
+
+    val baseCalories: Int get() = ingredients.sumOf { it.calories }
+    val baseProtein: Double get() = ingredients.sumOf { it.protein }.roundMacro()
+    val baseCarbs: Double get() = ingredients.sumOf { it.carbs }.roundMacro()
+    val baseFats: Double get() = ingredients.sumOf { it.fats }.roundMacro()
+    val baseWeightG: Int get() = ingredients.sumOf { it.weightG }
+
+    val totalCalories: Int get() = (baseCalories * qty).roundToInt()
+    val totalProtein: Double get() = (baseProtein * qty).roundMacro()
+    val totalCarbs: Double get() = (baseCarbs * qty).roundMacro()
+    val totalFats: Double get() = (baseFats * qty).roundMacro()
+    val totalWeightG: Int get() = (baseWeightG * qty).roundToInt()
 }

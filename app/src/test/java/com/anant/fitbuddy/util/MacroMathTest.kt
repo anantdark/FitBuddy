@@ -52,7 +52,7 @@ class MacroMathTest {
         val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
         val json = """{"status":"SUCCESS","food_analysis":{"dish_name":"x","macros":{"calories":200,"protein_g":12.5,"carbs_g":30,"fats_g":4.25}}}"""
         val r = moshi.adapter(FitnessTrackerResponse::class.java).fromJson(json)!!
-        assertEquals(12.5, r.foodAnalysis!!.macros.proteinG, 0.0)
-        assertEquals(30.0, r.foodAnalysis!!.macros.carbsG, 0.0)
+        assertEquals(12.5, r.foodAnalysis!!.macros!!.proteinG, 0.0)
+        assertEquals(30.0, r.foodAnalysis!!.macros!!.carbsG, 0.0)
     }
 }

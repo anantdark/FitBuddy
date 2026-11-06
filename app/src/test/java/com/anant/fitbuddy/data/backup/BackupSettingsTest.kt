@@ -178,7 +178,7 @@ class BackupSettingsTest {
         val adapter = moshi.adapter(BackupData::class.java)
         val ingredient = LoggedIngredient(
             name = "Rice",
-            quantity = 1,
+            quantity = 1.0,
             unitWeightG = 150,
             kcalPer100 = 130.0,
             proteinPer100 = 2.5,

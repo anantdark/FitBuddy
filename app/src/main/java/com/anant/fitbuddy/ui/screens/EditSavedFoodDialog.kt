@@ -112,7 +112,9 @@ private fun syncIngredients(
     fats: Double
 ): List<LoggedIngredient>? {
     if (ingredients != null && ingredients.size > 1) return ingredients
-    val weight = ingredients?.singleOrNull()?.let { it.quantity * it.unitWeightG }?.coerceAtLeast(1) ?: 100
+    val weight = ingredients?.singleOrNull()
+        ?.let { (it.quantity * it.unitWeightG).toInt().coerceAtLeast(1) }
+        ?: 100
     return listOf(
         LoggedIngredient.fromIngredientDraft(
             IngredientDraft.fromAbsolute(

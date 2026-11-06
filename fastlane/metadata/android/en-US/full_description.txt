@@ -7,7 +7,7 @@ Features:
 • Smart logging — photo or text; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc, and pick the log date (default today)
 • Editable workouts — structured sessions with a 1,500+ exercise catalog (demo GIFs via CDN), favourites, body-part/equipment filters, recent & frequent picks, AI session names, and upgrade for simple logs
-• Presets — searchable saved foods and meals; recently used on top; one-tap log
+• Presets — searchable saved foods and meals; edit or delete anytime; recently used on top; one-tap log
 • Barcode scan — look up packaged foods; save or log them, and contribute missing products through Open Food Facts
 • Dashboard — daily calorie ring, combined food/exercise log, macro breakdown
 • Body goals — track weight, body-fat percentage, BMR, and muscle mass; current weight follows the newest reading; manually save calorie and macro targets, or calculate fresh adult targets with transparent Mifflin–St Jeor/TDEE estimates, quality-gated weight/body-fat/muscle trends, bounded AI-assisted personalization, activity guidance, and cautious weight milestones; AI can choose only between exact plans generated safely on-device
@@ -17,6 +17,7 @@ Features:
 • Auto failover — rotates API keys and models on rate limits; stays on your preferred platform
 • Offline fallback — works without an AI key via built-in simulator
 • Developer support — Razorpay UPI/cards for India and GitHub Sponsors internationally; optional reminder every few days (turns off when your Support ID is on the public supporter list); thank-you cards for named supporters
+• Community — public Telegram group for announcements, questions, and chatting with the developer (t.me/fitbuddyapp)
 • Material You — dynamic color theming on Android 12+
 • Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
 • Diagnostic log — optional AI connection log you can export from Settings for support (no meals, photos, or keys)

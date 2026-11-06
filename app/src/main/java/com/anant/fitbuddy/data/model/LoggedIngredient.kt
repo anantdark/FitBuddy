@@ -6,7 +6,7 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class LoggedIngredient(
     val name: String,
-    val quantity: Int,
+    val quantity: Double,
     val unitWeightG: Int,
     val kcalPer100: Double,
     val proteinPer100: Double,

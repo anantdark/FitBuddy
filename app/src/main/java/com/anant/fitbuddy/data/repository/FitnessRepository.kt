@@ -71,9 +71,12 @@ import com.anant.fitbuddy.data.region.IndiaRegionPack
 import com.anant.fitbuddy.data.region.RegionPack
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.data.region.RegionalDish
+import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.model.toPresetMealFood
+import com.anant.fitbuddy.util.roundQty
+import kotlin.math.roundToInt
 import com.anant.fitbuddy.data.model.Ingredient
 import com.anant.fitbuddy.data.model.IngredientDraft
 import com.anant.fitbuddy.data.model.LoggedIngredient
@@ -1312,7 +1315,7 @@ class FitnessRepository(
 
     /**
      * Reads the payload `status` and routes the data, returning a clean outcome.
-     * - SUCCESS -> build an editable [FoodDraft] for review (NOT persisted yet)
+     * - SUCCESS -> [AnalysisOutcome.FoodReady] (1 food) or [AnalysisOutcome.MealReady] (2+)
      * - EXERCISE_LOGGED -> insert exercise, return [AnalysisOutcome.ExerciseSaved]
      * - CLARIFICATION_REQUIRED -> surface the question to the UI
      */
@@ -1328,7 +1331,18 @@ class FitnessRepository(
             "SUCCESS" -> {
                 val food = response.foodAnalysis
                     ?: return AnalysisOutcome.Error("Missing food analysis in response")
-                AnalysisOutcome.FoodReady(buildFoodDraft(food, timestamp, userText))
+                val meal = buildMealDraft(food, timestamp, userText)
+                if (meal.foods.isEmpty()) {
+                    return AnalysisOutcome.Error("Missing foods in food analysis")
+                }
+                if (meal.foods.size == 1) {
+                    val entry = meal.foods.first()
+                    AnalysisOutcome.FoodReady(
+                        entry.toFoodDraft(timestamp = meal.timestamp, iconTopic = meal.iconTopic)
+                    )
+                } else {
+                    AnalysisOutcome.MealReady(meal)
+                }
             }
 
             "EXERCISE_LOGGED" -> {
@@ -1366,12 +1380,67 @@ class FitnessRepository(
     }
 
     /**
-     * Converts an AI [FoodAnalysis] into an editable [FoodDraft]. Uses the returned ingredient
-     * breakdown when present; otherwise falls back to a single "Estimated serving" ingredient
-     * (assumed 250 g) carrying the whole-dish macros so the user can still adjust the portion.
+     * Converts an AI [FoodAnalysis] into an editable [MealDraft]. Prefers the multi-food
+     * `foods[]` schema; falls back to legacy single-dish `dish_name` + `ingredients`.
      */
-    private fun buildFoodDraft(food: FoodAnalysis, timestamp: Long, userText: String = ""): FoodDraft {
-        val ingredients = food.ingredients
+    private fun buildMealDraft(food: FoodAnalysis, timestamp: Long, userText: String = ""): MealDraft {
+        val icon = LogIconTopic.normalizeFood(food.iconTopic)
+        val foodsPayload = food.foods?.filter { it.name.isNotBlank() }?.takeIf { it.isNotEmpty() }
+        if (foodsPayload != null) {
+            val entries = foodsPayload.map { item ->
+                FoodEntryDraft(
+                    name = item.name.trim(),
+                    servings = item.servings.roundQty().coerceAtLeast(0.1),
+                    ingredients = mapIngredients(
+                        raw = item.ingredients,
+                        userText = userText,
+                        fallbackName = item.name.trim(),
+                        fallbackMacros = null
+                    )
+                )
+            }
+            val mealName = food.mealName?.trim()?.takeIf { it.isNotEmpty() }
+                ?: entries.singleOrNull()?.name
+                ?: "Meal"
+            return MealDraft(
+                name = mealName,
+                timestamp = timestamp,
+                foods = entries,
+                iconTopic = icon
+            )
+        }
+
+        // Legacy single-dish response.
+        val dishName = food.dishName?.trim()?.takeIf { it.isNotEmpty() }
+            ?: food.mealName?.trim()?.takeIf { it.isNotEmpty() }
+            ?: "Meal"
+        val ingredients = mapIngredients(
+            raw = food.ingredients,
+            userText = userText,
+            fallbackName = "Estimated serving",
+            fallbackMacros = food.macros
+        )
+        return MealDraft(
+            name = dishName,
+            timestamp = timestamp,
+            foods = listOf(
+                FoodEntryDraft(
+                    name = dishName,
+                    servings = 1.0,
+                    ingredients = ingredients
+                )
+            ),
+            iconTopic = icon
+        )
+    }
+
+    private fun mapIngredients(
+        raw: List<Ingredient>?,
+        userText: String,
+        fallbackName: String,
+        fallbackMacros: Macros?
+    ): List<IngredientDraft> {
+        val mapped = raw
             ?.filter { it.weightG > 0 || it.calories > 0 }
             ?.takeIf { it.isNotEmpty() }
             ?.map { ing ->
@@ -1380,6 +1449,8 @@ class FitnessRepository(
                     ingredientName = ing.name,
                     aiQuantity = ing.quantity
                 )
+                // AI weight_g / macros are for the full ingredient line (all units combined).
+                // Store base-unit rates by splitting across quantity when quantity > 1.
                 IngredientDraft.fromAbsolute(
                     name = ing.name,
                     weightG = ing.weightG.coerceAtLeast(1),
@@ -1390,22 +1461,17 @@ class FitnessRepository(
                     quantity = quantity
                 )
             }
-            ?: listOf(
-                IngredientDraft.fromAbsolute(
-                    name = "Estimated serving",
-                    weightG = 250,
-                    calories = food.macros.calories,
-                    protein = food.macros.proteinG,
-                    carbs = food.macros.carbsG,
-                    fats = food.macros.fatsG
-                )
+        if (mapped != null) return mapped
+        val macros = fallbackMacros
+        return listOf(
+            IngredientDraft.fromAbsolute(
+                name = fallbackName,
+                weightG = 250,
+                calories = macros?.calories ?: 0,
+                protein = macros?.proteinG ?: 0.0,
+                carbs = macros?.carbsG ?: 0.0,
+                fats = macros?.fatsG ?: 0.0
             )
-        // Dish-level macros are ignored; FoodDraft totals are the sum of ingredients.
-        return FoodDraft(
-            dishName = food.dishName,
-            timestamp = timestamp,
-            ingredients = ingredients,
-            iconTopic = LogIconTopic.normalizeFood(food.iconTopic)
         )
     }
 
@@ -1574,13 +1640,14 @@ class FitnessRepository(
     /** Saves a single food to the library (for meal building, not dashboard quick-log). */
     suspend fun saveDraftAsSavedFood(draft: FoodDraft) {
         val now = System.currentTimeMillis()
+        // Library entries are one base unit; food-level Qty is applied when logging.
         savedFoodDao.insert(
             SavedFood(
                 name = draft.dishName,
-                calories = draft.totalCalories,
-                proteinG = draft.totalProtein,
-                carbsG = draft.totalCarbs,
-                fatsG = draft.totalFats,
+                calories = draft.baseCalories,
+                proteinG = draft.baseProtein,
+                carbsG = draft.baseCarbs,
+                fatsG = draft.baseFats,
                 createdAt = now,
                 ingredients = draft.ingredients.map { LoggedIngredient.fromIngredientDraft(it) },
                 lastUsedAt = now,
@@ -1603,6 +1670,26 @@ class FitnessRepository(
                 foods = draft.foods.map { it.toPresetMealFood() },
                 lastUsedAt = now,
                 iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
+            )
+        )
+    }
+
+    /**
+     * Replaces an existing meal preset (same [MealPreset.id]), keeping [MealPreset.createdAt] and
+     * [MealPreset.lastUsedAt].
+     */
+    suspend fun updateMealPreset(existing: MealPreset, draft: MealDraft) {
+        require(existing.id > 0) { "Meal preset id required for update" }
+        mealPresetDao.insert(
+            existing.copy(
+                name = draft.name,
+                calories = draft.totalCalories,
+                proteinG = draft.totalProtein,
+                carbsG = draft.totalCarbs,
+                fatsG = draft.totalFats,
+                foods = draft.foods.map { it.toPresetMealFood() },
+                iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
+                    ?: existing.iconTopic
             )
         )
     }
@@ -2106,7 +2193,8 @@ class FitnessRepository(
                     "dosa" in query -> Quintet("Masala Dosa with Chutney", 390, 8, 54, 14)
                     "idli" in query -> Quintet("Idli with Sambhar (2 pcs)", 210, 6, 40, 2)
                     "almond" in query -> {
-                        val qty = FoodQuantityParser.parseSegments(input).firstOrNull()?.quantity ?: 1
+                        val qty = (FoodQuantityParser.parseSegments(input).firstOrNull()?.quantity ?: 1.0)
+                            .roundToInt().coerceAtLeast(1)
                         Quintet(
                             if (qty > 1) "Almonds ($qty)" else "Almond",
                             qty * 7,
@@ -2212,7 +2300,7 @@ class FitnessRepository(
                 ingredients = listOf(
                     Ingredient(
                         name = dish.name,
-                        quantity = 1,
+                        quantity = 1.0,
                         weightG = dish.weightG,
                         calories = dish.calories,
                         proteinG = dish.proteinG.toDouble(),
@@ -2307,13 +2395,15 @@ class FitnessRepository(
                 "Idli" to (120 to 0.50), "Sambhar" to (150 to 0.50)
             )
             "almond" in query -> {
-                val qty = FoodQuantityParser.parseSegments(input).firstOrNull()?.quantity ?: 1
+                val qty = (FoodQuantityParser.parseSegments(input).firstOrNull()?.quantity ?: 1.0)
+                    .roundToInt().coerceAtLeast(1)
                 listOf("Almond" to (qty to 1.0))
             }
             else -> {
                 val parsed = FoodQuantityParser.parseSegments(input)
                 if (parsed.size == 1) {
-                    listOf(parsed[0].name.replaceFirstChar { it.titlecase() } to (parsed[0].quantity to 1.0))
+                    val weight = parsed[0].quantity.roundToInt().coerceAtLeast(1)
+                    listOf(parsed[0].name.replaceFirstChar { it.titlecase() } to (weight to 1.0))
                 } else {
                     listOf("Estimated serving" to (250 to 1.0))
                 }
@@ -2331,8 +2421,8 @@ class FitnessRepository(
             accC += ic; accP += ip; accCr += icr; accF += ifa
 
             val isDiscreteSingle = frac >= 1.0 && parts.size == 1 && weightOrQty > 1
-            val quantity = if (isDiscreteSingle) weightOrQty else 1
-            val weightG = if (isDiscreteSingle) weightOrQty else weightOrQty
+            val quantity = if (isDiscreteSingle) weightOrQty.toDouble() else 1.0
+            val weightG = weightOrQty
 
             Ingredient(
                 name = name,

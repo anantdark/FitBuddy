@@ -6,6 +6,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,12 +38,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -56,8 +70,8 @@ import com.anant.fitbuddy.ui.components.OutlinedButton
 import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.theme.appShape
 import com.anant.fitbuddy.util.SystemToast
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
+import com.anant.fitbuddy.util.TelegramGroupLauncher
+import kotlinx.coroutines.delay
 
 private const val RAZORPAY_DONATION_URL = "https://rzp.io/rzp/fitbuddy"
 private const val GITHUB_SPONSORS_URL = "https://github.com/sponsors/anantdark"
@@ -91,6 +105,20 @@ internal fun donationHeartColor(index: Int): Color =
     DONATION_HEART_COLORS[index.mod(DONATION_HEART_COLORS.size)]
 
 @Composable
+internal fun MainTopBarTelegramButton(
+    onClick: () -> Unit,
+    shimmer: Boolean = false,
+    onShimmerFinished: () -> Unit = {},
+) {
+    IconButton(onClick = onClick) {
+        TelegramTopBarIcon(
+            shimmer = shimmer,
+            onShimmerFinished = onShimmerFinished,
+        )
+    }
+}
+
+@Composable
 internal fun MainTopBarActions(
     donationColor: Color,
     onDonate: () -> Unit,
@@ -106,6 +134,93 @@ internal fun MainTopBarActions(
     IconButton(onClick = onSettings) {
         Icon(Icons.Filled.Settings, contentDescription = "Settings")
     }
+}
+
+@Composable
+private fun TelegramTopBarIcon(
+    shimmer: Boolean,
+    onShimmerFinished: () -> Unit,
+) {
+    val shift = remember { Animatable(-0.4f) }
+    val onFinished by rememberUpdatedState(onShimmerFinished)
+    LaunchedEffect(shimmer) {
+        if (!shimmer) return@LaunchedEffect
+        delay(450)
+        repeat(2) {
+            shift.snapTo(-0.4f)
+            shift.animateTo(
+                targetValue = 1.4f,
+                animationSpec = tween(durationMillis = 850, easing = LinearEasing),
+            )
+            delay(180)
+        }
+        onFinished()
+    }
+    Icon(
+        painter = painterResource(R.drawable.ic_telegram),
+        contentDescription = "Join Telegram group",
+        modifier = Modifier
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val t = shift.value
+                if (t <= -0.35f || t >= 1.35f) return@drawWithContent
+                drawRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.9f),
+                            Color.Transparent,
+                        ),
+                        start = Offset(size.width * (t - 0.28f), 0f),
+                        end = Offset(size.width * (t + 0.12f), size.height),
+                    ),
+                    blendMode = BlendMode.SrcAtop,
+                )
+            },
+    )
+}
+
+@Composable
+internal fun TelegramJoinDialog(
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val hasTelegramClient = remember(context) {
+        TelegramGroupLauncher.hasTelegramClient(context)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_telegram),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+            )
+        },
+        title = { Text("Join the Telegram group") },
+        text = {
+            Text(
+                "Come hang out for release notes, questions about the app, " +
+                    "and casual chat with the developer.",
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    openTelegramGroup(context)
+                    onDismiss()
+                },
+            ) {
+                Text(if (hasTelegramClient) "Open in Telegram" else "Open in browser")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Not now")
+            }
+        },
+    )
 }
 
 @Composable
@@ -455,6 +570,11 @@ private fun openGitHubSponsorsPage(context: Context) {
         addCategory(Intent.CATEGORY_BROWSABLE)
     }
     launchExternalIntent(context, intent, "Couldn't open GitHub Sponsors")
+}
+
+private fun openTelegramGroup(context: Context) {
+    runCatching { TelegramGroupLauncher.open(context) }
+        .onFailure { SystemToast.show(context, "Couldn't open Telegram") }
 }
 
 private fun launchExternalIntent(

@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import com.anant.fitbuddy.ui.components.Button
@@ -89,7 +87,6 @@ fun BodyScreen(
     profile: UserProfile?,
     latestMeasurement: BodyMeasurement?,
     measurements: List<BodyMeasurement>,
-    savedFoodCount: Int,
     targetPlanState: TargetPlanUiState,
     isAiConfigured: Boolean,
     animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
@@ -126,8 +123,6 @@ fun BodyScreen(
         acceptActivityRecommendation: Boolean
     ) -> Unit,
     onDismissTargetPlan: () -> Unit,
-    onBuildMeal: () -> Unit,
-    onManageSavedFoods: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentWeight = latestMeasurement?.weightKg
@@ -201,17 +196,11 @@ fun BodyScreen(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Track composition, set targets, and manage saved foods for meals.",
+                text = "Track composition and set calorie and macro targets.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-
-        FoodLibraryCard(
-            savedFoodCount = savedFoodCount,
-            onBuildMeal = onBuildMeal,
-            onManage = onManageSavedFoods
-        )
 
         DailyTargetsCard(
             targetCalories = targetCalories.value,
@@ -227,7 +216,6 @@ fun BodyScreen(
             onCarbsChange = { targetCarbs.value = it },
             onFatsChange = { targetFats.value = it },
             onSaveTargets = onSaveTargets,
-            rationale = profile?.goalRationale,
             planState = targetPlanState,
             isAiConfigured = isAiConfigured,
             animationChoice = animationChoice,
@@ -355,46 +343,6 @@ fun BodyScreen(
 }
 
 @Composable
-private fun FoodLibraryCard(
-    savedFoodCount: Int,
-    onBuildMeal: () -> Unit,
-    onManage: () -> Unit
-) {
-    SectionCard(title = "Food library") {
-        Text(
-            text = if (savedFoodCount == 0) {
-                "No saved foods yet — scan barcodes from Log or bookmark foods after AI review."
-            } else {
-                "$savedFoodCount saved food${if (savedFoodCount == 1) "" else "s"} for meal building."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = onBuildMeal
-            ) {
-                Icon(Icons.Filled.Restaurant, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Build meal")
-            }
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = onManage
-            ) {
-                Icon(Icons.Filled.RestaurantMenu, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Manage")
-            }
-        }
-    }
-}
-
-@Composable
 private fun LatestReadingCard(
     latest: BodyMeasurement?,
     onAddReading: () -> Unit
@@ -510,7 +458,6 @@ private fun DailyTargetsCard(
     onCarbsChange: (String) -> Unit,
     onFatsChange: (String) -> Unit,
     onSaveTargets: (Int, Int, Int, Int) -> Unit,
-    rationale: String?,
     planState: TargetPlanUiState,
     isAiConfigured: Boolean,
     animationChoice: String,
@@ -640,34 +587,6 @@ private fun DailyTargetsCard(
         planState.error?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
-        if (!rationale.isNullOrBlank()) {
-            val rationaleParts = splitPlanRationale(rationale)
-            HorizontalDivider()
-            Text(
-                "How these were calculated",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (rationaleParts.localRationale.isNotBlank()) {
-                Text(
-                    rationaleParts.localRationale,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            rationaleParts.coachingNote?.let { coachingNote ->
-                Text(
-                    "AI coaching note",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    coachingNote,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
     }
 }
 
@@ -743,7 +662,9 @@ private fun TargetProposalDialog(
     val weightMilestoneChanged = proposedTargetWeight != null &&
         (savedWeightMilestoneKg == null || abs(proposedTargetWeight - savedWeightMilestoneKg) >= 0.05)
     val canApply = plan.targetsChanged || weightMilestoneChanged || activityChanged
-    val coachingNote = splitPlanRationale(plan.rationale).coachingNote
+    val rationaleParts = splitPlanRationale(plan.rationale)
+    val localRationale = rationaleParts.localRationale.takeIf { it.isNotBlank() }
+    val coachingNote = rationaleParts.coachingNote
     val restingCalories = plan.estimatedRestingCalories
     val activityFactor = plan.activityFactor
     val maintenanceCalories = plan.estimatedMaintenanceCalories
@@ -845,7 +766,7 @@ private fun TargetProposalDialog(
                     }
                 }
 
-                RecommendationCard(title = "Calorie calculation") {
+                RecommendationCard(title = "How these were calculated") {
                     if (
                         restingCalories != null && activityFactor != null &&
                         maintenanceCalories != null && formulaTarget != null &&
@@ -882,9 +803,23 @@ private fun TargetProposalDialog(
                         )
                     } else {
                         Text(
-                            text = "This target was calculated locally from your profile, " +
+                            text = localRationale
+                                ?: "This target was calculated locally from your profile, " +
                                 "activity level, and goal.",
                             style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    if (
+                        localRationale != null &&
+                        restingCalories != null && activityFactor != null &&
+                        maintenanceCalories != null && formulaTarget != null &&
+                        goalAdjustment != null
+                    ) {
+                        HorizontalDivider()
+                        Text(
+                            text = localRationale,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

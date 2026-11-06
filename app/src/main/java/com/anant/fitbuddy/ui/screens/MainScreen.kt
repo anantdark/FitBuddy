@@ -66,6 +66,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.remote.UpdateChannel
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.util.SystemToast
+import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.data.model.FoodDraft
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.IngredientDraft
@@ -74,6 +75,7 @@ import com.anant.fitbuddy.data.model.ScannedProduct
 import com.anant.fitbuddy.data.model.snapshot
 import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toFoodEntry
+import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
@@ -240,6 +242,8 @@ fun MainScreen(
 
     var showSettings by remember { mutableStateOf(false) }
     var showDonationDialog by rememberSaveable { mutableStateOf(false) }
+    var showTelegramJoinDialog by rememberSaveable { mutableStateOf(false) }
+    var shimmerTelegramIcon by remember { mutableStateOf(true) }
     var showProgressChat by remember { mutableStateOf(false) }
     var showWeekHistory by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }
@@ -265,7 +269,6 @@ fun MainScreen(
     var showMealPresetSheet by remember { mutableStateOf(false) }
     var showSavedFoodSheet by remember { mutableStateOf(false) }
     var savedFoodSheetMode by remember { mutableStateOf(SavedFoodSheetMode.PICK_FOR_MEAL) }
-    var showSavedFoodManageSheet by remember { mutableStateOf(false) }
     var showWorkoutDialog by remember { mutableStateOf(false) }
     var showMealBuilder by remember { mutableStateOf(false) }
     var showBarcodeScan by remember { mutableStateOf(false) }
@@ -279,6 +282,8 @@ fun MainScreen(
     var mealReviewDraft by remember { mutableStateOf<MealDraft?>(null) }
     /** True when meal review came from Build a meal (save preset, do not log today). */
     var mealReviewSavesAsPreset by remember { mutableStateOf(false) }
+    /** Non-null while editing an existing saved meal preset via the meal builder/review flow. */
+    var editingMealPreset by remember { mutableStateOf<MealPreset?>(null) }
     var lastOpenedEditMealId by remember { mutableStateOf<Int?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     // Export password dialog state
@@ -310,6 +315,7 @@ fun MainScreen(
     }
 
     val editingMealId = analysisState.editingFoodLogId
+    // Multi-food edit → meal review (not builder). Single-food edit uses foodDraft instead.
     LaunchedEffect(editingMealId, analysisState.mealDraft) {
         val id = editingMealId ?: run {
             lastOpenedEditMealId = null
@@ -318,16 +324,32 @@ fun MainScreen(
         if (id == lastOpenedEditMealId) return@LaunchedEffect
         val draft = analysisState.mealDraft ?: return@LaunchedEffect
         lastOpenedEditMealId = id
-        mealBuilderInitial = draft
-        mealItems.clear()
-        mealItems.addAll(draft.foods)
-        showMealBuilder = true
+        mealReviewSavesAsPreset = false
+        mealReviewDraft = draft.snapshot()
     }
 
-    LaunchedEffect(analysisState.mealDraft) {
-        val vmDraft = analysisState.mealDraft ?: return@LaunchedEffect
+    // AI multi-food result (no editing id) → meal review.
+    LaunchedEffect(analysisState.mealDraft, analysisState.editingFoodLogId) {
+        val draft = analysisState.mealDraft ?: return@LaunchedEffect
+        if (analysisState.editingFoodLogId != null) return@LaunchedEffect
+        if (showMealBuilder) return@LaunchedEffect
         if (mealReviewDraft != null) {
-            mealReviewDraft = vmDraft.snapshot()
+            mealReviewDraft = draft.snapshot()
+            return@LaunchedEffect
+        }
+        mealReviewSavesAsPreset = false
+        mealReviewDraft = draft.snapshot()
+    }
+
+    // Editing a single-food log opens FoodReview as a log/update confirm.
+    // Do not override MEAL_REVIEW / MEAL_BUILDER — nested food edits keep those targets so
+    // confirm writes back into the meal instead of logging a duplicate FoodLog.
+    LaunchedEffect(analysisState.foodDraft, analysisState.editingFoodLogId, analysisState.mealDraft) {
+        if (analysisState.foodDraft != null &&
+            analysisState.editingFoodLogId != null &&
+            analysisState.mealDraft == null
+        ) {
+            foodEditorTarget = FoodEditorTarget.LOG_MEAL
         }
     }
 
@@ -585,6 +607,13 @@ fun MainScreen(
                         title = {
                             Text(dashboardGreeting(settings.displayFirstName))
                         },
+                        navigationIcon = {
+                            MainTopBarTelegramButton(
+                                onClick = { showTelegramJoinDialog = true },
+                                shimmer = shimmerTelegramIcon,
+                                onShimmerFinished = { shimmerTelegramIcon = false },
+                            )
+                        },
                         actions = {
                             MainTopBarActions(
                                 donationColor = currentDonationHeartColor,
@@ -596,6 +625,13 @@ fun MainScreen(
                 } else {
                     CenterAlignedTopAppBar(
                         title = { Text(selectedTab.label) },
+                        navigationIcon = {
+                            MainTopBarTelegramButton(
+                                onClick = { showTelegramJoinDialog = true },
+                                shimmer = shimmerTelegramIcon,
+                                onShimmerFinished = { shimmerTelegramIcon = false },
+                            )
+                        },
                         actions = {
                             MainTopBarActions(
                                 donationColor = currentDonationHeartColor,
@@ -700,7 +736,6 @@ fun MainScreen(
                                 profile = dashboardState.profile,
                                 latestMeasurement = latestMeasurement,
                                 measurements = measurements,
-                                savedFoodCount = savedFoods.size,
                                 targetPlanState = targetPlanState,
                                 isAiConfigured = isAiOnline,
                                 animationChoice = settings.insightAnimationChoice,
@@ -711,13 +746,7 @@ fun MainScreen(
                                 onDeleteMeasurement = viewModel::deleteMeasurement,
                                 onRequestTargetPlan = viewModel::requestTargetPlan,
                                 onApplyTargetPlan = viewModel::applyTargetPlan,
-                                onDismissTargetPlan = viewModel::dismissTargetPlan,
-                                onBuildMeal = {
-                                    mealItems.clear()
-                                    mealBuilderInitial = null
-                                    showMealBuilder = true
-                                },
-                                onManageSavedFoods = { showSavedFoodManageSheet = true }
+                                onDismissTargetPlan = viewModel::dismissTargetPlan
                             )
                         }
                     }
@@ -750,6 +779,11 @@ fun MainScreen(
                                 }
                             },
                             actions = {
+                                MainTopBarTelegramButton(
+                                    onClick = { showTelegramJoinDialog = true },
+                                    shimmer = shimmerTelegramIcon,
+                                    onShimmerFinished = { shimmerTelegramIcon = false },
+                                )
                                 MainTopBarActions(
                                     donationColor = currentDonationHeartColor,
                                     onDonate = { showDonationDialog = true },
@@ -858,9 +892,18 @@ fun MainScreen(
                 viewModel.logMealPreset(preset)
                 showMealPresetSheet = false
             },
+            onEdit = { preset ->
+                showMealPresetSheet = false
+                editingMealPreset = preset
+                mealItems.clear()
+                mealItems.addAll(preset.foods?.map { it.toFoodEntry() }.orEmpty())
+                mealBuilderInitial = preset.toMealDraft()
+                showMealBuilder = true
+            },
             onDelete = viewModel::deleteMealPreset,
             onCreate = {
                 showMealPresetSheet = false
+                editingMealPreset = null
                 mealItems.clear()
                 mealBuilderInitial = null
                 showMealBuilder = true
@@ -880,7 +923,6 @@ fun MainScreen(
                         viewModel.touchSavedFood(food)
                     }
                     SavedFoodSheetMode.LOG_TO_DAY -> viewModel.logSavedFood(food)
-                    SavedFoodSheetMode.MANAGE_LIBRARY -> Unit
                 }
                 showSavedFoodSheet = false
             },
@@ -894,8 +936,7 @@ fun MainScreen(
                         mealFoodEditIndex = null
                         viewModel.openFoodEditor(blankFoodDraft())
                     }
-                    SavedFoodSheetMode.LOG_TO_DAY,
-                    SavedFoodSheetMode.MANAGE_LIBRARY -> {
+                    SavedFoodSheetMode.LOG_TO_DAY -> {
                         foodEditorTarget = FoodEditorTarget.SAVE_LIBRARY
                         mealFoodEditIndex = null
                         viewModel.openFoodEditor(blankFoodDraft())
@@ -906,22 +947,6 @@ fun MainScreen(
         )
     }
 
-    if (showSavedFoodManageSheet) {
-        SavedFoodPickerSheet(
-            foods = savedFoods,
-            mode = SavedFoodSheetMode.MANAGE_LIBRARY,
-            onDelete = viewModel::deleteSavedFood,
-            onEdit = viewModel::updateSavedFood,
-            onCreate = {
-                showSavedFoodManageSheet = false
-                foodEditorTarget = FoodEditorTarget.SAVE_LIBRARY
-                mealFoodEditIndex = null
-                viewModel.openFoodEditor(blankFoodDraft())
-            },
-            onDismiss = { showSavedFoodManageSheet = false }
-        )
-    }
-
     if (showMealBuilder) {
         MealBuilderDialog(
             initialDraft = mealBuilderInitial,
@@ -929,8 +954,8 @@ fun MainScreen(
             onReview = { draft ->
                 val ts = mealBuilderInitial?.timestamp ?: viewModel.activeDayTimestamp()
                 val snapshot = draft.copy(timestamp = ts).snapshot()
-                // New builds save as preset; editing an existing log still updates that log.
-                mealReviewSavesAsPreset = mealBuilderInitial == null
+                // New builds and preset edits save as preset; editing a logged meal updates that log.
+                mealReviewSavesAsPreset = mealBuilderInitial == null || editingMealPreset != null
                 mealReviewDraft = snapshot
                 showMealBuilder = false
                 mealBuilderInitial = null
@@ -958,6 +983,7 @@ fun MainScreen(
             onDismiss = {
                 showMealBuilder = false
                 mealBuilderInitial = null
+                editingMealPreset = null
                 mealItems.clear()
                 lastOpenedEditMealId = null
                 viewModel.dismissMealDraft()
@@ -1040,6 +1066,12 @@ fun MainScreen(
                 showDonationDialog = false
                 viewModel.openDonorGallery()
             },
+        )
+    }
+
+    if (showTelegramJoinDialog) {
+        TelegramJoinDialog(
+            onDismiss = { showTelegramJoinDialog = false },
         )
     }
 
@@ -1162,22 +1194,31 @@ fun MainScreen(
 
     mealReviewDraft?.let { draft ->
         val editingMeal = analysisState.editingFoodLogId != null
+        val editingPreset = editingMealPreset != null
         val saveAsPresetOnly = mealReviewSavesAsPreset && !editingMeal
         MealReviewDialog(
             draft = draft,
-            isEditing = editingMeal,
+            isEditing = editingMeal || editingPreset,
             saveAsPresetOnly = saveAsPresetOnly,
             onConfirm = { confirmed ->
                 viewModel.confirmMeal(confirmed)
                 mealReviewDraft = null
                 mealReviewSavesAsPreset = false
+                editingMealPreset = null
             },
             onSaveAsPreset = { mealDraft ->
-                viewModel.saveMealDraftAsPreset(mealDraft)
-                if (saveAsPresetOnly) {
+                val existing = editingMealPreset
+                if (existing != null) {
+                    viewModel.updateMealPreset(existing, mealDraft)
+                    SystemToast.show(context, "Updated \"${mealDraft.name}\"")
+                } else {
+                    viewModel.saveMealDraftAsPreset(mealDraft)
                     SystemToast.show(context, "Saved \"${mealDraft.name}\" as meal preset")
+                }
+                if (saveAsPresetOnly) {
                     mealReviewDraft = null
                     mealReviewSavesAsPreset = false
+                    editingMealPreset = null
                     viewModel.dismissMealDraft()
                 }
             },
@@ -1189,6 +1230,7 @@ fun MainScreen(
             onDismiss = {
                 mealReviewDraft = null
                 mealReviewSavesAsPreset = false
+                editingMealPreset = null
                 viewModel.dismissMealDraft()
             }
         )
@@ -1205,12 +1247,18 @@ fun MainScreen(
                 FoodEditorTarget.SAVE_LIBRARY -> "Save food"
                 FoodEditorTarget.MEAL_BUILDER,
                 FoodEditorTarget.MEAL_REVIEW -> "Add to meal"
-                FoodEditorTarget.LOG_MEAL -> "Log food"
+                FoodEditorTarget.LOG_MEAL ->
+                    if (analysisState.editingFoodLogId != null) "Update food" else "Log food"
             },
             showSaveAsPreset = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY,
             onConfirm = { confirmed ->
                 when (foodEditorTarget) {
-                    FoodEditorTarget.LOG_MEAL -> viewModel.confirmFood(confirmed)
+                    FoodEditorTarget.LOG_MEAL -> {
+                        // Defensive: never leave a stale meal-review sheet after a log update.
+                        mealReviewDraft = null
+                        mealReviewSavesAsPreset = false
+                        viewModel.confirmFood(confirmed)
+                    }
                     FoodEditorTarget.MEAL_BUILDER -> {
                         val entry = confirmed.toFoodEntry()
                         val idx = mealFoodEditIndex
@@ -1226,6 +1274,13 @@ fun MainScreen(
                         mealFoodEditIndex?.let { idx ->
                             val entry = confirmed.toFoodEntry().snapshot()
                             viewModel.updateMealDraftFood(idx, entry)
+                            // Keep local meal-review sheet in sync (VM mealDraft alone isn't enough).
+                            mealReviewDraft = mealReviewDraft?.let { meal ->
+                                if (idx !in meal.foods.indices) meal
+                                else meal.copy(
+                                    foods = meal.foods.toMutableList().also { it[idx] = entry }
+                                )
+                            }
                         }
                         mealFoodEditIndex = null
                         viewModel.dismissFoodDraft()
