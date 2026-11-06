@@ -1,0 +1,5 @@
+• docs: refresh README with banner, gallery, and GitHub badge
+• docs: refresh store screenshots and README gallery
+• feat: add Cloxer to the supporters list
+• fix: stop sending enable_thinking to OpenAI API
+• feat: track protein, carbs and fats with one decimal precision
