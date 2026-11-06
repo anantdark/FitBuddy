@@ -71,24 +71,33 @@ progress charts, editable meal review, and reusable food presets.
   `RemoteAiDataSource` or `*RegionPack`.
 - `data/region/` — `AppRegion`, `RegionPack` / `*RegionPack` (staples + UI hints; prompt overlays
   loaded via PromptCatalog), `RegionDetector`.
+- `data/healthconnect/` — opt-in Android Health Connect bridge (`HealthConnectManager`,
+  Writer/Reader, `HealthConnectSync`, `HealthConnectMetricPrefs`): per-metric import/export
+  toggles for nutrition, weight, height, body fat, exercise, steps, hydration, sleep.
+  Hydration/sleep feed AI user-state context. Gated by `AppSettings.healthConnectEnabled`
+  (default off); Settings → Integrations.
 - `data/repository/`
   - `FitnessRepository.kt` — single `analyze()` entry point; routes by response `status`
     (SUCCESS→FoodReady draft, EXERCISE_LOGGED→save, CLARIFICATION_REQUIRED→ask); offline
-    `simulateAIService` fallback; presets CRUD; `getFoodTotalsToday` (single consolidated query).
+    `simulateAIService` fallback; presets CRUD; `getFoodTotalsToday` (single consolidated query);
+    mirrors meal save/delete to Health Connect when enabled.
   - `AnalysisOutcome.kt` — sealed: `FoodReady(draft)`, `ExerciseSaved`, `NeedsClarification`, `Error`.
 - `data/settings/`
   - `AppSettings.kt` — `AiProvider { OPENROUTER, GEMINI, OLLAMA }`; Ollama Local/Cloud
-    (`ollamaUseCloud` + `ollamaApiKey`); derives `model`/`chatUrl`/`authHeader`/`isConfigured`.
+    (`ollamaUseCloud` + `ollamaApiKey`); derives `model`/`chatUrl`/`authHeader`/`isConfigured`;
+    `healthConnectEnabled` (default false).
   - `FailoverLadders.kt` — loads Auto-failover TEXT/PHOTO ladders from
     `config/failover_ladders.json`; selected model stays first.
   - `SettingsRepository.kt` — DataStore-backed; first-run defaults seed from `BuildConfig`
     (which reads `local.properties`).
 - `ui/viewmodel/MainViewModel.kt` — all screen state; `settings`, `isAiOnline`, dashboard,
-  analytics, presets, analysis flow, provider-aware `loadFreeVisionModels(provider, apiKey, force)`.
+  analytics, presets, analysis flow, provider-aware `loadFreeVisionModels(provider, apiKey, force)`;
+  Health Connect enable/sync.
 - `ui/screens/` — `MainScreen` (scaffold, tabs, input sheet, dialogs), `DashboardScreen`,
-  `AnalyticsScreen`, `ProfileScreen`, `SettingsScreen`, `FoodReviewScreen` (`FoodReviewDialog`),
-  `PresetPickerSheet`, `WorkoutLogScreen` + `ExercisePickerComponents` (catalog GIFs, filters,
-  recent/frequent).
+  `AnalyticsScreen`, `ProfileScreen`, `SettingsScreen` (Integrations → Health Connect),
+  `FoodReviewScreen` (`FoodReviewDialog`), `PresetPickerSheet`, `WorkoutLogScreen` +
+  `ExercisePickerComponents` (catalog GIFs, filters, recent/frequent).
+- `healthconnect/HealthPermissionsRationaleActivity` — HC-required privacy-policy entry point.
 - `ui/components/CustomCharts.kt` — `CalorieRing`, line/stacked-bar charts.
 - `util/` — `DateUtils` (yyyy-MM-dd), `ImageUtils` (bitmap→scaled JPEG bytes).
 

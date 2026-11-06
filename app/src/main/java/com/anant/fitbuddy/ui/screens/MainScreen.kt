@@ -167,6 +167,7 @@ fun MainScreen(
     val textModelsState by viewModel.textModels.collectAsStateWithLifecycle()
     val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
     val mongoBackupBusy by viewModel.mongoBackupBusy.collectAsStateWithLifecycle()
+    val healthConnectSyncBusy by viewModel.healthConnectSyncBusy.collectAsStateWithLifecycle()
     val mealPresets by viewModel.mealPresets.collectAsStateWithLifecycle()
     val savedFoods by viewModel.savedFoods.collectAsStateWithLifecycle()
     val measurements by viewModel.bodyMeasurements.collectAsStateWithLifecycle()
@@ -502,6 +503,11 @@ fun MainScreen(
                 onCrashReportingChange = { enabled ->
                     viewModel.setCrashReportingEnabled(enabled)
                 },
+                onHealthConnectEnabledChange = viewModel::setHealthConnectEnabled,
+                onHealthConnectAutoSyncChange = viewModel::setHealthConnectAutoSync,
+                onHealthConnectMetricsChange = viewModel::updateHealthConnectMetrics,
+                onHealthConnectSync = { viewModel.syncHealthConnect(announce = true) },
+                healthConnectSyncBusy = healthConnectSyncBusy,
                 onStartDiagnosticLogging = {
                     viewModel.setDiagnosticLoggingEnabled(true)
                 },

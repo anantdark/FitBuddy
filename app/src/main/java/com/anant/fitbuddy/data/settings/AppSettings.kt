@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.R
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 
 /** Static color palette when Material You (dynamic color) is off. */
@@ -255,6 +256,18 @@ data class AppSettings(
      * nothing is loading, so they can be previewed without waiting on AI.
      */
     val forceShowLoadingAnimations: Boolean = false,
+    /**
+     * When true, FitBuddy syncs with Android Health Connect using [healthConnectMetrics].
+     * Off by default; requires runtime HC permissions.
+     */
+    val healthConnectEnabled: Boolean = false,
+    /**
+     * When true (and [healthConnectEnabled]), FitBuddy syncs in the background on open and
+     * mirrors new logs live. Off = Sync now only. Default on.
+     */
+    val healthConnectAutoSync: Boolean = true,
+    /** Per-metric import/export switches (only applied while [healthConnectEnabled] is on). */
+    val healthConnectMetrics: HealthConnectMetricPrefs = HealthConnectMetricPrefs(),
     /**
      * When true, uploads/downloads use the build-baked Atlas URI ([MongoUriVault]) and
      * this install's [supportId]. Off by default for guest installs until the user opts in.

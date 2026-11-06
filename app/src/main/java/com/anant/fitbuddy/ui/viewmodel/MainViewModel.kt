@@ -15,6 +15,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.backup.BackupErrorMessages
 import com.anant.fitbuddy.data.backup.BackupImportResult
+import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
 import com.anant.fitbuddy.data.database.ExerciseLog
@@ -979,6 +980,17 @@ class MainViewModel(
             syncDonors()
         }
 
+        // Quiet foreground pull when HC + auto-sync are on (hourly debounce inside sync).
+        settingsRepository.settings
+            .map { it.healthConnectEnabled && it.healthConnectAutoSync }
+            .distinctUntilChanged()
+            .onEach { auto ->
+                if (auto) {
+                    runCatching { repository.syncHealthConnect(force = false) }
+                }
+            }
+            .launchIn(viewModelScope)
+
         viewModelScope.launch {
             val profile = repository.activeProfile.mapNotNull { it }.first()
             val legacyCalculatedTargets = profile.goalRationale
@@ -1176,6 +1188,61 @@ class MainViewModel(
                         disableCloud -> str(R.string.vm_crash_reports_cloud_backup_disabled)
                         else -> str(R.string.vm_crash_reports_disabled)
                     }
+                )
+            }
+        }
+    }
+
+    private val _healthConnectSyncBusy = MutableStateFlow(false)
+    val healthConnectSyncBusy: StateFlow<Boolean> = _healthConnectSyncBusy.asStateFlow()
+
+    fun setHealthConnectEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.update { it.copy(healthConnectEnabled = enabled) }
+            if (enabled) {
+                val auto = settingsRepository.settings.first().healthConnectAutoSync
+                if (auto) syncHealthConnect(announce = true)
+            } else {
+                _analysisState.update {
+                    it.copy(userMessage = str(R.string.vm_health_connect_disabled))
+                }
+            }
+        }
+    }
+
+    fun setHealthConnectAutoSync(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.update { it.copy(healthConnectAutoSync = enabled) }
+            if (enabled && settingsRepository.settings.first().healthConnectEnabled) {
+                syncHealthConnect(announce = false)
+            }
+        }
+    }
+
+    fun updateHealthConnectMetrics(metrics: com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs) {
+        viewModelScope.launch {
+            settingsRepository.update {
+                it.copy(healthConnectMetrics = metrics.sanitized())
+            }
+        }
+    }
+
+    fun syncHealthConnect(announce: Boolean = true) {
+        viewModelScope.launch {
+            if (_healthConnectSyncBusy.value) return@launch
+            _healthConnectSyncBusy.value = true
+            val result = runCatching { repository.syncHealthConnect(force = true) }
+                .getOrElse {
+                    com.anant.fitbuddy.data.healthconnect.HealthConnectSyncResult(
+                        error = it.message ?: str(R.string.vm_health_connect_sync_failed)
+                    )
+                }
+            _healthConnectSyncBusy.value = false
+            if (!announce) return@launch
+            _analysisState.update {
+                it.copy(
+                    userMessage = result.error?.takeIf { err -> err.isNotBlank() }
+                        ?: str(R.string.vm_health_connect_synced)
                 )
             }
         }
@@ -4057,11 +4124,22 @@ class MainViewModel(
     /**
      * The "User State Context" block (Step 3) sent to the AI so estimates can be personalised
      * (e.g. body weight strongly affects calories burned during exercise).
+     * Includes optional Health Connect hydration/sleep when those import toggles are on.
      */
-    private fun buildUserStateContext(): String {
+    private suspend fun buildUserStateContext(): String {
         val state = dashboardState.value
         val profile = state.profile
         val latest = latestMeasurement.value
+        val settingsNow = settings.value
+        val wellness = if (
+            settingsNow.healthConnectEnabled &&
+            (settingsNow.healthConnectMetrics.importHydration ||
+                settingsNow.healthConnectMetrics.importSleep)
+        ) {
+            repository.healthConnectWellnessContext()
+        } else {
+            null
+        }
         return JSONObject().apply {
             put("date", _selectedDate.value)
             put("age", profile?.age ?: JSONObject.NULL)
@@ -4077,6 +4155,22 @@ class MainViewModel(
             put("net_calories_today", state.netCalories)
             put("remaining_calories_today", state.remainingCalories)
             put("latest_measurement", latest?.let(::measurementJson) ?: JSONObject.NULL)
+            if (wellness != null) {
+                if (
+                    settingsNow.healthConnectMetrics.importHydration &&
+                    wellness.hydrationMlToday != null
+                ) {
+                    put("hydration_ml_today", wellness.hydrationMlToday)
+                    put("hydration_date", wellness.hydrationDate ?: JSONObject.NULL)
+                }
+                if (
+                    settingsNow.healthConnectMetrics.importSleep &&
+                    wellness.sleepMinutesLastNight != null
+                ) {
+                    put("sleep_minutes_last_night", wellness.sleepMinutesLastNight)
+                    put("sleep_ended_date", wellness.sleepEndedDate ?: JSONObject.NULL)
+                }
+            }
         }.toString()
     }
 
