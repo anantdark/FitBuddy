@@ -243,6 +243,7 @@
     <string name="main_good_night">Good night</string>
     <string name="main_importing_this_backup_will_replace_your">Importing this backup will replace your current profile, readings, logs, and custom foods/meals/exercises with the file\'s contents. Settings (including AI keys) are replaced when the backup includes them. This can\'t be undone.</string>
     <string name="main_install_add">Install &amp; add</string>
+    <string name="main_open_open_food_facts">Open Open Food Facts</string>
     <string name="main_keep_scanning">Keep scanning</string>
     <string name="main_last_name_optional">Last name (optional)</string>
     <string name="main_no_camera_app_available_use_gallery">No camera app available. Use Gallery instead.</string>
@@ -828,6 +829,7 @@
     <string name="main_enter_password_cloud_backup">Enter the password for this cloud backup.</string>
     <string name="main_could_not_open_download_link">Could not open download link</string>
     <string name="main_barcode_read_but_open_food_facts_has">Barcode %1$s was read, but Open Food Facts has no usable product or nutrition data for it. Install Open Food Facts and add this product to its public database, then scan it again here.</string>
+    <string name="main_barcode_read_but_open_food_facts_open_app">Barcode %1$s was read, but Open Food Facts has no usable product or nutrition data for it. Open Open Food Facts and add this product to its public database, then scan it again here.</string>
     <string name="meal_builder_meal">Meal</string>
     <string name="meal_builder_kcal_g_ingredient_s">%1$s kcal · %2$s g · %3$d ingredient(s)</string>
     <string name="meal_preset_no_meals_match">No meals match \"%1$s\".</string>

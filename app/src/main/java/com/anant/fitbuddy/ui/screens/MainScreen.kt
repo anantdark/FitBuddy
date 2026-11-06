@@ -57,7 +57,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
@@ -86,6 +85,7 @@ import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.util.ImageUtils
+import com.anant.fitbuddy.util.OpenFoodFactsLauncher
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -1666,31 +1666,46 @@ fun MainScreen(
     )
 }
 
-private const val OPEN_FOOD_FACTS_APP_URL =
-    "https://world.openfoodfacts.org/open-food-facts-mobile-app"
-
 @Composable
 private fun OpenFoodFactsProductUnavailableDialog(
     barcode: String,
     onDismiss: () -> Unit
 ) {
-    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val offInstalled = remember(context) { OpenFoodFactsLauncher.isInstalled(context) }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.ErrorOutline, contentDescription = null) },
         title = { Text(stringResource(R.string.main_product_not_found)) },
         text = {
             Text(
-                stringResource(R.string.main_barcode_read_but_open_food_facts_has, barcode)
+                stringResource(
+                    if (offInstalled) {
+                        R.string.main_barcode_read_but_open_food_facts_open_app
+                    } else {
+                        R.string.main_barcode_read_but_open_food_facts_has
+                    },
+                    barcode
+                )
             )
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     onDismiss()
-                    uriHandler.openUri(OPEN_FOOD_FACTS_APP_URL)
+                    OpenFoodFactsLauncher.open(context, barcode)
                 }
-            ) { Text(stringResource(R.string.main_install_add)) }
+            ) {
+                Text(
+                    stringResource(
+                        if (offInstalled) {
+                            R.string.main_open_open_food_facts
+                        } else {
+                            R.string.main_install_add
+                        }
+                    )
+                )
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_keep_scanning)) }

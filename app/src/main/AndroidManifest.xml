@@ -42,6 +42,9 @@
         <package android:name="org.fdroid.fdroid" />
         <package android:name="org.fdroid.basic" />
         <package android:name="com.looker.droidify" />
+        <!-- Open Food Facts (Play Store + F-Droid package ids). -->
+        <package android:name="org.openfoodfacts.scanner" />
+        <package android:name="openfoodfacts.github.scrachx.openfood" />
         <package android:name="com.anant.freescale" />
         <package android:name="com.anant.freescale.debug" />
         <provider android:authorities="com.anant.freescale.bridge.measurements" />
