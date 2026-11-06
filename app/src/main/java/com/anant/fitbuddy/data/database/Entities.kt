@@ -26,7 +26,7 @@ data class UserProfile(
     val sex: String? = null, // "MALE" | "FEMALE" | null
     val goal: String = "RECOMP", // "LOSE_WEIGHT" | "GAIN_MUSCLE" | "RECOMP" | "AUTO"
     val activityLevel: String = "MODERATE", // "SEDENTARY" | "LIGHT" | "MODERATE" | "ACTIVE" | "VERY_ACTIVE"
-    // Latest rationale for the calculated goal/targets (shown in Body).
+    // Latest rationale for the calculated goal/targets (shown in the proposal dialog).
     val goalRationale: String? = null,
     // Optional AI-recommended or manually entered body-weight target.
     val targetWeightKg: Double? = null,
