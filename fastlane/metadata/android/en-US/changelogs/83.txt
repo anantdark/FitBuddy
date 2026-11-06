@@ -1,0 +1,9 @@
+• feat: add meal and food logging options in the log screen
+• fix: keep post-signup donor thanks unbounded
+• feat: track signup date and age-filter new-supporter thanks
+• fix: allow debug cloud restore only during onboarding
+• fix: disable cloud backup uploads in debug builds
+• feat: pick log date when saving or editing meals
+• feat: topic icons on food and workout log rows
+• fix: preview onboarding without saving and flag bad inputs
+• feat: open dedicated onboarding guide for 
