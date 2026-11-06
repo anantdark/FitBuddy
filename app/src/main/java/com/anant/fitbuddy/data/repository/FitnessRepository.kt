@@ -1674,6 +1674,26 @@ class FitnessRepository(
         )
     }
 
+    /**
+     * Replaces an existing meal preset (same [MealPreset.id]), keeping [MealPreset.createdAt] and
+     * [MealPreset.lastUsedAt].
+     */
+    suspend fun updateMealPreset(existing: MealPreset, draft: MealDraft) {
+        require(existing.id > 0) { "Meal preset id required for update" }
+        mealPresetDao.insert(
+            existing.copy(
+                name = draft.name,
+                calories = draft.totalCalories,
+                proteinG = draft.totalProtein,
+                carbsG = draft.totalCarbs,
+                fatsG = draft.totalFats,
+                foods = draft.foods.map { it.toPresetMealFood() },
+                iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
+                    ?: existing.iconTopic
+            )
+        )
+    }
+
     suspend fun deleteSavedFood(food: SavedFood) = savedFoodDao.delete(food)
 
     suspend fun deleteMealPreset(preset: MealPreset) = mealPresetDao.delete(preset)

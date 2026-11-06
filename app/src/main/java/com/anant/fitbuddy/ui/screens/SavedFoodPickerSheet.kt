@@ -45,9 +45,9 @@ import com.anant.fitbuddy.ui.components.pressable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
-enum class SavedFoodSheetMode { PICK_FOR_MEAL, LOG_TO_DAY, MANAGE_LIBRARY }
+enum class SavedFoodSheetMode { PICK_FOR_MEAL, LOG_TO_DAY }
 
-/** Bottom sheet for picking a saved food (meal builder or one-tap log), or managing the library. */
+/** Bottom sheet for picking a saved food (meal builder or one-tap log). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedFoodPickerSheet(
@@ -61,8 +61,6 @@ fun SavedFoodPickerSheet(
 ) {
     var query by remember { mutableStateOf("") }
     var editingFood by remember { mutableStateOf<SavedFood?>(null) }
-    val pickEnabled = mode != SavedFoodSheetMode.MANAGE_LIBRARY
-    val manageActions = mode == SavedFoodSheetMode.MANAGE_LIBRARY
     val filtered = remember(query, foods) {
         val q = query.trim()
         if (q.isEmpty()) foods
@@ -91,11 +89,9 @@ fun SavedFoodPickerSheet(
             Text(
                 text = when (mode) {
                     SavedFoodSheetMode.PICK_FOR_MEAL ->
-                        "Add a food to this meal. Recently used foods stay on top."
+                        "Add a food to this meal. Edit or delete saved foods anytime. Recently used foods stay on top."
                     SavedFoodSheetMode.LOG_TO_DAY ->
-                        "Tap a food to log it to the day you're viewing. Recently used foods stay on top."
-                    SavedFoodSheetMode.MANAGE_LIBRARY ->
-                        "Edit or delete foods you scan or save as preset. Lists sort by last used."
+                        "Tap a food to log it to the day you're viewing. Edit or delete saved foods anytime. Recently used foods stay on top."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -155,8 +151,6 @@ fun SavedFoodPickerSheet(
                         items(filtered, key = { it.id }) { food ->
                             SavedFoodRow(
                                 food = food,
-                                pickEnabled = pickEnabled,
-                                showEdit = manageActions,
                                 onPick = { onPick(food) },
                                 onEdit = { editingFood = food },
                                 onDelete = { onDelete(food) }
@@ -183,8 +177,6 @@ fun SavedFoodPickerSheet(
 @Composable
 private fun SavedFoodRow(
     food: SavedFood,
-    pickEnabled: Boolean,
-    showEdit: Boolean,
     onPick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
@@ -192,7 +184,7 @@ private fun SavedFoodRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (pickEnabled) Modifier.pressable(onClick = onPick) else Modifier)
+            .pressable(onClick = onPick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -222,13 +214,11 @@ private fun SavedFoodRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        if (showEdit) {
-            IconButton(onClick = onEdit) {
-                Icon(
-                    Icons.Filled.Edit,
-                    contentDescription = "Edit ${food.name}"
-                )
-            }
+        IconButton(onClick = onEdit) {
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = "Edit ${food.name}"
+            )
         }
         IconButton(onClick = onDelete) {
             Icon(

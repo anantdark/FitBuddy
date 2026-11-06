@@ -122,6 +122,7 @@ fun MealReviewDialog(
                         ) {
                             Text(
                                 when {
+                                    isEditing && saveAsPresetOnly -> "Update meal preset"
                                     isEditing -> "Update meal"
                                     saveAsPresetOnly -> "Save as meal preset"
                                     else -> "Save meal"

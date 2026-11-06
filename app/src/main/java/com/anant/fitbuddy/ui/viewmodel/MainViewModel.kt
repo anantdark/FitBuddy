@@ -1686,6 +1686,20 @@ class MainViewModel(
         }
     }
 
+    fun updateMealPreset(existing: MealPreset, draft: MealDraft) {
+        viewModelScope.launch {
+            runCatching { repository.updateMealPreset(existing, draft) }
+                .onSuccess {
+                    _analysisState.update { it.copy(userMessage = "Updated \"${draft.name}\"") }
+                }
+                .onFailure { e ->
+                    _analysisState.update {
+                        it.copy(userMessage = e.message ?: "Couldn't update meal preset")
+                    }
+                }
+        }
+    }
+
     /** Marks a saved food as just used (meal builder pick) so it sorts to the top. */
     fun touchSavedFood(food: SavedFood) {
         viewModelScope.launch {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import com.anant.fitbuddy.ui.util.LogItemIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 fun MealPresetPickerSheet(
     presets: List<MealPreset>,
     onPick: (MealPreset) -> Unit,
+    onEdit: (MealPreset) -> Unit,
     onDelete: (MealPreset) -> Unit,
     onCreate: () -> Unit = {},
     onDismiss: () -> Unit
@@ -63,7 +65,7 @@ fun MealPresetPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Text(
-                text = "Tap a meal to log it to the day you're viewing. Recently used meals stay on top.",
+                text = "Tap a meal to log it to the day you're viewing. Edit or delete saved meals anytime. Recently used meals stay on top.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -116,6 +118,7 @@ fun MealPresetPickerSheet(
                             MealPresetRow(
                                 preset = preset,
                                 onPick = { onPick(preset) },
+                                onEdit = { onEdit(preset) },
                                 onDelete = { onDelete(preset) }
                             )
                         }
@@ -130,6 +133,7 @@ fun MealPresetPickerSheet(
 private fun MealPresetRow(
     preset: MealPreset,
     onPick: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val foodCount = preset.foods?.size ?: 0
@@ -168,6 +172,12 @@ private fun MealPresetRow(
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onEdit) {
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = "Edit ${preset.name}"
             )
         }
         IconButton(onClick = onDelete) {
