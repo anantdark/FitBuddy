@@ -56,6 +56,27 @@ enum class AppComponentStyle {
     }
 }
 
+/** App UI language preference (Internationalization plugin). */
+enum class AppLanguage {
+    SYSTEM,
+    ZH_CN,
+    EN;
+
+    fun displayName(): String = when (this) {
+        SYSTEM -> "System default"
+        ZH_CN -> "简体中文"
+        EN -> "English"
+    }
+
+    companion object {
+        fun fromStored(raw: String?): AppLanguage = when (raw?.trim()?.uppercase()) {
+            "ZH_CN", "ZH", "ZH-CN", "CHINESE" -> ZH_CN
+            "EN", "EN_US", "EN-US", "ENGLISH" -> EN
+            else -> SYSTEM
+        }
+    }
+}
+
 /** Which LLM backend the app talks to. All use the OpenAI-compatible chat/completions API. */
 enum class AiProvider {
     OPENROUTER,
@@ -205,6 +226,8 @@ data class AppSettings(
      * Empty until the user finishes the region selection page (or restores a backup that has it).
      */
     val region: String = "",
+    /** UI language override: [AppLanguage.SYSTEM], [AppLanguage.ZH_CN], or [AppLanguage.EN]. */
+    val language: AppLanguage = AppLanguage.SYSTEM,
     /**
      * Epoch ms when this install last successfully sent a custom-region Sentry request.
      * Non-zero means no further requests are allowed (one per [supportId] / install).

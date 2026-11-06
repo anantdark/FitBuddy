@@ -1074,6 +1074,16 @@ class MainViewModel(
         }
     }
 
+    /** Settings language picker: updates the app UI language preference immediately. */
+    fun setLanguage(language: com.anant.fitbuddy.data.settings.AppLanguage) {
+        viewModelScope.launch {
+            val current = settings.value
+            if (current.language != language) {
+                settingsRepository.save(current.copy(language = language))
+            }
+        }
+    }
+
     /** Records a successful custom-region Sentry send (one allowed per install / supportId). */
     fun markRegionRequestSent() {
         if (_forceFullOnboarding.value) return

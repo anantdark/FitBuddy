@@ -17,6 +17,7 @@ import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
+import com.anant.fitbuddy.data.settings.AppLanguage
 import com.anant.fitbuddy.data.settings.AppSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -72,6 +73,7 @@ class BackupSettingsTest {
                 signupDate = "2026-01-15",
                 crashReportingEnabled = false,
                 region = "US",
+                language = AppLanguage.ZH_CN,
                 regionRequestSentAt = 1_700_000_100_000L,
                 easterEggDiscovered = true,
                 dailyLogReminderEnabled = false,

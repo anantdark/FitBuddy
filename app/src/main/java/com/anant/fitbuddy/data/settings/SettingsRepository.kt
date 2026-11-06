@@ -163,6 +163,7 @@ class SettingsRepository(context: Context) {
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING] ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
             diagnosticLoggingEnabled = prefs[KEY_DIAGNOSTIC_LOGGING] ?: false,
             region = prefs[KEY_REGION].orEmpty(),
+            language = AppLanguage.fromStored(prefs[KEY_LANGUAGE]),
             regionRequestSentAt = prefs[KEY_REGION_REQUEST_SENT_AT] ?: 0L,
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
             dailyLogReminderEnabled = prefs[KEY_DAILY_LOG_REMINDER] ?: true,
@@ -456,6 +457,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
             prefs[KEY_DIAGNOSTIC_LOGGING] = settings.diagnosticLoggingEnabled
             prefs[KEY_REGION] = settings.region.trim()
+            prefs[KEY_LANGUAGE] = settings.language.name
             prefs[KEY_REGION_REQUEST_SENT_AT] = settings.regionRequestSentAt
             if (settings.supportId.isNotBlank()) {
                 prefs[KEY_SUPPORT_ID] = settings.supportId
@@ -750,6 +752,7 @@ class SettingsRepository(context: Context) {
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
         val KEY_DIAGNOSTIC_LOGGING = booleanPreferencesKey("diagnostic_logging_enabled")
         val KEY_REGION = stringPreferencesKey("app_region")
+        val KEY_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_REGION_REQUEST_SENT_AT = longPreferencesKey("region_request_sent_at")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
         // Legacy keys — removed on load/save; kept only so clearLegacySentryRoutingPrefs can drop them.

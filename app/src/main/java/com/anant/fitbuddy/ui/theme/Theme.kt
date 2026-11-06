@@ -20,6 +20,9 @@ import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
+import com.anant.fitbuddy.data.settings.AppLanguage
+import com.anant.fitbuddy.ui.i18n.AppI18n
+import com.anant.fitbuddy.ui.i18n.LocalAppLanguage
 
 private val DarkColorScheme = darkColorScheme(
     primary = GreenPrimaryDark,
@@ -58,9 +61,14 @@ fun FitBuddyTheme(
     colorTheme: AppColorTheme = AppColorTheme.BRAND,
     fontOption: AppFontOption = AppFontOption.DEFAULT,
     componentStyle: AppComponentStyle = AppComponentStyle.MATERIAL,
+    language: AppLanguage = AppLanguage.SYSTEM,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    remember(language, context) {
+        AppI18n.applyLanguage(context, language)
+        language
+    }
     val systemDark = isSystemInDarkTheme()
     // Material You follows system day/night. Static themes: Catppuccin Latte is light,
     // other Catppuccin flavors are dark; FitBuddy brand follows [darkTheme]/system.
@@ -109,7 +117,8 @@ fun FitBuddyTheme(
     ) {
         CompositionLocalProvider(
             LocalRippleConfiguration provides primaryRipple,
-            LocalComponentStyle provides componentStyle
+            LocalComponentStyle provides componentStyle,
+            LocalAppLanguage provides language
         ) {
             content()
         }

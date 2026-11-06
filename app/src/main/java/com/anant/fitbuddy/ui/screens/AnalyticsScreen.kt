@@ -37,7 +37,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.i18n.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.ui.theme.isMakoStyle
 import androidx.compose.runtime.Composable

@@ -8,7 +8,9 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.i18n.AppI18n
+import com.anant.fitbuddy.ui.i18n.LocalAppLanguage
+import com.anant.fitbuddy.ui.i18n.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -38,7 +40,7 @@ fun LogDateField(
     val subtitle = DateUtils.displayDateSubtitle(dateString)
 
     OutlinedTextField(
-        value = title,
+        value = AppI18n.translate(title, LocalAppLanguage.current),
         onValueChange = {},
         readOnly = true,
         enabled = enabled,

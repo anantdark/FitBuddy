@@ -78,7 +78,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.i18n.AppI18n
+import com.anant.fitbuddy.ui.i18n.LocalAppLanguage
+import com.anant.fitbuddy.ui.i18n.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -124,6 +126,7 @@ import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
+import com.anant.fitbuddy.data.settings.AppLanguage
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
@@ -184,6 +187,7 @@ fun SettingsScreen(
         sex: String?
     ) -> Unit = { _, _, _, _, _ -> },
     onRegionChange: (AppRegion) -> Unit = {},
+    onLanguageChange: (AppLanguage) -> Unit = {},
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
     openRouterOAuthBusy: Boolean = false,
@@ -909,7 +913,7 @@ fun SettingsScreen(
                     onExpandedChange = { themeExpanded = it }
                 ) {
                     OutlinedTextField(
-                        value = settings.colorTheme.displayName(),
+                        value = AppI18n.translate(settings.colorTheme.displayName(), LocalAppLanguage.current),
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Color theme") },
@@ -956,7 +960,7 @@ fun SettingsScreen(
                 onExpandedChange = { componentExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = settings.componentStyle.displayName(),
+                    value = AppI18n.translate(settings.componentStyle.displayName(), LocalAppLanguage.current),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Component style") },
@@ -1002,7 +1006,7 @@ fun SettingsScreen(
                 onExpandedChange = { fontExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = settings.fontOption.displayName(),
+                    value = AppI18n.translate(settings.fontOption.displayName(), LocalAppLanguage.current),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("App font") },
@@ -1064,8 +1068,30 @@ fun SettingsScreen(
             )
         }
 
-        // --- Preferences (reminders + animations + region) -------------------------------
+        // --- Preferences (language + reminders + animations + region) --------------------
         SettingsCard(title = "Preferences", initiallyExpanded = false) {
+            Text(
+                text = "Language",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Choose the display language for FitBuddy. System default follows your device language.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                AppLanguage.entries.forEachIndexed { index, lang ->
+                    SegmentedButton(
+                        selected = settings.language == lang,
+                        onClick = { onLanguageChange(lang) },
+                        shape = SegmentedButtonDefaults.itemShape(index, AppLanguage.entries.size)
+                    ) {
+                        Text(lang.displayName())
+                    }
+                }
+            }
+            HorizontalDivider()
             SettingToggleRow(
                 title = "Daily log reminder",
                 checked = settings.dailyLogReminderEnabled,
@@ -1188,7 +1214,7 @@ fun SettingsScreen(
                 onExpandedChange = { dayChangeExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = hourLabel(settings.dayChangeHour),
+                    value = AppI18n.translate(hourLabel(settings.dayChangeHour), LocalAppLanguage.current),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Day starts at") },
@@ -2321,7 +2347,7 @@ private fun ModelDropdown(
         onExpandedChange = { expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selectedModel.ifBlank { "Select a model" },
+            value = AppI18n.translate(selectedModel.ifBlank { "Select a model" }, LocalAppLanguage.current),
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
@@ -2655,7 +2681,7 @@ private fun LoadingAnimationChoiceDropdown(
         onExpandedChange = { expanded = it }
     ) {
         OutlinedTextField(
-            value = displayLabel,
+            value = AppI18n.translate(displayLabel, LocalAppLanguage.current),
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
@@ -2761,7 +2787,7 @@ private fun ProfileSexDropdown(
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
-            value = display,
+            value = AppI18n.translate(display, LocalAppLanguage.current),
             onValueChange = {},
             readOnly = true,
             label = { Text("Sex") },

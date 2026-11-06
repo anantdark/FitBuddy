@@ -43,7 +43,9 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.i18n.AppI18n
+import com.anant.fitbuddy.ui.i18n.LocalAppLanguage
+import com.anant.fitbuddy.ui.i18n.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -1375,7 +1377,7 @@ private fun LabeledDropdown(
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
-            value = display,
+            value = AppI18n.translate(display, LocalAppLanguage.current),
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },

@@ -38,7 +38,7 @@ import com.anant.fitbuddy.ui.theme.appControlShape
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.i18n.Text
 import com.anant.fitbuddy.ui.components.AppNavigationBarItem
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
@@ -437,6 +437,7 @@ fun MainScreen(
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
                 onSavePermanentProfile = viewModel::savePermanentProfile,
                 onRegionChange = viewModel::setRegion,
+                onLanguageChange = viewModel::setLanguage,
                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                 openRouterOAuthBusy = openRouterOAuthBusy,

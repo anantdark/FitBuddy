@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 colorTheme = settings.colorTheme,
                 fontOption = settings.fontOption,
                 componentStyle = settings.componentStyle,
+                language = settings.language,
             ) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
                     val viewModel: MainViewModel = viewModel(

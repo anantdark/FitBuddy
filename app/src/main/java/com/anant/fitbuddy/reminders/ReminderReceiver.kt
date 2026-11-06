@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.R
+import com.anant.fitbuddy.ui.i18n.AppI18n
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -56,10 +57,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 .build()
             val channel = NotificationChannel(
                 ReminderScheduler.CHANNEL_ID,
-                "Daily log reminders",
+                AppI18n.translate("Daily log reminders"),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Reminds you to log meals once a day"
+                description = AppI18n.translate("Reminds you to log meals once a day")
                 enableVibration(true)
                 vibrationPattern = VIBRATION_PATTERN
                 enableLights(true)
@@ -82,7 +83,9 @@ class ReminderReceiver : BroadcastReceiver() {
             if (!notifier.areNotificationsEnabled()) return false
             ensureChannel(app)
             val message = ReminderCopy.random()
-            val title = if (isTest) "Test · ${message.title}" else message.title
+            val rawTitle = if (isTest) "Test · ${message.title}" else message.title
+            val title = AppI18n.translate(rawTitle)
+            val body = AppI18n.translate(message.body)
             val contentIntent = PendingIntent.getActivity(
                 app,
                 if (isTest) 1 else 0,
@@ -97,8 +100,8 @@ class ReminderReceiver : BroadcastReceiver() {
             val notification = NotificationCompat.Builder(app, ReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_monochrome)
                 .setContentTitle(title)
-                .setContentText(message.body)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(message.body))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setDefaults(NotificationCompat.DEFAULT_ALL)

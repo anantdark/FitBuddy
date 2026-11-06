@@ -37,7 +37,7 @@ import androidx.compose.material3.MenuAnchorType
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.anant.fitbuddy.ui.i18n.Text
 import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable

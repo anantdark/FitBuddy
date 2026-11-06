@@ -190,4 +190,16 @@ class AppSettingsTest {
         )
         assertEquals(emptyList<String>(), parseApiKeys("  \n,"))
     }
+
+    @Test
+    fun `AppLanguage fromStored parses enum names and locale codes`() {
+        assertEquals(AppLanguage.SYSTEM, AppLanguage.fromStored(null))
+        assertEquals(AppLanguage.SYSTEM, AppLanguage.fromStored(""))
+        assertEquals(AppLanguage.SYSTEM, AppLanguage.fromStored("SYSTEM"))
+        assertEquals(AppLanguage.ZH_CN, AppLanguage.fromStored("ZH_CN"))
+        assertEquals(AppLanguage.ZH_CN, AppLanguage.fromStored("zh-CN"))
+        assertEquals(AppLanguage.ZH_CN, AppLanguage.fromStored("zh"))
+        assertEquals(AppLanguage.EN, AppLanguage.fromStored("EN"))
+        assertEquals(AppLanguage.EN, AppLanguage.fromStored("en-US"))
+    }
 }

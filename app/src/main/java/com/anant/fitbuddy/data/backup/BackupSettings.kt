@@ -5,6 +5,7 @@ import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppFontOption
+import com.anant.fitbuddy.data.settings.AppLanguage
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.JsonClass
 
@@ -82,6 +83,7 @@ data class BackupSettings(
     val crashReportingEnabled: Boolean = !BuildConfig.DEBUG && !BuildConfig.IS_FDROID,
     /** Empty on older backups — import leaves region unset so the region page can collect it. */
     val region: String = "",
+    val language: String = AppLanguage.SYSTEM.name,
     /** 0 on older backups — import allows one region request until a send is recorded. */
     val regionRequestSentAt: Long = 0L,
     val easterEggDiscovered: Boolean = false,
@@ -193,6 +195,7 @@ data class BackupSettings(
                 signupDate = signupDate.trim(),
                 crashReportingEnabled = crashReportingEnabled,
                 region = region.trim(),
+                language = AppLanguage.fromStored(language),
                 regionRequestSentAt = regionRequestSentAt,
                 easterEggDiscovered = easterEggDiscovered,
                 dailyLogReminderEnabled = dailyLogReminderEnabled,
@@ -265,6 +268,7 @@ data class BackupSettings(
             signupDate = settings.signupDate,
             crashReportingEnabled = settings.crashReportingEnabled,
             region = settings.region,
+            language = settings.language.name,
             regionRequestSentAt = settings.regionRequestSentAt,
             easterEggDiscovered = settings.easterEggDiscovered,
             dailyLogReminderEnabled = settings.dailyLogReminderEnabled,

@@ -13,6 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.R
+import com.anant.fitbuddy.ui.i18n.AppI18n
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -57,10 +58,10 @@ class DonationReminderReceiver : BroadcastReceiver() {
                 .build()
             val channel = NotificationChannel(
                 DonationReminderScheduler.CHANNEL_ID,
-                "Donate reminders",
+                AppI18n.translate("Donate reminders"),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Optional reminder every few days to support FitBuddy development"
+                description = AppI18n.translate("Optional reminder every few days to support FitBuddy development")
                 enableVibration(true)
                 vibrationPattern = VIBRATION_PATTERN
                 enableLights(true)
@@ -76,7 +77,9 @@ class DonationReminderReceiver : BroadcastReceiver() {
             if (!notifier.areNotificationsEnabled()) return false
             ensureChannel(app)
             val message = DonationNotificationCopy.random()
-            val title = if (isTest) "Test · ${message.title}" else message.title
+            val rawTitle = if (isTest) "Test · ${message.title}" else message.title
+            val title = AppI18n.translate(rawTitle)
+            val body = AppI18n.translate(message.body)
             val contentIntent = PendingIntent.getActivity(
                 app,
                 if (isTest) 3 else 2,
@@ -91,8 +94,8 @@ class DonationReminderReceiver : BroadcastReceiver() {
             val notification = NotificationCompat.Builder(app, DonationReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_monochrome)
                 .setContentTitle(title)
-                .setContentText(message.body)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(message.body))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
