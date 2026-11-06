@@ -13,6 +13,7 @@
   <a href="https://github.com/anantdark/FitBuddy/releases/latest"><img src="https://img.shields.io/github/v/release/anantdark/FitBuddy" alt="GitHub Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
   <a href="https://github.com/sponsors/anantdark"><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors&logoColor=white" alt="Sponsor" /></a>
+  <a href="https://t.me/fitbuddyapp"><img src="https://img.shields.io/badge/Telegram-Join%20group-26A5E4?logo=telegram&logoColor=white" alt="Join Telegram group" /></a>
 </p>
 
 <p align="center">
@@ -27,6 +28,8 @@
   <a href="https://www.androidfreeware.net/download-fitbuddy-apk.html"><img src="https://img.shields.io/badge/Get_it_on-AndroidFreeware-blue?style=for-the-badge&logo=android" alt="Get it on AndroidFreeware" height="48" /></a>
   &nbsp;
   <a href="https://anantdark.github.io/FitBuddy/"><img src="https://img.shields.io/badge/Docs-Website-0A0E1A?style=for-the-badge" alt="Docs website" height="48" /></a>
+  &nbsp;
+  <a href="https://t.me/fitbuddyapp"><img src="https://img.shields.io/badge/Join-Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Join Telegram group" height="48" /></a>
 </p>
 
 ---
@@ -176,6 +179,10 @@ Named public supporters appear here and as flip trading cards in the app (and on
 </table>
 
 Thank you for keeping FitBuddy free and open. Roster: [`config/donors.json`](config/donors.json).
+
+## Community
+
+[Telegram group](https://t.me/fitbuddyapp) — release notes, questions about the app, and chat with the developer.
 
 ## Support development
 

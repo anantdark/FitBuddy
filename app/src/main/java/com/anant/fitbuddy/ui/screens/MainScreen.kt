@@ -240,6 +240,8 @@ fun MainScreen(
 
     var showSettings by remember { mutableStateOf(false) }
     var showDonationDialog by rememberSaveable { mutableStateOf(false) }
+    var showTelegramJoinDialog by rememberSaveable { mutableStateOf(false) }
+    var shimmerTelegramIcon by remember { mutableStateOf(true) }
     var showProgressChat by remember { mutableStateOf(false) }
     var showWeekHistory by remember { mutableStateOf(false) }
     var showLogHub by remember { mutableStateOf(false) }
@@ -337,8 +339,13 @@ fun MainScreen(
     }
 
     // Editing a single-food log opens FoodReview as a log/update confirm.
-    LaunchedEffect(analysisState.foodDraft, analysisState.editingFoodLogId) {
-        if (analysisState.foodDraft != null && analysisState.editingFoodLogId != null) {
+    // Do not override MEAL_REVIEW / MEAL_BUILDER — nested food edits keep those targets so
+    // confirm writes back into the meal instead of logging a duplicate FoodLog.
+    LaunchedEffect(analysisState.foodDraft, analysisState.editingFoodLogId, analysisState.mealDraft) {
+        if (analysisState.foodDraft != null &&
+            analysisState.editingFoodLogId != null &&
+            analysisState.mealDraft == null
+        ) {
             foodEditorTarget = FoodEditorTarget.LOG_MEAL
         }
     }
@@ -597,6 +604,13 @@ fun MainScreen(
                         title = {
                             Text(dashboardGreeting(settings.displayFirstName))
                         },
+                        navigationIcon = {
+                            MainTopBarTelegramButton(
+                                onClick = { showTelegramJoinDialog = true },
+                                shimmer = shimmerTelegramIcon,
+                                onShimmerFinished = { shimmerTelegramIcon = false },
+                            )
+                        },
                         actions = {
                             MainTopBarActions(
                                 donationColor = currentDonationHeartColor,
@@ -608,6 +622,13 @@ fun MainScreen(
                 } else {
                     CenterAlignedTopAppBar(
                         title = { Text(selectedTab.label) },
+                        navigationIcon = {
+                            MainTopBarTelegramButton(
+                                onClick = { showTelegramJoinDialog = true },
+                                shimmer = shimmerTelegramIcon,
+                                onShimmerFinished = { shimmerTelegramIcon = false },
+                            )
+                        },
                         actions = {
                             MainTopBarActions(
                                 donationColor = currentDonationHeartColor,
@@ -762,6 +783,11 @@ fun MainScreen(
                                 }
                             },
                             actions = {
+                                MainTopBarTelegramButton(
+                                    onClick = { showTelegramJoinDialog = true },
+                                    shimmer = shimmerTelegramIcon,
+                                    onShimmerFinished = { shimmerTelegramIcon = false },
+                                )
                                 MainTopBarActions(
                                     donationColor = currentDonationHeartColor,
                                     onDonate = { showDonationDialog = true },
@@ -1055,6 +1081,12 @@ fun MainScreen(
         )
     }
 
+    if (showTelegramJoinDialog) {
+        TelegramJoinDialog(
+            onDismiss = { showTelegramJoinDialog = false },
+        )
+    }
+
     if (donationReminderVisible) {
         DonationReminderDialog(
             onSoftDismiss = viewModel::dismissDonationReminderSoft,
@@ -1223,7 +1255,12 @@ fun MainScreen(
             showSaveAsPreset = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY,
             onConfirm = { confirmed ->
                 when (foodEditorTarget) {
-                    FoodEditorTarget.LOG_MEAL -> viewModel.confirmFood(confirmed)
+                    FoodEditorTarget.LOG_MEAL -> {
+                        // Defensive: never leave a stale meal-review sheet after a log update.
+                        mealReviewDraft = null
+                        mealReviewSavesAsPreset = false
+                        viewModel.confirmFood(confirmed)
+                    }
                     FoodEditorTarget.MEAL_BUILDER -> {
                         val entry = confirmed.toFoodEntry()
                         val idx = mealFoodEditIndex
@@ -1239,6 +1276,13 @@ fun MainScreen(
                         mealFoodEditIndex?.let { idx ->
                             val entry = confirmed.toFoodEntry().snapshot()
                             viewModel.updateMealDraftFood(idx, entry)
+                            // Keep local meal-review sheet in sync (VM mealDraft alone isn't enough).
+                            mealReviewDraft = mealReviewDraft?.let { meal ->
+                                if (idx !in meal.foods.indices) meal
+                                else meal.copy(
+                                    foods = meal.foods.toMutableList().also { it[idx] = entry }
+                                )
+                            }
                         }
                         mealFoodEditIndex = null
                         viewModel.dismissFoodDraft()

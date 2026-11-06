@@ -1,7 +1,6 @@
 package com.anant.fitbuddy.ui.screens
 
 import com.anant.fitbuddy.util.formatMacro
-import com.anant.fitbuddy.util.formatQty
 import com.anant.fitbuddy.util.qtyFieldText
 import com.anant.fitbuddy.util.roundQty
 import com.anant.fitbuddy.util.sanitizeQtyInput
@@ -45,6 +44,7 @@ import com.anant.fitbuddy.ui.components.TextButton
 import com.anant.fitbuddy.util.SystemToast
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
@@ -91,50 +91,54 @@ fun FoodReviewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         // Editable working copy, re-seeded if a different draft arrives.
+        // Fold food-level quantity into ingredient quantities so one Qty field is enough.
         var dishName by remember(draft) { mutableStateOf(draft.dishName) }
-        var foodQtyText by remember(draft) { mutableStateOf(draft.quantity.qtyFieldText().ifEmpty { "1" }) }
-        val ingredients = remember(draft) { draft.ingredients.toMutableStateList() }
+        val ingredients = remember(draft) {
+            val foodQty = draft.quantity.roundQty().coerceAtLeast(0.1)
+            val seeded = if (foodQty == 1.0) {
+                draft.ingredients
+            } else {
+                draft.ingredients.map { item ->
+                    item.copy(quantity = (item.quantity * foodQty).roundQty())
+                }
+            }
+            seeded.toMutableStateList()
+        }
         // Keyed on the incoming stamp so food edits from the parent don't wipe a local date pick.
         var logTimestamp by remember(draft.timestamp) { mutableStateOf(draft.timestamp) }
         var showAddDialog by remember { mutableStateOf(false) }
 
         val context = LocalContext.current
-        val foodQty = (foodQtyText.toQtyOrNull() ?: 0.0).roundQty().coerceAtLeast(0.0)
 
         // Surface reanalyze feedback (clarification/error) via system Toast, then clear it.
-        androidx.compose.runtime.LaunchedEffect(reviewMessage) {
+        LaunchedEffect(reviewMessage) {
             reviewMessage?.let {
                 SystemToast.show(context, it)
                 onReviewMessageShown()
             }
         }
 
-        val baseCalories = ingredients.sumOf { it.calories }
-        val baseProtein = ingredients.sumOf { it.protein }
-        val baseCarbs = ingredients.sumOf { it.carbs }
-        val baseFats = ingredients.sumOf { it.fats }
-        val baseWeight = ingredients.sumOf { it.weightG }
-        val totalCalories = (baseCalories * foodQty).roundToInt()
-        val totalProtein = baseProtein * foodQty
-        val totalCarbs = baseCarbs * foodQty
-        val totalFats = baseFats * foodQty
-        val totalWeight = (baseWeight * foodQty).roundToInt()
+        val totalCalories = ingredients.sumOf { it.calories }
+        val totalProtein = ingredients.sumOf { it.protein }
+        val totalCarbs = ingredients.sumOf { it.carbs }
+        val totalFats = ingredients.sumOf { it.fats }
+        val totalWeight = ingredients.sumOf { it.weightG }
 
         fun confirmedDraft(): FoodDraft = draft.copy(
             dishName = dishName.trim(),
             timestamp = logTimestamp,
             ingredients = ingredients.toList(),
-            quantity = foodQty.coerceAtLeast(0.1)
+            quantity = 1.0
         )
 
-        // Editable per-unit total weight. While the field isn't focused it mirrors the ingredient
-        // sum; editing it rescales every ingredient proportionally (from a baseline captured on
-        // focus, so per-keystroke rounding doesn't drift the proportions). Food Qty scales after.
-        var weightText by remember(draft) { mutableStateOf(baseWeight.toString()) }
+        // Editable total weight. While the field isn't focused it mirrors the ingredient sum;
+        // editing it rescales every ingredient proportionally (from a baseline captured on
+        // focus, so per-keystroke rounding doesn't drift the proportions).
+        var weightText by remember(draft) { mutableStateOf(totalWeight.toString()) }
         var editingWeight by remember { mutableStateOf(false) }
         var scaleBaseline by remember { mutableStateOf<Pair<Int, List<Int>>?>(null) }
-        androidx.compose.runtime.LaunchedEffect(baseWeight, editingWeight) {
-            if (!editingWeight) weightText = baseWeight.toString()
+        LaunchedEffect(totalWeight, editingWeight) {
+            if (!editingWeight) weightText = totalWeight.toString()
         }
 
         Scaffold(
@@ -151,7 +155,7 @@ fun FoodReviewDialog(
             },
             bottomBar = {
                 val canSave = ingredients.isNotEmpty() && dishName.isNotBlank() &&
-                    !isReanalyzing && foodQty > 0.0
+                    !isReanalyzing && totalWeight > 0
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -246,7 +250,7 @@ fun FoodReviewDialog(
                                 .onFocusChanged { focus ->
                                     if (focus.isFocused) {
                                         editingWeight = true
-                                        scaleBaseline = ingredients.sumOf { it.weightG } to
+                                        scaleBaseline = totalWeight to
                                             ingredients.map { it.unitWeightG }
                                     } else {
                                         editingWeight = false
@@ -256,7 +260,7 @@ fun FoodReviewDialog(
                         )
                         Text(
                             text = "Change this to scale every ingredient's weight (and macros) " +
-                                "proportionally (for one unit; Qty scales the food).",
+                                "proportionally. Use ingredient Qty for counts (supports decimals).",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -265,45 +269,32 @@ fun FoodReviewDialog(
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = dishName,
-                                onValueChange = { dishName = it },
-                                label = { Text("Food name") },
-                                singleLine = true,
-                                enabled = !isReanalyzing,
-                                trailingIcon = {
-                                    if (isReanalyzing) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp
+                        OutlinedTextField(
+                            value = dishName,
+                            onValueChange = { dishName = it },
+                            label = { Text("Food name") },
+                            singleLine = true,
+                            enabled = !isReanalyzing,
+                            trailingIcon = {
+                                if (isReanalyzing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    IconButton(
+                                        onClick = { onReanalyze(dishName) },
+                                        enabled = dishName.isNotBlank()
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.AutoAwesome,
+                                            contentDescription = "Recalculate with AI"
                                         )
-                                    } else {
-                                        IconButton(
-                                            onClick = { onReanalyze(dishName) },
-                                            enabled = dishName.isNotBlank()
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.AutoAwesome,
-                                                contentDescription = "Recalculate with AI"
-                                            )
-                                        }
                                     }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = foodQtyText,
-                                onValueChange = { foodQtyText = it.sanitizeQtyInput(3) },
-                                label = { Text("Qty") },
-                                singleLine = true,
-                                enabled = !isReanalyzing,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal
-                                ),
-                                modifier = Modifier.width(88.dp)
-                            )
-                        }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Text(
                             text = if (isReanalyzing) {
                                 "Recalculating with AI…"
@@ -463,10 +454,21 @@ private fun IngredientCard(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Keep partial input like "1." while typing (same pattern as MacroValueField).
+                var qtyText by remember {
+                    mutableStateOf(ingredient.quantity.qtyFieldText())
+                }
+                LaunchedEffect(ingredient.quantity) {
+                    if ((qtyText.toQtyOrNull() ?: 0.0) != ingredient.quantity) {
+                        qtyText = ingredient.quantity.qtyFieldText()
+                    }
+                }
                 OutlinedTextField(
-                    value = if (ingredient.quantity == 0.0) "" else ingredient.quantity.formatQty(),
+                    value = qtyText,
                     onValueChange = { input ->
-                        onQuantityChange(input.sanitizeQtyInput(3).toQtyOrNull() ?: 0.0)
+                        val sanitized = input.sanitizeQtyInput(3)
+                        qtyText = sanitized
+                        onQuantityChange(sanitized.toQtyOrNull() ?: 0.0)
                     },
                     label = { Text("Qty") },
                     singleLine = true,

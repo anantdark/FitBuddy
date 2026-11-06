@@ -28,6 +28,12 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="fdroid.app" />
         </intent>
+        <!-- Telegram + forks (Nekogram, Forkgram, Telegram X, …) via tg:// deep links. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="tg" />
+        </intent>
         <!-- Needed so resolveActivity can see camera apps before TakePicturePreview. -->
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
