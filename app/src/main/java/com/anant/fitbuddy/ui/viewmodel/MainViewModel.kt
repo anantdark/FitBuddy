@@ -919,16 +919,23 @@ class MainViewModel(
                 runCatching { repository.ensureSignupDateFromLogs() }
                 current = settingsRepository.settings.first()
                 val lastSeenDate = settingsRepository.lastSeenDonorDonationDate()
-                val newcomers = donorListRepository.newDisplayableDonors(
-                    file = file,
-                    lastSeenDonationDate = lastSeenDate,
-                    signupDate = current.signupDate.ifBlank { null },
-                )
-                if (newcomers.isNotEmpty()) {
-                    _newDonorsThankYou.value = newcomers
-                } else {
-                    DonorBadgeRules.latestDonationDate(file)?.let { latest ->
-                        settingsRepository.advanceLastSeenDonorDonationDate(latest)
+                val signupDate = current.signupDate.ifBlank { null }
+                // First thank-you waits a few days after install; don't advance last-seen
+                // early or newcomers would be skipped when the delay finally elapses.
+                val pastInstallDelay = lastSeenDate != null ||
+                    DonorListRepository.isPastThankYouInstallDelay(signupDate)
+                if (pastInstallDelay) {
+                    val newcomers = donorListRepository.newDisplayableDonors(
+                        file = file,
+                        lastSeenDonationDate = lastSeenDate,
+                        signupDate = signupDate,
+                    )
+                    if (newcomers.isNotEmpty()) {
+                        _newDonorsThankYou.value = newcomers
+                    } else {
+                        DonorBadgeRules.latestDonationDate(file)?.let { latest ->
+                            settingsRepository.advanceLastSeenDonorDonationDate(latest)
+                        }
                     }
                 }
 

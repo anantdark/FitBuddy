@@ -523,6 +523,7 @@ class FitnessRepository(
                         exportedAt = tip.exportedAt,
                         deviceName = deviceName,
                         macId = macId,
+                        recordCount = backupManager.countRecords(frozenSegment),
                         headTipChunkId = newTipId
                     )
                     mongoBackupRepository.uploadChunk(
@@ -539,6 +540,7 @@ class FitnessRepository(
                         exportedAt = tip.exportedAt,
                         deviceName = deviceName,
                         macId = macId,
+                        recordCount = backupManager.countRecords(tip),
                         headTipChunkId = newTipId
                     )
                     frozen = BackupTipBuilder.indexAfterFreezing(
@@ -576,6 +578,7 @@ class FitnessRepository(
                         exportedAt = tip.exportedAt,
                         deviceName = DeviceIdentity.deviceName(backupManager.appContext),
                         macId = DeviceIdentity.macId(backupManager.appContext),
+                        recordCount = backupManager.countRecords(tip),
                         headTipChunkId = if (tipId != supportId) tipId else null
                     )
                     if (frozen.tipChunkId.isBlank()) {
@@ -703,7 +706,8 @@ class FitnessRepository(
                         payloadJson = sealedPayload,
                         exportedAt = System.currentTimeMillis(),
                         deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                        macId = DeviceIdentity.macId(backupManager.appContext)
+                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        recordCount = backupManager.countRecords(merged)
                     )
                 } catch (e: Exception) {
                     Log.w(TAG, "Legacy cloud backup migration failed; will retry on next upload", e)
@@ -827,6 +831,12 @@ class FitnessRepository(
                         else -> error(BackupErrorMessages.INCORRECT_PASSWORD)
                     }
                     val resealed = backupManager.crypto.seal(plain, effectivePassword.copyOf())
+                    val chunkRecordCount = doc.recordCount.takeIf { it > 0 }
+                        ?: runCatching {
+                            NetworkModule.moshi.adapter(BackupData::class.java)
+                                .fromJson(plain)
+                                ?.let { backupManager.countRecords(it) }
+                        }.getOrNull() ?: 0
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
                         apiKey = MongoUriVault.resolve(),
@@ -842,7 +852,8 @@ class FitnessRepository(
                         deviceName = doc.deviceName.ifBlank {
                             DeviceIdentity.deviceName(backupManager.appContext)
                         },
-                        macId = doc.macId.ifBlank { DeviceIdentity.macId(backupManager.appContext) }
+                        macId = doc.macId.ifBlank { DeviceIdentity.macId(backupManager.appContext) },
+                        recordCount = chunkRecordCount
                     )
                 }
             } else {
@@ -858,7 +869,8 @@ class FitnessRepository(
                     payloadJson = sealedPayload,
                     exportedAt = data.exportedAt,
                     deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                    macId = DeviceIdentity.macId(backupManager.appContext)
+                    macId = DeviceIdentity.macId(backupManager.appContext),
+                    recordCount = backupManager.countRecords(data)
                 )
                 settingsRepository.setMongoTipContentHash(
                     BackupContentHasher.hash(data, backupManager::encode)

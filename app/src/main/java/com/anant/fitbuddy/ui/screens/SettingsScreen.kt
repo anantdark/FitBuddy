@@ -1332,7 +1332,7 @@ fun SettingsScreen(
         // --- Integrations (Health Connect) ----------------------------------------------
         SettingsCard(
             title = stringResource(R.string.settings_integrations),
-            initiallyExpanded = true,
+            initiallyExpanded = false,
             hintTitle = stringResource(R.string.settings_health_connect),
             hint = stringResource(R.string.settings_health_connect_hint)
         ) {

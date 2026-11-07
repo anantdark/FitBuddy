@@ -54,7 +54,8 @@ class CloudUploadEncryptionContractTest {
             val payloadJson: String,
             val exportedAt: Long,
             val deviceName: String,
-            val macId: String
+            val macId: String,
+            val recordCount: Int
         )
 
         var lastCapture: CapturedArgs? = null
@@ -69,7 +70,8 @@ class CloudUploadEncryptionContractTest {
             payloadJson: String,
             exportedAt: Long,
             deviceName: String,
-            macId: String
+            macId: String,
+            recordCount: Int
         ) {
             lastCapture = CapturedArgs(
                 baseUrl = baseUrl,
@@ -80,7 +82,8 @@ class CloudUploadEncryptionContractTest {
                 payloadJson = payloadJson,
                 exportedAt = exportedAt,
                 deviceName = deviceName,
-                macId = macId
+                macId = macId,
+                recordCount = recordCount
             )
         }
     }
