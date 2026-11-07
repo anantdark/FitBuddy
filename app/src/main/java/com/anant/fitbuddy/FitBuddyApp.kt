@@ -15,6 +15,8 @@ import com.anant.fitbuddy.data.remote.RemoteAiDataSource
 import com.anant.fitbuddy.data.remote.UpdateChecker
 import com.anant.fitbuddy.data.remote.exercisedb.ExerciseCatalogRepository
 import com.anant.fitbuddy.data.remote.gymgifs.GymGifsCatalogRepository
+import com.anant.fitbuddy.data.healthconnect.HealthConnectManager
+import com.anant.fitbuddy.data.healthconnect.HealthConnectSync
 import com.anant.fitbuddy.data.repository.FitnessRepository
 import coil.ImageLoader
 import coil.ImageLoaderFactory
@@ -61,6 +63,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
+    val healthConnectManager: HealthConnectManager by lazy { HealthConnectManager(this) }
+
     val updateChecker: UpdateChecker by lazy {
         UpdateChecker(
             githubApi = NetworkModule.provideGithubApi(),
@@ -75,6 +79,18 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
 
     val gymGifsCatalogRepository: GymGifsCatalogRepository by lazy {
         GymGifsCatalogRepository(this)
+    }
+
+    val healthConnectSync: HealthConnectSync by lazy {
+        HealthConnectSync(
+            context = this,
+            manager = healthConnectManager,
+            settingsRepository = settingsRepository,
+            foodLogDao = database.foodLogDao(),
+            bodyMeasurementDao = database.bodyMeasurementDao(),
+            exerciseLogDao = database.exerciseLogDao(),
+            userProfileDao = database.userProfileDao(),
+        )
     }
 
     val repository: FitnessRepository by lazy {
@@ -116,7 +132,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
                 settingsRepository = settingsRepository,
                 crypto = BackupCrypto(NetworkModule.moshi),
                 moshi = NetworkModule.moshi
-            )
+            ),
+            healthConnectSync = healthConnectSync,
         )
     }
 

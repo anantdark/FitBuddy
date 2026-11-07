@@ -83,6 +83,14 @@ class BackupSettingsTest {
                 showRawAiJson = true,
                 strictClarification = true,
                 verboseHttpLogging = true,
+                healthConnectEnabled = true,
+                healthConnectAutoSync = false,
+                healthConnectMetrics = com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs(
+                    importWeight = false,
+                    importSleep = false,
+                    exportNutrition = true,
+                    exportExercise = false,
+                ),
                 cloudBackupEnabled = true,
                 cloudAutoUploadEnabled = false,
                 mongoDbName = "fitbuddy_prod",
@@ -100,6 +108,12 @@ class BackupSettingsTest {
         assertEquals("", restored.mongoLastError)
         assertTrue(restored.cloudBackupEnabled)
         assertFalse(restored.cloudAutoUploadEnabled)
+        assertTrue(restored.healthConnectEnabled)
+        assertFalse(restored.healthConnectAutoSync)
+        assertFalse(restored.healthConnectMetrics.importWeight)
+        assertFalse(restored.healthConnectMetrics.importSleep)
+        assertTrue(restored.healthConnectMetrics.exportNutrition)
+        assertFalse(restored.healthConnectMetrics.exportExercise)
     }
 
     @Test

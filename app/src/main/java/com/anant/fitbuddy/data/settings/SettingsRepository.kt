@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
+import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.model.WorkoutFilterOrdering
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -183,6 +185,25 @@ class SettingsRepository(context: Context) {
             verboseHttpLogging = prefs[KEY_VERBOSE_HTTP] ?: false,
             developerUnlockThemes = prefs[KEY_DEVELOPER_UNLOCK_THEMES] ?: false,
             forceShowLoadingAnimations = prefs[KEY_FORCE_SHOW_LOADING_ANIMS] ?: false,
+            healthConnectEnabled = prefs[KEY_HEALTH_CONNECT_ENABLED] ?: false,
+            healthConnectAutoSync = prefs[KEY_HEALTH_CONNECT_AUTO_SYNC] ?: true,
+            healthConnectMetrics = HealthConnectMetricPrefs(
+                importWeight = prefs[KEY_HC_IMPORT_WEIGHT] ?: true,
+                importHeight = prefs[KEY_HC_IMPORT_HEIGHT] ?: true,
+                importBodyFat = prefs[KEY_HC_IMPORT_BODY_FAT] ?: true,
+                importMuscleMass = prefs[KEY_HC_IMPORT_MUSCLE_MASS] ?: true,
+                importExercise = prefs[KEY_HC_IMPORT_EXERCISE] ?: true,
+                importSteps = prefs[KEY_HC_IMPORT_STEPS] ?: true,
+                importHydration = prefs[KEY_HC_IMPORT_HYDRATION] ?: true,
+                importSleep = prefs[KEY_HC_IMPORT_SLEEP] ?: true,
+                exportNutrition = prefs[KEY_HC_EXPORT_NUTRITION] ?: true,
+                exportWeight = prefs[KEY_HC_EXPORT_WEIGHT] ?: true,
+                exportHeight = prefs[KEY_HC_EXPORT_HEIGHT] ?: true,
+                exportBodyFat = prefs[KEY_HC_EXPORT_BODY_FAT] ?: true,
+                exportMuscleMass = prefs[KEY_HC_EXPORT_MUSCLE_MASS] ?: true,
+                exportHydration = false,
+                exportExercise = prefs[KEY_HC_EXPORT_EXERCISE] ?: true,
+            ).sanitized(),
             // Debug builds never sync to cloud (including after restore / Auto Backup).
             cloudBackupEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
             cloudAutoUploadEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true),
@@ -485,6 +506,24 @@ class SettingsRepository(context: Context) {
             prefs.remove(KEY_SENTRY_PROXY_DAY)
             prefs[KEY_DEVELOPER_UNLOCK_THEMES] = settings.developerUnlockThemes
             prefs[KEY_FORCE_SHOW_LOADING_ANIMS] = settings.forceShowLoadingAnimations
+            prefs[KEY_HEALTH_CONNECT_ENABLED] = settings.healthConnectEnabled
+            prefs[KEY_HEALTH_CONNECT_AUTO_SYNC] = settings.healthConnectAutoSync
+            val hc = settings.healthConnectMetrics.sanitized()
+            prefs[KEY_HC_IMPORT_WEIGHT] = hc.importWeight
+            prefs[KEY_HC_IMPORT_HEIGHT] = hc.importHeight
+            prefs[KEY_HC_IMPORT_BODY_FAT] = hc.importBodyFat
+            prefs[KEY_HC_IMPORT_MUSCLE_MASS] = hc.importMuscleMass
+            prefs[KEY_HC_IMPORT_EXERCISE] = hc.importExercise
+            prefs[KEY_HC_IMPORT_STEPS] = hc.importSteps
+            prefs[KEY_HC_IMPORT_HYDRATION] = hc.importHydration
+            prefs[KEY_HC_IMPORT_SLEEP] = hc.importSleep
+            prefs[KEY_HC_EXPORT_NUTRITION] = hc.exportNutrition
+            prefs[KEY_HC_EXPORT_WEIGHT] = hc.exportWeight
+            prefs[KEY_HC_EXPORT_HEIGHT] = hc.exportHeight
+            prefs[KEY_HC_EXPORT_BODY_FAT] = hc.exportBodyFat
+            prefs[KEY_HC_EXPORT_MUSCLE_MASS] = hc.exportMuscleMass
+            prefs[KEY_HC_EXPORT_HYDRATION] = false
+            prefs[KEY_HC_EXPORT_EXERCISE] = hc.exportExercise
             prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
             prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = settings.cloudBackupPasswordSet
@@ -778,6 +817,23 @@ class SettingsRepository(context: Context) {
         val KEY_VERBOSE_HTTP = booleanPreferencesKey("verbose_http_logging")
         val KEY_DEVELOPER_UNLOCK_THEMES = booleanPreferencesKey("developer_unlock_themes")
         val KEY_FORCE_SHOW_LOADING_ANIMS = booleanPreferencesKey("force_show_loading_animations")
+        val KEY_HEALTH_CONNECT_ENABLED = booleanPreferencesKey("health_connect_enabled")
+        val KEY_HEALTH_CONNECT_AUTO_SYNC = booleanPreferencesKey("health_connect_auto_sync")
+        val KEY_HC_IMPORT_WEIGHT = booleanPreferencesKey("hc_import_weight")
+        val KEY_HC_IMPORT_HEIGHT = booleanPreferencesKey("hc_import_height")
+        val KEY_HC_IMPORT_BODY_FAT = booleanPreferencesKey("hc_import_body_fat")
+        val KEY_HC_IMPORT_MUSCLE_MASS = booleanPreferencesKey("hc_import_muscle_mass")
+        val KEY_HC_IMPORT_EXERCISE = booleanPreferencesKey("hc_import_exercise")
+        val KEY_HC_IMPORT_STEPS = booleanPreferencesKey("hc_import_steps")
+        val KEY_HC_IMPORT_HYDRATION = booleanPreferencesKey("hc_import_hydration")
+        val KEY_HC_IMPORT_SLEEP = booleanPreferencesKey("hc_import_sleep")
+        val KEY_HC_EXPORT_NUTRITION = booleanPreferencesKey("hc_export_nutrition")
+        val KEY_HC_EXPORT_WEIGHT = booleanPreferencesKey("hc_export_weight")
+        val KEY_HC_EXPORT_HEIGHT = booleanPreferencesKey("hc_export_height")
+        val KEY_HC_EXPORT_BODY_FAT = booleanPreferencesKey("hc_export_body_fat")
+        val KEY_HC_EXPORT_MUSCLE_MASS = booleanPreferencesKey("hc_export_muscle_mass")
+        val KEY_HC_EXPORT_HYDRATION = booleanPreferencesKey("hc_export_hydration")
+        val KEY_HC_EXPORT_EXERCISE = booleanPreferencesKey("hc_export_exercise")
         val KEY_CLOUD_BACKUP_ENABLED = booleanPreferencesKey("cloud_backup_enabled")
         val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")
         val KEY_CLOUD_BACKUP_PASSWORD_SET = booleanPreferencesKey("cloud_backup_password_set")

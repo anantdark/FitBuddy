@@ -20,6 +20,7 @@ Features:
 • Community — public Telegram group for announcements, questions, and chatting with the developer (t.me/fitbuddyapp)
 • Material You — dynamic color theming on Android 12+
 • Crash reports — optional anonymous Sentry reports (off by default; opt in via Settings)
+• Health Connect — optional Integrations setting (off by default) with auto-sync (on by default) and per-metric import/export toggles: meals, weight, height, body fat, muscle mass, exercise, steps, hydration, sleep (hydration/sleep feed AI context)
 • Diagnostic log — optional AI connection log you can export from Settings for support (no meals, photos, or keys)
 
 AI providers (configured at runtime in Settings):
@@ -34,6 +35,7 @@ Privacy:
 • No ads, no tracking by default; no Android Auto Backup (local JSON + optional MongoDB only)
 • Crash reports (Sentry) are off by default on F-Droid builds; opt in under Settings
 • Cloud backup (MongoDB Atlas) is off by default; opt in under Settings → Backup; optional password
+• Health Connect sync is off by default; opt in under Settings → Integrations (on-device sharing with apps you authorize)
 • AI providers are contacted only when you choose to enable them
 • Razorpay, payment apps, and GitHub Sponsors open only when you choose them; the UPI QR is stored locally
 • Privacy policy & deletion requests: https://anantdark.github.io/FitBuddy/privacy.html (fitbuddy31@proton.me)

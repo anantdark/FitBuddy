@@ -98,6 +98,9 @@ import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
 import com.anant.fitbuddy.util.DeviceIdentity
 import com.anant.fitbuddy.util.DiagnosticLogger
+import com.anant.fitbuddy.data.healthconnect.HealthConnectSync
+import com.anant.fitbuddy.data.healthconnect.HealthConnectSyncResult
+import com.anant.fitbuddy.data.healthconnect.HealthConnectWellnessContext
 import com.anant.fitbuddy.data.settings.ModelCooldown
 import com.anant.fitbuddy.data.settings.ModelCooldownPolicy
 import com.anant.fitbuddy.data.settings.SettingsRepository
@@ -128,6 +131,7 @@ class FitnessRepository(
     private val openFoodFactsDataSource: OpenFoodFactsDataSource,
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
+    private val healthConnectSync: HealthConnectSync? = null,
     private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
@@ -255,23 +259,37 @@ class FitnessRepository(
     /** Saves a reading and mirrors the actual latest reading's weight onto the profile. */
     suspend fun addMeasurement(measurement: BodyMeasurement) {
         bodyMeasurementDao.insertAndSync(measurement, System.currentTimeMillis())
+        // Re-read by timestamp so we have the Room id for Health Connect clientRecordId.
+        bodyMeasurementDao.getByTimestamp(measurement.timestamp)?.let {
+            healthConnectSync?.mirrorMeasurement(it)
+        }
     }
 
     /**
      * Insert or replace by [BodyMeasurement.timestamp]. Returns true if a new row was inserted.
      */
-    suspend fun upsertMeasurementByTimestamp(measurement: BodyMeasurement): Boolean =
-        bodyMeasurementDao.upsertByTimestampAndSync(
+    suspend fun upsertMeasurementByTimestamp(measurement: BodyMeasurement): Boolean {
+        val inserted = bodyMeasurementDao.upsertByTimestampAndSync(
             measurement = measurement,
             lastUpdatedTimestamp = System.currentTimeMillis()
         )
+        bodyMeasurementDao.getByTimestamp(measurement.timestamp)?.let {
+            healthConnectSync?.mirrorMeasurement(it)
+        }
+        return inserted
+    }
 
     suspend fun getAllMeasurementsOnce(): List<BodyMeasurement> =
         bodyMeasurementDao.getAllOnce()
 
     suspend fun deleteMeasurement(measurement: BodyMeasurement) {
         bodyMeasurementDao.deleteAndSync(measurement, System.currentTimeMillis())
+        healthConnectSync?.deleteMeasurement(measurement)
     }
+
+    /** Wellness snapshot from Health Connect (hydration / sleep) for AI context. */
+    suspend fun healthConnectWellnessContext(): HealthConnectWellnessContext =
+        healthConnectSync?.wellnessContext() ?: HealthConnectWellnessContext()
 
     // --- AI planning ------------------------------------------------------------------------
 
@@ -910,6 +928,9 @@ class FitnessRepository(
 
     suspend fun saveProfile(profile: UserProfile) {
         userProfileDao.insertOrUpdateProfileWithLatestWeight(profile)
+        if (profile.heightCm > 0) {
+            healthConnectSync?.mirrorHeight(profile.heightCm)
+        }
     }
 
     /**
@@ -981,7 +1002,15 @@ class FitnessRepository(
         lastUpdatedTimestamp = System.currentTimeMillis()
     ) > 0
 
-    suspend fun deleteFood(log: FoodLog) = foodLogDao.deleteFoodLog(log)
+    suspend fun deleteFood(log: FoodLog) {
+        foodLogDao.deleteFoodLog(log)
+        healthConnectSync?.deleteNutrition(log.id)
+    }
+
+    /** Pull/push Health Connect data according to per-metric toggles. */
+    suspend fun syncHealthConnect(force: Boolean = true): HealthConnectSyncResult =
+        healthConnectSync?.syncNow(force = force)
+            ?: HealthConnectSyncResult(error = "Health Connect is unavailable")
 
     /** Deleting an exercise log also removes its workout session + exercises, if it was mirrored from one. */
     suspend fun deleteExercise(log: ExerciseLog) {
@@ -990,6 +1019,7 @@ class FitnessRepository(
             workoutSessionDao.delete(session)
         }
         exerciseLogDao.deleteExerciseLog(log)
+        healthConnectSync?.deleteExercise(log.id)
     }
 
     // --- Workout sessions -------------------------------------------------------------------
@@ -1064,6 +1094,7 @@ class FitnessRepository(
             )
         )
         ensureSignupDateFromLogs()
+        exerciseLogDao.getById(exerciseLogId)?.let { healthConnectSync?.mirrorExercise(it) }
 
         return result
     }
@@ -1100,14 +1131,14 @@ class FitnessRepository(
 
         if (exerciseLogId != null) {
             exerciseLogDao.getById(exerciseLogId)?.let { existingLog ->
-                exerciseLogDao.insertExerciseLog(
-                    existingLog.copy(
-                        activityName = enriched.name,
-                        caloriesBurned = result.caloriesBurned,
-                        durationMinutes = result.durationMinutes,
-                        iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
-                    )
+                val updated = existingLog.copy(
+                    activityName = enriched.name,
+                    caloriesBurned = result.caloriesBurned,
+                    durationMinutes = result.durationMinutes,
+                    iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
                 )
+                exerciseLogDao.insertExerciseLog(updated)
+                healthConnectSync?.mirrorExercise(updated)
             }
         }
 
@@ -1145,14 +1176,14 @@ class FitnessRepository(
 
         workoutExerciseDao.insertAll(enriched.exercises.toWorkoutExercises(sessionId))
 
-        exerciseLogDao.insertExerciseLog(
-            existingLog.copy(
-                activityName = enriched.name,
-                caloriesBurned = result.caloriesBurned,
-                durationMinutes = result.durationMinutes,
-                iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
-            )
+        val updatedLog = existingLog.copy(
+            activityName = enriched.name,
+            caloriesBurned = result.caloriesBurned,
+            durationMinutes = result.durationMinutes,
+            iconTopic = LogIconTopic.normalizeExercise(result.iconTopic)
         )
+        exerciseLogDao.insertExerciseLog(updatedLog)
+        healthConnectSync?.mirrorExercise(updatedLog)
 
         return result
     }
@@ -1353,17 +1384,20 @@ class FitnessRepository(
                     return AnalysisOutcome.Error("Missing exercise analysis in response")
                 }
                 val durationMinutes = exercise.durationMinutes ?: 30
-                exerciseLogDao.insertExerciseLog(
-                    ExerciseLog(
-                        activityName = activityName,
-                        timestamp = timestamp,
-                        dateString = dateString,
-                        caloriesBurned = caloriesBurned,
-                        durationMinutes = durationMinutes,
-                        iconTopic = LogIconTopic.normalizeExercise(exercise.iconTopic)
+                val newId = exerciseLogDao.insertAll(
+                    listOf(
+                        ExerciseLog(
+                            activityName = activityName,
+                            timestamp = timestamp,
+                            dateString = dateString,
+                            caloriesBurned = caloriesBurned,
+                            durationMinutes = durationMinutes,
+                            iconTopic = LogIconTopic.normalizeExercise(exercise.iconTopic)
+                        )
                     )
-                )
+                ).first().toInt()
                 ensureSignupDateFromLogs()
+                exerciseLogDao.getById(newId)?.let { healthConnectSync?.mirrorExercise(it) }
                 AnalysisOutcome.ExerciseSaved(activityName, caloriesBurned)
             }
 
@@ -1568,6 +1602,7 @@ class FitnessRepository(
         mealFoodDao.deleteForMeal(mealId)
         mealFoodDao.insertAll(draft.foods.mapIndexed { index, food -> food.toMealFood(mealId, index) })
         ensureSignupDateFromLogs()
+        healthConnectSync?.mirrorNutrition(mealLog.copy(id = mealId))
     }
 
     /** Rebuilds an editable meal draft from a stored log, preserving the food → ingredient tree. */

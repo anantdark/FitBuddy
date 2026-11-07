@@ -151,6 +151,14 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import com.anant.fitbuddy.FitBuddyApp
+import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricAvailability
+import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
+import com.anant.fitbuddy.data.healthconnect.sanitized
+import com.anant.fitbuddy.data.healthconnect.HealthConnectSdkStatus
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 private const val EASTER_EGG_TAP_TARGET = 31
 private const val EASTER_EGG_HINT_START = 25
@@ -200,6 +208,11 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit,
     onAutoCheckUpdatesChange: (Boolean) -> Unit,
     onCrashReportingChange: (Boolean) -> Unit,
+    onHealthConnectEnabledChange: (Boolean) -> Unit = {},
+    onHealthConnectAutoSyncChange: (Boolean) -> Unit = {},
+    onHealthConnectMetricsChange: (HealthConnectMetricPrefs) -> Unit = {},
+    onHealthConnectSync: () -> Unit = {},
+    healthConnectSyncBusy: Boolean = false,
     onStartDiagnosticLogging: () -> Unit = {},
     onStopAndExportDiagnosticLog: () -> Unit = {},
     onSupportIdCopied: () -> Unit = {},
@@ -242,6 +255,76 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
+    val healthConnectManager = remember(context) {
+        (context.applicationContext as FitBuddyApp).healthConnectManager
+    }
+    var healthConnectSdkStatus by remember {
+        mutableStateOf(healthConnectManager.sdkStatus())
+    }
+    /** Desired metrics after the permission sheet; aligned to grants on result. */
+    var pendingHealthConnectMetrics by remember {
+        mutableStateOf<HealthConnectMetricPrefs?>(null)
+    }
+    var pendingEnableHealthConnect by remember { mutableStateOf(false) }
+    var pendingSyncAfterPermission by remember { mutableStateOf(false) }
+    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
+        contract = healthConnectManager.permissionContract()
+    ) { resultGranted ->
+        val desired = pendingHealthConnectMetrics ?: settings.healthConnectMetrics
+        pendingHealthConnectMetrics = null
+        val wantEnable = pendingEnableHealthConnect
+        pendingEnableHealthConnect = false
+        val runSync = pendingSyncAfterPermission
+        pendingSyncAfterPermission = false
+        coroutineScope.launch {
+            val fromApi = healthConnectManager.grantedPermissions()
+            val previous = settings.healthConnectMetrics
+            val aligned = healthConnectManager.applyPermissionResult(
+                previous = previous,
+                desired = desired,
+                resultGranted = resultGranted,
+                allGranted = fromApi
+            )
+            onHealthConnectMetricsChange(aligned)
+            val anyOn = aligned.anyImport() || aligned.anyExport()
+            when {
+                wantEnable -> {
+                    if (anyOn) {
+                        onHealthConnectEnabledChange(true)
+                        if (runSync) onHealthConnectSync()
+                    } else {
+                        onHealthConnectEnabledChange(false)
+                        onPermissionDenied(
+                            context.getString(
+                                R.string.settings_health_connect_permissions_denied
+                            )
+                        )
+                    }
+                }
+                runSync -> {
+                    if (anyOn) onHealthConnectSync()
+                    else onPermissionDenied(
+                        context.getString(R.string.settings_health_connect_permissions_denied)
+                    )
+                }
+                // Single-metric toggle: stay silent; denied metrics simply remain off.
+            }
+        }
+    }
+
+    // When HC is first turned on, drop any toggles that lack a grant. Do not key on
+    // metrics themselves — getGrantedPermissions() can briefly return empty right after
+    // the permission sheet and would otherwise snap granted toggles back off.
+    LaunchedEffect(settings.healthConnectEnabled) {
+        if (!settings.healthConnectEnabled) return@LaunchedEffect
+        if (healthConnectManager.sdkStatus() != HealthConnectSdkStatus.Available) return@LaunchedEffect
+        val granted = healthConnectManager.grantedPermissions()
+        if (granted.isEmpty()) return@LaunchedEffect
+        val current = settings.healthConnectMetrics
+        val aligned = healthConnectManager.alignToGranted(current, granted)
+        if (aligned != current) onHealthConnectMetricsChange(aligned)
+    }
     // Local editable copies, re-seeded whenever persisted settings change.
     var provider by remember(settings) { mutableStateOf(settings.provider) }
     var openRouterKeys by remember(settings) {
@@ -1244,6 +1327,310 @@ fun SettingsScreen(
                     TextButton(onClick = { showReminderTimePicker = false }) { Text(stringResource(R.string.common_cancel)) }
                 }
             )
+        }
+
+        // --- Integrations (Health Connect) ----------------------------------------------
+        SettingsCard(
+            title = stringResource(R.string.settings_integrations),
+            initiallyExpanded = true,
+            hintTitle = stringResource(R.string.settings_health_connect),
+            hint = stringResource(R.string.settings_health_connect_hint)
+        ) {
+            DisposableEffect(lifecycleOwner, settings.healthConnectEnabled) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        healthConnectSdkStatus = healthConnectManager.sdkStatus()
+                        if (!settings.healthConnectEnabled) return@LifecycleEventObserver
+                        if (healthConnectManager.sdkStatus() != HealthConnectSdkStatus.Available) {
+                            return@LifecycleEventObserver
+                        }
+                        // Skip while a permission request is in flight — resume fires when
+                        // the HC sheet closes and grants may not be readable yet.
+                        if (pendingHealthConnectMetrics != null) return@LifecycleEventObserver
+                        coroutineScope.launch {
+                            val granted = healthConnectManager.grantedPermissions()
+                            if (granted.isEmpty()) return@launch
+                            val current = settings.healthConnectMetrics
+                            val aligned = healthConnectManager.alignToGranted(current, granted)
+                            if (aligned != current) {
+                                onHealthConnectMetricsChange(aligned)
+                            }
+                        }
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
+
+            fun requestOrApplyMetrics(next: HealthConnectMetricPrefs, alsoEnable: Boolean = false) {
+                when (healthConnectManager.sdkStatus()) {
+                    HealthConnectSdkStatus.Available -> {
+                        coroutineScope.launch {
+                            val missing = healthConnectManager.missingPermissions(next)
+                            if (missing.isNotEmpty()) {
+                                // Always re-show the permission sheet when enabling a metric.
+                                pendingHealthConnectMetrics = next
+                                pendingEnableHealthConnect = alsoEnable
+                                healthConnectPermissionLauncher.launch(missing)
+                            } else {
+                                // No missing perms for this selection — apply as requested.
+                                onHealthConnectMetricsChange(next)
+                                if (alsoEnable) onHealthConnectEnabledChange(true)
+                            }
+                        }
+                    }
+                    HealthConnectSdkStatus.UpdateRequired,
+                    HealthConnectSdkStatus.Unavailable -> {
+                        val intent = healthConnectManager.providerInstallOrUpdateIntent()
+                        if (intent != null) {
+                            runCatching { context.startActivity(intent) }
+                        }
+                        onPermissionDenied(
+                            context.getString(
+                                if (healthConnectSdkStatus == HealthConnectSdkStatus.UpdateRequired) {
+                                    R.string.settings_health_connect_update_required
+                                } else {
+                                    R.string.settings_health_connect_unavailable
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+
+            SettingToggleRow(
+                title = stringResource(R.string.settings_health_connect_sync),
+                checked = settings.healthConnectEnabled,
+                onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        onHealthConnectEnabledChange(false)
+                        return@SettingToggleRow
+                    }
+                    // If a prior deny wiped every metric, restore defaults for the ask.
+                    val current = settings.healthConnectMetrics
+                    val toRequest =
+                        if (current.anyImport() || current.anyExport()) current
+                        else HealthConnectMetricPrefs()
+                    requestOrApplyMetrics(toRequest, alsoEnable = true)
+                },
+                hintTitle = stringResource(R.string.settings_health_connect_sync),
+                hint = stringResource(R.string.settings_health_connect_hint)
+            )
+            if (settings.healthConnectEnabled) {
+                SettingToggleRow(
+                    title = stringResource(R.string.settings_health_connect_auto_sync),
+                    checked = settings.healthConnectAutoSync,
+                    onCheckedChange = onHealthConnectAutoSyncChange,
+                    hintTitle = stringResource(R.string.settings_health_connect_auto_sync),
+                    hint = stringResource(R.string.settings_health_connect_auto_sync_hint)
+                )
+            }
+            Text(
+                text = when (healthConnectSdkStatus) {
+                    HealthConnectSdkStatus.Available ->
+                        stringResource(R.string.settings_health_connect_available)
+                    HealthConnectSdkStatus.UpdateRequired ->
+                        stringResource(R.string.settings_health_connect_update_required)
+                    HealthConnectSdkStatus.Unavailable ->
+                        stringResource(R.string.settings_health_connect_unavailable)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            val metrics = settings.healthConnectMetrics
+            val metricsEnabled = settings.healthConnectEnabled
+            fun setMetric(
+                enable: Boolean,
+                transform: (HealthConnectMetricPrefs) -> HealthConnectMetricPrefs
+            ) {
+                val next = transform(metrics).sanitized()
+                if (enable) requestOrApplyMetrics(next)
+                else onHealthConnectMetricsChange(next)
+            }
+            var metricsExpanded by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { metricsExpanded = !metricsExpanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_hc_metrics),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Icon(
+                    imageVector = if (metricsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            AnimatedVisibility(visible = metricsExpanded) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_hc_import),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_weight),
+                        checked = metrics.importWeight,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importWeight,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importWeight = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_height),
+                        checked = metrics.importHeight,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importHeight,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importHeight = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_body_fat),
+                        checked = metrics.importBodyFat,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importBodyFat,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importBodyFat = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_muscle_mass),
+                        checked = metrics.importMuscleMass,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importMuscleMass,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importMuscleMass = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_exercise),
+                        checked = metrics.importExercise,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importExercise,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importExercise = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_steps),
+                        checked = metrics.importSteps,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importSteps,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importSteps = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_hydration),
+                        checked = metrics.importHydration,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importHydration,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importHydration = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_import_sleep),
+                        checked = metrics.importSleep,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.importSleep,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(importSleep = it) } }
+                    )
+
+                    Text(
+                        text = stringResource(R.string.settings_hc_export),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_nutrition),
+                        checked = metrics.exportNutrition,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportNutrition,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportNutrition = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_weight),
+                        checked = metrics.exportWeight,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportWeight,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportWeight = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_height),
+                        checked = metrics.exportHeight,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportHeight,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportHeight = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_body_fat),
+                        checked = metrics.exportBodyFat,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportBodyFat,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportBodyFat = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_muscle_mass),
+                        checked = metrics.exportMuscleMass,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportMuscleMass,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportMuscleMass = it) } }
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_hydration),
+                        checked = false,
+                        enabled = false,
+                        onCheckedChange = {},
+                        hintTitle = stringResource(R.string.settings_hc_export_hydration),
+                        hint = stringResource(R.string.settings_hc_coming_soon)
+                    )
+                    SettingToggleRow(
+                        title = stringResource(R.string.settings_hc_export_exercise),
+                        checked = metrics.exportExercise,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportExercise,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportExercise = it) } }
+                    )
+                }
+            }
+
+            if (settings.healthConnectEnabled) {
+                OutlinedButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val missing = healthConnectManager.missingPermissions(
+                                settings.healthConnectMetrics
+                            )
+                            if (missing.isNotEmpty()) {
+                                pendingHealthConnectMetrics = settings.healthConnectMetrics
+                                pendingSyncAfterPermission = true
+                                healthConnectPermissionLauncher.launch(missing)
+                            } else {
+                                onHealthConnectSync()
+                            }
+                        }
+                    },
+                    enabled = !healthConnectSyncBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (healthConnectSyncBusy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.settings_health_connect_syncing))
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.settings_health_connect_sync_now))
+                    }
+                }
+            }
+            if (healthConnectSdkStatus == HealthConnectSdkStatus.Available) {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(healthConnectManager.openHealthConnectSettingsIntent())
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.settings_health_connect_open))
+                }
+            } else {
+                val installIntent = healthConnectManager.providerInstallOrUpdateIntent()
+                if (installIntent != null) {
+                    TextButton(
+                        onClick = { runCatching { context.startActivity(installIntent) } }
+                    ) {
+                        Text(stringResource(R.string.settings_health_connect_install))
+                    }
+                }
+            }
         }
 
         // --- Backup ----------------------------------------------------------------------
