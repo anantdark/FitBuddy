@@ -33,6 +33,7 @@ import com.anant.fitbuddy.reminders.DonationReminderScheduler
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
 import com.anant.fitbuddy.util.DiagnosticLogger
+import com.anant.fitbuddy.widget.FitBuddyWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -134,6 +135,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
                 moshi = NetworkModule.moshi
             ),
             healthConnectSync = healthConnectSync,
+            onLocalDataChanged = { FitBuddyWidgetUpdater.notifyDataChanged(this) },
         )
     }
 

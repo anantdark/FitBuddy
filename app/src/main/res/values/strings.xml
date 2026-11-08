@@ -1210,4 +1210,21 @@
     <string name="vm_couldn_t_save_manual_targets">Couldn\'t save manual targets</string>
     <string name="vm_trend_adjusted_locally">Trend-adjusted locally</string>
     <string name="barcode_e_g_s">e.g. %1$s</string>
+    <string name="widget_quick_snap_title">Quick Snap</string>
+    <string name="widget_quick_snap_description">Log food with a photo in one tap</string>
+    <string name="widget_describe_log_title">Describe &amp; Log</string>
+    <string name="widget_describe_log_description">Type what you ate and let AI estimate macros</string>
+    <string name="widget_calorie_orb_title">Calorie Orb</string>
+    <string name="widget_calorie_orb_description">See remaining calories and open the log hub</string>
+    <string name="widget_calorie_orb_today">Today</string>
+    <string name="widget_calorie_orb_preview_left">kcal left</string>
+    <string name="widget_preset_launchpad_title">Preset Launchpad</string>
+    <string name="widget_preset_launchpad_description">Jump into your recent saved meals and foods</string>
+    <string name="widget_preset_launchpad_empty">Save a meal or food, then one-tap log from here</string>
+    <string name="widget_action_strip_title">Action Strip</string>
+    <string name="widget_action_strip_description">Photo, text, saved meals, and barcode — always one tap away</string>
+    <string name="widget_action_photo">Photo</string>
+    <string name="widget_action_text">Text</string>
+    <string name="widget_action_saved">Saved</string>
+    <string name="widget_action_barcode">Scan</string>
 </resources>

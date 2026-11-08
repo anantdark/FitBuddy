@@ -67,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.remote.UpdateChannel
+import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.database.MealPreset
@@ -136,6 +137,10 @@ fun MainScreen(
     viewModel: MainViewModel,
     openLogHubRequest: Boolean = false,
     onOpenLogHubConsumed: () -> Unit = {},
+    openLogActionRequest: String? = null,
+    openPresetIdRequest: Int? = null,
+    openPresetKindRequest: String? = null,
+    onOpenLogActionConsumed: () -> Unit = {},
     openDonateReminderRequest: Boolean = false,
     onOpenDonateReminderConsumed: () -> Unit = {},
 ) {
@@ -415,6 +420,48 @@ fun MainScreen(
                 ImageUtils.uriToJpeg(context, uri)?.let { viewModel.analyzeImage(it) }
             }
         }
+    }
+
+    LaunchedEffect(openLogActionRequest) {
+        val action = openLogActionRequest ?: return@LaunchedEffect
+        when (action) {
+            MainActivity.LOG_ACTION_CAMERA -> {
+                showLogHub = false
+                viewModel.notifyExternalMediaLaunch()
+                if (cameraPermission.status.isGranted) {
+                    launchCameraPreview()
+                } else {
+                    cameraPermission.launchPermissionRequest()
+                }
+            }
+            MainActivity.LOG_ACTION_TEXT -> {
+                showLogHub = false
+                showTextDialog = true
+            }
+            MainActivity.LOG_ACTION_PRESETS -> {
+                showLogHub = false
+                if (openPresetKindRequest == MainActivity.PRESET_KIND_FOOD) {
+                    savedFoodSheetMode = SavedFoodSheetMode.LOG_TO_DAY
+                    showSavedFoodSheet = true
+                } else {
+                    showMealPresetSheet = true
+                }
+            }
+            MainActivity.LOG_ACTION_SAVED_FOOD -> {
+                showLogHub = false
+                savedFoodSheetMode = SavedFoodSheetMode.LOG_TO_DAY
+                showSavedFoodSheet = true
+            }
+            MainActivity.LOG_ACTION_BARCODE -> {
+                showLogHub = false
+                scanFlow = ScanFlow.SAVE_FOOD
+                showBarcodeScan = true
+            }
+            MainActivity.LOG_ACTION_HUB -> showLogHub = true
+            else -> showLogHub = true
+        }
+        // openPresetIdRequest reserved for future picker highlight.
+        onOpenLogActionConsumed()
     }
 
     val importLauncher = rememberLauncherForActivityResult(

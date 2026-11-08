@@ -132,9 +132,14 @@ class FitnessRepository(
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
     private val healthConnectSync: HealthConnectSync? = null,
-    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
+    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository(),
+    private val onLocalDataChanged: (() -> Unit)? = null,
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
+
+    private fun notifyLocalDataChanged() {
+        onLocalDataChanged?.invoke()
+    }
 
     /** True when a profile with age/weight/height already exists (past first-run onboarding). */
     suspend fun hasBasicsConfiguredProfile(): Boolean =
@@ -1017,6 +1022,7 @@ class FitnessRepository(
     suspend fun deleteFood(log: FoodLog) {
         foodLogDao.deleteFoodLog(log)
         healthConnectSync?.deleteNutrition(log.id)
+        notifyLocalDataChanged()
     }
 
     /** Pull/push Health Connect data according to per-metric toggles. */
@@ -1032,6 +1038,7 @@ class FitnessRepository(
         }
         exerciseLogDao.deleteExerciseLog(log)
         healthConnectSync?.deleteExercise(log.id)
+        notifyLocalDataChanged()
     }
 
     // --- Workout sessions -------------------------------------------------------------------
@@ -1107,6 +1114,7 @@ class FitnessRepository(
         )
         ensureSignupDateFromLogs()
         exerciseLogDao.getById(exerciseLogId)?.let { healthConnectSync?.mirrorExercise(it) }
+        notifyLocalDataChanged()
 
         return result
     }
@@ -1410,6 +1418,7 @@ class FitnessRepository(
                 ).first().toInt()
                 ensureSignupDateFromLogs()
                 exerciseLogDao.getById(newId)?.let { healthConnectSync?.mirrorExercise(it) }
+                notifyLocalDataChanged()
                 AnalysisOutcome.ExerciseSaved(activityName, caloriesBurned)
             }
 
@@ -1615,6 +1624,7 @@ class FitnessRepository(
         mealFoodDao.insertAll(draft.foods.mapIndexed { index, food -> food.toMealFood(mealId, index) })
         ensureSignupDateFromLogs()
         healthConnectSync?.mirrorNutrition(mealLog.copy(id = mealId))
+        notifyLocalDataChanged()
     }
 
     /** Rebuilds an editable meal draft from a stored log, preserving the food → ingredient tree. */
@@ -1701,6 +1711,7 @@ class FitnessRepository(
                 iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
             )
         )
+        notifyLocalDataChanged()
     }
 
     /** Saves a full meal as a reusable preset for one-tap dashboard logging. */
@@ -1719,6 +1730,7 @@ class FitnessRepository(
                 iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
             )
         )
+        notifyLocalDataChanged()
     }
 
     /**
@@ -1739,16 +1751,24 @@ class FitnessRepository(
                     ?: existing.iconTopic
             )
         )
+        notifyLocalDataChanged()
     }
 
-    suspend fun deleteSavedFood(food: SavedFood) = savedFoodDao.delete(food)
+    suspend fun deleteSavedFood(food: SavedFood) {
+        savedFoodDao.delete(food)
+        notifyLocalDataChanged()
+    }
 
-    suspend fun deleteMealPreset(preset: MealPreset) = mealPresetDao.delete(preset)
+    suspend fun deleteMealPreset(preset: MealPreset) {
+        mealPresetDao.delete(preset)
+        notifyLocalDataChanged()
+    }
 
     /** Updates an existing saved food (same id), preserving [SavedFood.lastUsedAt] and barcode. */
     suspend fun updateSavedFood(food: SavedFood) {
         require(food.id > 0) { "Saved food id required for update" }
         savedFoodDao.insert(food)
+        notifyLocalDataChanged()
     }
 
     /** Bumps a saved food to the top of the library (after meal pick or standalone log). */
