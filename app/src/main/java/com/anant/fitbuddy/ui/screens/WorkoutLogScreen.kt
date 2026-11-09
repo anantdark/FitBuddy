@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
 import com.anant.fitbuddy.R
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.UnitSystem
+import com.anant.fitbuddy.util.Units
 
 import androidx.compose.ui.res.stringResource
 
@@ -71,7 +74,8 @@ private val SET_PRESETS = listOf("1", "2", "3")
 private val REP_PRESETS = listOf("8", "12", "15")
 private val HOLD_SEC_PRESETS = listOf("20", "30", "45", "60", "90")
 private val CARRY_SEC_PRESETS = listOf("30", "45", "60", "90", "120")
-private val WEIGHT_PRESETS = listOf("5", "10", "15", "20")
+private fun weightPresets(units: UnitSystem) =
+    if (units == UnitSystem.IMPERIAL) listOf("10", "25", "35", "45") else listOf("5", "10", "15", "20")
 
 /**
  * Full-screen session builder: name + exercises (from the common library or custom) + duration.
@@ -426,7 +430,7 @@ private fun ExerciseRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(exercise.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 Text(
-                    exerciseSummary(exercise, stringResource(R.string.workout_cardio)),
+                    exerciseSummary(exercise, stringResource(R.string.workout_cardio), LocalUnitSystem.current),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -465,6 +469,7 @@ private fun EditExerciseDialog(
     onSave: (ExerciseDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val units = LocalUnitSystem.current
     val mode = exercise.resolvedLoggingMode()
     val isCardio = mode == ExerciseLoggingMode.CARDIO
     val isHold = mode == ExerciseLoggingMode.TIMED_HOLD || mode == ExerciseLoggingMode.TIMED_CARRY
@@ -474,7 +479,7 @@ private fun EditExerciseDialog(
     var holdSec by remember {
         mutableStateOf((exercise.durationSeconds ?: if (isCarry) 60 else 30).toString())
     }
-    var weight by remember { mutableStateOf(exercise.weightKg?.toString() ?: "") }
+    var weight by remember { mutableStateOf(exercise.weightKg?.let { Units.weightText(it, units) } ?: "") }
     var duration by remember { mutableStateOf(exercise.durationMinutes?.toString() ?: "30") }
     var distance by remember { mutableStateOf(exercise.distanceKm?.let { formatDistanceKm(it) } ?: "") }
     val needsWeight = !isCardio && (isCarry || exercise.equipment != Equipment.BODYWEIGHT)
@@ -531,9 +536,9 @@ private fun EditExerciseDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = stringResource(R.string.workout_weight_kg),
+                            label = stringResource(R.string.workout_weight_kg, Units.weightUnit(units)),
                             value = weight,
-                            presets = WEIGHT_PRESETS,
+                            presets = weightPresets(units),
                             decimal = true,
                             onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
                         )
@@ -559,9 +564,9 @@ private fun EditExerciseDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = stringResource(R.string.workout_weight_kg),
+                            label = stringResource(R.string.workout_weight_kg, Units.weightUnit(units)),
                             value = weight,
-                            presets = WEIGHT_PRESETS,
+                            presets = weightPresets(units),
                             decimal = true,
                             onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
                         )
@@ -589,7 +594,7 @@ private fun EditExerciseDialog(
                             exercise.copy(
                                 sets = sets.toIntOrNull() ?: exercise.sets,
                                 reps = 1,
-                                weightKg = weight.toDoubleOrNull(),
+                                weightKg = weight.toDoubleOrNull()?.let { Units.displayToKg(it, units) },
                                 durationSeconds = holdSec.toIntOrNull() ?: exercise.durationSeconds,
                                 loggingModeOverride = if (isCarry) {
                                     ExerciseLoggingMode.TIMED_CARRY
@@ -602,7 +607,7 @@ private fun EditExerciseDialog(
                             exercise.copy(
                                 sets = sets.toIntOrNull() ?: exercise.sets,
                                 reps = reps.toIntOrNull() ?: exercise.reps,
-                                weightKg = weight.toDoubleOrNull(),
+                                weightKg = weight.toDoubleOrNull()?.let { Units.displayToKg(it, units) },
                                 durationSeconds = null,
                                 loggingModeOverride = ExerciseLoggingMode.REPS
                             )
@@ -624,6 +629,7 @@ private fun AddExerciseDetailsDialog(
     onAdd: (ExerciseDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val units = LocalUnitSystem.current
     val exerciseName = exercise.name
     val equipment = exercise.equipmentTag
     val gifUrl = exercise.gifUrl
@@ -691,9 +697,9 @@ private fun AddExerciseDetailsDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = stringResource(R.string.workout_weight_kg_optional),
+                            label = stringResource(R.string.workout_weight_kg_optional, Units.weightUnit(units)),
                             value = weight,
-                            presets = WEIGHT_PRESETS,
+                            presets = weightPresets(units),
                             decimal = true,
                             onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
                         )
@@ -719,9 +725,9 @@ private fun AddExerciseDetailsDialog(
                     }
                     if (needsWeight) {
                         PresetNumberField(
-                            label = stringResource(R.string.workout_weight_kg_optional),
+                            label = stringResource(R.string.workout_weight_kg_optional, Units.weightUnit(units)),
                             value = weight,
-                            presets = WEIGHT_PRESETS,
+                            presets = weightPresets(units),
                             decimal = true,
                             onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }
                         )
@@ -755,7 +761,7 @@ private fun AddExerciseDetailsDialog(
                                 name = exerciseName,
                                 sets = sets.toIntOrNull() ?: 1,
                                 reps = 1,
-                                weightKg = weight.toDoubleOrNull(),
+                                weightKg = weight.toDoubleOrNull()?.let { Units.displayToKg(it, units) },
                                 equipment = equipment,
                                 durationSeconds = holdSec.toIntOrNull() ?: 30,
                                 loggingModeOverride = if (isCarry) {
@@ -771,7 +777,7 @@ private fun AddExerciseDetailsDialog(
                                 name = exerciseName,
                                 sets = sets.toIntOrNull() ?: 1,
                                 reps = reps.toIntOrNull() ?: 1,
-                                weightKg = weight.toDoubleOrNull(),
+                                weightKg = weight.toDoubleOrNull()?.let { Units.displayToKg(it, units) },
                                 equipment = equipment,
                                 loggingModeOverride = ExerciseLoggingMode.REPS,
                                 gifUrl = gifUrl
@@ -787,14 +793,14 @@ private fun AddExerciseDetailsDialog(
     )
 }
 
-private fun exerciseSummary(exercise: ExerciseDraft, cardioLabel: String): String {
+private fun exerciseSummary(exercise: ExerciseDraft, cardioLabel: String, units: UnitSystem): String {
     if (exercise.isCardio()) {
         return buildList {
             exercise.durationMinutes?.let { add("$it min") }
             exercise.distanceKm?.let { km -> add("${formatDistanceKm(km)} km") }
         }.joinToString(" · ").ifBlank { cardioLabel }
     }
-    val weightText = exercise.weightKg?.let { " @ ${it}kg" } ?: ""
+    val weightText = exercise.weightKg?.let { " @ ${Units.weightLabel(it, units).replace(" ", "")}" } ?: ""
     if (exercise.isTimedHold()) {
         val sec = exercise.durationSeconds ?: 30
         return "${exercise.sets} sets × ${sec}s$weightText"
@@ -862,7 +868,7 @@ private fun PresetNumberField(
         ) {
             presets.forEach { preset ->
                 DropdownMenuItem(
-                    text = { Text(if (decimal) "$preset kg" else preset) },
+                    text = { Text(if (decimal) "$preset ${Units.weightUnit(LocalUnitSystem.current)}" else preset) },
                     onClick = {
                         onValueChange(preset)
                         expanded = false

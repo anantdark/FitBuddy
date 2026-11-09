@@ -83,11 +83,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -591,7 +590,7 @@ private fun HaloGrowFilterChip(
     onSelect: () -> Unit,
     onPromote: () -> Unit
 ) {
-    val haptics = LocalHapticFeedback.current
+    val appHaptics = rememberAppHaptics()
     val longPressTimeout = LocalViewConfiguration.current.longPressTimeoutMillis
     val scope = rememberCoroutineScope()
     val interactionSource = remember { MutableInteractionSource() }
@@ -669,7 +668,7 @@ private fun HaloGrowFilterChip(
                         onClick = onSelect,
                         onLongClick = {
                             finishing = true
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            appHaptics.longPress()
                             onPromote()
                             scope.launch {
                                 try {

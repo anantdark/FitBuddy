@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.bridge.FreeScaleBridge
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.Units
 import com.anant.fitbuddy.data.model.ActivityLevels
 import com.anant.fitbuddy.data.model.TargetPlanResponse
 import com.anant.fitbuddy.data.settings.AppSettings
@@ -129,12 +131,15 @@ fun BodyScreen(
 ) {
     val currentWeight = latestMeasurement?.weightKg
         ?.takeIf { it.isFinite() && it > 0.0 }
-    val targetWeight = remember(profile?.targetWeightKg) {
-        mutableStateOf(profile?.targetWeightKg?.toString() ?: "")
+    val units = LocalUnitSystem.current
+    val wUnit = Units.weightUnit(units)
+    val targetWeight = remember(profile?.targetWeightKg, units) {
+        mutableStateOf(profile?.targetWeightKg?.let { Units.weightText(it, units) } ?: "")
     }
     val goal = remember(profile?.goal) { mutableStateOf(profile?.goal ?: "RECOMP") }
     val parsedTargetWeight = targetWeight.value.toDoubleOrNull()
         ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { Units.displayToKg(it, units) }
     val targetWeightError = when {
         targetWeight.value.isBlank() -> null
         parsedTargetWeight == null -> stringResource(R.string.profile_enter_valid_weight_milestone)
@@ -241,10 +246,10 @@ fun BodyScreen(
 
         SectionCard(title = stringResource(R.string.profile_body_basics)) {
             OutlinedTextField(
-                value = currentWeight?.toString().orEmpty(),
+                value = currentWeight?.let { Units.weightText(it, units) }.orEmpty(),
                 onValueChange = {},
                 readOnly = true,
-                label = { Text(stringResource(R.string.onboarding_current_weight_kg)) },
+                label = { Text(stringResource(R.string.onboarding_current_weight_kg, wUnit)) },
                 supportingText = {
                     Text(
                         if (latestMeasurement != null) {
@@ -257,7 +262,7 @@ fun BodyScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            NumberField(stringResource(R.string.profile_weight_milestone_kg_optional), targetWeight.value, decimal = true) {
+            NumberField(stringResource(R.string.profile_weight_milestone_kg_optional, wUnit), targetWeight.value, decimal = true) {
                 targetWeight.value = it
             }
             Text(
@@ -390,11 +395,12 @@ private const val METRIC_GRID_COLUMNS = 2
 
 @Composable
 private fun MetricGrid(m: BodyMeasurement) {
+    val units = LocalUnitSystem.current
     val chips = buildList {
-        add(stringResource(R.string.onboarding_weight) to "${m.weightKg} kg")
+        add(stringResource(R.string.onboarding_weight) to Units.weightLabel(m.weightKg, units))
         m.bodyFatPct?.let { add(stringResource(R.string.analytics_body_fat) to "$it%") }
         m.bmr?.let { add(stringResource(R.string.analytics_bmr) to "$it kcal") }
-        m.muscleMassKg?.let { add(stringResource(R.string.analytics_muscle_mass) to "$it kg") }
+        m.muscleMassKg?.let { add(stringResource(R.string.analytics_muscle_mass) to Units.weightLabel(it, units)) }
     }
     // Fixed-column grid (not a wrapping FlowRow) so every chip in a column shares the same width
     // and the last, possibly-partial row still aligns instead of leaving a lone stray chip.
@@ -603,6 +609,7 @@ private fun ReadingsHistoryCard(
     measurements: List<BodyMeasurement>,
     onDelete: (BodyMeasurement) -> Unit
 ) {
+    val units = LocalUnitSystem.current
     SectionCard(title = stringResource(R.string.profile_reading_history)) {
         LazyColumn(
             modifier = Modifier
@@ -623,9 +630,11 @@ private fun ReadingsHistoryCard(
                         )
                         Text(
                             buildString {
-                                append("${m.weightKg} kg")
+                                append(Units.weightLabel(m.weightKg, units))
                                 m.bodyFatPct?.let { append(stringResource(R.string.profile_fat, it)) }
-                                m.muscleMassKg?.let { append(stringResource(R.string.profile_kg_muscle, it)) }
+                                m.muscleMassKg?.let {
+                                    append(stringResource(R.string.profile_kg_muscle, Units.weightText(it, units), Units.weightUnit(units)))
+                                }
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -654,6 +663,7 @@ private fun TargetProposalDialog(
     onApplyCurrentActivity: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val units = LocalUnitSystem.current
     val goalLabel = GOAL_OPTION_RES.firstOrNull { it.first == plan.recommendedGoal }?.let { stringResource(it.second) }
         ?: plan.recommendedGoal
     val proposedTargetWeight = plan.targetWeightKg
@@ -854,8 +864,9 @@ private fun TargetProposalDialog(
                             Text(
                                 text = stringResource(
                                     R.string.profile_weight_kg_week,
-                                    signedTwoDecimals(plan.bodyTrendWeightChangeKg ?: 0.0),
-                                    signedTwoDecimals(plan.bodyTrendWeeklyChangePct ?: 0.0)
+                                    signedTwoDecimals(Units.kgToDisplay(plan.bodyTrendWeightChangeKg ?: 0.0, units)),
+                                    signedTwoDecimals(plan.bodyTrendWeeklyChangePct ?: 0.0),
+                                    Units.weightUnit(units)
                                 ),
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -872,7 +883,8 @@ private fun TargetProposalDialog(
                                     add(
                                         stringResource(
                                             R.string.profile_muscle_kg,
-                                            signedTwoDecimals(it)
+                                            signedTwoDecimals(Units.kgToDisplay(it, units)),
+                                            Units.weightUnit(units)
                                         )
                                     )
                                 }
@@ -921,7 +933,7 @@ private fun TargetProposalDialog(
                 proposedTargetWeight?.let {
                     RecommendationCard(title = stringResource(R.string.profile_weight_milestone)) {
                         Text(
-                            text = "${formatOneDecimal(it)} kg",
+                            text = "${formatOneDecimal(Units.kgToDisplay(it, units))} ${Units.weightUnit(units)}",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -1069,6 +1081,7 @@ private fun AddMeasurementSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val units = LocalUnitSystem.current
     var weight by remember { mutableStateOf("") }
     var showAdvanced by remember { mutableStateOf(false) }
     val optional = remember { mutableStateMapOf<String, String>() }
@@ -1083,14 +1096,14 @@ private fun AddMeasurementSheet(
     fun applyPulled(m: BodyMeasurement) {
         pulledTimestamp = m.timestamp
         pulledDateString = m.dateString
-        weight = fmtOptional(m.weightKg) ?: ""
+        weight = fmtOptional(Units.kgToDisplay(m.weightKg, units)) ?: ""
         fun put(key: String, value: Double?) {
             val s = fmtOptional(value)
             if (s != null) optional[key] = s else optional.remove(key)
         }
         put("bodyFatPct", m.bodyFatPct)
         m.bmr?.let { optional["bmr"] = it.toString() } ?: optional.remove("bmr")
-        put("muscleMassKg", m.muscleMassKg)
+        put("muscleMassKg", m.muscleMassKg?.let { Units.kgToDisplay(it, units) })
         showAdvanced = optional.isNotEmpty()
         pullStatus = context.getString(R.string.profile_loaded_freescale_reading_review_tap_save)
         pullError = null
@@ -1150,7 +1163,7 @@ private fun AddMeasurementSheet(
                 )
             }
 
-            NumberField(context.getString(R.string.workout_weight_kg), weight, decimal = true) { weight = it }
+            NumberField(context.getString(R.string.workout_weight_kg, Units.weightUnit(units)), weight, decimal = true) { weight = it }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1172,7 +1185,7 @@ private fun AddMeasurementSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OPTIONAL_METRICS.forEach { spec ->
                         NumberField(
-                            label = stringResource(spec.labelRes),
+                            label = stringResource(spec.labelRes, Units.weightUnit(units)),
                             value = optional[spec.key] ?: "",
                             decimal = spec.decimal
                         ) { optional[spec.key] = it }
@@ -1190,10 +1203,10 @@ private fun AddMeasurementSheet(
                         BodyMeasurement(
                             timestamp = pulledTimestamp,
                             dateString = pulledDateString,
-                            weightKg = weight.toDoubleOrNull() ?: 0.0,
+                            weightKg = Units.displayToKg(weight.toDoubleOrNull() ?: 0.0, units),
                             bodyFatPct = d("bodyFatPct"),
                             bmr = i("bmr"),
-                            muscleMassKg = d("muscleMassKg"),
+                            muscleMassKg = d("muscleMassKg")?.let { Units.displayToKg(it, units) },
                         )
                     )
                 }
