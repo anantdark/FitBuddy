@@ -18,11 +18,11 @@ internal object WidgetCopy {
     fun describePrompt(): String {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         return when (hour) {
-            in 5..10 -> "What'd you have for breakfast?"
-            in 11..14 -> "Describe your lunch"
-            in 15..17 -> "What'd you eat?"
-            in 18..21 -> "Describe dinner"
-            else -> "What'd you snack on?"
+            in 5..10 -> "Log breakfast"
+            in 11..14 -> "Log lunch"
+            in 15..17 -> "Log a snack"
+            in 18..21 -> "Log dinner"
+            else -> "Log a late snack"
         }
     }
 }
