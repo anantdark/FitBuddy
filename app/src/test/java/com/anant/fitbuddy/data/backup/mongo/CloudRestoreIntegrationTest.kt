@@ -55,7 +55,8 @@ class CloudRestoreIntegrationTest {
             val payloadJson: String,
             val exportedAt: Long,
             val deviceName: String,
-            val macId: String
+            val macId: String,
+            val recordCount: Int
         )
 
         var uploadCapture: UploadCapture? = null
@@ -73,7 +74,8 @@ class CloudRestoreIntegrationTest {
             payloadJson: String,
             exportedAt: Long,
             deviceName: String,
-            macId: String
+            macId: String,
+            recordCount: Int
         ) {
             uploadCallCount++
             uploadCapture = UploadCapture(
@@ -81,7 +83,8 @@ class CloudRestoreIntegrationTest {
                 payloadJson = payloadJson,
                 exportedAt = exportedAt,
                 deviceName = deviceName,
-                macId = macId
+                macId = macId,
+                recordCount = recordCount
             )
         }
     }

@@ -27,6 +27,8 @@ data class CloudBackupDoc(
     val appPackage: String,
     val deviceName: String,
     val macId: String,
+    /** Plaintext record count for this chunk (outside encrypted [payloadJson]). */
+    val recordCount: Int,
     val payloadJson: String
 )
 
@@ -50,7 +52,8 @@ open class MongoBackupRepository(
         payloadJson: String,
         exportedAt: Long,
         deviceName: String,
-        macId: String
+        macId: String,
+        recordCount: Int = 0
     ) = uploadChunk(
         baseUrl = baseUrl,
         apiKey = apiKey,
@@ -64,7 +67,8 @@ open class MongoBackupRepository(
         payloadJson = payloadJson,
         exportedAt = exportedAt,
         deviceName = deviceName,
-        macId = macId
+        macId = macId,
+        recordCount = recordCount
     )
 
     open suspend fun uploadChunk(
@@ -81,6 +85,7 @@ open class MongoBackupRepository(
         exportedAt: Long,
         deviceName: String,
         macId: String,
+        recordCount: Int = 0,
         headTipChunkId: String? = null
     ) = withContext(Dispatchers.IO) {
         val id = supportId.trim()
@@ -99,6 +104,7 @@ open class MongoBackupRepository(
             .put("chunkIndex", chunkIndex)
             .put("storageVersion", 2)
             .put("nextChunkId", nextChunkId)
+            .put("recordCount", recordCount.coerceAtLeast(0))
             .apply {
                 if (tipChunkId != null) put("tipChunkId", tipChunkId)
                 if (headTipChunkId != null) put("headTipChunkId", headTipChunkId)
@@ -199,6 +205,7 @@ open class MongoBackupRepository(
             appPackage = json.optString("appPackage"),
             deviceName = json.optString("deviceName"),
             macId = json.optString("macId"),
+            recordCount = json.optInt("recordCount", 0).coerceAtLeast(0),
             payloadJson = payloadJson
         )
     }

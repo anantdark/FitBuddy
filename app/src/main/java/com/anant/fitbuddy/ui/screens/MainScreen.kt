@@ -67,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.data.remote.UpdateChannel
+import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.util.SystemToast
 import com.anant.fitbuddy.data.database.MealPreset
@@ -82,6 +83,7 @@ import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.util.ImageUtils
@@ -136,6 +138,10 @@ fun MainScreen(
     viewModel: MainViewModel,
     openLogHubRequest: Boolean = false,
     onOpenLogHubConsumed: () -> Unit = {},
+    openLogActionRequest: String? = null,
+    openPresetIdRequest: Int? = null,
+    openPresetKindRequest: String? = null,
+    onOpenLogActionConsumed: () -> Unit = {},
     openDonateReminderRequest: Boolean = false,
     onOpenDonateReminderConsumed: () -> Unit = {},
 ) {
@@ -143,6 +149,7 @@ fun MainScreen(
     val blankFoodName = stringResource(R.string.main_new_food)
     val blankIngredientName = stringResource(R.string.main_ingredient)
     val dismissKeyboard = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
@@ -150,6 +157,8 @@ fun MainScreen(
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val realToday by viewModel.realToday.collectAsStateWithLifecycle()
     val weekSnapshots by viewModel.weekSnapshots.collectAsStateWithLifecycle()
+    val todayWaterLogs by viewModel.todayWaterLogs.collectAsStateWithLifecycle()
+    val todayWaterMl by viewModel.todayWaterMl.collectAsStateWithLifecycle()
     val cloneMealRequest by viewModel.cloneMealRequest.collectAsStateWithLifecycle()
 
     val weeklyFood by viewModel.weeklyFood.collectAsStateWithLifecycle()
@@ -417,6 +426,48 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(openLogActionRequest) {
+        val action = openLogActionRequest ?: return@LaunchedEffect
+        when (action) {
+            MainActivity.LOG_ACTION_CAMERA -> {
+                showLogHub = false
+                viewModel.notifyExternalMediaLaunch()
+                if (cameraPermission.status.isGranted) {
+                    launchCameraPreview()
+                } else {
+                    cameraPermission.launchPermissionRequest()
+                }
+            }
+            MainActivity.LOG_ACTION_TEXT -> {
+                showLogHub = false
+                showTextDialog = true
+            }
+            MainActivity.LOG_ACTION_PRESETS -> {
+                showLogHub = false
+                if (openPresetKindRequest == MainActivity.PRESET_KIND_FOOD) {
+                    savedFoodSheetMode = SavedFoodSheetMode.LOG_TO_DAY
+                    showSavedFoodSheet = true
+                } else {
+                    showMealPresetSheet = true
+                }
+            }
+            MainActivity.LOG_ACTION_SAVED_FOOD -> {
+                showLogHub = false
+                savedFoodSheetMode = SavedFoodSheetMode.LOG_TO_DAY
+                showSavedFoodSheet = true
+            }
+            MainActivity.LOG_ACTION_BARCODE -> {
+                showLogHub = false
+                scanFlow = ScanFlow.SAVE_FOOD
+                showBarcodeScan = true
+            }
+            MainActivity.LOG_ACTION_HUB -> showLogHub = true
+            else -> showLogHub = true
+        }
+        // openPresetIdRequest reserved for future picker highlight.
+        onOpenLogActionConsumed()
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { pendingImportUri = it } }
@@ -469,6 +520,7 @@ fun MainScreen(
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
                 onSavePermanentProfile = viewModel::savePermanentProfile,
                 onRegionChange = viewModel::setRegion,
+                onUnitSystemChange = { viewModel.saveSettings(settings.copy(unitSystem = it.name), announce = false) },
                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                 openRouterOAuthBusy = openRouterOAuthBusy,
@@ -705,6 +757,7 @@ fun MainScreen(
                     ExtendedFloatingActionButton(
                         onClick = {
                             dismissKeyboard()
+                            haptics.confirm()
                             showLogHub = true
                         },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -738,6 +791,16 @@ fun MainScreen(
                                     settings.forceShowLoadingAnimations,
                                 analyzingModel = analysisState.analyzingModel,
                                 animationChoice = settings.analyzingAnimationChoice,
+                                dashboardLayout = settings.dashboardLayout,
+                                waterTrackingEnabled = settings.waterTrackingEnabled,
+                                waterConsumedMl = todayWaterMl,
+                                waterGoalMl = settings.waterGoalMl,
+                                waterQuickAddMl = settings::quickAddMl,
+                                waterLogs = todayWaterLogs,
+                                onAddWater = viewModel::addWaterIntake,
+                                onChangeWaterQuickAdd = viewModel::setWaterQuickAddMl,
+                                onDeleteWater = viewModel::deleteWaterLog,
+                                onEditWater = viewModel::updateWaterLogAmount,
                                 onOpenWeekHistory = {
                                     viewModel.refreshToToday()
                                     showWeekHistory = true
@@ -839,6 +902,7 @@ fun MainScreen(
                         ExtendedFloatingActionButton(
                             onClick = {
                                 dismissKeyboard()
+                                haptics.confirm()
                                 showLogHub = true
                             },
                             icon = { Icon(Icons.Filled.Add, contentDescription = null) },

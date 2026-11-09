@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton as M3TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.theme.appControlShape
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 
@@ -38,8 +39,13 @@ fun Button(
     content: @Composable RowScope.() -> Unit
 ) {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     M3Button(
-        onClick = { dismiss(); onClick() },
+        onClick = {
+            dismiss()
+            haptics.click()
+            onClick()
+        },
         modifier = modifier,
         enabled = enabled,
         shape = shape,
@@ -64,8 +70,13 @@ fun OutlinedButton(
     content: @Composable RowScope.() -> Unit
 ) {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     M3OutlinedButton(
-        onClick = { dismiss(); onClick() },
+        onClick = {
+            dismiss()
+            haptics.click()
+            onClick()
+        },
         modifier = modifier,
         enabled = enabled,
         shape = shape,
@@ -90,8 +101,13 @@ fun FilledTonalButton(
     content: @Composable RowScope.() -> Unit
 ) {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     M3FilledTonalButton(
-        onClick = { dismiss(); onClick() },
+        onClick = {
+            dismiss()
+            haptics.click()
+            onClick()
+        },
         modifier = modifier,
         enabled = enabled,
         shape = shape,
@@ -116,8 +132,13 @@ fun TextButton(
     content: @Composable RowScope.() -> Unit
 ) {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     M3TextButton(
-        onClick = { dismiss(); onClick() },
+        onClick = {
+            dismiss()
+            haptics.click()
+            onClick()
+        },
         modifier = modifier,
         enabled = enabled,
         shape = shape,
@@ -140,8 +161,13 @@ fun IconButton(
     content: @Composable () -> Unit
 ) {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     M3IconButton(
-        onClick = { dismiss(); onClick() },
+        onClick = {
+            dismiss()
+            haptics.click()
+            onClick()
+        },
         modifier = modifier,
         enabled = enabled,
         shape = shape,

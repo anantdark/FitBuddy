@@ -293,3 +293,44 @@ data class WorkoutExercise(
     /** Hold time per set (seconds) for isometric / static exercises; null otherwise. */
     val durationSeconds: Int? = null
 )
+
+/**
+ * One drink logged toward the daily water goal. [drinkKind] is a [WaterDrinkKind] name
+ * (`WATER`, `BOTTLE`, `COFFEE`, `TEA`, or `CUSTOM`).
+ */
+@JsonClass(generateAdapter = true)
+@Entity(
+    tableName = "water_logs",
+    indices = [Index(value = ["dateString"])],
+)
+data class WaterLog(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val amountMl: Int,
+    val drinkKind: String = WaterDrinkKind.WATER.name,
+    val timestamp: Long,
+    val dateString: String, // format: "YYYY-MM-DD"
+)
+
+/** Quick-add drink presets for water tracking (Flow — Hydrate style). */
+enum class WaterDrinkKind(val defaultMl: Int) {
+    WATER(250),
+    BOTTLE(500),
+    COFFEE(150),
+    TEA(200),
+    CUSTOM(0);
+
+    /**
+     * Kind written to [WaterLog.drinkKind] / used for same-day merge.
+     * Glass and bottle are both plain water, so they share one daily entry.
+     */
+    val logKind: WaterDrinkKind
+        get() = when (this) {
+            BOTTLE -> WATER
+            else -> this
+        }
+
+    companion object {
+        fun fromStored(raw: String): WaterDrinkKind =
+            entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: CUSTOM
+    }
+}

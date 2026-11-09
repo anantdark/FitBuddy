@@ -13,6 +13,7 @@ import com.anant.fitbuddy.data.database.MealFoodDao
 import com.anant.fitbuddy.data.database.MealPresetDao
 import com.anant.fitbuddy.data.database.SavedFoodDao
 import com.anant.fitbuddy.data.database.UserProfileDao
+import com.anant.fitbuddy.data.database.WaterLogDao
 import com.anant.fitbuddy.data.database.WorkoutExerciseDao
 import com.anant.fitbuddy.data.database.WorkoutSessionDao
 import com.anant.fitbuddy.data.backup.crypto.BackupCrypto
@@ -38,6 +39,7 @@ class BackupManager(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val workoutExerciseDao: WorkoutExerciseDao,
+    private val waterLogDao: WaterLogDao,
     private val settingsRepository: SettingsRepository,
     val crypto: BackupCrypto,
     moshi: Moshi
@@ -62,7 +64,8 @@ class BackupManager(
         return data.measurements.size + data.foodLogs.size + data.mealFoods.size +
             data.exerciseLogs.size + foods + data.mealPresets.size +
             data.exercisePresets.size + data.exerciseUsages.size + data.workoutSessions.size +
-            data.workoutExercises.size + if (data.settings != null) 1 else 0
+            data.workoutExercises.size + data.waterLogs.size +
+            if (data.settings != null) 1 else 0
     }
 
     /**
@@ -201,6 +204,7 @@ class BackupManager(
             exerciseUsages = exerciseUsageDao.getAllOnce(),
             workoutSessions = workoutSessionDao.getAllOnce(),
             workoutExercises = workoutExerciseDao.getAllOnce(),
+            waterLogs = waterLogDao.getAllOnce(),
             settings = BackupSettings.from(settings)
         )
     }
@@ -220,6 +224,7 @@ class BackupManager(
         exerciseUsageDao.clearAll()
         workoutExerciseDao.clearAll()
         workoutSessionDao.clearAll()
+        waterLogDao.clearAll()
 
         data.profile?.let {
             userProfileDao.insertOrUpdateProfile(
@@ -283,6 +288,8 @@ class BackupManager(
             }
         }
         workoutExerciseDao.insertAll(remappedExercises)
+
+        waterLogDao.insertAll(data.waterLogs.map { it.copy(id = 0) })
 
         data.settings?.let { backupSettings ->
             // firstName/lastName/cloudBackupPasswordSet are device-local (not in BackupData v5) — keep current values.

@@ -74,6 +74,8 @@ class BackupSettingsTest {
                 region = "US",
                 regionRequestSentAt = 1_700_000_100_000L,
                 easterEggDiscovered = true,
+                waterTrackingEnabled = true,
+                waterGoalMl = 2500,
                 dailyLogReminderEnabled = false,
                 dailyLogReminderHour = 21,
                 dailyLogReminderMinute = 30,
@@ -114,6 +116,8 @@ class BackupSettingsTest {
         assertFalse(restored.healthConnectMetrics.importSleep)
         assertTrue(restored.healthConnectMetrics.exportNutrition)
         assertFalse(restored.healthConnectMetrics.exportExercise)
+        assertTrue(restored.waterTrackingEnabled)
+        assertEquals(2500, restored.waterGoalMl)
     }
 
     @Test

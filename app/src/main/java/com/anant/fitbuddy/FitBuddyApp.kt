@@ -33,6 +33,7 @@ import com.anant.fitbuddy.reminders.DonationReminderScheduler
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
 import com.anant.fitbuddy.util.DiagnosticLogger
+import com.anant.fitbuddy.widget.FitBuddyWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -106,6 +107,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             bodyMeasurementDao = database.bodyMeasurementDao(),
             workoutSessionDao = database.workoutSessionDao(),
             workoutExerciseDao = database.workoutExerciseDao(),
+            waterLogDao = database.waterLogDao(),
             exerciseCatalogRepository = exerciseCatalogRepository,
             gymGifsCatalogRepository = gymGifsCatalogRepository,
             remoteAiDataSource = RemoteAiDataSource(
@@ -129,11 +131,13 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
                 bodyMeasurementDao = database.bodyMeasurementDao(),
                 workoutSessionDao = database.workoutSessionDao(),
                 workoutExerciseDao = database.workoutExerciseDao(),
+                waterLogDao = database.waterLogDao(),
                 settingsRepository = settingsRepository,
                 crypto = BackupCrypto(NetworkModule.moshi),
                 moshi = NetworkModule.moshi
             ),
             healthConnectSync = healthConnectSync,
+            onLocalDataChanged = { FitBuddyWidgetUpdater.notifyDataChanged(this) },
         )
     }
 

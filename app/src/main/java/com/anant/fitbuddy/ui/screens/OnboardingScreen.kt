@@ -1,6 +1,9 @@
 package com.anant.fitbuddy.ui.screens
 
 import com.anant.fitbuddy.R
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.Units
+import kotlin.math.roundToInt
 import androidx.compose.ui.res.stringResource
 
 import android.net.Uri
@@ -282,14 +285,18 @@ fun OnboardingScreen(
         label = stringResource(R.string.onboarding_age),
         context = context,
     )
+    val units = LocalUnitSystem.current
     val heightError = onboardingDoubleRangeError(
         value = height,
         min = 100.0,
         max = 250.0,
         attempted = profileAttempted,
         label = stringResource(R.string.onboarding_height),
-        unit = "cm",
+        unit = Units.heightUnit(units),
         context = context,
+        toMetric = { Units.displayToCm(it, units) },
+        displayMin = Units.cmToDisplay(100.0, units).roundToInt(),
+        displayMax = Units.cmToDisplay(250.0, units).roundToInt(),
     )
     val weightError = onboardingDoubleRangeError(
         value = weight,
@@ -297,15 +304,18 @@ fun OnboardingScreen(
         max = 400.0,
         attempted = profileAttempted,
         label = stringResource(R.string.onboarding_weight),
-        unit = "kg",
+        unit = Units.weightUnit(units),
         context = context,
+        toMetric = { Units.displayToKg(it, units) },
+        displayMin = Units.kgToDisplay(25.0, units).roundToInt(),
+        displayMax = Units.kgToDisplay(400.0, units).roundToInt(),
     )
     // Completeness for Continue (independent of whether red hints are visible yet).
     // Last name is optional.
     val stepOneValid = (skipNameInOnboarding || firstName.trim().isNotEmpty()) &&
         (age.toIntOrNull() ?: 0) in 18..120 &&
-        (height.toDoubleOrNull() ?: 0.0) in 100.0..250.0 &&
-        (weight.toDoubleOrNull() ?: 0.0) in 25.0..400.0
+        Units.displayToCm(height.toDoubleOrNull() ?: 0.0, units) in 100.0..250.0 &&
+        Units.displayToKg(weight.toDoubleOrNull() ?: 0.0, units) in 25.0..400.0
     val aiConfigValid = when (aiProvider) {
         AiProvider.OPENROUTER -> apiKeys.isNotEmpty() || openRouterOAuthConnected
         AiProvider.GEMINI -> apiKeys.isNotEmpty()
@@ -428,8 +438,8 @@ fun OnboardingScreen(
             firstName.trim(),
             lastName.trim(),
             age.toIntOrNull() ?: 0,
-            weight.toDoubleOrNull() ?: 0.0,
-            height.toDoubleOrNull() ?: 0.0,
+            Units.displayToKg(weight.toDoubleOrNull() ?: 0.0, units),
+            Units.displayToCm(height.toDoubleOrNull() ?: 0.0, units),
             sex.ifBlank { null },
             goal,
             activity,
@@ -933,14 +943,14 @@ fun OnboardingScreen(
                                 errorMessage = ageError,
                             ) { age = it }
                             OnboardingNumberField(
-                                label = "Height (cm)",
+                                label = "Height (${Units.heightUnit(units)})",
                                 value = height,
                                 decimal = true,
                                 isError = heightError != null,
                                 errorMessage = heightError,
                             ) { height = it }
                             OnboardingNumberField(
-                                label = "Current weight (kg)",
+                                label = "Current weight (${Units.weightUnit(units)})",
                                 value = weight,
                                 decimal = true,
                                 isError = weightError != null,
@@ -1301,21 +1311,24 @@ private fun onboardingDoubleRangeError(
     label: String,
     unit: String,
     context: android.content.Context,
+    toMetric: (Double) -> Double = { it },
+    displayMin: Int = min.toInt(),
+    displayMax: Int = max.toInt(),
 ): String? {
     val trimmed = value.trim()
     if (trimmed.isEmpty()) {
         return if (attempted) {
-            context.getString(R.string.onboarding_required_2, label, min.toInt(), max.toInt(), unit)
+            context.getString(R.string.onboarding_required_2, label, displayMin, displayMax, unit)
         } else {
             null
         }
     }
     val parsed = trimmed.toDoubleOrNull()
         ?: return context.getString(R.string.onboarding_enter_valid_number)
-    return if (parsed in min..max) {
+    return if (toMetric(parsed) in min..max) {
         null
     } else {
-        context.getString(R.string.onboarding_must_between_2, min.toInt(), max.toInt(), unit)
+        context.getString(R.string.onboarding_must_between_2, displayMin, displayMax, unit)
     }
 }
 

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5FBF7"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="6dp">
+
+    <ImageView
+        android:layout_width="0dp"
+        android:layout_height="22dp"
+        android:layout_weight="1"
+        android:contentDescription="@string/widget_action_photo"
+        android:src="@drawable/ic_widget_camera"
+        android:tint="#4A635D" />
+
+    <ImageView
+        android:layout_width="0dp"
+        android:layout_height="22dp"
+        android:layout_weight="1"
+        android:contentDescription="@string/widget_action_text"
+        android:src="@drawable/ic_widget_keyboard"
+        android:tint="#465762" />
+
+    <ImageView
+        android:layout_width="0dp"
+        android:layout_height="22dp"
+        android:layout_weight="1"
+        android:contentDescription="@string/widget_action_saved"
+        android:src="@drawable/ic_widget_bookmark"
+        android:tint="#4A635F" />
+
+    <ImageView
+        android:layout_width="0dp"
+        android:layout_height="22dp"
+        android:layout_weight="1"
+        android:contentDescription="@string/widget_action_barcode"
+        android:src="@drawable/ic_widget_barcode"
+        android:tint="#3F4945" />
+</LinearLayout>

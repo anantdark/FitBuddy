@@ -42,6 +42,9 @@ import com.anant.fitbuddy.data.database.ExerciseUsage
 import com.anant.fitbuddy.data.database.ExerciseUsageDao
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.database.UserProfileDao
+import com.anant.fitbuddy.data.database.WaterDrinkKind
+import com.anant.fitbuddy.data.database.WaterLog
+import com.anant.fitbuddy.data.database.WaterLogDao
 import com.anant.fitbuddy.data.database.WorkoutExercise
 import com.anant.fitbuddy.data.database.WorkoutExerciseDao
 import com.anant.fitbuddy.data.database.WorkoutSession
@@ -125,6 +128,7 @@ class FitnessRepository(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val workoutSessionDao: WorkoutSessionDao,
     private val workoutExerciseDao: WorkoutExerciseDao,
+    private val waterLogDao: WaterLogDao,
     private val exerciseCatalogRepository: ExerciseCatalogRepository,
     private val gymGifsCatalogRepository: GymGifsCatalogRepository,
     private val remoteAiDataSource: RemoteAiDataSource,
@@ -132,9 +136,14 @@ class FitnessRepository(
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
     private val healthConnectSync: HealthConnectSync? = null,
-    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository()
+    private val mongoBackupRepository: MongoBackupRepository = MongoBackupRepository(),
+    private val onLocalDataChanged: (() -> Unit)? = null,
 ) {
     val activeProfile: Flow<UserProfile?> = userProfileDao.getProfile()
+
+    private fun notifyLocalDataChanged() {
+        onLocalDataChanged?.invoke()
+    }
 
     /** True when a profile with age/weight/height already exists (past first-run onboarding). */
     suspend fun hasBasicsConfiguredProfile(): Boolean =
@@ -290,6 +299,140 @@ class FitnessRepository(
     /** Wellness snapshot from Health Connect (hydration / sleep) for AI context. */
     suspend fun healthConnectWellnessContext(): HealthConnectWellnessContext =
         healthConnectSync?.wellnessContext() ?: HealthConnectWellnessContext()
+
+    // --- Water intake -----------------------------------------------------------------------
+
+    fun getWaterLogsForDate(dateString: String): Flow<List<WaterLog>> =
+        waterLogDao.getByDate(dateString)
+
+    fun getWaterTotalMlForDate(dateString: String): Flow<Int> =
+        waterLogDao.getTotalMlForDate(dateString)
+
+    suspend fun getWaterTotalMlForDateOnce(dateString: String): Int =
+        waterLogDao.getTotalMlForDateOnce(dateString)
+
+    /**
+     * Adds [amountMl] toward today's (or [dateString]'s) total for [drinkKind].
+     * Same log-kind on the same day is one row (glass + bottle both count as water).
+     * Mirrors the cumulative volume to Health Connect when hydration export is enabled.
+     */
+    suspend fun addWaterLog(
+        amountMl: Int,
+        drinkKind: WaterDrinkKind = WaterDrinkKind.WATER,
+        dateString: String? = null,
+        timestampMs: Long = System.currentTimeMillis(),
+    ): WaterLog? {
+        val ml = amountMl.coerceAtLeast(1)
+        val settings = settingsRepository.settings.first()
+        val date = dateString ?: DateUtils.today(settings.dayChangeHour)
+        val storedKind = drinkKind.logKind
+        // Bottle shares the water bucket — pull in any legacy BOTTLE rows too.
+        val mergeKinds = if (storedKind == WaterDrinkKind.WATER) {
+            listOf(WaterDrinkKind.WATER.name, WaterDrinkKind.BOTTLE.name)
+        } else {
+            listOf(storedKind.name)
+        }
+        val existingRows = mergeKinds
+            .flatMap { waterLogDao.getAllForDateAndKind(date, it) }
+            .sortedBy { it.id }
+        if (existingRows.isNotEmpty()) {
+            val primary = existingRows.first()
+            val mergedTotal = existingRows.sumOf { it.amountMl } + ml
+            val updated = primary.copy(
+                amountMl = mergedTotal,
+                drinkKind = storedKind.name,
+                timestamp = timestampMs,
+            )
+            waterLogDao.update(updated)
+            // Collapse duplicates (and legacy bottle rows) into the primary water/coffee/tea row.
+            existingRows.drop(1).forEach { dup ->
+                waterLogDao.delete(dup)
+                if (dup.id > 0) {
+                    healthConnectSync?.deleteHydration(dup.id.toLong())
+                }
+            }
+            notifyLocalDataChanged()
+            healthConnectSync?.mirrorHydration(
+                entryId = updated.id.toLong(),
+                milliliters = updated.amountMl.toDouble(),
+                timestampMs = timestampMs,
+            )
+            return updated
+        }
+        val row = WaterLog(
+            amountMl = ml,
+            drinkKind = storedKind.name,
+            timestamp = timestampMs,
+            dateString = date,
+        )
+        val id = waterLogDao.insert(row).toInt()
+        notifyLocalDataChanged()
+        if (id > 0) {
+            healthConnectSync?.mirrorHydration(
+                entryId = id.toLong(),
+                milliliters = ml.toDouble(),
+                timestampMs = timestampMs,
+            )
+            return row.copy(id = id)
+        }
+        return null
+    }
+
+    suspend fun deleteWaterLog(log: WaterLog) {
+        val storedKind = WaterDrinkKind.fromStored(log.drinkKind).logKind
+        val mergeKinds = if (storedKind == WaterDrinkKind.WATER) {
+            listOf(WaterDrinkKind.WATER.name, WaterDrinkKind.BOTTLE.name)
+        } else {
+            listOf(storedKind.name)
+        }
+        val rows = mergeKinds
+            .flatMap { waterLogDao.getAllForDateAndKind(log.dateString, it) }
+            .ifEmpty { listOf(log) }
+        rows.forEach { row ->
+            waterLogDao.delete(row)
+            if (row.id > 0) {
+                healthConnectSync?.deleteHydration(row.id.toLong())
+            }
+        }
+        notifyLocalDataChanged()
+    }
+
+    /** Sets the logged amount for a drink bucket (same-day merge kind). */
+    suspend fun updateWaterLogAmount(log: WaterLog, amountMl: Int): WaterLog? {
+        val ml = amountMl.coerceAtLeast(1)
+        val storedKind = WaterDrinkKind.fromStored(log.drinkKind).logKind
+        val mergeKinds = if (storedKind == WaterDrinkKind.WATER) {
+            listOf(WaterDrinkKind.WATER.name, WaterDrinkKind.BOTTLE.name)
+        } else {
+            listOf(storedKind.name)
+        }
+        val existingRows = mergeKinds
+            .flatMap { waterLogDao.getAllForDateAndKind(log.dateString, it) }
+            .sortedBy { it.id }
+            .ifEmpty { listOf(log) }
+        val primary = existingRows.first()
+        val updated = primary.copy(
+            amountMl = ml,
+            drinkKind = storedKind.name,
+            timestamp = System.currentTimeMillis(),
+        )
+        waterLogDao.update(updated)
+        existingRows.drop(1).forEach { dup ->
+            waterLogDao.delete(dup)
+            if (dup.id > 0) {
+                healthConnectSync?.deleteHydration(dup.id.toLong())
+            }
+        }
+        notifyLocalDataChanged()
+        if (updated.id > 0) {
+            healthConnectSync?.mirrorHydration(
+                entryId = updated.id.toLong(),
+                milliliters = updated.amountMl.toDouble(),
+                timestampMs = updated.timestamp,
+            )
+        }
+        return updated
+    }
 
     // --- AI planning ------------------------------------------------------------------------
 
@@ -523,6 +666,7 @@ class FitnessRepository(
                         exportedAt = tip.exportedAt,
                         deviceName = deviceName,
                         macId = macId,
+                        recordCount = backupManager.countRecords(frozenSegment),
                         headTipChunkId = newTipId
                     )
                     mongoBackupRepository.uploadChunk(
@@ -539,6 +683,7 @@ class FitnessRepository(
                         exportedAt = tip.exportedAt,
                         deviceName = deviceName,
                         macId = macId,
+                        recordCount = backupManager.countRecords(tip),
                         headTipChunkId = newTipId
                     )
                     frozen = BackupTipBuilder.indexAfterFreezing(
@@ -576,6 +721,7 @@ class FitnessRepository(
                         exportedAt = tip.exportedAt,
                         deviceName = DeviceIdentity.deviceName(backupManager.appContext),
                         macId = DeviceIdentity.macId(backupManager.appContext),
+                        recordCount = backupManager.countRecords(tip),
                         headTipChunkId = if (tipId != supportId) tipId else null
                     )
                     if (frozen.tipChunkId.isBlank()) {
@@ -703,7 +849,8 @@ class FitnessRepository(
                         payloadJson = sealedPayload,
                         exportedAt = System.currentTimeMillis(),
                         deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                        macId = DeviceIdentity.macId(backupManager.appContext)
+                        macId = DeviceIdentity.macId(backupManager.appContext),
+                        recordCount = backupManager.countRecords(merged)
                     )
                 } catch (e: Exception) {
                     Log.w(TAG, "Legacy cloud backup migration failed; will retry on next upload", e)
@@ -827,6 +974,12 @@ class FitnessRepository(
                         else -> error(BackupErrorMessages.INCORRECT_PASSWORD)
                     }
                     val resealed = backupManager.crypto.seal(plain, effectivePassword.copyOf())
+                    val chunkRecordCount = doc.recordCount.takeIf { it > 0 }
+                        ?: runCatching {
+                            NetworkModule.moshi.adapter(BackupData::class.java)
+                                .fromJson(plain)
+                                ?.let { backupManager.countRecords(it) }
+                        }.getOrNull() ?: 0
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
                         apiKey = MongoUriVault.resolve(),
@@ -842,7 +995,8 @@ class FitnessRepository(
                         deviceName = doc.deviceName.ifBlank {
                             DeviceIdentity.deviceName(backupManager.appContext)
                         },
-                        macId = doc.macId.ifBlank { DeviceIdentity.macId(backupManager.appContext) }
+                        macId = doc.macId.ifBlank { DeviceIdentity.macId(backupManager.appContext) },
+                        recordCount = chunkRecordCount
                     )
                 }
             } else {
@@ -858,7 +1012,8 @@ class FitnessRepository(
                     payloadJson = sealedPayload,
                     exportedAt = data.exportedAt,
                     deviceName = DeviceIdentity.deviceName(backupManager.appContext),
-                    macId = DeviceIdentity.macId(backupManager.appContext)
+                    macId = DeviceIdentity.macId(backupManager.appContext),
+                    recordCount = backupManager.countRecords(data)
                 )
                 settingsRepository.setMongoTipContentHash(
                     BackupContentHasher.hash(data, backupManager::encode)
@@ -1005,6 +1160,7 @@ class FitnessRepository(
     suspend fun deleteFood(log: FoodLog) {
         foodLogDao.deleteFoodLog(log)
         healthConnectSync?.deleteNutrition(log.id)
+        notifyLocalDataChanged()
     }
 
     /** Pull/push Health Connect data according to per-metric toggles. */
@@ -1020,6 +1176,7 @@ class FitnessRepository(
         }
         exerciseLogDao.deleteExerciseLog(log)
         healthConnectSync?.deleteExercise(log.id)
+        notifyLocalDataChanged()
     }
 
     // --- Workout sessions -------------------------------------------------------------------
@@ -1095,6 +1252,7 @@ class FitnessRepository(
         )
         ensureSignupDateFromLogs()
         exerciseLogDao.getById(exerciseLogId)?.let { healthConnectSync?.mirrorExercise(it) }
+        notifyLocalDataChanged()
 
         return result
     }
@@ -1398,6 +1556,7 @@ class FitnessRepository(
                 ).first().toInt()
                 ensureSignupDateFromLogs()
                 exerciseLogDao.getById(newId)?.let { healthConnectSync?.mirrorExercise(it) }
+                notifyLocalDataChanged()
                 AnalysisOutcome.ExerciseSaved(activityName, caloriesBurned)
             }
 
@@ -1603,6 +1762,7 @@ class FitnessRepository(
         mealFoodDao.insertAll(draft.foods.mapIndexed { index, food -> food.toMealFood(mealId, index) })
         ensureSignupDateFromLogs()
         healthConnectSync?.mirrorNutrition(mealLog.copy(id = mealId))
+        notifyLocalDataChanged()
     }
 
     /** Rebuilds an editable meal draft from a stored log, preserving the food → ingredient tree. */
@@ -1689,6 +1849,7 @@ class FitnessRepository(
                 iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
             )
         )
+        notifyLocalDataChanged()
     }
 
     /** Saves a full meal as a reusable preset for one-tap dashboard logging. */
@@ -1707,6 +1868,7 @@ class FitnessRepository(
                 iconTopic = draft.iconTopic?.let(LogIconTopic::normalizeFood)
             )
         )
+        notifyLocalDataChanged()
     }
 
     /**
@@ -1727,16 +1889,24 @@ class FitnessRepository(
                     ?: existing.iconTopic
             )
         )
+        notifyLocalDataChanged()
     }
 
-    suspend fun deleteSavedFood(food: SavedFood) = savedFoodDao.delete(food)
+    suspend fun deleteSavedFood(food: SavedFood) {
+        savedFoodDao.delete(food)
+        notifyLocalDataChanged()
+    }
 
-    suspend fun deleteMealPreset(preset: MealPreset) = mealPresetDao.delete(preset)
+    suspend fun deleteMealPreset(preset: MealPreset) {
+        mealPresetDao.delete(preset)
+        notifyLocalDataChanged()
+    }
 
     /** Updates an existing saved food (same id), preserving [SavedFood.lastUsedAt] and barcode. */
     suspend fun updateSavedFood(food: SavedFood) {
         require(food.id > 0) { "Saved food id required for update" }
         savedFoodDao.insert(food)
+        notifyLocalDataChanged()
     }
 
     /** Bumps a saved food to the top of the library (after meal pick or standalone log). */

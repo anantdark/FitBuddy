@@ -113,4 +113,19 @@ class DonorThankYouFilterTest {
         assertFalse(DonorBadgeRules.hasDonationOnOrAfter(donor, "2026-01-02"))
         assertTrue(DonorBadgeRules.hasDonationOnOrAfter(donor, null))
     }
+
+    @Test
+    fun installDelay_blocksFirstThankYouUntilDayThree() {
+        val signup = "2026-11-07"
+        assertFalse(DonorListRepository.isPastThankYouInstallDelay(signup, today = "2026-11-07"))
+        assertFalse(DonorListRepository.isPastThankYouInstallDelay(signup, today = "2026-11-08"))
+        assertFalse(DonorListRepository.isPastThankYouInstallDelay(signup, today = "2026-11-09"))
+        assertTrue(DonorListRepository.isPastThankYouInstallDelay(signup, today = "2026-11-10"))
+    }
+
+    @Test
+    fun installDelay_missingSignupNotReady() {
+        assertFalse(DonorListRepository.isPastThankYouInstallDelay(null, today = "2026-11-07"))
+        assertFalse(DonorListRepository.isPastThankYouInstallDelay("", today = "2026-11-10"))
+    }
 }

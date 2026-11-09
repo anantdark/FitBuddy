@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +26,9 @@ import com.anant.fitbuddy.data.region.RegionDetector
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
+import com.anant.fitbuddy.ui.haptics.LocalHapticsEnabled
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.UnitSystem
 import com.anant.fitbuddy.ui.screens.CloudBackupOptInScreen
 import com.anant.fitbuddy.ui.screens.CrashReportingOptInScreen
 import com.anant.fitbuddy.ui.screens.MainScreen
@@ -40,13 +44,15 @@ import androidx.compose.runtime.getValue
 class MainActivity : ComponentActivity() {
 
     private var openLogHubRequest by mutableStateOf(false)
+    private var openLogActionRequest by mutableStateOf<String?>(null)
+    private var openPresetIdRequest by mutableStateOf<Int?>(null)
+    private var openPresetKindRequest by mutableStateOf<String?>(null)
     private var openDonateReminderRequest by mutableStateOf(false)
     private var openRouterOAuthUri by mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        openLogHubRequest = intent.consumeOpenLogHub()
-        openDonateReminderRequest = intent.consumeOpenDonateReminder()
+        applyLaunchExtras(intent)
         openRouterOAuthUri = intent.data.takeIf { OpenRouterOAuth.isCallback(it) }
         try {
             enableEdgeToEdge()
@@ -65,6 +71,10 @@ class MainActivity : ComponentActivity() {
                 fontOption = settings.fontOption,
                 componentStyle = settings.componentStyle,
             ) {
+                CompositionLocalProvider(
+                    LocalHapticsEnabled provides settings.hapticsEnabled,
+                    LocalUnitSystem provides UnitSystem.resolve(settings.unitSystem, settings.region),
+                ) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
                     val viewModel: MainViewModel = viewModel(
                         factory = MainViewModelFactory(app, app.repository, app.settingsRepository, app.updateChecker)
@@ -239,11 +249,20 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 openLogHubRequest = openLogHubRequest,
                                 onOpenLogHubConsumed = { openLogHubRequest = false },
+                                openLogActionRequest = openLogActionRequest,
+                                openPresetIdRequest = openPresetIdRequest,
+                                openPresetKindRequest = openPresetKindRequest,
+                                onOpenLogActionConsumed = {
+                                    openLogActionRequest = null
+                                    openPresetIdRequest = null
+                                    openPresetKindRequest = null
+                                },
                                 openDonateReminderRequest = openDonateReminderRequest,
                                 onOpenDonateReminderConsumed = { openDonateReminderRequest = false },
                             )
                         }
                     }
+                }
                 }
             }
         }
@@ -252,20 +271,46 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.consumeOpenLogHub()) {
-            openLogHubRequest = true
-        }
-        if (intent.consumeOpenDonateReminder()) {
-            openDonateReminderRequest = true
-        }
+        applyLaunchExtras(intent)
         intent.data?.takeIf { OpenRouterOAuth.isCallback(it) }?.let {
             openRouterOAuthUri = it
         }
     }
 
+    private fun applyLaunchExtras(intent: Intent) {
+        val action = intent.consumeOpenLogAction()
+        if (action != null) {
+            openLogActionRequest = action
+            openPresetIdRequest = intent.consumeOpenPresetId()
+            openPresetKindRequest = intent.consumeOpenPresetKind()
+            openLogHubRequest = false
+        } else if (intent.consumeOpenLogHub()) {
+            openLogHubRequest = true
+            openLogActionRequest = null
+            openPresetIdRequest = null
+            openPresetKindRequest = null
+        }
+        if (intent.consumeOpenDonateReminder()) {
+            openDonateReminderRequest = true
+        }
+    }
+
     companion object {
         const val EXTRA_OPEN_LOG_HUB = "open_log_hub"
+        const val EXTRA_OPEN_LOG_ACTION = "open_log_action"
+        const val EXTRA_OPEN_PRESET_ID = "open_preset_id"
+        const val EXTRA_OPEN_PRESET_KIND = "open_preset_kind"
         const val EXTRA_OPEN_DONATE_REMINDER = "open_donate_reminder"
+
+        const val LOG_ACTION_CAMERA = "camera"
+        const val LOG_ACTION_TEXT = "text"
+        const val LOG_ACTION_PRESETS = "presets"
+        const val LOG_ACTION_SAVED_FOOD = "saved_food"
+        const val LOG_ACTION_BARCODE = "barcode"
+        const val LOG_ACTION_HUB = "hub"
+
+        const val PRESET_KIND_MEAL = "meal"
+        const val PRESET_KIND_FOOD = "food"
     }
 }
 
@@ -273,6 +318,27 @@ private fun Intent.consumeOpenLogHub(): Boolean {
     if (!getBooleanExtra(MainActivity.EXTRA_OPEN_LOG_HUB, false)) return false
     removeExtra(MainActivity.EXTRA_OPEN_LOG_HUB)
     return true
+}
+
+private fun Intent.consumeOpenLogAction(): String? {
+    val action = getStringExtra(MainActivity.EXTRA_OPEN_LOG_ACTION)?.takeIf { it.isNotBlank() }
+        ?: return null
+    removeExtra(MainActivity.EXTRA_OPEN_LOG_ACTION)
+    return action
+}
+
+private fun Intent.consumeOpenPresetId(): Int? {
+    if (!hasExtra(MainActivity.EXTRA_OPEN_PRESET_ID)) return null
+    val id = getIntExtra(MainActivity.EXTRA_OPEN_PRESET_ID, -1).takeIf { it > 0 }
+    removeExtra(MainActivity.EXTRA_OPEN_PRESET_ID)
+    return id
+}
+
+private fun Intent.consumeOpenPresetKind(): String? {
+    val kind = getStringExtra(MainActivity.EXTRA_OPEN_PRESET_KIND)?.takeIf { it.isNotBlank() }
+        ?: return null
+    removeExtra(MainActivity.EXTRA_OPEN_PRESET_KIND)
+    return kind
 }
 
 private fun Intent.consumeOpenDonateReminder(): Boolean {

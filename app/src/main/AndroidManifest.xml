@@ -139,6 +139,86 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".widget.WidgetDataChangedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.anant.fitbuddy.action.WIDGET_DATA_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".widget.QuickSnapWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_quick_snap_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_snap_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.DescribeLogWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_describe_log_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_describe_log_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CalorieOrbWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_calorie_orb_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_calorie_orb_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.PresetLaunchpadWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_preset_launchpad_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_preset_launchpad_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.ActionStripWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_action_strip_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_action_strip_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WaterIntakeWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_water_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_water_intake_info" />
+        </receiver>
+
         <provider
             android:name=".bridge.MeasurementBridgeProvider"
             android:authorities="${applicationId}.bridge.measurements"

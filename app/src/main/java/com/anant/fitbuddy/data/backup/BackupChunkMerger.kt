@@ -51,6 +51,7 @@ object BackupChunkMerger {
             exerciseUsages = acc.exerciseUsages.filterNot { it.id in deletedExerciseUsage },
             workoutSessions = acc.workoutSessions.filterNot { it.id in deletedSession },
             workoutExercises = acc.workoutExercises.filterNot { it.id in deletedWorkoutExercise },
+            waterLogs = acc.waterLogs,
             deletedFoodLogIds = emptyList(),
             deletedMealFoodIds = emptyList(),
             deletedExerciseLogIds = emptyList(),
@@ -80,7 +81,8 @@ object BackupChunkMerger {
         exercisePresets = mergeById(base.exercisePresets, next.exercisePresets) { it.id },
         exerciseUsages = mergeById(base.exerciseUsages, next.exerciseUsages) { it.id },
         workoutSessions = mergeById(base.workoutSessions, next.workoutSessions) { it.id },
-        workoutExercises = mergeById(base.workoutExercises, next.workoutExercises) { it.id }
+        workoutExercises = mergeById(base.workoutExercises, next.workoutExercises) { it.id },
+        waterLogs = mergeById(base.waterLogs, next.waterLogs) { it.id },
     )
 
     private fun <T> mergeById(older: List<T>, newer: List<T>, idOf: (T) -> Int): List<T> {

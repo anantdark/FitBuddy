@@ -6,6 +6,7 @@ import android.content.Intent
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.crash.HeartbeatScheduler
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
+import com.anant.fitbuddy.widget.FitBuddyWidgetUpdater
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -28,5 +29,6 @@ class BootReceiver : BroadcastReceiver() {
         DonationReminderScheduler.applyFromSettings(app, settings)
         HeartbeatScheduler.schedule(app)
         MongoBackupScheduler.cancel(app)
+        FitBuddyWidgetUpdater.requestUpdate(app)
     }
 }

@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.theme.isMakoStyle
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.setValue
@@ -66,10 +67,15 @@ fun RowScope.AppNavigationBarItem(
     label: @Composable (() -> Unit)? = null,
     alwaysShowLabel: Boolean = true,
 ) {
+    val haptics = rememberAppHaptics()
+    val gatedClick = {
+        if (!selected) haptics.segment()
+        onClick()
+    }
     if (isMakoStyle()) {
         MakoNavigationBarItem(
             selected = selected,
-            onClick = onClick,
+            onClick = gatedClick,
             icon = icon,
             modifier = modifier,
             enabled = enabled,
@@ -79,7 +85,7 @@ fun RowScope.AppNavigationBarItem(
     } else {
         NavigationBarItem(
             selected = selected,
-            onClick = onClick,
+            onClick = gatedClick,
             icon = icon,
             modifier = modifier,
             enabled = enabled,

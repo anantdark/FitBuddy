@@ -20,9 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ExerciseUsage::class,
         BodyMeasurement::class,
         WorkoutSession::class,
-        WorkoutExercise::class
+        WorkoutExercise::class,
+        WaterLog::class,
     ],
-    version = 25,
+    version = 26,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -38,6 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun workoutExerciseDao(): WorkoutExerciseDao
+    abstract fun waterLogDao(): WaterLogDao
 
     companion object {
         @Volatile
@@ -168,7 +170,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_21_22,
                         MIGRATION_22_23,
                         MIGRATION_23_24,
-                        MIGRATION_24_25
+                        MIGRATION_24_25,
+                        MIGRATION_25_26,
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -441,6 +444,24 @@ abstract class AppDatabase : RoomDatabase() {
             )
             db.execSQL("DROP TABLE meal_presets")
             db.execSQL("ALTER TABLE meal_presets_new RENAME TO meal_presets")
+        }
+
+        /** Local water intake logs for optional dashboard + home-screen tracking. */
+        val MIGRATION_25_26 = migration(25, 26) { db ->
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS water_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    amountMl INTEGER NOT NULL,
+                    drinkKind TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    dateString TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_water_logs_dateString ON water_logs (dateString)"
+            )
         }
 
         /**

@@ -24,6 +24,8 @@ import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.database.WaterDrinkKind
+import com.anant.fitbuddy.data.database.WaterLog
 import com.anant.fitbuddy.data.database.filledForDateRange
 import com.anant.fitbuddy.data.model.ActivityLevelRecommendation
 import com.anant.fitbuddy.data.model.ActivityLevelRecommender
@@ -919,16 +921,23 @@ class MainViewModel(
                 runCatching { repository.ensureSignupDateFromLogs() }
                 current = settingsRepository.settings.first()
                 val lastSeenDate = settingsRepository.lastSeenDonorDonationDate()
-                val newcomers = donorListRepository.newDisplayableDonors(
-                    file = file,
-                    lastSeenDonationDate = lastSeenDate,
-                    signupDate = current.signupDate.ifBlank { null },
-                )
-                if (newcomers.isNotEmpty()) {
-                    _newDonorsThankYou.value = newcomers
-                } else {
-                    DonorBadgeRules.latestDonationDate(file)?.let { latest ->
-                        settingsRepository.advanceLastSeenDonorDonationDate(latest)
+                val signupDate = current.signupDate.ifBlank { null }
+                // First thank-you waits a few days after install; don't advance last-seen
+                // early or newcomers would be skipped when the delay finally elapses.
+                val pastInstallDelay = lastSeenDate != null ||
+                    DonorListRepository.isPastThankYouInstallDelay(signupDate)
+                if (pastInstallDelay) {
+                    val newcomers = donorListRepository.newDisplayableDonors(
+                        file = file,
+                        lastSeenDonationDate = lastSeenDate,
+                        signupDate = signupDate,
+                    )
+                    if (newcomers.isNotEmpty()) {
+                        _newDonorsThankYou.value = newcomers
+                    } else {
+                        DonorBadgeRules.latestDonationDate(file)?.let { latest ->
+                            settingsRepository.advanceLastSeenDonorDonationDate(latest)
+                        }
                     }
                 }
 
@@ -1626,6 +1635,26 @@ class MainViewModel(
                 consumedFats = snap.consumedFats
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+
+    /** Today's water logs (empty when water tracking is off). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val todayWaterLogs: StateFlow<List<WaterLog>> =
+        combine(settings, _realToday) { appSettings, today ->
+            appSettings.waterTrackingEnabled to today
+        }.flatMapLatest { (enabled, today) ->
+            if (!enabled) flowOf(emptyList())
+            else repository.getWaterLogsForDate(today)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Today's total water ml (0 when tracking is off). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val todayWaterMl: StateFlow<Int> =
+        combine(settings, _realToday) { appSettings, today ->
+            appSettings.waterTrackingEnabled to today
+        }.flatMapLatest { (enabled, today) ->
+            if (!enabled) flowOf(0)
+            else repository.getWaterTotalMlForDate(today)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
      * null while profile hasn't loaded; true when onboarding (full or AI-only) is required.
@@ -3315,6 +3344,38 @@ class MainViewModel(
         viewModelScope.launch {
             repository.deleteExercise(log)
             _analysisState.update { it.copy(userMessage = str(R.string.vm_removed, log.activityName)) }
+        }
+    }
+
+    /** Quick-add a drink toward today's water goal (uses the chip's saved amount). */
+    fun addWaterIntake(kind: WaterDrinkKind) {
+        viewModelScope.launch {
+            val amount = settings.value.quickAddMl(kind)
+            repository.addWaterLog(
+                amountMl = amount,
+                drinkKind = kind,
+                dateString = _realToday.value,
+            )
+        }
+    }
+
+    /** Persist a long-press change to a drink chip's quick-add milliliters. */
+    fun setWaterQuickAddMl(kind: WaterDrinkKind, amountMl: Int) {
+        viewModelScope.launch {
+            settingsRepository.update { it.withQuickAddMl(kind, amountMl) }
+        }
+    }
+
+    fun deleteWaterLog(log: WaterLog) {
+        viewModelScope.launch {
+            repository.deleteWaterLog(log)
+        }
+    }
+
+    /** Edit a logged drink bucket's total milliliters for that day. */
+    fun updateWaterLogAmount(log: WaterLog, amountMl: Int) {
+        viewModelScope.launch {
+            repository.updateWaterLogAmount(log, amountMl)
         }
     }
 

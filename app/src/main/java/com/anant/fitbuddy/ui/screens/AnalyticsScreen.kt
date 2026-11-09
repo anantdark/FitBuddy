@@ -67,6 +67,8 @@ import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
 import com.anant.fitbuddy.ui.viewmodel.ProgressInsightUiState
 import com.anant.fitbuddy.util.DateUtils
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.Units
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -77,16 +79,18 @@ private const val BODY_COMPOSITION_READING_LIMIT = 15
 private data class BodyMetric(
     @param:androidx.annotation.StringRes val labelRes: Int,
     val unit: String,
+    /** Value is a body mass stored in kg; shown in the user's weight unit. */
+    val isMass: Boolean = false,
     /** True when a lower value is healthier (fat, weight, etc.). */
     val decreaseIsPositive: Boolean,
     val extractor: (BodyMeasurement) -> Double?,
 )
 
 private val BODY_METRICS = listOf(
-    BodyMetric(R.string.onboarding_weight, " kg", decreaseIsPositive = true) { it.weightKg },
+    BodyMetric(R.string.onboarding_weight, " kg", isMass = true, decreaseIsPositive = true) { it.weightKg },
     BodyMetric(R.string.analytics_body_fat, "%", decreaseIsPositive = true) { it.bodyFatPct },
     BodyMetric(R.string.analytics_bmr, " kcal", decreaseIsPositive = false) { it.bmr?.toDouble() },
-    BodyMetric(R.string.analytics_muscle_mass, " kg", decreaseIsPositive = false) { it.muscleMassKg },
+    BodyMetric(R.string.analytics_muscle_mass, " kg", isMass = true, decreaseIsPositive = false) { it.muscleMassKg },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -287,7 +291,11 @@ private fun BodyMetricCard(
 ) {
     val pagerState = rememberPagerState(pageCount = { BODY_METRICS.size })
     val scope = rememberCoroutineScope()
+    val units = LocalUnitSystem.current
+    fun BodyMetric.shownUnit() = if (isMass) " ${Units.weightUnit(units)}" else unit
+    fun BodyMetric.shown(v: Double) = if (isMass) Units.kgToDisplay(v, units) else v
     val weightTarget = targetWeightKg?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { Units.kgToDisplay(it, units) }
     val preferHigherWeight = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     ChartCard(title = stringResource(R.string.analytics_body_composition)) {
@@ -300,23 +308,24 @@ private fun BodyMetricCard(
             val metric = BODY_METRICS[page]
             // Last 15 readings (newest-first from Room), then oldest→newest for the chart.
             // Ignores the Weekly/Monthly toggle above.
-            val points = remember(measurements, page) {
+            val points = remember(measurements, page, units) {
                 measurements
                     .take(BODY_COMPOSITION_READING_LIMIT)
                     .asReversed()
                     .mapNotNull { m ->
                         metric.extractor(m)?.let { value ->
-                            m.dateString to value
+                            m.dateString to metric.shown(value)
                         }
                     }
             }
 
             MetricLineChart(
                 points = points,
-                unit = metric.unit,
+                unit = metric.shownUnit(),
                 decreaseIsPositive = metric.decreaseIsPositive,
                 targetValue = if (metric.labelRes == R.string.onboarding_weight) weightTarget else null,
                 targetPreferHigher = preferHigherWeight,
+                targetTolerance = Units.kgToDisplay(1.0, units),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp)
@@ -324,13 +333,13 @@ private fun BodyMetricCard(
         }
 
         val currentMetric = BODY_METRICS[pagerState.currentPage]
-        val currentPoints = remember(measurements, pagerState.currentPage) {
+        val currentPoints = remember(measurements, pagerState.currentPage, units) {
             measurements
                 .take(BODY_COMPOSITION_READING_LIMIT)
                 .asReversed()
                 .mapNotNull { m ->
                     currentMetric.extractor(m)?.let { value ->
-                        m.dateString to value
+                        m.dateString to currentMetric.shown(value)
                     }
                 }
         }
@@ -340,14 +349,14 @@ private fun BodyMetricCard(
             val first = currentPoints.first().second
             val delta = latest - first
             Text(
-                text = stringResource(R.string.analytics_latest, trim(latest), currentMetric.unit),
+                text = stringResource(R.string.analytics_latest, trim(latest), currentMetric.shownUnit()),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             if (currentPoints.size >= 2) {
                 val sign = if (delta > 0) "+" else ""
                 Text(
-                    text = "$sign${trim(delta)}${currentMetric.unit} over last ${currentPoints.size} readings",
+                    text = "$sign${trim(delta)}${currentMetric.shownUnit()} over last ${currentPoints.size} readings",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -358,9 +367,9 @@ private fun BodyMetricCard(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = if (preferHigherWeight) {
-                    stringResource(R.string.analytics_within_1_kg_green_above_1_kg)
+                    stringResource(R.string.analytics_within_1_kg_green_above_1_kg, Units.weightLabel(1.0, units))
                 } else {
-                    stringResource(R.string.analytics_within_1_kg_green_below_1_kg)
+                    stringResource(R.string.analytics_within_1_kg_green_below_1_kg, Units.weightLabel(1.0, units))
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

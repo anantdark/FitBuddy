@@ -60,6 +60,9 @@ class DonorListRepository(
      * Named donors with a thank-you–eligible donation: new vs [lastSeenDonationDate], and
      * either on/after [signupDate] (unbounded) or within [THANK_YOU_MAX_AGE_MONTHS] before
      * signup (or before today when signup is unset). Gallery uses [allDisplayableDonors].
+     *
+     * Callers should also check [isPastThankYouInstallDelay] before the first thank-you
+     * (when last-seen is still unset) so new installs are not prompted on day one.
      */
     fun newDisplayableDonors(
         file: DonorsFile,
@@ -108,5 +111,19 @@ class DonorListRepository(
             "https://raw.githubusercontent.com/anantdark/FitBuddy/main/config/donors.json"
         /** Thank-you banner hides donations older than this many months before signup. */
         const val THANK_YOU_MAX_AGE_MONTHS = 6
+        /** Days after signup before the first supporters thank-you may appear. */
+        const val THANK_YOU_INSTALL_DELAY_DAYS = 3
+
+        /**
+         * Fresh installs wait [THANK_YOU_INSTALL_DELAY_DAYS] after signup before the first
+         * supporters thank-you. Missing/blank signup → not ready (wait until signup is minted).
+         */
+        fun isPastThankYouInstallDelay(
+            signupDate: String?,
+            today: String = DateUtils.today(),
+        ): Boolean {
+            val signup = DonorDates.normalizeOrNull(signupDate) ?: return false
+            return today >= DateUtils.addDays(signup, THANK_YOU_INSTALL_DELAY_DAYS)
+        }
     }
 }
