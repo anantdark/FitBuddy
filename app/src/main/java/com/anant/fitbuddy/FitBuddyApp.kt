@@ -107,6 +107,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             bodyMeasurementDao = database.bodyMeasurementDao(),
             workoutSessionDao = database.workoutSessionDao(),
             workoutExerciseDao = database.workoutExerciseDao(),
+            waterLogDao = database.waterLogDao(),
             exerciseCatalogRepository = exerciseCatalogRepository,
             gymGifsCatalogRepository = gymGifsCatalogRepository,
             remoteAiDataSource = RemoteAiDataSource(
@@ -130,6 +131,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
                 bodyMeasurementDao = database.bodyMeasurementDao(),
                 workoutSessionDao = database.workoutSessionDao(),
                 workoutExerciseDao = database.workoutExerciseDao(),
+                waterLogDao = database.waterLogDao(),
                 settingsRepository = settingsRepository,
                 crypto = BackupCrypto(NetworkModule.moshi),
                 moshi = NetworkModule.moshi

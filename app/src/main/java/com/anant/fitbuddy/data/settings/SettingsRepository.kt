@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
 import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.model.WorkoutFilterOrdering
@@ -143,6 +144,7 @@ class SettingsRepository(context: Context) {
                 if (prov != null && raw.isNotBlank() && !isPlausibleModelIdFor(prov, raw)) "" else raw
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
+            unitSystem = prefs[KEY_UNIT_SYSTEM].orEmpty(),
             colorTheme = prefs[KEY_COLOR_THEME]?.let {
                 runCatching { AppColorTheme.valueOf(it) }.getOrNull()
             } ?: AppColorTheme.BRAND,
@@ -155,10 +157,14 @@ class SettingsRepository(context: Context) {
                     else -> runCatching { AppComponentStyle.valueOf(raw) }.getOrNull()
                 }
             } ?: AppComponentStyle.MATERIAL,
+            dashboardLayout = prefs[KEY_DASHBOARD_LAYOUT]?.let {
+                runCatching { AppDashboardLayout.valueOf(it) }.getOrNull()
+            } ?: AppDashboardLayout.EXTENDED,
             analyzingAnimationChoice = analyzingAnim,
             insightAnimationChoice = insightAnim,
             animationsEnabled = analyzingAnim != AppSettings.LOADING_ANIM_OFF ||
                 insightAnim != AppSettings.LOADING_ANIM_OFF,
+            hapticsEnabled = prefs[KEY_HAPTICS_ENABLED] ?: true,
             autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.DEBUG,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             signupDate = prefs[KEY_SIGNUP_DATE].orEmpty(),
@@ -167,6 +173,17 @@ class SettingsRepository(context: Context) {
             region = prefs[KEY_REGION].orEmpty(),
             regionRequestSentAt = prefs[KEY_REGION_REQUEST_SENT_AT] ?: 0L,
             easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
+            waterTrackingEnabled = prefs[KEY_WATER_TRACKING] ?: false,
+            waterGoalMl = (prefs[KEY_WATER_GOAL_ML] ?: AppSettings.DEFAULT_WATER_GOAL_ML)
+                .coerceIn(500, 10_000),
+            waterQuickAddMl = (prefs[KEY_WATER_QUICK_ML] ?: WaterDrinkKind.WATER.defaultMl)
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX),
+            bottleQuickAddMl = (prefs[KEY_BOTTLE_QUICK_ML] ?: WaterDrinkKind.BOTTLE.defaultMl)
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX),
+            coffeeQuickAddMl = (prefs[KEY_COFFEE_QUICK_ML] ?: WaterDrinkKind.COFFEE.defaultMl)
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX),
+            teaQuickAddMl = (prefs[KEY_TEA_QUICK_ML] ?: WaterDrinkKind.TEA.defaultMl)
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX),
             dailyLogReminderEnabled = prefs[KEY_DAILY_LOG_REMINDER] ?: true,
             dailyLogReminderHour = (prefs[KEY_DAILY_LOG_REMINDER_HOUR]
                 ?: AppSettings.DEFAULT_REMINDER_HOUR).coerceIn(0, 23),
@@ -201,7 +218,7 @@ class SettingsRepository(context: Context) {
                 exportHeight = prefs[KEY_HC_EXPORT_HEIGHT] ?: true,
                 exportBodyFat = prefs[KEY_HC_EXPORT_BODY_FAT] ?: true,
                 exportMuscleMass = prefs[KEY_HC_EXPORT_MUSCLE_MASS] ?: true,
-                exportHydration = false,
+                exportHydration = prefs[KEY_HC_EXPORT_HYDRATION] ?: true,
                 exportExercise = prefs[KEY_HC_EXPORT_EXERCISE] ?: true,
             ).sanitized(),
             // Debug builds never sync to cloud (including after restore / Auto Backup).
@@ -465,14 +482,17 @@ class SettingsRepository(context: Context) {
                 prefs[showPaidKey(p)] = settings.showPaidFor(p)
             }
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
+            prefs[KEY_UNIT_SYSTEM] = settings.unitSystem
             prefs[KEY_COLOR_THEME] = settings.colorTheme.name
             prefs[KEY_FONT_OPTION] = settings.fontOption.name
             prefs[KEY_COMPONENT_STYLE] = settings.componentStyle.name
+            prefs[KEY_DASHBOARD_LAYOUT] = settings.dashboardLayout.name
             prefs[KEY_ANALYZING_ANIMATION_CHOICE] = settings.analyzingAnimationChoice
             prefs[KEY_INSIGHT_ANIMATION_CHOICE] = settings.insightAnimationChoice
             prefs[KEY_ANIMATIONS_ENABLED] =
                 settings.analyzingAnimationChoice != AppSettings.LOADING_ANIM_OFF ||
                     settings.insightAnimationChoice != AppSettings.LOADING_ANIM_OFF
+            prefs[KEY_HAPTICS_ENABLED] = settings.hapticsEnabled
             prefs[KEY_AUTO_CHECK_UPDATES] = settings.autoCheckUpdates
             prefs[KEY_CRASH_REPORTING] = settings.crashReportingEnabled
             prefs[KEY_DIAGNOSTIC_LOGGING] = settings.diagnosticLoggingEnabled
@@ -487,6 +507,16 @@ class SettingsRepository(context: Context) {
                 prefs.remove(KEY_SIGNUP_DATE)
             }
             prefs[KEY_EASTER_EGG] = settings.easterEggDiscovered
+            prefs[KEY_WATER_TRACKING] = settings.waterTrackingEnabled
+            prefs[KEY_WATER_GOAL_ML] = settings.waterGoalMl.coerceIn(500, 10_000)
+            prefs[KEY_WATER_QUICK_ML] = settings.waterQuickAddMl
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX)
+            prefs[KEY_BOTTLE_QUICK_ML] = settings.bottleQuickAddMl
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX)
+            prefs[KEY_COFFEE_QUICK_ML] = settings.coffeeQuickAddMl
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX)
+            prefs[KEY_TEA_QUICK_ML] = settings.teaQuickAddMl
+                .coerceIn(AppSettings.QUICK_ADD_ML_MIN, AppSettings.QUICK_ADD_ML_MAX)
             prefs[KEY_DAILY_LOG_REMINDER] = settings.dailyLogReminderEnabled
             prefs[KEY_DAILY_LOG_REMINDER_HOUR] = settings.dailyLogReminderHour.coerceIn(0, 23)
             prefs[KEY_DAILY_LOG_REMINDER_MINUTE] = settings.dailyLogReminderMinute.coerceIn(0, 59)
@@ -522,7 +552,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_HC_EXPORT_HEIGHT] = hc.exportHeight
             prefs[KEY_HC_EXPORT_BODY_FAT] = hc.exportBodyFat
             prefs[KEY_HC_EXPORT_MUSCLE_MASS] = hc.exportMuscleMass
-            prefs[KEY_HC_EXPORT_HYDRATION] = false
+            prefs[KEY_HC_EXPORT_HYDRATION] = hc.exportHydration
             prefs[KEY_HC_EXPORT_EXERCISE] = hc.exportExercise
             prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
@@ -748,11 +778,13 @@ class SettingsRepository(context: Context) {
         val KEY_COLOR_THEME = stringPreferencesKey("color_theme")
         val KEY_FONT_OPTION = stringPreferencesKey("font_option")
         val KEY_COMPONENT_STYLE = stringPreferencesKey("component_style")
+        val KEY_DASHBOARD_LAYOUT = stringPreferencesKey("dashboard_layout")
         val KEY_ANALYZING_ANIMATION_CHOICE = stringPreferencesKey("analyzing_animation_choice")
         val KEY_INSIGHT_ANIMATION_CHOICE = stringPreferencesKey("insight_animation_choice")
         /** Legacy single-choice key; read for migration only. */
         val KEY_LOADING_ANIMATION_CHOICE = stringPreferencesKey("loading_animation_choice")
         val KEY_ANIMATIONS_ENABLED = booleanPreferencesKey("animations_enabled")
+        val KEY_HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
         val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
 
         /**
@@ -789,6 +821,7 @@ class SettingsRepository(context: Context) {
         val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting_enabled")
         val KEY_DIAGNOSTIC_LOGGING = booleanPreferencesKey("diagnostic_logging_enabled")
         val KEY_REGION = stringPreferencesKey("app_region")
+        val KEY_UNIT_SYSTEM = stringPreferencesKey("unit_system")
         val KEY_REGION_REQUEST_SENT_AT = longPreferencesKey("region_request_sent_at")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
         // Legacy keys — removed on load/save; kept only so clearLegacySentryRoutingPrefs can drop them.
@@ -797,6 +830,12 @@ class SettingsRepository(context: Context) {
         val KEY_FORCE_SENTRY_PROXY_LEGACY = booleanPreferencesKey("force_sentry_proxy_mode")
         val KEY_LAST_KNOWN_VERSION_CODE = intPreferencesKey("last_known_version_code")
         val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
+        val KEY_WATER_TRACKING = booleanPreferencesKey("water_tracking_enabled")
+        val KEY_WATER_GOAL_ML = intPreferencesKey("water_goal_ml")
+        val KEY_WATER_QUICK_ML = intPreferencesKey("water_quick_add_ml")
+        val KEY_BOTTLE_QUICK_ML = intPreferencesKey("bottle_quick_add_ml")
+        val KEY_COFFEE_QUICK_ML = intPreferencesKey("coffee_quick_add_ml")
+        val KEY_TEA_QUICK_ML = intPreferencesKey("tea_quick_add_ml")
         val KEY_MODEL_COOLDOWNS = stringPreferencesKey("ai_model_cooldowns")
         val KEY_DAILY_LOG_REMINDER = booleanPreferencesKey("daily_log_reminder_enabled")
         val KEY_DAILY_LOG_REMINDER_HOUR = intPreferencesKey("daily_log_reminder_hour")

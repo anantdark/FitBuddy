@@ -207,6 +207,18 @@
                 android:resource="@xml/widget_action_strip_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.WaterIntakeWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_water_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_water_intake_info" />
+        </receiver>
+
         <provider
             android:name=".bridge.MeasurementBridgeProvider"
             android:authorities="${applicationId}.bridge.measurements"

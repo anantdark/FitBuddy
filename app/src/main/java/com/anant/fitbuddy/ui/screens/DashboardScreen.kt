@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -56,14 +57,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.data.database.ExerciseLog
 import com.anant.fitbuddy.data.database.FoodLog
+import com.anant.fitbuddy.data.database.WaterDrinkKind
+import com.anant.fitbuddy.data.database.WaterLog
+import com.anant.fitbuddy.data.settings.AppDashboardLayout
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.components.CalorieRing
+import com.anant.fitbuddy.ui.components.DashboardWaterSection
 import com.anant.fitbuddy.ui.components.MacroCarbsColor
 import com.anant.fitbuddy.ui.components.MacroFatsColor
 import com.anant.fitbuddy.ui.components.MacroProteinColor
 import com.anant.fitbuddy.ui.components.PressableCard
+import com.anant.fitbuddy.ui.components.EditWaterLogDialog
+import com.anant.fitbuddy.ui.components.QuickAddAmountDialog
+import com.anant.fitbuddy.ui.components.VerticalWaterSidePanel
+import com.anant.fitbuddy.ui.components.WaterQuickAddRow
 import com.anant.fitbuddy.ui.components.WeekDayMacroBar
 import com.anant.fitbuddy.ui.components.WeekMacroBarChart
+import com.anant.fitbuddy.ui.components.drinkKindAccent
+import com.anant.fitbuddy.ui.components.drinkKindIcon
+import com.anant.fitbuddy.ui.components.drinkKindLabel
 import com.anant.fitbuddy.ui.components.pressable
 import com.anant.fitbuddy.ui.loading.LoadingAnimationHost
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
@@ -71,9 +83,15 @@ import com.anant.fitbuddy.ui.util.LogItemIcons
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.ui.viewmodel.DayLogSnapshot
 import com.anant.fitbuddy.util.DateUtils
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.WaterFormat
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.HorizontalDivider
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Macro accent colors shared with the stacked bar chart legend.
 private val ProteinColor = MacroProteinColor
@@ -92,11 +110,16 @@ private data class LogRowItem(
     val isFood: Boolean,
     val iconTopic: String? = null,
     val foodLog: FoodLog? = null,
-    val exerciseLog: ExerciseLog? = null
-)
+    val exerciseLog: ExerciseLog? = null,
+    val waterLog: WaterLog? = null,
+) {
+    val isWater: Boolean get() = waterLog != null
+}
 
 /**
- * Home dashboard: original calorie ring + macros + today's log.
+ * Home dashboard: calorie ring + macros + today's log.
+ * [AppDashboardLayout.EXTENDED] is the classic stacked layout (default);
+ * [AppDashboardLayout.COMPACT] combines ring + macros in one denser hero.
  * Tapping the header card opens [WeekHistoryScreen] (press scale + ripple).
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,6 +131,16 @@ fun DashboardHomeScreen(
     isAnalyzing: Boolean,
     analyzingModel: String? = null,
     animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
+    dashboardLayout: AppDashboardLayout = AppDashboardLayout.EXTENDED,
+    waterTrackingEnabled: Boolean = false,
+    waterConsumedMl: Int = 0,
+    waterGoalMl: Int = AppSettings.DEFAULT_WATER_GOAL_ML,
+    waterQuickAddMl: (WaterDrinkKind) -> Int = { it.defaultMl },
+    waterLogs: List<WaterLog> = emptyList(),
+    onAddWater: (WaterDrinkKind) -> Unit = {},
+    onChangeWaterQuickAdd: (WaterDrinkKind, Int) -> Unit = { _, _ -> },
+    onDeleteWater: (WaterLog) -> Unit = {},
+    onEditWater: (WaterLog, Int) -> Unit = { _, _ -> },
     onOpenWeekHistory: () -> Unit,
     onEditFood: (FoodLog) -> Unit,
     onDeleteFood: (FoodLog) -> Unit,
@@ -117,6 +150,7 @@ fun DashboardHomeScreen(
     onCloneExercise: (ExerciseLog) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val compact = dashboardLayout == AppDashboardLayout.COMPACT
     val snap = weekSnapshots[realToday] ?: DayLogSnapshot()
     val todayState = profileState.copy(
         consumedCalories = snap.consumedCalories,
@@ -125,8 +159,14 @@ fun DashboardHomeScreen(
         consumedCarbs = snap.consumedCarbs,
         consumedFats = snap.consumedFats
     )
-    val logItems = rememberCombinedLogs(snap.foodLogs, snap.exerciseLogs)
+    val logItems = rememberCombinedLogs(
+        foodLogs = snap.foodLogs,
+        exerciseLogs = snap.exerciseLogs,
+        waterLogs = if (waterTrackingEnabled) waterLogs else emptyList(),
+    )
     var actionItem by remember { mutableStateOf<LogRowItem?>(null) }
+    var editWaterLog by remember { mutableStateOf<WaterLog?>(null) }
+    var editQuickAddKind by remember { mutableStateOf<WaterDrinkKind?>(null) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -140,10 +180,31 @@ fun DashboardHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            CalorieHeaderCard(
-                state = todayState,
-                onClick = onOpenWeekHistory
-            )
+            if (compact) {
+                CompactCalorieHeaderCard(
+                    state = todayState,
+                    onClick = onOpenWeekHistory,
+                    waterTrackingEnabled = waterTrackingEnabled,
+                    waterConsumedMl = waterConsumedMl,
+                    waterGoalMl = waterGoalMl,
+                    waterQuickAddMl = waterQuickAddMl,
+                    waterLogs = waterLogs,
+                    onAddWater = onAddWater,
+                    onChangeWaterQuickAdd = onChangeWaterQuickAdd,
+                )
+            } else {
+                ExtendedCalorieHeaderCard(
+                    state = todayState,
+                    onClick = onOpenWeekHistory,
+                    waterTrackingEnabled = waterTrackingEnabled,
+                    waterConsumedMl = waterConsumedMl,
+                    waterGoalMl = waterGoalMl,
+                    waterQuickAddMl = waterQuickAddMl,
+                    waterLogs = waterLogs,
+                    onAddWater = onAddWater,
+                    onLongPressQuickAdd = { editQuickAddKind = it },
+                )
+            }
         }
 
         if (isAnalyzing) {
@@ -156,7 +217,9 @@ fun DashboardHomeScreen(
             }
         }
 
-        item { MacroRow(todayState) }
+        if (!compact) {
+            item { MacroRow(todayState) }
+        }
 
         item {
             Text(
@@ -171,7 +234,14 @@ fun DashboardHomeScreen(
         } else {
             items(
                 logItems,
-                key = { "${it.isFood}-${it.timestamp}-${it.title}-${it.foodLog?.id}-${it.exerciseLog?.id}" }
+                key = {
+                    when {
+                        it.waterLog != null -> "w-${it.waterLog.id}"
+                        it.foodLog != null -> "f-${it.foodLog.id}"
+                        it.exerciseLog != null -> "e-${it.exerciseLog.id}"
+                        else -> "${it.isFood}-${it.timestamp}-${it.title}"
+                    }
+                }
             ) { item ->
                 LogRow(item, onClick = { actionItem = item })
             }
@@ -181,26 +251,155 @@ fun DashboardHomeScreen(
     actionItem?.let { item ->
         LogActionSheet(
             item = item,
-            showClone = true,
-            onEdit = { item.foodLog?.let(onEditFood) },
+            showClone = !item.isWater,
+            onEdit = {
+                when {
+                    item.isWater -> item.waterLog?.let { editWaterLog = it }
+                    else -> item.foodLog?.let(onEditFood)
+                }
+            },
             onViewExercise = { item.exerciseLog?.let(onViewExercise) },
             onClone = {
                 if (item.isFood) item.foodLog?.let(onCloneFood)
                 else item.exerciseLog?.let(onCloneExercise)
             },
             onDelete = {
-                if (item.isFood) item.foodLog?.let(onDeleteFood)
-                else item.exerciseLog?.let(onDeleteExercise)
+                when {
+                    item.isWater -> item.waterLog?.let(onDeleteWater)
+                    item.isFood -> item.foodLog?.let(onDeleteFood)
+                    else -> item.exerciseLog?.let(onDeleteExercise)
+                }
             },
             onDismiss = { actionItem = null }
+        )
+    }
+
+    editWaterLog?.let { log ->
+        EditWaterLogDialog(
+            log = log,
+            onDismiss = { editWaterLog = null },
+            onConfirm = { ml ->
+                onEditWater(log, ml)
+                editWaterLog = null
+            },
+        )
+    }
+
+    editQuickAddKind?.let { kind ->
+        QuickAddAmountDialog(
+            kind = kind,
+            initialMl = waterQuickAddMl(kind),
+            onDismiss = { editQuickAddKind = null },
+            onConfirm = { ml ->
+                onChangeWaterQuickAdd(kind, ml)
+                editQuickAddKind = null
+            },
         )
     }
 }
 
 @Composable
-private fun CalorieHeaderCard(
+private fun ExtendedCalorieHeaderCard(
     state: DashboardUiState,
     onClick: () -> Unit,
+    waterTrackingEnabled: Boolean = false,
+    waterConsumedMl: Int = 0,
+    waterGoalMl: Int = AppSettings.DEFAULT_WATER_GOAL_ML,
+    waterQuickAddMl: (WaterDrinkKind) -> Int = { it.defaultMl },
+    waterLogs: List<WaterLog> = emptyList(),
+    onAddWater: (WaterDrinkKind) -> Unit = {},
+    onLongPressQuickAdd: (WaterDrinkKind) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        PressableCard(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            elevation = 2.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = if (state.isOverTarget) {
+                            stringResource(R.string.dashboard_over_target)
+                        } else {
+                            stringResource(R.string.dashboard_calories_remaining)
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    CalorieRing(
+                        progress = state.calorieProgress,
+                        centerText = state.remainingCalories.toString(),
+                        subText = stringResource(R.string.dashboard_kcal_left),
+                        modifier = Modifier.size(if (waterTrackingEnabled) 180.dp else 200.dp),
+                        remainingKcal = state.remainingCalories,
+                        progressColor = if (state.isOverTarget) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        }
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        HeaderStat(stringResource(R.string.dashboard_eaten_2), state.consumedCalories)
+                        HeaderStat(stringResource(R.string.dashboard_exercise), state.burnedCalories)
+                        HeaderStat(stringResource(R.string.dashboard_target), state.targetCalories)
+                    }
+                }
+                if (waterTrackingEnabled) {
+                    // Match ring + labels + stats so the meter spans the full calorie column.
+                    VerticalWaterSidePanel(
+                        consumedMl = waterConsumedMl,
+                        goalMl = waterGoalMl,
+                        waterLogs = waterLogs,
+                        modifier = Modifier
+                            .width(52.dp)
+                            .height(268.dp),
+                    )
+                }
+            }
+        }
+        if (waterTrackingEnabled) {
+            WaterQuickAddRow(
+                quickAddMl = waterQuickAddMl,
+                onQuickAdd = onAddWater,
+                onLongPress = onLongPressQuickAdd,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactCalorieHeaderCard(
+    state: DashboardUiState,
+    onClick: () -> Unit,
+    waterTrackingEnabled: Boolean = false,
+    waterConsumedMl: Int = 0,
+    waterGoalMl: Int = AppSettings.DEFAULT_WATER_GOAL_ML,
+    waterQuickAddMl: (WaterDrinkKind) -> Int = { it.defaultMl },
+    waterLogs: List<WaterLog> = emptyList(),
+    onAddWater: (WaterDrinkKind) -> Unit = {},
+    onChangeWaterQuickAdd: (WaterDrinkKind, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     PressableCard(
@@ -214,26 +413,55 @@ private fun CalorieHeaderCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(16.dp)
         ) {
-            Text(
-                text = if (state.isOverTarget) "Over target" else stringResource(R.string.dashboard_calories_remaining),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            CalorieRing(
-                progress = state.calorieProgress,
-                centerText = state.remainingCalories.toString(),
-                subText = stringResource(R.string.dashboard_kcal_left),
-                modifier = Modifier.size(200.dp),
-                progressColor = if (state.isOverTarget) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.primary
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CalorieRing(
+                    progress = state.calorieProgress,
+                    centerText = state.remainingCalories.toString(),
+                    subText = stringResource(R.string.dashboard_kcal_left),
+                    topText = if (state.isOverTarget) {
+                        stringResource(R.string.dashboard_over_target)
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.size(148.dp),
+                    strokeWidth = 28f,
+                    remainingKcal = state.remainingCalories,
+                    progressColor = if (state.isOverTarget) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    InlineMacroBar(
+                        label = stringResource(R.string.dashboard_protein),
+                        consumed = state.consumedProtein,
+                        target = state.targetProtein,
+                        color = ProteinColor,
+                    )
+                    InlineMacroBar(
+                        label = stringResource(R.string.dashboard_carbs),
+                        consumed = state.consumedCarbs,
+                        target = state.targetCarbs,
+                        color = CarbsColor,
+                    )
+                    InlineMacroBar(
+                        label = stringResource(R.string.dashboard_fats),
+                        consumed = state.consumedFats,
+                        target = state.targetFats,
+                        color = FatsColor,
+                    )
                 }
-            )
+            }
             Spacer(Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -243,7 +471,62 @@ private fun CalorieHeaderCard(
                 HeaderStat(stringResource(R.string.dashboard_exercise), state.burnedCalories)
                 HeaderStat(stringResource(R.string.dashboard_target), state.targetCalories)
             }
+            if (waterTrackingEnabled) {
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(Modifier.height(12.dp))
+                DashboardWaterSection(
+                    consumedMl = waterConsumedMl,
+                    goalMl = waterGoalMl,
+                    quickAddMl = waterQuickAddMl,
+                    onQuickAdd = onAddWater,
+                    onChangeQuickAdd = onChangeWaterQuickAdd,
+                    waterLogs = waterLogs,
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun InlineMacroBar(
+    label: String,
+    consumed: Double,
+    target: Int,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    val progress = if (target <= 0) 0f else (consumed.toFloat() / target).coerceIn(0f, 1f)
+    val barCap = if (isMakoStyle()) StrokeCap.Butt else StrokeCap.Round
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "${consumed.formatMacro()}/${target}g",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(appShape(3.dp)),
+            color = color,
+            trackColor = color.copy(alpha = 0.2f),
+            strokeCap = barCap,
+        )
     }
 }
 
@@ -770,14 +1053,28 @@ private fun LogActionSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
-            if (item.isFood) {
-                ActionRow(Icons.Filled.Edit, stringResource(R.string.dashboard_edit_meal_foods), onClick = { runAfterHide(onEdit) })
-            } else {
-                ActionRow(
-                    Icons.Filled.FitnessCenter,
-                    stringResource(R.string.dashboard_view_edit_exercises),
-                    onClick = { runAfterHide(onViewExercise) }
-                )
+            when {
+                item.isWater -> {
+                    ActionRow(
+                        Icons.Filled.Edit,
+                        stringResource(R.string.dashboard_edit_water),
+                        onClick = { runAfterHide(onEdit) }
+                    )
+                }
+                item.isFood -> {
+                    ActionRow(
+                        Icons.Filled.Edit,
+                        stringResource(R.string.dashboard_edit_meal_foods),
+                        onClick = { runAfterHide(onEdit) }
+                    )
+                }
+                else -> {
+                    ActionRow(
+                        Icons.Filled.FitnessCenter,
+                        stringResource(R.string.dashboard_view_edit_exercises),
+                        onClick = { runAfterHide(onViewExercise) }
+                    )
+                }
             }
             if (showClone) {
                 ActionRow(
@@ -790,7 +1087,8 @@ private fun LogActionSheet(
                 icon = Icons.Filled.DeleteOutline,
                 label = stringResource(R.string.dashboard_remove_from_log),
                 onClick = { runAfterHide(onDelete) },
-                tint = MaterialTheme.colorScheme.error
+                tint = MaterialTheme.colorScheme.error,
+                destructive = true,
             )
         }
     }
@@ -801,12 +1099,16 @@ private fun ActionRow(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
-    tint: Color = MaterialTheme.colorScheme.onSurface
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    destructive: Boolean = false,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .pressable(onClick = onClick)
+            .pressable(
+                onHaptic = { if (destructive) it.reject() else it.click() },
+                onClick = onClick,
+            )
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -848,10 +1150,13 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val accent = if (item.isFood) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.tertiary
+            val waterKind = item.waterLog?.let {
+                WaterDrinkKind.fromStored(it.drinkKind).logKind
+            }
+            val accent = when {
+                waterKind != null -> drinkKindAccent(waterKind)
+                item.isFood -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.tertiary
             }
             Surface(
                 shape = appShape(20.dp),
@@ -860,10 +1165,10 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = if (item.isFood) {
-                            LogItemIcons.forFood(item.iconTopic)
-                        } else {
-                            LogItemIcons.forExercise(item.iconTopic)
+                        imageVector = when {
+                            waterKind != null -> drinkKindIcon(waterKind)
+                            item.isFood -> LogItemIcons.forFood(item.iconTopic)
+                            else -> LogItemIcons.forExercise(item.iconTopic)
                         },
                         contentDescription = null,
                         tint = accent
@@ -884,7 +1189,11 @@ private fun LogRow(item: LogRowItem, onClick: () -> Unit) {
                 )
             }
             Text(
-                text = if (item.isFood) "+${item.calories}" else "-${item.calories}",
+                text = when {
+                    item.isWater -> "+${WaterFormat.formatMl(item.calories, LocalUnitSystem.current)}"
+                    item.isFood -> "+${item.calories}"
+                    else -> "-${item.calories}"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = accent
@@ -923,29 +1232,67 @@ private fun EmptyLogState() {
 @Composable
 private fun rememberCombinedLogs(
     foodLogs: List<FoodLog>,
-    exerciseLogs: List<ExerciseLog>
-): List<LogRowItem> = remember(foodLogs, exerciseLogs) {
-    val food = foodLogs.map {
-        LogRowItem(
-            title = it.dishName,
-            subtitle = "${it.proteinG.formatMacro()}p · ${it.carbsG.formatMacro()}c · ${it.fatsG.formatMacro()}f",
-            calories = it.calories,
-            timestamp = it.timestamp,
-            isFood = true,
-            iconTopic = it.iconTopic,
-            foodLog = it
-        )
+    exerciseLogs: List<ExerciseLog>,
+    waterLogs: List<WaterLog> = emptyList(),
+): List<LogRowItem> {
+    val waterTitles = waterLogs.associate { log ->
+        log.id to drinkKindLabel(WaterDrinkKind.fromStored(log.drinkKind).logKind)
     }
-    val exercise = exerciseLogs.map {
-        LogRowItem(
-            title = it.activityName,
-            subtitle = "${it.durationMinutes} min",
-            calories = it.caloriesBurned,
-            timestamp = it.timestamp,
-            isFood = false,
-            iconTopic = it.iconTopic,
-            exerciseLog = it
-        )
+    val timeFmt = remember {
+        SimpleDateFormat("HH:mm", Locale.getDefault())
     }
-    (food + exercise).sortedByDescending { it.timestamp }
+    return remember(foodLogs, exerciseLogs, waterLogs, waterTitles) {
+        val food = foodLogs.map {
+            LogRowItem(
+                title = it.dishName,
+                subtitle = "${it.proteinG.formatMacro()}p · ${it.carbsG.formatMacro()}c · ${it.fatsG.formatMacro()}f",
+                calories = it.calories,
+                timestamp = it.timestamp,
+                isFood = true,
+                iconTopic = it.iconTopic,
+                foodLog = it
+            )
+        }.sortedByDescending { it.timestamp }
+        val exercise = exerciseLogs.map {
+            LogRowItem(
+                title = it.activityName,
+                subtitle = "${it.durationMinutes} min",
+                calories = it.caloriesBurned,
+                timestamp = it.timestamp,
+                isFood = false,
+                iconTopic = it.iconTopic,
+                exerciseLog = it
+            )
+        }.sortedByDescending { it.timestamp }
+        // One rolled-up row per drink kind; always listed below food.
+        val kindOrder = WaterDrinkKind.entries.associateWith { it.ordinal }
+        val water = waterLogs
+            // One row per log-kind (glass+bottle share water); keep oldest id for stable delete.
+            .groupBy { WaterDrinkKind.fromStored(it.drinkKind).logKind }
+            .values
+            .map { group ->
+                val primary = group.minBy { it.id }
+                primary.copy(
+                    amountMl = group.sumOf { it.amountMl },
+                    timestamp = group.maxOf { it.timestamp },
+                    drinkKind = WaterDrinkKind.fromStored(primary.drinkKind).logKind.name,
+                )
+            }
+            .sortedWith(
+                compareBy<WaterLog> {
+                    kindOrder[WaterDrinkKind.fromStored(it.drinkKind).logKind] ?: Int.MAX_VALUE
+                }.thenByDescending { it.timestamp }
+            )
+            .map {
+                LogRowItem(
+                    title = waterTitles[it.id].orEmpty(),
+                    subtitle = timeFmt.format(Date(it.timestamp)),
+                    calories = it.amountMl,
+                    timestamp = it.timestamp,
+                    isFood = false,
+                    waterLog = it,
+                )
+            }
+        food + water + exercise
+    }
 }

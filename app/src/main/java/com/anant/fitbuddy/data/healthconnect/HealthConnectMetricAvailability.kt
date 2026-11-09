@@ -39,8 +39,8 @@ object HealthConnectMetricAvailability {
     const val exportBodyFat = true
     /** BodyMeasurement.muscleMassKg. */
     const val exportMuscleMass = true
-    /** No in-app water logging yet. */
-    const val exportHydration = false
+    /** WaterLog → HydrationRecord. */
+    const val exportHydration = true
     /** ExerciseLog (non-steps). */
     const val exportExercise = true
 }
@@ -60,6 +60,6 @@ fun HealthConnectMetricPrefs.sanitized(): HealthConnectMetricPrefs = copy(
     exportHeight = exportHeight && HealthConnectMetricAvailability.exportHeight,
     exportBodyFat = exportBodyFat && HealthConnectMetricAvailability.exportBodyFat,
     exportMuscleMass = exportMuscleMass && HealthConnectMetricAvailability.exportMuscleMass,
-    exportHydration = false,
+    exportHydration = exportHydration && HealthConnectMetricAvailability.exportHydration,
     exportExercise = exportExercise && HealthConnectMetricAvailability.exportExercise,
 )

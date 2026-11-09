@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.anant.fitbuddy.data.model.NutritionTargetPeriod
 import kotlinx.coroutines.flow.Flow
 
@@ -461,5 +462,63 @@ interface BodyMeasurementDao {
     }
 
     @Query("DELETE FROM body_measurements")
+    suspend fun clearAll()
+}
+
+@Dao
+interface WaterLogDao {
+    @Query("SELECT COUNT(*) FROM water_logs")
+    suspend fun count(): Int
+
+    @Query("SELECT * FROM water_logs ORDER BY timestamp DESC, id DESC")
+    suspend fun getAllOnce(): List<WaterLog>
+
+    @Query(
+        """
+        SELECT * FROM water_logs
+        WHERE dateString = :dateString
+        ORDER BY timestamp DESC, id DESC
+        """
+    )
+    fun getByDate(dateString: String): Flow<List<WaterLog>>
+
+    @Query(
+        """
+        SELECT COALESCE(SUM(amountMl), 0) FROM water_logs
+        WHERE dateString = :dateString
+        """
+    )
+    fun getTotalMlForDate(dateString: String): Flow<Int>
+
+    @Query(
+        """
+        SELECT COALESCE(SUM(amountMl), 0) FROM water_logs
+        WHERE dateString = :dateString
+        """
+    )
+    suspend fun getTotalMlForDateOnce(dateString: String): Int
+
+    @Query(
+        """
+        SELECT * FROM water_logs
+        WHERE dateString = :dateString AND drinkKind = :drinkKind
+        ORDER BY id ASC
+        """
+    )
+    suspend fun getAllForDateAndKind(dateString: String, drinkKind: String): List<WaterLog>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(log: WaterLog): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(logs: List<WaterLog>): List<Long>
+
+    @Update
+    suspend fun update(log: WaterLog)
+
+    @Delete
+    suspend fun delete(log: WaterLog)
+
+    @Query("DELETE FROM water_logs")
     suspend fun clearAll()
 }

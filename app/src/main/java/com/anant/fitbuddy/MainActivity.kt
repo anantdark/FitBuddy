@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +26,9 @@ import com.anant.fitbuddy.data.region.RegionDetector
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.RequestStartupPermissions
+import com.anant.fitbuddy.ui.haptics.LocalHapticsEnabled
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.UnitSystem
 import com.anant.fitbuddy.ui.screens.CloudBackupOptInScreen
 import com.anant.fitbuddy.ui.screens.CrashReportingOptInScreen
 import com.anant.fitbuddy.ui.screens.MainScreen
@@ -67,6 +71,10 @@ class MainActivity : ComponentActivity() {
                 fontOption = settings.fontOption,
                 componentStyle = settings.componentStyle,
             ) {
+                CompositionLocalProvider(
+                    LocalHapticsEnabled provides settings.hapticsEnabled,
+                    LocalUnitSystem provides UnitSystem.resolve(settings.unitSystem, settings.region),
+                ) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
                     val viewModel: MainViewModel = viewModel(
                         factory = MainViewModelFactory(app, app.repository, app.settingsRepository, app.updateChecker)
@@ -254,6 +262,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                }
                 }
             }
         }

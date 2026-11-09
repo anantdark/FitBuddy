@@ -33,6 +33,7 @@ object FitBuddyWidgetUpdater {
                 CalorieOrbWidget().updateAll(appContext)
                 PresetLaunchpadWidget().updateAll(appContext)
                 ActionStripWidget().updateAll(appContext)
+                WaterIntakeWidget().updateAll(appContext)
             }.onFailure { e ->
                 Log.w(TAG, "Widget update failed", e)
             }

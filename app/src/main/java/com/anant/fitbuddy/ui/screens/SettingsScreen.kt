@@ -121,9 +121,13 @@ import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.OpenAiCatalog
 import com.anant.fitbuddy.data.region.AppRegion
+import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.UnitSystem
+import com.anant.fitbuddy.util.Units
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
+import com.anant.fitbuddy.data.settings.AppDashboardLayout
 import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
@@ -193,6 +197,7 @@ fun SettingsScreen(
         sex: String?
     ) -> Unit = { _, _, _, _, _ -> },
     onRegionChange: (AppRegion) -> Unit = {},
+    onUnitSystemChange: (UnitSystem) -> Unit = {},
     onConnectOpenRouter: (android.content.Context) -> Unit = {},
     onDisconnectOpenRouter: () -> Unit = {},
     openRouterOAuthBusy: Boolean = false,
@@ -363,8 +368,9 @@ fun SettingsScreen(
     var profileAge by remember(profile?.age) {
         mutableStateOf(profile?.age?.takeIf { it > 0 }?.toString().orEmpty())
     }
-    var profileHeight by remember(profile?.heightCm) {
-        mutableStateOf(profile?.heightCm?.takeIf { it > 0 }?.toString().orEmpty())
+    val units = LocalUnitSystem.current
+    var profileHeight by remember(profile?.heightCm, units) {
+        mutableStateOf(profile?.heightCm?.takeIf { it > 0 }?.let { Units.heightText(it, units) }.orEmpty())
     }
     var profileSex by remember(profile?.sex) { mutableStateOf(profile?.sex.orEmpty()) }
 
@@ -904,7 +910,7 @@ fun SettingsScreen(
                 keyboardType = KeyboardType.Number
             )
             SettingField(
-                label = "Height (cm)",
+                label = "Height (${Units.heightUnit(units)})",
                 value = profileHeight,
                 onValueChange = { input ->
                     profileHeight = input.filter { it.isDigit() || it == '.' }
@@ -917,7 +923,7 @@ fun SettingsScreen(
             )
             val profileValid = profileFirstName.trim().isNotEmpty() &&
                 (profileAge.toIntOrNull() ?: 0) in 18..120 &&
-                (profileHeight.toDoubleOrNull() ?: 0.0) in 100.0..250.0
+                Units.displayToCm(profileHeight.toDoubleOrNull() ?: 0.0, units) in 100.0..250.0
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = profileValid,
@@ -926,7 +932,7 @@ fun SettingsScreen(
                         profileFirstName.trim(),
                         profileLastName.trim(),
                         profileAge.toIntOrNull() ?: 0,
-                        profileHeight.toDoubleOrNull() ?: 0.0,
+                        Units.displayToCm(profileHeight.toDoubleOrNull() ?: 0.0, units),
                         profileSex.ifBlank { null }
                     )
                 }
@@ -1047,6 +1053,51 @@ fun SettingsScreen(
             }
             Text(
                 text = stringResource(R.string.settings_material_keeps_soft_rounded_corners_mako),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            HorizontalDivider()
+            Text(
+                text = stringResource(R.string.settings_dashboard),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            var dashboardExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = dashboardExpanded,
+                onExpandedChange = { dashboardExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = stringResource(settings.dashboardLayout.displayNameRes()),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.settings_dashboard_layout)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = dashboardExpanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = dashboardExpanded,
+                    onDismissRequest = { dashboardExpanded = false }
+                ) {
+                    AppDashboardLayout.entries.forEach { layout ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(layout.displayNameRes())) },
+                            onClick = {
+                                onSaveQuiet(settings.copy(dashboardLayout = layout))
+                                dashboardExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+            Text(
+                text = stringResource(R.string.settings_dashboard_layout_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1206,6 +1257,70 @@ fun SettingsScreen(
                 }
             }
             SettingToggleRow(
+                title = stringResource(R.string.settings_water_tracking),
+                checked = settings.waterTrackingEnabled,
+                onCheckedChange = { enabled ->
+                    onSaveQuiet(
+                        settings.copy(
+                            waterTrackingEnabled = enabled,
+                            // Extended shows a vertical wave meter beside the ring.
+                            dashboardLayout = if (enabled) {
+                                AppDashboardLayout.EXTENDED
+                            } else {
+                                settings.dashboardLayout
+                            },
+                        )
+                    )
+                },
+                hintTitle = stringResource(R.string.settings_water_tracking),
+                hint = stringResource(R.string.settings_water_tracking_hint)
+            )
+            if (settings.waterTrackingEnabled) {
+                var waterGoalExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = waterGoalExpanded,
+                    onExpandedChange = { waterGoalExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = Units.formatVolume(settings.waterGoalMl, units),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.settings_water_goal)) },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = waterGoalExpanded)
+                        },
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = waterGoalExpanded,
+                        onDismissRequest = { waterGoalExpanded = false }
+                    ) {
+                        AppSettings.WATER_GOAL_OPTIONS_ML.forEach { goal ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(Units.formatVolume(goal, units))
+                                },
+                                onClick = {
+                                    waterGoalExpanded = false
+                                    onSaveQuiet(settings.copy(waterGoalMl = goal))
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            SettingToggleRow(
+                title = stringResource(R.string.settings_haptics),
+                checked = settings.hapticsEnabled,
+                onCheckedChange = { enabled ->
+                    onSaveQuiet(settings.copy(hapticsEnabled = enabled))
+                },
+                hintTitle = stringResource(R.string.settings_haptics),
+                hint = stringResource(R.string.settings_haptics_hint)
+            )
+            SettingToggleRow(
                 title = stringResource(R.string.settings_loading_animations),
                 checked = settings.animationsEnabled,
                 onCheckedChange = { enabled ->
@@ -1294,6 +1409,33 @@ fun SettingsScreen(
                         shape = SegmentedButtonDefaults.itemShape(index, AppRegion.entries.size)
                     ) {
                         Text(stringResource(region.shortDisplayNameRes()))
+                    }
+                }
+            }
+            HorizontalDivider()
+            Text(
+                text = stringResource(R.string.settings_units),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = stringResource(R.string.settings_units_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                UnitSystem.entries.forEachIndexed { index, system ->
+                    SegmentedButton(
+                        selected = units == system,
+                        onClick = { onUnitSystemChange(system) },
+                        shape = SegmentedButtonDefaults.itemShape(index, UnitSystem.entries.size)
+                    ) {
+                        Text(
+                            stringResource(
+                                if (system == UnitSystem.IMPERIAL) R.string.settings_units_us
+                                else R.string.settings_units_metric
+                            )
+                        )
                     }
                 }
             }
@@ -1563,11 +1705,9 @@ fun SettingsScreen(
                     )
                     SettingToggleRow(
                         title = stringResource(R.string.settings_hc_export_hydration),
-                        checked = false,
-                        enabled = false,
-                        onCheckedChange = {},
-                        hintTitle = stringResource(R.string.settings_hc_export_hydration),
-                        hint = stringResource(R.string.settings_hc_coming_soon)
+                        checked = metrics.exportHydration,
+                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportHydration,
+                        onCheckedChange = { setMetric(it) { m -> m.copy(exportHydration = it) } }
                     )
                     SettingToggleRow(
                         title = stringResource(R.string.settings_hc_export_exercise),

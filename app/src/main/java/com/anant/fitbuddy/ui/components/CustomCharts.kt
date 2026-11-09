@@ -85,6 +85,11 @@ import com.anant.fitbuddy.util.DateUtils
 import java.util.Calendar
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.PI
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import kotlin.math.cos
+import kotlin.math.sin
+import androidx.compose.ui.graphics.drawscope.rotate
 import kotlin.math.roundToInt
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -105,6 +110,8 @@ fun CalorieRing(
     // Faint fill color — not surfaceVariant (Catppuccin mapped that equal to the
     // calorie card's surfaceContainerHigh, so an empty ring vanished into the card).
     trackColor: Color = progressColor.copy(alpha = 0.22f),
+    /** Target minus net kcal. Within ±100 = green, over by >100 = error, else [progressColor]. */
+    remainingKcal: Int? = null,
 ) {
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceAtLeast(0f),
@@ -112,64 +119,94 @@ fun CalorieRing(
         label = "progress"
     )
     val mako = isMakoStyle()
-    val pathMeasure = remember { PathMeasure() }
-    val progressPath = remember { Path() }
+    val onTarget = remainingKcal != null && kotlin.math.abs(remainingKcal) <= 100
+    val goalReached = remainingKcal != null && remainingKcal <= 100
+    val shimmerPhase = rememberLedShimmerPhase(enabled = !goalReached)
+    val scheme = MaterialTheme.colorScheme
+    val ringColor = when {
+        onTarget -> TrendGreen
+        remainingKcal != null && remainingKcal < -100 -> scheme.error
+        else -> progressColor
+    }
+    val glyphSubstrate = scheme.surfaceContainerLowest
+    val glyphOn = ringColor
+    val glyphOff = androidx.compose.ui.graphics.lerp(scheme.surfaceContainerHighest, ringColor, 0.16f)
+    val glyphEnd = if (onTarget) TrendGreen else GlyphLedRed
 
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val half = (size.minDimension - strokeWidth) / 2
+            val available = size.minDimension
             val center = Offset(size.width / 2, size.height / 2)
-            val strokeCap = if (mako) StrokeCap.Butt else StrokeCap.Round
-            val stroke = Stroke(width = strokeWidth, cap = strokeCap)
+            val frac = animatedProgress.coerceAtMost(1f)
 
+            if (!mako) {
+                drawRoundedCalorieRing(
+                    center = center,
+                    available = available,
+                    width = strokeWidth,
+                    frac = frac,
+                    ringColor = ringColor,
+                    trackColor = trackColor,
+                    headColor = glyphEnd,
+                )
+                return@Canvas
+            }
+
+            // Equal square boxes resized to tile corner→corner (or full circle).
+            val (box, cells) = if (mako) {
+                buildSquareGlyphCells(center, available, strokeWidth)
+            } else {
+                buildCircleGlyphCells(center, available, strokeWidth)
+            }
+            val half = available * 0.5f - box * 0.5f
+            val stroke = Stroke(width = box, cap = StrokeCap.Butt)
+
+            // Centerline path matching the Glyph box spine.
+            val trackPath = Path()
             if (mako) {
-                // Square track + perimeter progress (starts at top-center, clockwise).
                 val left = center.x - half
                 val top = center.y - half
                 val right = center.x + half
                 val bottom = center.y + half
-                val trackPath = Path().apply {
-                    moveTo(center.x, top)
+                trackPath.apply {
+                    moveTo(left, top)
                     lineTo(right, top)
                     lineTo(right, bottom)
                     lineTo(left, bottom)
-                    lineTo(left, top)
                     close()
                 }
-                drawPath(path = trackPath, color = trackColor, style = stroke)
-                val frac = animatedProgress.coerceAtMost(1f)
-                if (frac > 0f) {
-                    pathMeasure.setPath(trackPath, forceClosed = false)
-                    progressPath.reset()
-                    pathMeasure.getSegment(
-                        startDistance = 0f,
-                        stopDistance = pathMeasure.length * frac,
-                        destination = progressPath,
-                        startWithMoveTo = true
-                    )
-                    drawPath(path = progressPath, color = progressColor, style = stroke)
-                }
             } else {
-                drawCircle(
-                    color = trackColor,
-                    radius = half,
-                    center = center,
-                    style = Stroke(width = strokeWidth)
+                val oval = androidx.compose.ui.geometry.Rect(
+                    left = center.x - half,
+                    top = center.y - half,
+                    right = center.x + half,
+                    bottom = center.y + half,
                 )
-                val sweepAngle = (animatedProgress * 360f).coerceAtMost(360f)
-                drawArc(
-                    color = progressColor,
-                    startAngle = -90f,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
+                trackPath.addOval(oval)
+            }
+
+            drawPath(path = trackPath, color = glyphSubstrate.copy(alpha = 0.92f), style = stroke)
+            drawPath(path = trackPath, color = trackColor.copy(alpha = 0.18f), style = stroke)
+            if (frac > 0f) {
+                drawPath(
+                    path = trackPath,
+                    color = progressColor.copy(alpha = 0.12f * frac),
                     style = stroke,
-                    topLeft = Offset(center.x - half, center.y - half),
-                    size = Size(half * 2, half * 2)
                 )
             }
+
+            drawGlyphBoxes(
+                cells = cells,
+                fillFrac = frac,
+                phase = shimmerPhase,
+                onColor = glyphOn,
+                offColor = glyphOff,
+                endColor = glyphEnd,
+                shimmerEnabled = !goalReached,
+            )
         }
 
         // Labels in center
@@ -199,6 +236,77 @@ fun CalorieRing(
                 )
             }
         }
+    }
+}
+
+/**
+ * Material ring: soft round-capped arc with a darker-to-brighter gradient and a glowing head knob.
+ * No boxes — Mako keeps the square Glyph cells.
+ */
+private fun DrawScope.drawRoundedCalorieRing(
+    center: Offset,
+    available: Float,
+    width: Float,
+    frac: Float,
+    ringColor: Color,
+    trackColor: Color,
+    headColor: Color,
+) {
+    val w = width.coerceAtLeast(8f)
+    val r = available / 2f - w / 2f
+    val topLeft = Offset(center.x - r, center.y - r)
+    val arcSize = Size(r * 2f, r * 2f)
+    val tau = (2.0 * PI).toFloat()
+
+    drawCircle(trackColor.copy(alpha = 0.2f), radius = r, center = center, style = Stroke(width = w))
+
+    if (frac > 0.002f) {
+        val f = frac.coerceAtLeast(0.02f)
+        // Opaque stops: a translucent start would let the wrapped end colour show through the
+        // round start cap. The cap is repainted below in the start colour.
+        val startColor = androidx.compose.ui.graphics.lerp(ringColor, Color.Black, 0.35f)
+        val brush = Brush.sweepGradient(
+            colorStops = arrayOf(
+                0f to startColor,
+                f to ringColor,
+                1f to ringColor,
+            ),
+            center = center,
+        )
+        rotate(-90f, center) {
+            if (frac >= 0.999f) {
+                drawCircle(ringColor, radius = r, center = center, style = Stroke(width = w))
+            } else {
+                drawArc(
+                    brush = brush,
+                    startAngle = 0f,
+                    sweepAngle = 360f * frac,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = w, cap = StrokeCap.Round),
+                )
+            }
+        }
+        if (frac < 0.999f) {
+            drawCircle(startColor, radius = w / 2f, center = Offset(center.x, center.y - r))
+        }
+    }
+
+    if (frac > 0.002f && frac < 0.999f) {
+        val rad = (-PI / 2.0 + frac * tau).toFloat()
+        val head = Offset(center.x + r * cos(rad), center.y + r * sin(rad))
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(headColor.copy(alpha = 0.45f), Color.Transparent),
+                center = head,
+                radius = w * 1.1f,
+            ),
+            radius = w * 1.1f,
+            center = head,
+        )
+        drawCircle(headColor, radius = w * 0.42f, center = head)
+        drawCircle(Color.White.copy(alpha = 0.85f), radius = w * 0.16f, center = head)
     }
 }
 
@@ -843,6 +951,7 @@ fun MetricLineChart(
     decreaseIsPositive: Boolean = true,
     targetValue: Double? = null,
     targetPreferHigher: Boolean = false,
+    targetTolerance: Double = 1.0,
     lineColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -876,9 +985,9 @@ fun MetricLineChart(
     fun targetColor(value: Double): Color {
         val difference = value - (chartTarget ?: return lineColor)
         return when {
-            kotlin.math.abs(difference) <= 1.0 -> TrendGreen
-            targetPreferHigher && difference > 1.0 -> cautionColor
-            !targetPreferHigher && difference < -1.0 -> cautionColor
+            kotlin.math.abs(difference) <= targetTolerance -> TrendGreen
+            targetPreferHigher && difference > targetTolerance -> cautionColor
+            !targetPreferHigher && difference < -targetTolerance -> cautionColor
             else -> TrendRed
         }
     }
@@ -971,7 +1080,7 @@ fun MetricLineChart(
                 )
                 drawText(
                     textMeasurer = textMeasurer,
-                    text = context.getString(R.string.chart_target_kg, formatMetric(target)),
+                    text = context.getString(R.string.chart_target_kg, formatMetric(target), unit),
                     topLeft = Offset(leftPad + 6f, targetY - 28f),
                     style = TextStyle(
                         color = targetLineColor,
@@ -1064,10 +1173,12 @@ fun MetricLineChart(
                     difference > 0.0 -> context.getString(
                         R.string.chart_above_target_kg,
                         formatMetric(difference),
+                        unit,
                     )
                     else -> context.getString(
                         R.string.chart_below_target_kg,
                         formatMetric(-difference),
+                        unit,
                     )
                 }
             }

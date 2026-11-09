@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.R
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 
@@ -60,6 +61,22 @@ enum class AppComponentStyle {
     fun displayNameRes(): Int = when (this) {
         MATERIAL -> R.string.settings_material
         MAKO -> R.string.settings_mako
+    }
+}
+
+/**
+ * Home dashboard density.
+ * [EXTENDED] — classic stacked ring + flip macros + card rows (default).
+ * [COMPACT] — combined ring + inline macros in one hero card.
+ */
+enum class AppDashboardLayout {
+    EXTENDED,
+    COMPACT;
+
+    @StringRes
+    fun displayNameRes(): Int = when (this) {
+        EXTENDED -> R.string.settings_dashboard_extended
+        COMPACT -> R.string.settings_dashboard_compact
     }
 }
 
@@ -149,6 +166,8 @@ data class AppSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
+    /** `METRIC` / `IMPERIAL`, or empty to follow [region] (North America → US, else metric). */
+    val unitSystem: String = "",
     /**
      * Static palette when [dynamicColor] is off. Ignored while Material You is enabled.
      * Defaults to FitBuddy brand greens.
@@ -161,6 +180,8 @@ data class AppSettings(
      * Mixable with [dynamicColor] / [colorTheme] / [fontOption].
      */
     val componentStyle: AppComponentStyle = AppComponentStyle.MATERIAL,
+    /** Home dashboard density; defaults to the classic extended layout. */
+    val dashboardLayout: AppDashboardLayout = AppDashboardLayout.EXTENDED,
     /**
      * Analyzing-banner wait UI: [LOADING_ANIM_OFF], [LOADING_ANIM_RANDOM], or a registered
      * animation id that supports the analyzing slot.
@@ -177,6 +198,8 @@ data class AppSettings(
      * [withAnalyzingAnimationChoice] / [withInsightAnimationChoice].
      */
     val animationsEnabled: Boolean = true,
+    /** Soft touch feedback for taps, toggles, and confirms. On by default. */
+    val hapticsEnabled: Boolean = true,
     /**
      * When true, FitBuddy checks for a newer APK shortly after startup
      * (GitHub Releases or F-Droid, depending on flavor) and still allows a manual check in Settings.
@@ -220,6 +243,18 @@ data class AppSettings(
     val regionRequestSentAt: Long = 0L,
     /** Set when the Settings "Created by" easter egg is unlocked. */
     val easterEggDiscovered: Boolean = false,
+    /**
+     * When true, shows the water intake card on the dashboard and enables the home-screen
+     * water widget. Off by default.
+     */
+    val waterTrackingEnabled: Boolean = false,
+    /** Daily water goal in milliliters (used when [waterTrackingEnabled] is on). */
+    val waterGoalMl: Int = DEFAULT_WATER_GOAL_ML,
+    /** Quick-add amounts for dashboard / widget drink chips (long-press to change). */
+    val waterQuickAddMl: Int = WaterDrinkKind.WATER.defaultMl,
+    val bottleQuickAddMl: Int = WaterDrinkKind.BOTTLE.defaultMl,
+    val coffeeQuickAddMl: Int = WaterDrinkKind.COFFEE.defaultMl,
+    val teaQuickAddMl: Int = WaterDrinkKind.TEA.defaultMl,
     /** Daily local notification reminding the user to log meals (AlarmManager; no Play Services). */
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = DEFAULT_REMINDER_HOUR,
@@ -564,6 +599,25 @@ data class AppSettings(
             )
         }
 
+    /** Quick-add milliliters for a drink chip (clamped). */
+    fun quickAddMl(kind: WaterDrinkKind): Int = when (kind) {
+        WaterDrinkKind.WATER -> waterQuickAddMl
+        WaterDrinkKind.BOTTLE -> bottleQuickAddMl
+        WaterDrinkKind.COFFEE -> coffeeQuickAddMl
+        WaterDrinkKind.TEA -> teaQuickAddMl
+        WaterDrinkKind.CUSTOM -> kind.defaultMl.coerceAtLeast(1)
+    }.coerceIn(QUICK_ADD_ML_MIN, QUICK_ADD_ML_MAX)
+
+    fun withQuickAddMl(kind: WaterDrinkKind, amountMl: Int): AppSettings {
+        val ml = amountMl.coerceIn(QUICK_ADD_ML_MIN, QUICK_ADD_ML_MAX)
+        return when (kind) {
+            WaterDrinkKind.WATER -> copy(waterQuickAddMl = ml)
+            WaterDrinkKind.BOTTLE -> copy(bottleQuickAddMl = ml)
+            WaterDrinkKind.COFFEE -> copy(coffeeQuickAddMl = ml)
+            WaterDrinkKind.TEA -> copy(teaQuickAddMl = ml)
+            WaterDrinkKind.CUSTOM -> this
+        }
+    }
 
     /**
      * Legacy installs used a dedicated OpenAI provider. Fold them into [AiProvider.CUSTOM]
@@ -641,6 +695,10 @@ data class AppSettings(
                 .removePrefix("http://")
             return host == "api.openai.com" || host.startsWith("api.openai.com/")
         }
+        const val DEFAULT_WATER_GOAL_ML = 2000
+        val WATER_GOAL_OPTIONS_ML: List<Int> = listOf(1500, 2000, 2500, 3000, 3500)
+        const val QUICK_ADD_ML_MIN = 50
+        const val QUICK_ADD_ML_MAX = 2000
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
         const val DEFAULT_DAY_CHANGE_HOUR = 0

@@ -9,6 +9,7 @@ import com.anant.fitbuddy.data.database.MealFood
 import com.anant.fitbuddy.data.database.MealPreset
 import com.anant.fitbuddy.data.database.SavedFood
 import com.anant.fitbuddy.data.database.UserProfile
+import com.anant.fitbuddy.data.database.WaterLog
 import com.anant.fitbuddy.data.database.WorkoutExercise
 import com.anant.fitbuddy.data.database.WorkoutSession
 import com.squareup.moshi.JsonClass
@@ -31,6 +32,8 @@ data class BackupData(
     val exerciseUsages: List<ExerciseUsage> = emptyList(),
     val workoutSessions: List<WorkoutSession> = emptyList(),
     val workoutExercises: List<WorkoutExercise> = emptyList(),
+    /** v8+: optional water intake logs. Missing on older backups → empty. */
+    val waterLogs: List<WaterLog> = emptyList(),
     /** Null on pre-v5 backups — import leaves current Settings untouched. */
     val settings: BackupSettings? = null,
     /** v6+: ids deleted after an earlier chunk froze them. Missing on v5 → empty. */
@@ -46,7 +49,7 @@ data class BackupData(
     val deletedWorkoutExerciseIds: List<Int> = emptyList()
 ) {
     companion object {
-        const val CURRENT_VERSION = 7
+        const val CURRENT_VERSION = 8
         /** Largest sealed tip payload before rollover (UTF-8 byte length of envelope JSON). */
         const val MAX_TIP_SEALED_BYTES = 3 * 1024 * 1024
     }

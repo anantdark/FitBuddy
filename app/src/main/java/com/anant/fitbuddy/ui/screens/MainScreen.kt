@@ -83,6 +83,7 @@ import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
 import com.anant.fitbuddy.util.ImageUtils
@@ -148,6 +149,7 @@ fun MainScreen(
     val blankFoodName = stringResource(R.string.main_new_food)
     val blankIngredientName = stringResource(R.string.main_ingredient)
     val dismissKeyboard = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
@@ -155,6 +157,8 @@ fun MainScreen(
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val realToday by viewModel.realToday.collectAsStateWithLifecycle()
     val weekSnapshots by viewModel.weekSnapshots.collectAsStateWithLifecycle()
+    val todayWaterLogs by viewModel.todayWaterLogs.collectAsStateWithLifecycle()
+    val todayWaterMl by viewModel.todayWaterMl.collectAsStateWithLifecycle()
     val cloneMealRequest by viewModel.cloneMealRequest.collectAsStateWithLifecycle()
 
     val weeklyFood by viewModel.weeklyFood.collectAsStateWithLifecycle()
@@ -516,6 +520,7 @@ fun MainScreen(
                 onSaveQuiet = { viewModel.saveSettings(it, announce = false) },
                 onSavePermanentProfile = viewModel::savePermanentProfile,
                 onRegionChange = viewModel::setRegion,
+                onUnitSystemChange = { viewModel.saveSettings(settings.copy(unitSystem = it.name), announce = false) },
                 onConnectOpenRouter = viewModel::startOpenRouterOAuth,
                 onDisconnectOpenRouter = viewModel::disconnectOpenRouterOAuth,
                 openRouterOAuthBusy = openRouterOAuthBusy,
@@ -752,6 +757,7 @@ fun MainScreen(
                     ExtendedFloatingActionButton(
                         onClick = {
                             dismissKeyboard()
+                            haptics.confirm()
                             showLogHub = true
                         },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -785,6 +791,16 @@ fun MainScreen(
                                     settings.forceShowLoadingAnimations,
                                 analyzingModel = analysisState.analyzingModel,
                                 animationChoice = settings.analyzingAnimationChoice,
+                                dashboardLayout = settings.dashboardLayout,
+                                waterTrackingEnabled = settings.waterTrackingEnabled,
+                                waterConsumedMl = todayWaterMl,
+                                waterGoalMl = settings.waterGoalMl,
+                                waterQuickAddMl = settings::quickAddMl,
+                                waterLogs = todayWaterLogs,
+                                onAddWater = viewModel::addWaterIntake,
+                                onChangeWaterQuickAdd = viewModel::setWaterQuickAddMl,
+                                onDeleteWater = viewModel::deleteWaterLog,
+                                onEditWater = viewModel::updateWaterLogAmount,
                                 onOpenWeekHistory = {
                                     viewModel.refreshToToday()
                                     showWeekHistory = true
@@ -886,6 +902,7 @@ fun MainScreen(
                         ExtendedFloatingActionButton(
                             onClick = {
                                 dismissKeyboard()
+                                haptics.confirm()
                                 showLogHub = true
                             },
                             icon = { Icon(Icons.Filled.Add, contentDescription = null) },

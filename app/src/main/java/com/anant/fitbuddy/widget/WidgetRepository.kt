@@ -3,8 +3,10 @@ package com.anant.fitbuddy.widget
 import android.content.Context
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.MainActivity
+import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.util.DateUtils
+import com.anant.fitbuddy.util.WaterFillLayers
 import kotlinx.coroutines.flow.first
 
 object WidgetRepository {
@@ -44,11 +46,27 @@ object WidgetRepository {
                 }
             }
         }
+        val layers = if (settings.waterTrackingEnabled) {
+            WaterFillLayers.fromLogs(
+                logs = repo.getWaterLogsForDate(today).first(),
+                goalMl = settings.waterGoalMl,
+            )
+        } else {
+            WaterFillLayers(goalMl = settings.waterGoalMl)
+        }
         return WidgetData(
             consumedCalories = totals.totalCalories,
             burnedCalories = burned,
             targetCalories = targets?.kcal ?: DashboardUiState.DEFAULT_TARGET_CALORIES,
             presets = chips,
+            waterTrackingEnabled = settings.waterTrackingEnabled,
+            waterConsumedMl = layers.totalMl,
+            waterGoalMl = settings.waterGoalMl,
+            waterOnlyMl = layers.waterMl,
+            coffeeMl = layers.coffeeMl,
+            teaMl = layers.teaMl,
+            waterQuickAddMl = settings.quickAddMl(WaterDrinkKind.WATER),
+            bottleQuickAddMl = settings.quickAddMl(WaterDrinkKind.BOTTLE),
         )
     }
 }

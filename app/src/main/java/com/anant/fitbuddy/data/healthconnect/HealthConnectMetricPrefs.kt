@@ -22,8 +22,7 @@ data class HealthConnectMetricPrefs(
     val exportHeight: Boolean = true,
     val exportBodyFat: Boolean = true,
     val exportMuscleMass: Boolean = true,
-    /** Off until in-app water logging ships; toggle is greyed out in Settings. */
-    val exportHydration: Boolean = false,
+    val exportHydration: Boolean = true,
     val exportExercise: Boolean = true,
 ) {
     fun anyImport(): Boolean =

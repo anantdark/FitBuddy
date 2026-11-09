@@ -1,11 +1,13 @@
 package com.anant.fitbuddy.data.backup
 
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
 import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
+import com.anant.fitbuddy.data.settings.AppDashboardLayout
 import com.anant.fitbuddy.data.settings.AppFontOption
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.JsonClass
@@ -66,9 +68,11 @@ data class BackupSettings(
     val activePhotoModel: String = "",
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
+    val unitSystem: String = "",
     val colorTheme: String = AppColorTheme.BRAND.name,
     val fontOption: String = AppFontOption.DEFAULT.name,
     val componentStyle: String = AppComponentStyle.MATERIAL.name,
+    val dashboardLayout: String = AppDashboardLayout.EXTENDED.name,
     /** Empty = absent; restore falls back to [loadingAnimationChoice] / [animationsEnabled]. */
     val analyzingAnimationChoice: String = "",
     /** Empty = absent; restore falls back to [loadingAnimationChoice] / [animationsEnabled]. */
@@ -77,6 +81,7 @@ data class BackupSettings(
     val loadingAnimationChoice: String = "",
     /** Legacy boolean; used only when all choice fields are blank. */
     val animationsEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
     val autoCheckUpdates: Boolean = !BuildConfig.DEBUG,
     val supportId: String = "",
     /** Empty on older backups — import leaves blank until first log / backfill. */
@@ -87,6 +92,12 @@ data class BackupSettings(
     /** 0 on older backups — import allows one region request until a send is recorded. */
     val regionRequestSentAt: Long = 0L,
     val easterEggDiscovered: Boolean = false,
+    val waterTrackingEnabled: Boolean = false,
+    val waterGoalMl: Int = AppSettings.DEFAULT_WATER_GOAL_ML,
+    val waterQuickAddMl: Int = WaterDrinkKind.WATER.defaultMl,
+    val bottleQuickAddMl: Int = WaterDrinkKind.BOTTLE.defaultMl,
+    val coffeeQuickAddMl: Int = WaterDrinkKind.COFFEE.defaultMl,
+    val teaQuickAddMl: Int = WaterDrinkKind.TEA.defaultMl,
     val dailyLogReminderEnabled: Boolean = true,
     val dailyLogReminderHour: Int = AppSettings.DEFAULT_REMINDER_HOUR,
     val dailyLogReminderMinute: Int = AppSettings.DEFAULT_REMINDER_MINUTE,
@@ -190,6 +201,7 @@ data class BackupSettings(
                 activePhotoModel = activePhotoModel,
                 activeTextModel = activeTextModel,
                 dynamicColor = dynamicColor,
+                unitSystem = unitSystem,
                 colorTheme = runCatching { AppColorTheme.valueOf(colorTheme) }
                     .getOrDefault(AppColorTheme.BRAND),
                 fontOption = runCatching { AppFontOption.valueOf(fontOption) }
@@ -199,6 +211,8 @@ data class BackupSettings(
                     else -> runCatching { AppComponentStyle.valueOf(componentStyle) }
                         .getOrDefault(AppComponentStyle.MATERIAL)
                 },
+                dashboardLayout = runCatching { AppDashboardLayout.valueOf(dashboardLayout) }
+                    .getOrDefault(AppDashboardLayout.EXTENDED),
                 analyzingAnimationChoice = resolvedSlotChoice(analyzingAnimationChoice, analyzingSlot = true),
                 insightAnimationChoice = resolvedSlotChoice(insightAnimationChoice, analyzingSlot = false),
                 animationsEnabled = run {
@@ -207,6 +221,7 @@ data class BackupSettings(
                     analyzing != AppSettings.LOADING_ANIM_OFF ||
                         insight != AppSettings.LOADING_ANIM_OFF
                 },
+                hapticsEnabled = hapticsEnabled,
                 // Both flavors have an in-app checker (GitHub Releases vs f-droid.org).
                 autoCheckUpdates = autoCheckUpdates,
                 supportId = supportId,
@@ -215,6 +230,24 @@ data class BackupSettings(
                 region = region.trim(),
                 regionRequestSentAt = regionRequestSentAt,
                 easterEggDiscovered = easterEggDiscovered,
+                waterTrackingEnabled = waterTrackingEnabled,
+                waterGoalMl = waterGoalMl.coerceIn(500, 10_000),
+                waterQuickAddMl = waterQuickAddMl.coerceIn(
+                    AppSettings.QUICK_ADD_ML_MIN,
+                    AppSettings.QUICK_ADD_ML_MAX,
+                ),
+                bottleQuickAddMl = bottleQuickAddMl.coerceIn(
+                    AppSettings.QUICK_ADD_ML_MIN,
+                    AppSettings.QUICK_ADD_ML_MAX,
+                ),
+                coffeeQuickAddMl = coffeeQuickAddMl.coerceIn(
+                    AppSettings.QUICK_ADD_ML_MIN,
+                    AppSettings.QUICK_ADD_ML_MAX,
+                ),
+                teaQuickAddMl = teaQuickAddMl.coerceIn(
+                    AppSettings.QUICK_ADD_ML_MIN,
+                    AppSettings.QUICK_ADD_ML_MAX,
+                ),
                 dailyLogReminderEnabled = dailyLogReminderEnabled,
                 dailyLogReminderHour = dailyLogReminderHour.coerceIn(0, 23),
                 dailyLogReminderMinute = dailyLogReminderMinute.coerceIn(0, 59),
@@ -243,7 +276,7 @@ data class BackupSettings(
                     exportHeight = hcExportHeight,
                     exportBodyFat = hcExportBodyFat,
                     exportMuscleMass = hcExportMuscleMass,
-                    exportHydration = false,
+                    exportHydration = hcExportHydration,
                     exportExercise = hcExportExercise,
                 ).sanitized(),
                 cloudBackupEnabled = cloudBackupEnabled,
@@ -292,13 +325,16 @@ data class BackupSettings(
             activePhotoModel = settings.activePhotoModel,
             activeTextModel = settings.activeTextModel,
             dynamicColor = settings.dynamicColor,
+            unitSystem = settings.unitSystem,
             colorTheme = settings.colorTheme.name,
             fontOption = settings.fontOption.name,
             componentStyle = settings.componentStyle.name,
+            dashboardLayout = settings.dashboardLayout.name,
             analyzingAnimationChoice = settings.analyzingAnimationChoice,
             insightAnimationChoice = settings.insightAnimationChoice,
             loadingAnimationChoice = "",
             animationsEnabled = settings.animationsEnabled,
+            hapticsEnabled = settings.hapticsEnabled,
             autoCheckUpdates = settings.autoCheckUpdates,
             supportId = settings.supportId,
             signupDate = settings.signupDate,
@@ -306,6 +342,12 @@ data class BackupSettings(
             region = settings.region,
             regionRequestSentAt = settings.regionRequestSentAt,
             easterEggDiscovered = settings.easterEggDiscovered,
+            waterTrackingEnabled = settings.waterTrackingEnabled,
+            waterGoalMl = settings.waterGoalMl,
+            waterQuickAddMl = settings.waterQuickAddMl,
+            bottleQuickAddMl = settings.bottleQuickAddMl,
+            coffeeQuickAddMl = settings.coffeeQuickAddMl,
+            teaQuickAddMl = settings.teaQuickAddMl,
             dailyLogReminderEnabled = settings.dailyLogReminderEnabled,
             dailyLogReminderHour = settings.dailyLogReminderHour,
             dailyLogReminderMinute = settings.dailyLogReminderMinute,
