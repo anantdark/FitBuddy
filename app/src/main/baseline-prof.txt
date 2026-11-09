@@ -1,0 +1,7 @@
+HSPLcom/anant/fitbuddy/**->**(**)**
+Lcom/anant/fitbuddy/**;
+HSPLandroidx/compose/**->**(**)**
+Landroidx/compose/**;
+HSPLandroidx/lifecycle/**->**(**)**
+HSPLandroidx/room/**->**(**)**
+HSPLandroidx/datastore/**->**(**)**

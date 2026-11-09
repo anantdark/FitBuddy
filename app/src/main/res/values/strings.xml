@@ -27,7 +27,6 @@
     <string name="analytics_calories_burned_last_6_months">Calories Burned · Last 6 months</string>
     <string name="analytics_calories_eaten_vs_target">Calories Eaten vs Target</string>
     <string name="analytics_connect_an_ai_provider_in_settings">Connect an AI provider in Settings to enable insights.</string>
-    <string name="analytics_continue_chat">Continue chat</string>
     <string name="analytics_generate_an_insight_from_your_charts">Generate an insight from your charts, then ask follow-up questions in a dedicated chat.</string>
     <string name="analytics_generate_insight">Generate insight</string>
     <string name="analytics_great_alignment_with_your_goal">Great alignment with your goal</string>
@@ -120,7 +119,6 @@
     <string name="donate_not_now">Not now</string>
     <string name="donate_official_lore">OFFICIAL LORE</string>
     <string name="donate_open_a_upi_app_on_this">Open a UPI app on this phone, or scan the QR from another device.</string>
-    <string name="donate_open_in_browser">Open in browser</string>
     <string name="donate_open_in_telegram">Open in Telegram</string>
     <string name="donate_open_profile">Open profile</string>
     <string name="donate_pay_by_card_with_razorpay">Pay by card with Razorpay</string>
@@ -283,7 +281,6 @@
     <string name="meal_each_food_has_its_own_ingredients">Each food has its own ingredients — like exercises in a workout.</string>
     <string name="meal_edit_food">Edit food</string>
     <string name="meal_edit_ingredients">Edit ingredients</string>
-    <string name="meal_edit_meal">Edit meal</string>
     <string name="meal_foods">Foods</string>
     <string name="meal_foods_in_this_meal">Foods in this meal</string>
     <string name="meal_meal_name">Meal name</string>
@@ -291,7 +288,6 @@
     <string name="meal_no_saved_meals_yet_create_one">No saved meals yet. Create one above, then save it as a preset on the review screen.</string>
     <string name="meal_remove">Remove</string>
     <string name="meal_review_save_as_preset">Review &amp; save as preset</string>
-    <string name="meal_review_changes">Review changes</string>
     <string name="meal_review_meal">Review meal</string>
     <string name="meal_save_as_meal_preset">Save as meal preset</string>
     <string name="meal_saved_food">Saved food</string>
@@ -305,12 +301,10 @@
     <string name="onboarding_api_keys">API keys</string>
     <string name="onboarding_base_url">Base URL</string>
     <string name="onboarding_connect_an_ai">Connect an AI</string>
-    <string name="onboarding_create_an_ollama_cloud_api_key">Create an Ollama Cloud API key</string>
     <string name="onboarding_current_weight_kg">Current weight (%1$s)</string>
     <string name="onboarding_enter_the_support_id_from_the">Enter the Support ID from the device that created the backup.</string>
     <string name="onboarding_fitbuddy_needs_an_llm_to_read">FitBuddy needs an LLM to read food photos, freeform text logs, and set your initial calorie targets. Connect a provider to continue.</string>
     <string name="onboarding_height">Height</string>
-    <string name="onboarding_height_cm">Height (cm)</string>
     <string name="onboarding_how_do_you_want_to_start">How do you want to start?</string>
     <string name="onboarding_need_a_hand">NEED A HAND?</string>
     <string name="onboarding_onboarding_guide">Onboarding guide</string>
@@ -444,7 +438,6 @@
     <string name="settings_ai_online">AI online</string>
     <string name="settings_ai_provider">AI Provider</string>
     <string name="settings_allow_exact_alarms">Allow exact alarms</string>
-    <string name="settings_analyzing_banner">Analyzing banner</string>
     <string name="settings_api_keys_are_preferred_openrouter_sign">API keys are preferred; OpenRouter sign-in is used only if they fail.</string>
     <string name="settings_app_font">App font</string>
     <string name="settings_applies_app_wide_the_mako_font">Applies app-wide. The Mako font pairs well with Mako components.</string>
@@ -483,12 +476,10 @@
     <string name="settings_dashboard_compact">Compact</string>
     <string name="settings_dashboard_layout_hint">Extended is the classic stacked ring and macro cards. Compact combines the day summary into one denser hero.</string>
     <string name="settings_connected_with_openrouter">Connected with OpenRouter</string>
-    <string name="settings_connecting">Connecting…</string>
     <string name="settings_continue_with_openrouter">Continue with OpenRouter</string>
     <string name="settings_copy_id_enable">Copy ID &amp; enable</string>
     <string name="settings_copy_support_id">Copy support ID</string>
     <string name="settings_create_new_cloud_chunk">Create new cloud chunk</string>
-    <string name="settings_created_by">Created by</string>
     <string name="settings_daily_log_reminder">Daily log reminder</string>
     <string name="settings_database_name">Database name</string>
     <string name="settings_day_starts_at">Day starts at</string>
@@ -518,7 +509,6 @@
     <string name="settings_green_lines_show_the_models_last">Green lines show the models last used successfully (reset to your dropdown picks when you Save AI Settings). Rate-limited models are skipped until the next UTC midnight, unless you save that model again — Save clears its cooldown so Auto retries your selection.</string>
     <string name="settings_how_to_create_an_openrouter_api">How to create an OpenRouter API key</string>
     <string name="settings_import_backup_json">Import backup JSON</string>
-    <string name="settings_insights_button">Insights button</string>
     <string name="settings_keep_animations_visible">Keep animations visible</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_hint">Vibration on taps, toggles, water logging, and other confirmations. On by default.</string>
@@ -542,7 +532,6 @@
     <string name="settings_opens_the_full_first_run_ui">Opens the full first-run UI as a throwaway preview. Does not change profile, AI keys, region, or crash reporting. Force-stop the app to return home, or finish the preview — nothing is saved.</string>
     <string name="settings_opens_the_supporters_gallery_with_demo">Opens the supporters gallery with demo donor cards.</string>
     <string name="settings_optionally_set_a_password_leave_blank">Optionally set a password. Leave blank to use default (Support ID) protection. To request remote deletion later, email fitbuddy31@proton.me with your Support ID (see Privacy in About).</string>
-    <string name="settings_package">Package</string>
     <string name="settings_party_parrot">Party parrot</string>
     <string name="settings_paste_multiple_keys_separated_by_commas">Paste multiple keys separated by commas or new lines. Keys are masked and can\'t be copied after adding.</string>
     <string name="settings_per_slot_wait_ui_random_off">Per-slot wait UI: Random, Off (spinner), or a fixed animation for that slot.</string>
@@ -556,7 +545,6 @@
     <string name="settings_units_hint">Weight, height and water volume. Metric: kg, cm, ml. Imperial: lb, in, fl oz. Defaults to imperial in North America, metric elsewhere.</string>
     <string name="settings_units_metric">Metric</string>
     <string name="settings_units_us">Imperial</string>
-    <string name="settings_water_goal_value">%1$d ml</string>
     <string name="settings_integrations">Integrations</string>
     <string name="settings_health_connect">Health Connect</string>
     <string name="settings_health_connect_sync">Sync with Health Connect</string>
@@ -581,8 +569,6 @@
     <string name="settings_hc_export_muscle_mass">Muscle mass</string>
     <string name="settings_hc_export_hydration">Hydration</string>
     <string name="settings_hc_export_exercise">Exercise / activity</string>
-    <string name="settings_hc_coming_soon">Coming soon</string>
-    <string name="settings_health_connect_authorize_metrics">Authorize Health Connect permissions for the metrics you enabled</string>
     <string name="settings_health_connect_available">Health Connect is available on this device.</string>
     <string name="settings_health_connect_update_required">Health Connect needs an update before FitBuddy can connect.</string>
     <string name="settings_health_connect_unavailable">Health Connect is not available on this device (common on some de-Googled builds).</string>
@@ -640,7 +626,6 @@
     <string name="settings_use_api_keys_instead">Use API keys instead</string>
     <string name="settings_used_for_typed_logs_and_recalculate">Used for typed logs and \"recalculate with AI\" (no photo). Leave blank to reuse the photo model. Order follows the failover ladder.</string>
     <string name="settings_verbose_http_logging">Verbose HTTP logging</string>
-    <string name="settings_version">Version</string>
     <string name="settings_view_on_f_droid_org">View on f-droid.org</string>
     <string name="settings_view_on_github">View on GitHub</string>
     <string name="settings_what_s_new">What\'s new</string>
@@ -776,7 +761,6 @@
     <string name="analytics_monthly">Monthly</string>
     <string name="analytics_last_30_days">Last 30 days</string>
     <string name="analytics_latest">Latest %1$s%2$s</string>
-    <string name="analytics_over_last_readings">%1$s%2$s%3$s over last %4$d readings</string>
     <string name="analytics_within_1_kg_green_above_1_kg">Within ±%1$s green · above by &gt;%1$s yellow · below by &gt;%1$s red</string>
     <string name="analytics_within_1_kg_green_below_1_kg">Within ±%1$s green · below by &gt;%1$s yellow · above by &gt;%1$s red</string>
     <string name="analytics_total">Total</string>
@@ -790,8 +774,6 @@
     <string name="dashboard_log">Log · %1$s</string>
     <string name="dashboard_calories_week">Calories this week</string>
     <string name="dashboard_calories">Calories · %1$s</string>
-    <string name="donate_tn_payment_20to_20anantdark_tr_taixawzzm9gukcqrv">tn=Payment%20To%20Anantdark&amp;tr=TaiXaWZZm9gukCqrv2</string>
-    <string name="donate_fitbuddy31_proton_me">fitbuddy31@proton.me</string>
     <string name="donate_donate_india">Donate from India</string>
     <string name="donate_donate_internationally">Donate internationally</string>
     <string name="donate_where">Where are you?</string>
@@ -824,8 +806,6 @@
     <string name="donate_reminder_hash_only_hidden_thank">Hash-only · hidden from thank-you (%1$s…)</string>
     <string name="edit_saved_food_barcode">Barcode: %1$s</string>
     <string name="exercise_picker_updating_catalog">Updating catalog…</string>
-    <string name="exercise_picker_exercises">%1$d exercises</string>
-    <string name="exercise_picker_filteredsizeofexercisessize">%1$d of %2$d</string>
     <string name="exercise_picker_most_used">Most used</string>
     <string name="exercise_picker_all_exercises">All exercises</string>
     <string name="exercise_picker_browse_all">Browse all</string>
@@ -884,7 +864,6 @@
     <string name="main_barcode_read_but_open_food_facts_has">Barcode %1$s was read, but Open Food Facts has no usable product or nutrition data for it. Install Open Food Facts and add this product to its public database, then scan it again here.</string>
     <string name="main_barcode_read_but_open_food_facts_open_app">Barcode %1$s was read, but Open Food Facts has no usable product or nutrition data for it. Open Open Food Facts and add this product to its public database, then scan it again here.</string>
     <string name="meal_builder_meal">Meal</string>
-    <string name="meal_builder_kcal_g_ingredient_s">%1$s kcal · %2$s g · %3$d ingredient(s)</string>
     <string name="meal_preset_no_meals_match">No meals match \"%1$s\".</string>
     <string name="meal_preset_food_s"> · %1$d food(s)</string>
     <string name="meal_preset_edit">Edit %1$s</string>
@@ -892,9 +871,7 @@
     <string name="meal_review_update_meal_preset">Update meal preset</string>
     <string name="meal_review_update_meal">Update meal</string>
     <string name="meal_review_save_meal">Save meal</string>
-    <string name="meal_review_food_s_meal">%1$d food(s) in this meal</string>
     <string name="meal_review_qty_g_ingredient_s">Qty %1$s · %2$s g · %3$d ingredient(s)</string>
-    <string name="meal_review_kcal_p_g_c_g_f_g">%1$s kcal · P %2$sg · C %3$sg · F %4$sg</string>
     <string name="onboarding_choose_automatically">Choose automatically</string>
     <string name="onboarding_lose_weight">Lose weight</string>
     <string name="onboarding_gain_muscle">Gain muscle</string>
@@ -993,7 +970,6 @@
     <string name="profile_muscle_mass_kg">Muscle mass (%1$s)</string>
     <string name="profile_loaded_freescale_reading_review_tap_save">Loaded FreeScale reading — review and tap Save.</string>
     <string name="profile_could_not_load_freescale_reading">Could not load FreeScale reading</string>
-    <string name="profile_coaching_note"> Coaching note: </string>
     <string name="saved_food_add_food_meal_edit_delete_saved_foods">Add a food to this meal. Edit or delete saved foods anytime. Recently used foods stay on top.</string>
     <string name="saved_food_tap_food_log_day_re_viewing_edit">Tap a food to log it to the day you\'re viewing. Edit or delete saved foods anytime. Recently used foods stay on top.</string>
     <string name="saved_food_no_foods_match">No foods match \"%1$s\".</string>
@@ -1013,7 +989,6 @@
     <string name="settings_free_vision">free vision</string>
     <string name="settings_chat">chat</string>
     <string name="settings_free">free</string>
-    <string name="settings_used_typed_logs_recalculate_ai_no_photo">Used for typed logs and \"recalculate with AI\" (no photo). Leave blank to reuse the photo model. Order follows the failover ladder.</string>
     <string name="settings_get_key_google_ai_studio_aistudio_google">Get a key from Google AI Studio (aistudio.google.com). </string>
     <string name="settings_free_flash_plus_paid_pro">Free Flash plus paid Pro. </string>
     <string name="settings_free_flash_models_only">Free Flash models only. </string>
@@ -1044,8 +1019,6 @@
     <string name="settings_cloud_backup_off">Cloud backup off</string>
     <string name="settings_enabled_no_upload_yet">Enabled — no upload yet</string>
     <string name="settings_last_upload_ok">Last upload OK · %1$s</string>
-    <string name="settings_last_upload_failed">Last upload failed · %1$s</string>
-    <string name="settings_installed_build">Installed %1$s (build %2$s)</string>
     <string name="settings_automatic_updates">Automatic updates</string>
     <string name="settings_looks_newer_build_f_droid_org_shortly">Looks for a newer build on f-droid.org shortly after startup.</string>
     <string name="settings_looks_newer_github_release_shortly_after_startup">Looks for a newer GitHub release shortly after startup.</string>
@@ -1056,7 +1029,6 @@
     <string name="settings_lines_last_session">%1$s lines from last session</string>
     <string name="settings_off_until_start_logging">Off until you start logging</string>
     <string name="settings_about_fitbuddy">About FitBuddy</string>
-    <string name="settings_ai_powered_health_tracker_region_aware_diets">AI-powered health tracker with region-aware diets. Log meals and workouts via photo or loose text; the AI estimates calories and macros.\n\nBuilt with Kotlin, Jetpack Compose, MVVM + Room. Data stays on your device.</string>
     <string name="settings_app">App</string>
     <string name="settings_github_com_anantdark">github.com/anantdark</string>
     <string name="settings_docs">Docs</string>
@@ -1077,7 +1049,6 @@
     <string name="settings_fitbuddy_sentry_test_crash">FitBuddy Sentry test crash</string>
     <string name="settings_xxxxxxxx_xxxx">xxxxxxxx-xxxx-…</string>
     <string name="settings_never">never</string>
-    <string name="settings_build_have">Build %1$d  ·  you have %2$s</string>
     <string name="settings_back_up_data_cloud_before_updating">Back up your data to the cloud before updating.</string>
     <string name="settings_export_local_backup_before_updating">Export a local backup before updating.</string>
     <string name="settings_skip_backup_update">Skip backup &amp; update (%1$s)</string>
@@ -1090,14 +1061,11 @@
     <string name="settings_enter_custom_base_url_first">Enter your custom base URL first</string>
     <string name="settings_couldn_t_load_models">Couldn\'t load models</string>
     <string name="settings_no_models_found">No %1$s models found</string>
-    <string name="settings_couldn_t_load_list">Couldn\'t load list: %1$s</string>
-    <string name="settings_models_available">%1$d %2$s models available</string>
     <string name="settings_enter_api_key_load_models">Enter your API key to load models</string>
     <string name="settings_enter_ollama_cloud_api_key_load_models">Enter your Ollama Cloud API key to load models</string>
     <string name="settings_enter_ollama_server_url_load_models">Enter your Ollama server URL to load models</string>
     <string name="settings_no_reachable_models_type_id_above">No reachable %1$s models; type an id above</string>
     <string name="settings_pick_image_capable_model">Pick an image-capable model</string>
-    <string name="settings_using">Using %1$s</string>
     <string name="settings_add_key_server_below_enable_live_analysis">Add a key/server below to enable live analysis</string>
     <string name="settings_about_2">About %1$s</string>
     <string name="workout_est_min_session">Est. %1$s min session</string>
@@ -1106,10 +1074,7 @@
     <string name="workout_duration_min">Duration (min)</string>
     <string name="workout_distance_km">Distance (km)</string>
     <string name="workout_distance_km_optional">Distance (km, optional)</string>
-    <string name="workout_km">%1$s km</string>
     <string name="workout_cardio">Cardio</string>
-    <string name="workout_sets_s">%1$s sets × %2$ss%3$s</string>
-    <string name="workout_sets_reps">%1$s sets × %2$s reps%3$s</string>
     <string name="vm_re_latest_version">You\'re on the latest version</string>
     <string name="vm_download_started_browser_install_apk_when_finish">Download started in your browser — install the APK when it finishes</string>
     <string name="vm_could_not_open_share_sheet">Could not open share sheet</string>
@@ -1143,7 +1108,6 @@
     <string name="vm_could_not_load_models">Could not load models</string>
     <string name="vm_text">Text</string>
     <string name="vm_model_unavailable_switched">%1$s model unavailable · switched to %2$s</string>
-    <string name="vm_bearer">Bearer %1$s</string>
     <string name="vm_logged_kcal">Logged %1$s · %2$s kcal</string>
     <string name="vm_deleted_meal_preset">Deleted meal preset %1$s</string>
     <string name="vm_deleted_saved_food">Deleted saved food %1$s</string>
@@ -1214,9 +1178,6 @@
     <string name="vm_calculating_science_based_targets">Calculating your science-based targets…</string>
     <string name="vm_science_based_targets_ready">Your science-based targets are ready</string>
     <string name="vm_using_default_targets_refine_anytime_body">Using default targets — refine anytime in Body</string>
-    <string name="vm_authentication_failed">authentication failed</string>
-    <string name="vm_http_401">http 401</string>
-    <string name="vm_http_403">http 403</string>
     <string name="vm_complete_profile_before_saving_body_data">Complete your profile before saving body data</string>
     <string name="vm_body_saved_dashboard_recalibrated">Body saved · dashboard recalibrated</string>
     <string name="vm_couldn_t_save_body_data">Couldn\'t save body data</string>
@@ -1235,11 +1196,7 @@
     <string name="widget_calorie_over">kcal over</string>
     <string name="widget_calorie_ate">Ate %1$d</string>
     <string name="widget_calorie_burn">Burn %1$d</string>
-    <string name="widget_snap_and_log">Snap &amp; log</string>
-    <string name="widget_kcal_left_fmt">%1$d kcal left</string>
-    <string name="widget_kcal_over_fmt">%1$d kcal over</string>
     <string name="widget_tap_to_type">Tap to type</string>
-    <string name="widget_preset_kcal">%1$d kcal</string>
     <string name="widget_calorie_orb_today">Today</string>
     <string name="widget_calorie_orb_preview_left">kcal left</string>
     <string name="widget_preset_launchpad_title">Preset Launchpad</string>
@@ -1255,9 +1212,6 @@
     <string name="widget_water_title_short">Water</string>
     <string name="widget_water_description">Track today\'s water and quick-add a glass or bottle</string>
     <string name="widget_describe_log_label">Describe &amp; log</string>
-    <string name="widget_water_title_goal">Water · %1$s</string>
-    <string name="widget_water_of_goal">of %1$s</string>
-    <string name="widget_water_preview_goal">of 2 L</string>
     <string name="water_progress_ratio">%1$s / %2$s</string>
     <string name="water_plus_ml">+%1$s</string>
     <string name="water_kind_water">Water</string>
