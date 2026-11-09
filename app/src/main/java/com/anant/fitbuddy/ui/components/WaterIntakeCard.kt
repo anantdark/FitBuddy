@@ -44,15 +44,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.R
 import com.anant.fitbuddy.data.database.WaterDrinkKind
@@ -254,7 +259,10 @@ fun WaterQuickAddRow(
     }
 }
 
-/** Capsule meter with soft hue-blended drink layers and a low slow wave. */
+/**
+ * Capsule meter with soft hue-blended drink layers, a low slow wave, and
+ * horizontal-swimming fish sprites (OpenGameArt “2D Retro Fish” by EXCITESZZ, CC0).
+ */
 @Composable
 fun WaveWaterMeter(
     layers: WaterFillLayers,
@@ -286,6 +294,21 @@ fun WaveWaterMeter(
         ),
         label = "wavePhase",
     )
+    val fishPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 16000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "fishPhase",
+    )
+    val fishRed = ImageBitmap.imageResource(R.drawable.ic_fish_red)
+    val fishOrange = ImageBitmap.imageResource(R.drawable.ic_fish_orange)
+    val fishTeal = ImageBitmap.imageResource(R.drawable.ic_fish_teal)
+    val fishBitmaps = remember(fishRed, fishOrange, fishTeal) {
+        listOf(fishRed, fishOrange, fishTeal)
+    }
     val track = WaterAccentColor.copy(alpha = 0.16f)
 
     Canvas(modifier = modifier) {
@@ -312,6 +335,12 @@ fun WaveWaterMeter(
                 } else {
                     drawHorizontalHueWater(animWater, animCoffee, animTea, wavePhase)
                 }
+                drawSwimmingFishSprites(
+                    fishPhase = fishPhase,
+                    fillShare = fill,
+                    verticalMeter = vertical,
+                    bitmaps = fishBitmaps,
+                )
             }
         }
     }
@@ -488,6 +517,94 @@ private fun DrawScope.drawBubbles(
                 drawCircle(color = bubbleColor, radius = r, center = center)
             }
         }
+    }
+}
+
+/**
+ * Fish always swim left↔right. In the vertical meter they still move
+ * horizontally across the narrow column (tiny bob on Y).
+ */
+private fun DrawScope.drawSwimmingFishSprites(
+    fishPhase: Float,
+    fillShare: Float,
+    verticalMeter: Boolean,
+    bitmaps: List<ImageBitmap>,
+) {
+    if (bitmaps.isEmpty() || fillShare < 0.08f) return
+
+    data class Spec(val phaseOff: Float, val lane: Float, val sizeFrac: Float, val speed: Float, val bitmapIndex: Int)
+
+    val school = listOf(
+        Spec(0.00f, 0.32f, 0.55f, 1.0f, 0),
+        Spec(0.42f, 0.58f, 0.42f, 0.78f, 1),
+        Spec(0.71f, 0.44f, 0.36f, 1.18f, 2),
+    )
+
+    if (verticalMeter) {
+        val waterTop = size.height * (1f - fillShare)
+        val waterBottom = size.height - 2f
+        val waterH = (waterBottom - waterTop).coerceAtLeast(1f)
+        if (waterH < size.width * 1.4f) return
+        school.forEach { spec ->
+            val bmp = bitmaps[spec.bitmapIndex % bitmaps.size]
+            val t = ((fishPhase * spec.speed) + spec.phaseOff) % 1f
+            val goingRight = t < 0.5f
+            val travel = if (goingRight) t * 2f else (1f - t) * 2f
+            val bob = softWave(fishPhase * 2f * PI.toFloat() + spec.phaseOff * 5f) * waterH * 0.03f
+            val fishH = (size.width * spec.sizeFrac).coerceIn(8f, size.width * 0.85f)
+            val aspect = bmp.width.toFloat() / bmp.height.coerceAtLeast(1)
+            val fishW = fishH * aspect
+            val cx = fishW * 0.55f + (size.width - fishW * 1.1f) * travel
+            val cy = waterTop + waterH * spec.lane + bob
+            drawFishBitmap(bmp, cx, cy, fishW, fishH, facingRight = goingRight)
+        }
+    } else {
+        val waterRight = size.width * fillShare
+        if (waterRight < size.height * 1.6f) return
+        school.forEach { spec ->
+            val bmp = bitmaps[spec.bitmapIndex % bitmaps.size]
+            val t = ((fishPhase * spec.speed) + spec.phaseOff) % 1f
+            val goingRight = t < 0.5f
+            val travel = if (goingRight) t * 2f else (1f - t) * 2f
+            val bob = softWave(fishPhase * 2f * PI.toFloat() + spec.phaseOff * 5f) * size.height * 0.05f
+            val fishH = (size.height * spec.sizeFrac).coerceIn(6f, size.height * 0.7f)
+            val aspect = bmp.width.toFloat() / bmp.height.coerceAtLeast(1)
+            val fishW = fishH * aspect
+            val cx = 4f + fishW * 0.5f + (waterRight - fishW - 8f).coerceAtLeast(0f) * travel
+            val cy = size.height * spec.lane + bob
+            if (cx + fishW * 0.4f < waterRight) {
+                drawFishBitmap(bmp, cx, cy, fishW, fishH, facingRight = goingRight)
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawFishBitmap(
+    bitmap: ImageBitmap,
+    centerX: Float,
+    centerY: Float,
+    width: Float,
+    height: Float,
+    facingRight: Boolean,
+) {
+    val dstW = width.roundToInt().coerceAtLeast(1)
+    val dstH = height.roundToInt().coerceAtLeast(1)
+    withTransform({
+        if (!facingRight) {
+            scale(scaleX = -1f, scaleY = 1f, pivot = Offset(centerX, centerY))
+        }
+    }) {
+        drawImage(
+            image = bitmap,
+            srcOffset = IntOffset.Zero,
+            srcSize = IntSize(bitmap.width, bitmap.height),
+            dstOffset = IntOffset(
+                (centerX - dstW / 2f).roundToInt(),
+                (centerY - dstH / 2f).roundToInt(),
+            ),
+            dstSize = IntSize(dstW, dstH),
+            alpha = 0.92f,
+        )
     }
 }
 
