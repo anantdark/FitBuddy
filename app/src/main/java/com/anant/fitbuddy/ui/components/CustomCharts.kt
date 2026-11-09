@@ -206,6 +206,7 @@ fun CalorieRing(
                 offColor = glyphOff,
                 endColor = glyphEnd,
                 shimmerEnabled = !goalReached,
+                style = GlyphShimmerLaunch.style,
             )
         }
 
