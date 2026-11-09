@@ -38,7 +38,7 @@ class QuickSnapWidget : GlanceAppWidget() {
         val data = WidgetRepository.load(context)
         provideContent {
             FitBuddyGlanceTheme {
-                QuickSnapContent(context, data)
+                QuickSnapContent(context, rememberWidgetData(context, data))
             }
         }
     }
