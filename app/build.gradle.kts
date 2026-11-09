@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.devtools.ksp)
-    alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
 }
 
 // Read secrets from local.properties (never checked into VCS) so the OpenRouter/Gemini
@@ -229,7 +228,6 @@ dependencies {
     implementation(libs.converter.moshi)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.serialization.core)
     implementation(libs.logging.interceptor)
     implementation(libs.material)
     implementation(libs.moshi.kotlin)
@@ -258,9 +256,10 @@ dependencies {
     "ksp"(libs.moshi.kotlin.codegen)
 }
 
-// Baseline profiles are not bit-reproducible across machines (F-Droid RB).
+// Baseline profiles are not bit-reproducible across machines (F-Droid RB), so only the
+// fdroid flavor skips them; github builds ship the profile for faster startup.
 tasks.whenTaskAdded {
-    if (name.contains("ArtProfile")) {
+    if (name.contains("ArtProfile") && name.contains("Fdroid")) {
         enabled = false
     }
 }
