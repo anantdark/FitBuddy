@@ -20,6 +20,8 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.ui.haptics.AppHapticController
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import androidx.compose.runtime.getValue
 
@@ -32,13 +34,18 @@ import androidx.compose.runtime.getValue
  *
  * Scale uses [graphicsLayer] so it does not wrap drawContent and break the
  * Material3 ripple node.
+ *
+ * [onHaptic] defaults to a light click; pass `{ it.reject() }` for destructive
+ * actions so they feel distinct from normal taps.
  */
 fun Modifier.pressable(
     enabled: Boolean = true,
     scaleDown: Float = 0.97f,
+    onHaptic: (AppHapticController) -> Unit = { it.click() },
     onClick: () -> Unit
 ): Modifier = composed {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -57,7 +64,11 @@ fun Modifier.pressable(
         interactionSource = interactionSource,
         indication = ripple(color = primary),
         enabled = enabled,
-        onClick = { dismiss(); onClick() }
+        onClick = {
+            dismiss()
+            onHaptic(haptics)
+            onClick()
+        }
     )
 }
 
@@ -77,6 +88,7 @@ fun PressableCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val dismiss = rememberDismissKeyboard()
+    val haptics = rememberAppHaptics()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -88,7 +100,11 @@ fun PressableCard(
         label = "cardPressScale"
     )
     Card(
-        onClick = { dismiss(); onClick() },
+        onClick = {
+            dismiss()
+            haptics.click()
+            onClick()
+        },
         enabled = enabled,
         interactionSource = interactionSource,
         modifier = modifier.graphicsLayer {

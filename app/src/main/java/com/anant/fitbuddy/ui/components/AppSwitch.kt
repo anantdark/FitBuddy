@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.theme.isMakoStyle
 import androidx.compose.runtime.getValue
 
@@ -44,10 +45,17 @@ fun AppSwitch(
     colors: SwitchColors = SwitchDefaults.colors(),
     interactionSource: MutableInteractionSource? = null,
 ) {
+    val haptics = rememberAppHaptics()
+    val gatedChange: ((Boolean) -> Unit)? = onCheckedChange?.let { change ->
+        { next ->
+            haptics.toggle(next)
+            change(next)
+        }
+    }
     if (isMakoStyle()) {
         MakoSwitch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = gatedChange,
             modifier = modifier,
             enabled = enabled,
             interactionSource = interactionSource,
@@ -55,7 +63,7 @@ fun AppSwitch(
     } else {
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = gatedChange,
             modifier = modifier,
             enabled = enabled,
             colors = colors,
