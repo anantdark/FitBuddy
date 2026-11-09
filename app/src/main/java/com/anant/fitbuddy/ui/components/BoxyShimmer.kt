@@ -54,7 +54,7 @@ data class GlyphBoxCell(
  * Box size is resized so [nPerSide] tiles fit each side exactly; stroke
  * thickness matches the box so edges are flush.
  *
- * Returns (boxSize, cells in clockwise order starting at top-left).
+ * Returns (boxSize, cells in clockwise order starting at top-middle).
  */
 fun buildSquareGlyphCells(
     center: Offset,
@@ -62,7 +62,8 @@ fun buildSquareGlyphCells(
     targetStroke: Float,
 ): Pair<Float, List<GlyphBoxCell>> {
     // avail = (n+1)*box  →  box edges reach the outer bound of [available].
-    val n = (available / targetStroke - 1f).roundToInt().coerceIn(2, 24)
+    // Even n puts a box exactly on the top-middle line, where the ring starts.
+    val n = ((available / targetStroke - 1f).roundToInt() / 2 * 2).coerceIn(2, 24)
     val box = available / (n + 1f)
     val halfStroke = box * 0.5f
     // Centerline square inset so box outer edges hit available/2 from center.
@@ -71,39 +72,23 @@ fun buildSquareGlyphCells(
     val top = center.y - half
     val right = center.x + half
     val bottom = center.y + half
-    // Frame tiling: n equal squares per side corner→corner; corners drawn once.
-    val cells = ArrayList<GlyphBoxCell>(4 * (n - 1).coerceAtLeast(1))
-    // Top: left → right (includes both corners)
+    // Centerline side = n * box, so n + 1 boxes sit on each side with corner boxes centered on
+    // the corners. Each side emits n boxes (start corner included, end corner left to the next side).
+    val cells = ArrayList<GlyphBoxCell>(4 * n)
+    for (i in n / 2 until n) {
+        cells += GlyphBoxCell(Offset(left + box * i, top), box, 0f)
+    }
     for (i in 0 until n) {
-        cells += GlyphBoxCell(
-            center = Offset(left + box * (i + 0.5f), top),
-            size = box,
-            degrees = 0f,
-        )
+        cells += GlyphBoxCell(Offset(right, top + box * i), box, 0f)
     }
-    // Right: top → bottom (skip corners — already on top/bottom)
-    for (i in 1 until n - 1) {
-        cells += GlyphBoxCell(
-            center = Offset(right, top + box * (i + 0.5f)),
-            size = box,
-            degrees = 0f,
-        )
-    }
-    // Bottom: right → left (includes both corners)
     for (i in 0 until n) {
-        cells += GlyphBoxCell(
-            center = Offset(right - box * (i + 0.5f), bottom),
-            size = box,
-            degrees = 0f,
-        )
+        cells += GlyphBoxCell(Offset(right - box * i, bottom), box, 0f)
     }
-    // Left: bottom → top (skip corners)
-    for (i in 1 until n - 1) {
-        cells += GlyphBoxCell(
-            center = Offset(left, bottom - box * (i + 0.5f)),
-            size = box,
-            degrees = 0f,
-        )
+    for (i in 0 until n) {
+        cells += GlyphBoxCell(Offset(left, bottom - box * i), box, 0f)
+    }
+    for (i in 0 until n / 2) {
+        cells += GlyphBoxCell(Offset(left + box * i, top), box, 0f)
     }
     return box to cells
 }
