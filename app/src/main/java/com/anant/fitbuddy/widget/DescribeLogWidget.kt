@@ -17,6 +17,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -48,17 +49,25 @@ private fun DescribeLogContent(context: Context) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
-            .cornerRadius(20.dp)
+            .cornerRadius(28.dp)
             .clickable(action)
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            provider = ImageProvider(R.drawable.ic_widget_keyboard),
-            contentDescription = context.getString(R.string.widget_describe_log_title),
-            colorFilter = ColorFilter.tint(GlanceTheme.colors.tertiary),
-            modifier = GlanceModifier.size(28.dp),
-        )
+        Box(
+            modifier = GlanceModifier
+                .size(48.dp)
+                .background(GlanceTheme.colors.tertiaryContainer)
+                .cornerRadius(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_sparkle),
+                contentDescription = context.getString(R.string.widget_describe_log_label),
+                colorFilter = ColorFilter.tint(GlanceTheme.colors.onTertiaryContainer),
+                modifier = GlanceModifier.size(24.dp),
+            )
+        }
         Spacer(GlanceModifier.width(8.dp))
         Column(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
             Text(
@@ -71,12 +80,27 @@ private fun DescribeLogContent(context: Context) {
                 maxLines = 2,
             )
             Text(
-                text = "Tap to type",
+                text = context.getString(R.string.widget_tap_to_type),
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurfaceVariant,
                     fontSize = 11.sp,
                 ),
                 maxLines = 1,
+            )
+        }
+        Spacer(GlanceModifier.width(8.dp))
+        Box(
+            modifier = GlanceModifier
+                .size(40.dp)
+                .background(GlanceTheme.colors.primary)
+                .cornerRadius(20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_send),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(GlanceTheme.colors.onPrimary),
+                modifier = GlanceModifier.size(20.dp),
             )
         }
     }

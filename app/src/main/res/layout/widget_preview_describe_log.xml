@@ -2,16 +2,17 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5FBF7"
+    android:background="@drawable/widget_describe_preview_bg"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="10dp">
 
     <ImageView
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:contentDescription="@string/widget_describe_log_title"
-        android:src="@drawable/ic_widget_keyboard"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:contentDescription="@string/widget_describe_log_label"
+        android:padding="12dp"
+        android:src="@drawable/ic_widget_sparkle"
         android:tint="#465762" />
 
     <TextView
@@ -19,8 +20,17 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_weight="1"
-        android:text="@string/widget_describe_log_title"
+        android:text="@string/widget_describe_log_label"
         android:textColor="#171D1B"
         android:textSize="14sp"
         android:textStyle="bold" />
+
+    <ImageView
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/widget_describe_preview_send"
+        android:contentDescription="@null"
+        android:padding="10dp"
+        android:src="@drawable/ic_widget_send"
+        android:tint="#FFFFFF" />
 </LinearLayout>
