@@ -1263,11 +1263,11 @@ fun SettingsScreen(
                     onSaveQuiet(
                         settings.copy(
                             waterTrackingEnabled = enabled,
-                            // Extended shows a vertical wave meter beside the ring.
+                            // Toggling water resets the layout; it can still be changed in Theme.
                             dashboardLayout = if (enabled) {
-                                AppDashboardLayout.EXTENDED
+                                AppDashboardLayout.COMPACT
                             } else {
-                                settings.dashboardLayout
+                                AppDashboardLayout.EXTENDED
                             },
                         )
                     )
