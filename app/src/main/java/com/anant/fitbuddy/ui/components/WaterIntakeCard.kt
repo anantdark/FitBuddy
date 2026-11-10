@@ -1,6 +1,11 @@
 package com.anant.fitbuddy.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -269,6 +274,12 @@ fun WaveWaterMeter(
     val count = kotlin.math.ceil(layers.goalMl.coerceAtLeast(1) / TumblerMl.toDouble())
         .toInt().coerceIn(1, MaxTumblers)
     val outline = WaterAccentColor.copy(alpha = 0.7f)
+    val wavePhase by rememberInfiniteTransition(label = "tumblerWave").animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(4500, easing = LinearEasing), RepeatMode.Restart),
+        label = "tumblerWavePhase",
+    )
 
     Canvas(modifier = modifier) {
         val vertical = orientation == WaterMeterOrientation.Vertical
@@ -294,18 +305,27 @@ fun WaveWaterMeter(
             val sliceStart = i * TumblerMl.toFloat()
             val sliceEnd = sliceStart + TumblerMl
             clipPath(glass) {
-                var filledTop = top + th
-                for (l in 0..2) {
+                val bottom = top + th
+                val amp = th * 0.035f
+                for (l in 2 downTo 0) {
                     val overlap = (minOf(layerEnds[l], sliceEnd) - maxOf(layerStarts[l], sliceStart))
                         .coerceAtLeast(0f)
                     if (overlap <= 0f) continue
-                    val h = th * overlap / TumblerMl
-                    drawRect(
-                        color = layerColors[l],
-                        topLeft = Offset(left, filledTop - h),
-                        size = Size(tw, h),
-                    )
-                    filledTop -= h
+                    val cum = (layerEnds[l] - sliceStart).coerceIn(0f, TumblerMl.toFloat())
+                    val surface = bottom - th * cum / TumblerMl
+                    val a = if (cum >= TumblerMl - 0.5f) 0f else amp
+                    val steps = 12
+                    val wave = Path().apply {
+                        moveTo(left, bottom)
+                        lineTo(left, surface + a * sin(wavePhase.toDouble()).toFloat())
+                        for (k in 1..steps) {
+                            val x = left + tw * k / steps
+                            lineTo(x, surface + a * sin((wavePhase + k * 2f * PI.toFloat() / steps).toDouble()).toFloat())
+                        }
+                        lineTo(left + tw, bottom)
+                        close()
+                    }
+                    drawPath(wave, color = layerColors[l])
                 }
             }
             drawPath(glass, color = outline, style = Stroke(width = 1.dp.toPx()))
