@@ -26,6 +26,7 @@ object FitBuddyWidgetUpdater {
 
     fun requestUpdate(context: Context) {
         val appContext = context.applicationContext
+        WidgetRefresh.bump()
         scope.launch {
             runCatching {
                 QuickSnapWidget().updateAll(appContext)

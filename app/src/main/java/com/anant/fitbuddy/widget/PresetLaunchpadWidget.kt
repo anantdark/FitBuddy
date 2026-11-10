@@ -34,7 +34,7 @@ class PresetLaunchpadWidget : GlanceAppWidget() {
         val data = WidgetRepository.load(context)
         provideContent {
             FitBuddyGlanceTheme {
-                PresetLaunchpadContent(context, data)
+                PresetLaunchpadContent(context, rememberWidgetData(context, data))
             }
         }
     }

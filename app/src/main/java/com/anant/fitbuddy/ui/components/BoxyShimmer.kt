@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.geometry.Offset
@@ -24,7 +25,28 @@ val GlyphLedOn = Color(0xFFFFF6E8)
 val GlyphLedOff = Color(0xFF2C2C2C)
 val GlyphLedRed = Color(0xFFFF2D2D)
 
-/** Soft continuous shimmer phase (previous style — always). */
+/** Ring shimmer effects; one is picked per app launch, cycling in order. */
+enum class GlyphShimmerStyle { SOFT, COMET, WAVE, TWINKLE, BREATHE }
+
+object GlyphShimmerLaunch {
+    private const val PREFS = "glyph_shimmer"
+    private const val KEY_COUNTER = "launch_counter"
+
+    @Volatile
+    var style: GlyphShimmerStyle = GlyphShimmerStyle.SOFT
+        private set
+
+    /** Advances the persisted counter once per process and selects that launch's style. */
+    fun advance(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val styles = GlyphShimmerStyle.entries
+        val next = (prefs.getInt(KEY_COUNTER, -1) + 1).mod(styles.size)
+        prefs.edit().putInt(KEY_COUNTER, next).apply()
+        style = styles[next]
+    }
+}
+
+/** Continuous shimmer phase, 0..2π. */
 @Composable
 fun rememberLedShimmerPhase(durationMillis: Int = 3200, enabled: Boolean = true): Float {
     if (!enabled) return 0f
@@ -145,6 +167,7 @@ fun DrawScope.drawGlyphBoxes(
     offColor: Color = GlyphLedOff,
     endColor: Color = GlyphLedRed,
     shimmerEnabled: Boolean = true,
+    style: GlyphShimmerStyle = GlyphShimmerStyle.SOFT,
 ) {
     if (cells.isEmpty()) return
     val litCount = (cells.size * fillFrac.coerceIn(0f, 1f))
@@ -154,7 +177,7 @@ fun DrawScope.drawGlyphBoxes(
     cells.forEachIndexed { i, cell ->
         val lit = i < litCount
         val isEnd = lit && i == litCount - 1
-        val shimmer = if (shimmerEnabled) glyphShimmer(i, phase) else 1f
+        val shimmer = if (shimmerEnabled) glyphShimmer(style, i, cells.size, phase) else 1f
         val color = when {
             isEnd -> endColor.copy(alpha = shimmer)
             lit -> onColor.copy(alpha = shimmer)
@@ -171,11 +194,41 @@ fun DrawScope.drawGlyphBoxes(
     }
 }
 
-/** Previous soft shimmer — gentle brightness pulse, not strobe. */
-private fun glyphShimmer(index: Int, phase: Float): Float {
+private fun scatter(index: Int): Float {
     val seed = index * 12.9898f + 78.233f
-    val scatter = (sin(seed.toDouble()) * 43758.5453).toFloat()
-    val frac = scatter - floor(scatter)
-    val pulse = sin((phase * (0.7f + frac) + frac * 6.28f).toDouble()).toFloat()
-    return (0.88f + pulse * 0.12f).coerceIn(0.80f, 1f)
+    val v = (sin(seed.toDouble()) * 43758.5453).toFloat()
+    return v - floor(v)
+}
+
+/** Brightness alpha (0.25..1) for cell [index] of [count] at [phase] (0..2π). */
+private fun glyphShimmer(style: GlyphShimmerStyle, index: Int, count: Int, phase: Float): Float {
+    val twoPi = (2f * PI).toFloat()
+    val pos = index.toFloat() / count
+    val turn = phase / twoPi
+    return when (style) {
+        GlyphShimmerStyle.SOFT -> {
+            val frac = scatter(index)
+            val pulse = sin((phase * (0.7f + frac) + frac * 6.28f).toDouble()).toFloat()
+            (0.88f + pulse * 0.12f).coerceIn(0.80f, 1f)
+        }
+        GlyphShimmerStyle.COMET -> {
+            // Bright head circling the ring with a fading tail behind it.
+            val behind = (turn - pos).let { it - floor(it) }
+            val tail = (1f - behind / 0.28f).coerceIn(0f, 1f)
+            0.55f + 0.45f * tail * tail
+        }
+        GlyphShimmerStyle.WAVE -> {
+            val w = sin((phase - pos * twoPi * 3f).toDouble()).toFloat()
+            0.72f + 0.28f * w
+        }
+        GlyphShimmerStyle.TWINKLE -> {
+            val frac = scatter(index)
+            val t = (turn * 2f + frac).let { it - floor(it) }
+            val spark = (1f - kotlin.math.abs(t - 0.5f) * 8f).coerceIn(0f, 1f)
+            0.62f + 0.38f * spark
+        }
+        GlyphShimmerStyle.BREATHE -> {
+            0.65f + 0.35f * (0.5f + 0.5f * sin((phase - PI / 2).toDouble()).toFloat())
+        }
+    }
 }

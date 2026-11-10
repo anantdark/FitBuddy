@@ -1,13 +1,19 @@
 package com.anant.fitbuddy.widget
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.util.DateUtils
 import com.anant.fitbuddy.util.WaterFillLayers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 
 object WidgetRepository {
 
@@ -69,4 +75,19 @@ object WidgetRepository {
             bottleQuickAddMl = settings.quickAddMl(WaterDrinkKind.BOTTLE),
         )
     }
+}
+
+/**
+ * Glance reuses a live session on update(), recomposing with whatever data it captured.
+ * Bumping this version makes every widget reload its data inside composition instead.
+ */
+internal object WidgetRefresh {
+    val version = MutableStateFlow(0L)
+    fun bump() = version.update { it + 1 }
+}
+
+@Composable
+internal fun rememberWidgetData(context: Context, initial: WidgetData): WidgetData {
+    val version by WidgetRefresh.version.collectAsState()
+    return produceState(initial, version) { value = WidgetRepository.load(context) }.value
 }
