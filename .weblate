@@ -1,0 +1,11 @@
+[weblate]
+url = https://hosted.weblate.org/
+
+[repository]
+# Hosted Weblate GitHub App opens PRs from ephemeral weblate-* branches.
+push_branch = weblate
+
+[component:fitbuddy]
+file_format = aresource
+filemask = app/src/main/res/values-*/strings.xml
+template = app/src/main/res/values/strings.xml

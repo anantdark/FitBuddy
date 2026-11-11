@@ -161,6 +161,9 @@ progress charts, editable meal review, and reusable food presets.
   reflective classes, add proguard keeps.
 - Bumping the Room schema wipes local data (destructive migration) — acceptable in dev only.
 - Don't reintroduce removed deps (navigation3 / adaptive) or the kotlin.android plugin.
+- User-visible copy: edit English only in `app/src/main/res/values/strings.xml`. Translations
+  come from Hosted Weblate PRs (`values-*/strings.xml`) — see `docs/TRANSLATING.md`. Do not
+  hand-edit locale files in feature PRs except to resolve Weblate merge conflicts.
 - When committing: do **NOT** add yourself (or any AI / Claude / Cursor / Composer)
   as a `Co-authored-by` trailer, and do not add "Generated with …" footers to commit
   messages. You will NEVER mention yourself as coauthor in commits.
