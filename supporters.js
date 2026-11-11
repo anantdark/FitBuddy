@@ -154,7 +154,7 @@
   function moneyBadge(lifetimeUsd) {
     if (lifetimeUsd > 10) return "GODLIKE";
     if (lifetimeUsd > 5) return "LEGENDARY";
-    if (lifetimeUsd > 3) return "GENEROUS";
+    if (lifetimeUsd >= 3) return "GENEROUS";
     return null;
   }
 
