@@ -253,7 +253,7 @@ fun SettingsScreen(
     onRegenerateSupportId: () -> Unit = {},
     /** Settings-only: ♥ double-tap side effect (crash reporting on). */
     onHeartDoubleTapHeartbeat: () -> Unit = {},
-    /** Themes section unlock — true when this install's Support ID is on the donors list. */
+    /** Themes section unlock — OG or money badge; standard listed donors stay locked here only. */
     isSupporter: Boolean = false,
     onDonate: () -> Unit = {},
     modifier: Modifier = Modifier

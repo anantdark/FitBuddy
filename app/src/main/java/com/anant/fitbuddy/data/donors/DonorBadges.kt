@@ -78,9 +78,16 @@ object DonorBadgeRules {
     fun moneyBadge(lifetimeUsd: Double): MoneyBadge? = when {
         lifetimeUsd > 10.0 -> MoneyBadge.GODLIKE
         lifetimeUsd > 5.0 -> MoneyBadge.LEGENDARY
-        lifetimeUsd > 3.0 -> MoneyBadge.GENEROUS
+        lifetimeUsd >= 3.0 -> MoneyBadge.GENEROUS
         else -> null
     }
+
+    /**
+     * Themes unlock only: OG tag or any money badge.
+     * Listed standard donors keep other roster perks; Themes stay locked.
+     */
+    fun unlocksThemes(donor: DonorEntry): Boolean =
+        donor.hasTag("og") || moneyBadge(donor) != null
 
     fun lifetimeUsd(donor: DonorEntry): Double =
         donor.donations.sumOf { it.amountUsd.coerceAtLeast(0.0) }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-30",
+  "updatedAt": "2026-11-11",
   "donors": [
     {
       "hash": "146a345312644c125e4ae4aae2ceec64fe10e2da99f451bf8d12e656d4ca460b",
@@ -23,6 +23,18 @@
         {
           "amountUsd": 5.0,
           "at": "2026-10-30"
+        }
+      ]
+    },
+    {
+      "hash": "1e7aaf3a76badee2adaa2e42b4b9d24168d6af6e4b065ceed47be6bea8c5ab82",
+      "name": "Abhi",
+      "photoUrl": "https://raw.githubusercontent.com/anantdark/FitBuddy/main/config/donors/abhi.jpg",
+      "tags": ["og"],
+      "donations": [
+        {
+          "amountUsd": 1.0,
+          "at": "2026-11-11"
         }
       ]
     }

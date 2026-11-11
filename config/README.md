@@ -24,9 +24,6 @@ Public supporter roster. Fetched at runtime from:
 
 Pushing an update to `main` is enough; no app release required.
 
-**Never show donation amounts or tier thresholds in the app UI.** Amounts exist only so
-the app can derive badges / card styles on device.
-
 ### Schema
 
 ```json
@@ -57,27 +54,10 @@ the app can derive badges / card styles on device.
 | `name` | no | Public thank-you / gallery; omit for hash-only (reminder off, no public card) |
 | `photoUrl` | no | Avatar URL (Coil). Missing/fail → letter avatar. Row tap opens trading card. Optional portraits under `config/donors/` via raw GitHub URL |
 | `linkUrl` | no | Profile URL; opened only from the **card flip-side** (styled GitHub / Instagram / site panel) |
-| `tags` | no | Non-amount badges. Known: `"og"` (OG Supporter). Future badges = new tag strings |
-| `donations` | no | History of gifts. Sum `amountUsd` (USD) drives money badge; `at` drives thank-you |
-
-### Money badges (derived, exclusive — highest only)
-
-Computed from **lifetime** `sum(donations.amountUsd)`. Do not document thresholds in UI copy.
-
-| Badge | Lifetime USD |
-|-------|----------------|
-| Generous Supporter | `> 3` |
-| Legendary Supporter | `> 5` |
-| Godlike Supporter | `> 10` |
-
-Card chrome follows the money badge when present; otherwise `"og"` → OG card; else a
-simple supporter card. Medals can stack (e.g. Godlike + OG).
+| `tags` | no | Optional labels (e.g. `"og"`). Badge derivation lives in app code |
+| `donations` | no | Gift history (`amountUsd`, `at`); thank-you uses `at` |
 
 **Supporter number:** `1001 + (0-based index in the `donors` array)`. First entry = **No. 1001**.
-
-**Lore:** each tier has 10 back-of-card lines. The app picks one deterministically per
-supporter + current card tier. Upgrading the money medal (or moving to OG-only vs money)
-changes the pool — only **one** lore line shows at a time.
 
 ### Thank-you / recurring donations
 

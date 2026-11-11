@@ -693,14 +693,14 @@ class MainViewModel(
 
     private val _pendingEveningDonateReminder = MutableStateFlow(false)
 
-    /** True when this install's Support ID is on the public donors list. */
+    /** Themes unlock only (OG or money badge). Other donor perks use roster membership. */
     private val _isSupporter = MutableStateFlow(false)
     val isSupporter: StateFlow<Boolean> = _isSupporter.asStateFlow()
 
     private suspend fun refreshSupporterStatus(supportId: String? = null) {
         val id = supportId ?: settingsRepository.settings.first().supportId
         val file = donorListRepository.cachedOrEmpty()
-        _isSupporter.value = donorListRepository.containsSupportId(file, id)
+        _isSupporter.value = donorListRepository.unlocksThemes(file, id)
     }
 
     fun consumeOpenDonationDialogRequest() {
@@ -908,7 +908,7 @@ class MainViewModel(
 
                 val file = donorListRepository.refresh(forceNetwork = true)
                 val isDonor = donorListRepository.containsSupportId(file, current.supportId)
-                _isSupporter.value = isDonor
+                _isSupporter.value = donorListRepository.unlocksThemes(file, current.supportId)
                 // No Settings toggle — always on for everyone except known donors.
                 if (isDonor && current.donationReminderEnabled) {
                     settingsRepository.setDonationReminderEnabled(false)

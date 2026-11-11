@@ -10,12 +10,30 @@ class DonorBadgeRulesTest {
 
     @Test
     fun moneyBadge_exclusiveHighest() {
-        assertNull(DonorBadgeRules.moneyBadge(3.0))
-        assertEquals(MoneyBadge.GENEROUS, DonorBadgeRules.moneyBadge(3.01))
+        assertNull(DonorBadgeRules.moneyBadge(2.99))
+        assertEquals(MoneyBadge.GENEROUS, DonorBadgeRules.moneyBadge(3.0))
         assertEquals(MoneyBadge.GENEROUS, DonorBadgeRules.moneyBadge(5.0))
         assertEquals(MoneyBadge.LEGENDARY, DonorBadgeRules.moneyBadge(5.01))
         assertEquals(MoneyBadge.LEGENDARY, DonorBadgeRules.moneyBadge(10.0))
         assertEquals(MoneyBadge.GODLIKE, DonorBadgeRules.moneyBadge(10.01))
+    }
+
+    @Test
+    fun unlocksThemes_ogOrMoneyBadgeOnly() {
+        val standard = DonorEntry(
+            hash = "std",
+            name = "Std",
+            donations = listOf(DonationRecord(amountUsd = 1.0, at = "2026-01-01")),
+        )
+        val og = standard.copy(tags = listOf("og"))
+        val generous = standard.copy(
+            donations = listOf(DonationRecord(amountUsd = 3.0, at = "2026-01-01")),
+        )
+        assertFalse(DonorBadgeRules.unlocksThemes(standard))
+        assertTrue(DonorBadgeRules.unlocksThemes(og))
+        assertTrue(DonorBadgeRules.unlocksThemes(generous))
+        assertEquals(DonorCardStyle.STANDARD, DonorBadgeRules.cardStyle(standard))
+        assertEquals(DonorCardStyle.GENEROUS, DonorBadgeRules.cardStyle(generous))
     }
 
     @Test

@@ -50,10 +50,22 @@ class DonorListRepository(
         }
     }
 
-    fun containsSupportId(file: DonorsFile, supportId: String): Boolean {
+    fun containsSupportId(file: DonorsFile, supportId: String): Boolean =
+        findBySupportId(file, supportId) != null
+
+    fun findBySupportId(file: DonorsFile, supportId: String): DonorEntry? {
         val hash = SupportIdHasher.hash(supportId)
-        if (hash.isEmpty()) return false
-        return file.donors.any { it.normalizedHash == hash }
+        if (hash.isEmpty()) return null
+        return file.donors.firstOrNull { it.normalizedHash == hash }
+    }
+
+    /**
+     * Themes only. Other roster perks (e.g. donation-reminder off) use [containsSupportId]
+     * and stay available for every listed donor, including standard.
+     */
+    fun unlocksThemes(file: DonorsFile, supportId: String): Boolean {
+        val entry = findBySupportId(file, supportId) ?: return false
+        return DonorBadgeRules.unlocksThemes(entry)
     }
 
     /**
