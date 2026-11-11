@@ -398,7 +398,7 @@ private fun MetricGrid(m: BodyMeasurement) {
     val units = LocalUnitSystem.current
     val chips = buildList {
         add(stringResource(R.string.onboarding_weight) to Units.weightLabel(m.weightKg, units))
-        m.bodyFatPct?.let { add(stringResource(R.string.analytics_body_fat) to "$it%") }
+        m.bodyFatPct?.let { add(stringResource(R.string.analytics_body_fat) to "${Units.trim(it)}%") }
         m.bmr?.let { add(stringResource(R.string.analytics_bmr) to "$it kcal") }
         m.muscleMassKg?.let { add(stringResource(R.string.analytics_muscle_mass) to Units.weightLabel(it, units)) }
     }
@@ -631,7 +631,7 @@ private fun ReadingsHistoryCard(
                         Text(
                             buildString {
                                 append(Units.weightLabel(m.weightKg, units))
-                                m.bodyFatPct?.let { append(stringResource(R.string.profile_fat, it)) }
+                                m.bodyFatPct?.let { append(stringResource(R.string.profile_fat, Units.trim(it))) }
                                 m.muscleMassKg?.let {
                                     append(stringResource(R.string.profile_kg_muscle, Units.weightText(it, units), Units.weightUnit(units)))
                                 }
@@ -1101,7 +1101,7 @@ private fun AddMeasurementSheet(
             val s = fmtOptional(value)
             if (s != null) optional[key] = s else optional.remove(key)
         }
-        put("bodyFatPct", m.bodyFatPct)
+        m.bodyFatPct?.let { optional["bodyFatPct"] = Units.trim(it) } ?: optional.remove("bodyFatPct")
         m.bmr?.let { optional["bmr"] = it.toString() } ?: optional.remove("bmr")
         put("muscleMassKg", m.muscleMassKg?.let { Units.kgToDisplay(it, units) })
         showAdvanced = optional.isNotEmpty()
@@ -1204,7 +1204,7 @@ private fun AddMeasurementSheet(
                             timestamp = pulledTimestamp,
                             dateString = pulledDateString,
                             weightKg = Units.displayToKg(weight.toDoubleOrNull() ?: 0.0, units),
-                            bodyFatPct = d("bodyFatPct"),
+                            bodyFatPct = d("bodyFatPct")?.let { Units.trim(it).toDouble() },
                             bmr = i("bmr"),
                             muscleMassKg = d("muscleMassKg")?.let { Units.displayToKg(it, units) },
                         )

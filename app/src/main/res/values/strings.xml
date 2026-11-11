@@ -932,7 +932,7 @@
     <string name="profile_carbs_g">Carbs (g)</string>
     <string name="profile_fats_g">Fats (g)</string>
     <string name="profile_targets_safe_trend_adjustments_calculated_device_2">Targets and safe trend adjustments are calculated on device — no AI connection required.</string>
-    <string name="profile_fat"> · %1$s% fat</string>
+    <string name="profile_fat"> · %1$s%% fat</string>
     <string name="profile_kg_muscle"> · %1$s %2$s muscle</string>
     <string name="profile_science_based_recommendation">Science-based recommendation</string>
     <string name="profile_health_target_recommendation">Health target recommendation</string>
@@ -953,7 +953,7 @@
     <string name="profile_target_stability">Target stability</string>
     <string name="profile_body_trend_adjustment">Body-trend adjustment</string>
     <string name="profile_measurement_days_over_days">%1$s measurement days over %2$s days</string>
-    <string name="profile_weight_kg_week">Weight %1$s %3$s · %2$s%/week</string>
+    <string name="profile_weight_kg_week">Weight %1$s %3$s · %2$s%%/week</string>
     <string name="profile_body_fat_points">Body fat %1$s points</string>
     <string name="profile_muscle_kg">Muscle %1$s %2$s</string>
     <string name="profile_formula_target_retained_after_reviewing_trend">The formula target was retained after reviewing the trend.</string>
