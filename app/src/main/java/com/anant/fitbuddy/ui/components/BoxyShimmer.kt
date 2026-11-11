@@ -6,9 +6,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -25,24 +26,28 @@ val GlyphLedOn = Color(0xFFFFF6E8)
 val GlyphLedOff = Color(0xFF2C2C2C)
 val GlyphLedRed = Color(0xFFFF2D2D)
 
-/** Ring shimmer effects; one is picked per app launch, cycling in order. */
+/** Ring shimmer effects; cycles on each Activity ON_START (same as donate-heart color). */
 enum class GlyphShimmerStyle { SOFT, COMET, WAVE, TWINKLE, BREATHE }
 
-object GlyphShimmerLaunch {
-    private const val PREFS = "glyph_shimmer"
-    private const val KEY_COUNTER = "launch_counter"
+fun initialGlyphShimmerStyleIndex(): Int =
+    (System.currentTimeMillis() % GlyphShimmerStyle.entries.size).toInt()
 
-    @Volatile
-    var style: GlyphShimmerStyle = GlyphShimmerStyle.SOFT
+fun nextGlyphShimmerStyleIndex(current: Int): Int =
+    (current + 1) % GlyphShimmerStyle.entries.size
+
+fun glyphShimmerStyle(index: Int): GlyphShimmerStyle =
+    GlyphShimmerStyle.entries[index.mod(GlyphShimmerStyle.entries.size)]
+
+/** Process-wide shimmer index; advanced from MainScreen with the donate-heart color. */
+object GlyphShimmerCycle {
+    var index by mutableIntStateOf(initialGlyphShimmerStyleIndex())
         private set
 
-    /** Advances the persisted counter once per process and selects that launch's style. */
-    fun advance(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val styles = GlyphShimmerStyle.entries
-        val next = (prefs.getInt(KEY_COUNTER, -1) + 1).mod(styles.size)
-        prefs.edit().putInt(KEY_COUNTER, next).apply()
-        style = styles[next]
+    val style: GlyphShimmerStyle
+        get() = glyphShimmerStyle(index)
+
+    fun advance() {
+        index = nextGlyphShimmerStyleIndex(index)
     }
 }
 

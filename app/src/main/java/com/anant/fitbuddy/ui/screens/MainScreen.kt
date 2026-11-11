@@ -83,6 +83,7 @@ import com.anant.fitbuddy.data.model.toMealDraft
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.ui.components.AnantEasterEggDialog
+import com.anant.fitbuddy.ui.components.GlyphShimmerCycle
 import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
@@ -246,6 +247,7 @@ fun MainScreen(
                         awaitingInitialDonationStart = false
                     } else {
                         donationColorIndex = nextDonationHeartColorIndex(donationColorIndex)
+                        GlyphShimmerCycle.advance()
                     }
                 }
                 Lifecycle.Event.ON_RESUME -> {

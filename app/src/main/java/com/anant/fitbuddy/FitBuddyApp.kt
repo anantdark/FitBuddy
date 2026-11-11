@@ -32,7 +32,6 @@ import com.anant.fitbuddy.reminders.DonationReminderReceiver
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
 import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
-import com.anant.fitbuddy.ui.components.GlyphShimmerLaunch
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.widget.FitBuddyWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
@@ -170,7 +169,6 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
-        GlyphShimmerLaunch.advance(this)
         val settings = runBlocking {
             settingsRepository.ensureSupportId()
             // Fold legacy dedicated OpenAI → OpenAI-compatible before anything reads settings.

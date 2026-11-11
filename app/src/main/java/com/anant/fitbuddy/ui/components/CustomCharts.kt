@@ -122,6 +122,7 @@ fun CalorieRing(
     val onTarget = remainingKcal != null && kotlin.math.abs(remainingKcal) <= 100
     val goalReached = remainingKcal != null && remainingKcal <= 100
     val shimmerPhase = rememberLedShimmerPhase(enabled = !goalReached)
+    val shimmerStyle = GlyphShimmerCycle.style
     val scheme = MaterialTheme.colorScheme
     val ringColor = when {
         onTarget -> TrendGreen
@@ -206,7 +207,7 @@ fun CalorieRing(
                 offColor = glyphOff,
                 endColor = glyphEnd,
                 shimmerEnabled = !goalReached,
-                style = GlyphShimmerLaunch.style,
+                style = shimmerStyle,
             )
         }
 
