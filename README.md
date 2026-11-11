@@ -10,6 +10,7 @@
 <p align="center">
   <a href="https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml"><img src="https://github.com/anantdark/FitBuddy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/anantdark/FitBuddy/releases/latest"><img src="https://img.shields.io/github/v/release/anantdark/FitBuddy" alt="GitHub Release" /></a>
+  <a href="https://hosted.weblate.org/engage/fitbuddy/"><img src="https://hosted.weblate.org/widget/fitbuddy/fitbuddy/svg-badge.svg" alt="Translation status" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
   <a href="https://github.com/sponsors/anantdark"><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors&logoColor=white" alt="Sponsor" /></a>
   <a href="https://t.me/fitbuddyapp"><img src="https://img.shields.io/badge/Telegram-Join%20group-26A5E4?logo=telegram&logoColor=white" alt="Join Telegram group" /></a>
@@ -65,6 +66,17 @@
 </table>
 
 [Docs supporters](https://anantdark.github.io/FitBuddy/#supporters) · [GitHub Sponsors](https://github.com/sponsors/anantdark) · [Telegram](https://t.me/fitbuddyapp)
+
+## Translating
+
+UI strings are translated on [Hosted Weblate](https://hosted.weblate.org/projects/fitbuddy/fitbuddy/).
+See [docs/TRANSLATING.md](docs/TRANSLATING.md) for translator and maintainer instructions.
+
+<p align="center">
+  <a href="https://hosted.weblate.org/engage/fitbuddy/">
+    <img src="https://hosted.weblate.org/widget/fitbuddy/fitbuddy/multi-auto.svg" alt="Translation status" />
+  </a>
+</p>
 
 ## Star History
 
