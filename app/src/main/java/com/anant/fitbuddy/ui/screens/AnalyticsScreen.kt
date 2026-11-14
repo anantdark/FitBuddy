@@ -103,7 +103,6 @@ fun AnalyticsScreen(
     sixMonthExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCaloriesForDate: (String) -> Int,
-    targetWeightKg: Double? = null,
     /** Profile goal: LOSE_WEIGHT | GAIN_MUSCLE | RECOMP | AUTO */
     goal: String = "RECOMP",
     monthlyEndDate: String,
@@ -114,6 +113,7 @@ fun AnalyticsScreen(
     forceShowAnimation: Boolean = false,
     onShiftMonth: (Int) -> Unit,
     onRequestInsight: () -> Unit,
+    onContinueChat: () -> Unit,
     onOpenChat: () -> Unit,
     onDismissInsight: () -> Unit,
     modifier: Modifier = Modifier
@@ -129,7 +129,7 @@ fun AnalyticsScreen(
         if (isLatestWindow) last30DaysLabel else DateUtils.rolling30DayLabel(monthlyEndDate)
     }
 
-    progressInsightState.summary?.let {
+    if (progressInsightState.showInsightDialog) {
         ProgressInsightDialog(
             state = progressInsightState,
             onOpenChat = onOpenChat,
@@ -148,7 +148,8 @@ fun AnalyticsScreen(
                 isAiConfigured = isAiConfigured,
                 animationChoice = animationChoice,
                 forceShowAnimation = forceShowAnimation,
-                onRequestInsight = onRequestInsight
+                onRequestInsight = onRequestInsight,
+                onContinueChat = onContinueChat
             )
         }
 
@@ -217,11 +218,7 @@ fun AnalyticsScreen(
 
         // Independent of Weekly/Monthly: always the most recent scale readings.
         item {
-            BodyMetricCard(
-                measurements = measurements,
-                targetWeightKg = targetWeightKg,
-                goal = goal
-            )
+            BodyMetricCard(measurements = measurements)
         }
     }
 }
@@ -285,18 +282,13 @@ private fun MonthRangeNavigator(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BodyMetricCard(
-    measurements: List<BodyMeasurement>,
-    targetWeightKg: Double?,
-    goal: String
+    measurements: List<BodyMeasurement>
 ) {
     val pagerState = rememberPagerState(pageCount = { BODY_METRICS.size })
     val scope = rememberCoroutineScope()
     val units = LocalUnitSystem.current
     fun BodyMetric.shownUnit() = if (isMass) " ${Units.weightUnit(units)}" else unit
     fun BodyMetric.shown(v: Double) = if (isMass) Units.kgToDisplay(v, units) else v
-    val weightTarget = targetWeightKg?.takeIf { it.isFinite() && it > 0.0 }
-        ?.let { Units.kgToDisplay(it, units) }
-    val preferHigherWeight = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     ChartCard(title = stringResource(R.string.analytics_body_composition)) {
         HorizontalPager(
@@ -323,9 +315,6 @@ private fun BodyMetricCard(
                 points = points,
                 unit = metric.shownUnit(),
                 decreaseIsPositive = metric.decreaseIsPositive,
-                targetValue = if (metric.labelRes == R.string.onboarding_weight) weightTarget else null,
-                targetPreferHigher = preferHigherWeight,
-                targetTolerance = Units.kgToDisplay(1.0, units),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp)
@@ -361,19 +350,6 @@ private fun BodyMetricCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-
-        if (currentMetric.labelRes == R.string.onboarding_weight && weightTarget != null) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = if (preferHigherWeight) {
-                    stringResource(R.string.analytics_within_1_kg_green_above_1_kg, Units.weightLabel(1.0, units))
-                } else {
-                    stringResource(R.string.analytics_within_1_kg_green_below_1_kg, Units.weightLabel(1.0, units))
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
 
         Spacer(Modifier.height(12.dp))
@@ -439,7 +415,8 @@ private fun InsightCard(
     isAiConfigured: Boolean,
     animationChoice: String,
     forceShowAnimation: Boolean = false,
-    onRequestInsight: () -> Unit
+    onRequestInsight: () -> Unit,
+    onContinueChat: () -> Unit
 ) {
     ChartCard(title = stringResource(R.string.analytics_ai_progress_coach)) {
         Text(
@@ -456,32 +433,44 @@ private fun InsightCard(
         }
 
         val insightLoading = state.isLoading || forceShowAnimation
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = isAiConfigured && !insightLoading && !state.isChatLoading,
-            onClick = onRequestInsight,
-            // Keep primary colors while loading — disabled greys out the spinner caption.
-            colors = if (insightLoading) {
-                ButtonDefaults.buttonColors(
-                    disabledContainerColor = MaterialTheme.colorScheme.primary,
-                    disabledContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                ButtonDefaults.buttonColors()
-            },
-            contentPadding = if (insightLoading) PaddingValues(0.dp)
-                             else PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            if (insightLoading) {
-                LoadingAnimationHost(
-                    slot = LoadingAnimationSlot.INSIGHT,
-                    animationChoice = animationChoice,
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
-                )
-            } else {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+        if (state.hasKeptChat && !insightLoading) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = isAiConfigured && !state.isChatLoading,
+                onClick = onContinueChat
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text(stringResource(R.string.analytics_generate_insight))
+                Text(stringResource(R.string.analytics_continue_chat))
+            }
+        } else {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = isAiConfigured && !insightLoading && !state.isChatLoading,
+                onClick = onRequestInsight,
+                // Keep primary colors while loading — disabled greys out the spinner caption.
+                colors = if (insightLoading) {
+                    ButtonDefaults.buttonColors(
+                        disabledContainerColor = MaterialTheme.colorScheme.primary,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    ButtonDefaults.buttonColors()
+                },
+                contentPadding = if (insightLoading) PaddingValues(0.dp)
+                                 else PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                if (insightLoading) {
+                    LoadingAnimationHost(
+                        slot = LoadingAnimationSlot.INSIGHT,
+                        animationChoice = animationChoice,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    )
+                } else {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.analytics_generate_insight))
+                }
             }
         }
         if (!isAiConfigured) {
@@ -536,9 +525,7 @@ private fun ProgressInsightDialog(
             TextButton(onClick = onOpenChat) {
                 Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text(
-                    if (state.chatMessages.size > 1) "Continue chat" else stringResource(R.string.analytics_ask_follow_up)
-                )
+                Text(stringResource(R.string.analytics_ask_follow_up))
             }
         },
         dismissButton = {

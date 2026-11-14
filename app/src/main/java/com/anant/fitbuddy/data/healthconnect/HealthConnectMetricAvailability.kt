@@ -63,3 +63,14 @@ fun HealthConnectMetricPrefs.sanitized(): HealthConnectMetricPrefs = copy(
     exportHydration = exportHydration && HealthConnectMetricAvailability.exportHydration,
     exportExercise = exportExercise && HealthConnectMetricAvailability.exportExercise,
 )
+
+/**
+ * Applies runtime product gates on top of [sanitized].
+ * Hydration export requires FitBuddy water intake tracking — otherwise there is nothing to push.
+ */
+fun HealthConnectMetricPrefs.forSync(waterTrackingEnabled: Boolean): HealthConnectMetricPrefs {
+    val base = sanitized()
+    return base.copy(
+        exportHydration = base.exportHydration && waterTrackingEnabled
+    )
+}

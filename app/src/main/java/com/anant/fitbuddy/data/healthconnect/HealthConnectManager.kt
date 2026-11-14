@@ -59,8 +59,11 @@ class HealthConnectManager(private val context: Context) {
     val hydrationWrite = HealthPermission.getWritePermission(HydrationRecord::class)
     val sleepRead = HealthPermission.getReadPermission(SleepSessionRecord::class)
 
-    /** Union of permissions for every metric available in this build. */
-    fun allPermissions(): Set<String> = permissionsFor(
+    /**
+     * Union of permissions for every metric available in this build.
+     * [waterTrackingEnabled] gates WRITE_HYDRATION (no local water feature → don't ask).
+     */
+    fun allPermissions(waterTrackingEnabled: Boolean = true): Set<String> = permissionsFor(
         HealthConnectMetricPrefs(
             importWeight = HealthConnectMetricAvailability.importWeight,
             importHeight = HealthConnectMetricAvailability.importHeight,
@@ -75,14 +78,17 @@ class HealthConnectManager(private val context: Context) {
             exportHeight = HealthConnectMetricAvailability.exportHeight,
             exportBodyFat = HealthConnectMetricAvailability.exportBodyFat,
             exportMuscleMass = HealthConnectMetricAvailability.exportMuscleMass,
-            exportHydration = false,
+            exportHydration = HealthConnectMetricAvailability.exportHydration && waterTrackingEnabled,
             exportExercise = HealthConnectMetricAvailability.exportExercise,
         )
     )
 
     /** Permissions needed for the currently enabled, available metric toggles. */
-    fun permissionsFor(prefs: HealthConnectMetricPrefs): Set<String> {
-        val p = prefs.sanitized()
+    fun permissionsFor(
+        prefs: HealthConnectMetricPrefs,
+        waterTrackingEnabled: Boolean = true
+    ): Set<String> {
+        val p = prefs.forSync(waterTrackingEnabled)
         return buildSet {
             if (p.exportNutrition) add(nutritionWrite)
             if (p.importWeight) add(weightRead)
@@ -95,15 +101,17 @@ class HealthConnectManager(private val context: Context) {
             if (p.exportMuscleMass) add(leanBodyMassWrite)
             if (p.importExercise) {
                 add(exerciseRead)
+                // Optional enrichment — import still works without it (kcal fallback).
                 add(activeCaloriesRead)
             }
             if (p.exportExercise) {
                 add(exerciseWrite)
+                // Optional — session writes without it; kcal record skipped when missing.
                 add(activeCaloriesWrite)
             }
             if (p.importSteps) add(stepsRead)
             if (p.importHydration) add(hydrationRead)
-            // WRITE_HYDRATION omitted until exportHydration is available.
+            if (p.exportHydration) add(hydrationWrite)
             if (p.importSleep) add(sleepRead)
         }
     }
@@ -126,59 +134,80 @@ class HealthConnectManager(private val context: Context) {
             .getOrNull()
             .orEmpty()
 
-    suspend fun hasAnyPermission(prefs: HealthConnectMetricPrefs): Boolean {
-        val needed = permissionsFor(prefs)
+    suspend fun hasAnyPermission(
+        prefs: HealthConnectMetricPrefs,
+        waterTrackingEnabled: Boolean = true
+    ): Boolean {
+        val needed = permissionsFor(prefs, waterTrackingEnabled)
         if (needed.isEmpty()) return false
         return grantedPermissions().any { it in needed }
     }
 
-    suspend fun missingPermissions(prefs: HealthConnectMetricPrefs): Set<String> {
+    suspend fun missingPermissions(
+        prefs: HealthConnectMetricPrefs,
+        waterTrackingEnabled: Boolean = true
+    ): Set<String> {
         val granted = grantedPermissions()
-        return permissionsFor(prefs) - granted
+        return permissionsFor(prefs, waterTrackingEnabled) - granted
     }
 
     /**
-     * Turns off any metric whose required permissions are not fully granted.
-     * Export hydration stays forced off until water logging ships.
+     * Which available metrics have their required Health Connect permissions granted.
+     * Used to show/hide Settings toggles — prefs alone do not unlock a row.
+     * [waterTrackingEnabled] hides export hydration when local water tracking is off.
      */
-    fun alignToGranted(
-        prefs: HealthConnectMetricPrefs,
-        granted: Set<String>
+    fun visibilityFromGrants(
+        granted: Set<String>,
+        waterTrackingEnabled: Boolean = true
     ): HealthConnectMetricPrefs {
         fun has(vararg perms: String): Boolean = perms.isNotEmpty() && perms.all { it in granted }
-        return prefs.sanitized().copy(
-            importWeight = prefs.importWeight &&
-                HealthConnectMetricAvailability.importWeight && has(weightRead),
-            importHeight = prefs.importHeight &&
-                HealthConnectMetricAvailability.importHeight && has(heightRead),
-            importBodyFat = prefs.importBodyFat &&
-                HealthConnectMetricAvailability.importBodyFat && has(bodyFatRead),
-            importMuscleMass = prefs.importMuscleMass &&
-                HealthConnectMetricAvailability.importMuscleMass && has(leanBodyMassRead),
-            importExercise = prefs.importExercise &&
-                HealthConnectMetricAvailability.importExercise &&
-                has(exerciseRead, activeCaloriesRead),
-            importSteps = prefs.importSteps &&
-                HealthConnectMetricAvailability.importSteps && has(stepsRead),
-            importHydration = prefs.importHydration &&
-                HealthConnectMetricAvailability.importHydration && has(hydrationRead),
-            importSleep = prefs.importSleep &&
-                HealthConnectMetricAvailability.importSleep && has(sleepRead),
-            exportNutrition = prefs.exportNutrition &&
-                HealthConnectMetricAvailability.exportNutrition && has(nutritionWrite),
-            exportWeight = prefs.exportWeight &&
-                HealthConnectMetricAvailability.exportWeight && has(weightWrite),
-            exportHeight = prefs.exportHeight &&
-                HealthConnectMetricAvailability.exportHeight && has(heightWrite),
-            exportBodyFat = prefs.exportBodyFat &&
-                HealthConnectMetricAvailability.exportBodyFat && has(bodyFatWrite),
-            exportMuscleMass = prefs.exportMuscleMass &&
-                HealthConnectMetricAvailability.exportMuscleMass && has(leanBodyMassWrite),
-            exportHydration = false,
-            exportExercise = prefs.exportExercise &&
-                HealthConnectMetricAvailability.exportExercise &&
-                has(exerciseWrite, activeCaloriesWrite),
+        return HealthConnectMetricPrefs(
+            importWeight = HealthConnectMetricAvailability.importWeight && has(weightRead),
+            importHeight = HealthConnectMetricAvailability.importHeight && has(heightRead),
+            importBodyFat = HealthConnectMetricAvailability.importBodyFat && has(bodyFatRead),
+            importMuscleMass = HealthConnectMetricAvailability.importMuscleMass &&
+                has(leanBodyMassRead),
+            // Session permission alone is enough to show the toggle; Active Calories is optional.
+            importExercise = HealthConnectMetricAvailability.importExercise && has(exerciseRead),
+            importSteps = HealthConnectMetricAvailability.importSteps && has(stepsRead),
+            importHydration = HealthConnectMetricAvailability.importHydration && has(hydrationRead),
+            importSleep = HealthConnectMetricAvailability.importSleep && has(sleepRead),
+            exportNutrition = HealthConnectMetricAvailability.exportNutrition && has(nutritionWrite),
+            exportWeight = HealthConnectMetricAvailability.exportWeight && has(weightWrite),
+            exportHeight = HealthConnectMetricAvailability.exportHeight && has(heightWrite),
+            exportBodyFat = HealthConnectMetricAvailability.exportBodyFat && has(bodyFatWrite),
+            exportMuscleMass = HealthConnectMetricAvailability.exportMuscleMass &&
+                has(leanBodyMassWrite),
+            exportHydration = HealthConnectMetricAvailability.exportHydration &&
+                waterTrackingEnabled && has(hydrationWrite),
+            exportExercise = HealthConnectMetricAvailability.exportExercise && has(exerciseWrite),
         )
+    }
+
+    /** Turns off any metric whose required permissions are not fully granted. */
+    fun alignToGranted(
+        prefs: HealthConnectMetricPrefs,
+        granted: Set<String>,
+        waterTrackingEnabled: Boolean = true
+    ): HealthConnectMetricPrefs {
+        val visible = visibilityFromGrants(granted, waterTrackingEnabled)
+        return prefs.forSync(waterTrackingEnabled).copy(
+            importWeight = prefs.importWeight && visible.importWeight,
+            importHeight = prefs.importHeight && visible.importHeight,
+            importBodyFat = prefs.importBodyFat && visible.importBodyFat,
+            importMuscleMass = prefs.importMuscleMass && visible.importMuscleMass,
+            importExercise = prefs.importExercise && visible.importExercise,
+            importSteps = prefs.importSteps && visible.importSteps,
+            importHydration = prefs.importHydration && visible.importHydration,
+            importSleep = prefs.importSleep && visible.importSleep,
+            exportNutrition = prefs.exportNutrition && visible.exportNutrition,
+            exportWeight = prefs.exportWeight && visible.exportWeight,
+            exportHeight = prefs.exportHeight && visible.exportHeight,
+            exportBodyFat = prefs.exportBodyFat && visible.exportBodyFat,
+            exportMuscleMass = prefs.exportMuscleMass && visible.exportMuscleMass,
+            exportHydration = prefs.exportHydration && visible.exportHydration,
+            exportExercise = prefs.exportExercise && visible.exportExercise,
+        ).forSync(waterTrackingEnabled)
     }
 
     /**
@@ -193,16 +222,19 @@ class HealthConnectManager(private val context: Context) {
         previous: HealthConnectMetricPrefs,
         desired: HealthConnectMetricPrefs,
         resultGranted: Set<String>,
-        allGranted: Set<String>
+        allGranted: Set<String>,
+        waterTrackingEnabled: Boolean = true
     ): HealthConnectMetricPrefs {
         if (allGranted.isNotEmpty()) {
-            return alignToGranted(desired, allGranted + resultGranted)
+            return alignToGranted(desired, allGranted + resultGranted, waterTrackingEnabled)
         }
         fun confirmed(vararg perms: String): Boolean =
             perms.isNotEmpty() && perms.all { it in resultGranted }
         fun resolve(want: Boolean, wasOn: Boolean, vararg perms: String): Boolean {
             if (!want) return false
             if (confirmed(*perms)) return true
+            // Empty launcher result = user denied (or granted nothing). Do not keep stale ons.
+            if (resultGranted.isEmpty()) return false
             return wasOn
         }
         return desired.copy(
@@ -213,8 +245,7 @@ class HealthConnectManager(private val context: Context) {
                 desired.importMuscleMass, previous.importMuscleMass, leanBodyMassRead
             ),
             importExercise = resolve(
-                desired.importExercise, previous.importExercise,
-                exerciseRead, activeCaloriesRead
+                desired.importExercise, previous.importExercise, exerciseRead
             ),
             importSteps = resolve(desired.importSteps, previous.importSteps, stepsRead),
             importHydration = resolve(
@@ -230,12 +261,13 @@ class HealthConnectManager(private val context: Context) {
             exportMuscleMass = resolve(
                 desired.exportMuscleMass, previous.exportMuscleMass, leanBodyMassWrite
             ),
-            exportHydration = false,
-            exportExercise = resolve(
-                desired.exportExercise, previous.exportExercise,
-                exerciseWrite, activeCaloriesWrite
+            exportHydration = resolve(
+                desired.exportHydration, previous.exportHydration, hydrationWrite
             ),
-        ).sanitized()
+            exportExercise = resolve(
+                desired.exportExercise, previous.exportExercise, exerciseWrite
+            ),
+        ).forSync(waterTrackingEnabled)
     }
 
     suspend fun hasPermission(permission: String): Boolean = permission in grantedPermissions()

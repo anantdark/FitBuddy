@@ -3,6 +3,8 @@ package com.anant.fitbuddy.util
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
@@ -53,8 +55,32 @@ object ImageUtils {
             BitmapFactory.decodeStream(it, null, decodeOptions)
         } ?: return null
 
-        return bitmapToJpeg(bitmap)
+        val rotation = exifRotationDegrees(context, uri)
+        if (rotation == 0) return bitmapToJpeg(bitmap)
+        val rotated = Bitmap.createBitmap(
+            bitmap, 0, 0, bitmap.width, bitmap.height,
+            Matrix().apply { postRotate(rotation.toFloat()) }, true
+        )
+        if (rotated !== bitmap) bitmap.recycle()
+        return bitmapToJpeg(rotated)
     }
+
+    private fun exifRotationDegrees(context: Context, uri: Uri): Int =
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                when (
+                    ExifInterface(stream).getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                ) {
+                    ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                    ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                    ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                    else -> 0
+                }
+            }
+        }.getOrNull() ?: 0
 
     private fun compress(bitmap: Bitmap, quality: Int): ByteArray =
         ByteArrayOutputStream().use { stream ->

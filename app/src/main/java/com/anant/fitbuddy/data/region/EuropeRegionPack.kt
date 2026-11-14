@@ -40,15 +40,9 @@ object EuropeRegionPack : RegionPack {
         get() = PromptCatalog.regionText(region, "progress_food_guidance")
     override val measurementPromptNotes: String
         get() = PromptCatalog.regionText(region, "measurement_prompt_notes")
-    override val askPortionPromptNotes: String
-        get() = PromptCatalog.regionText(region, "ask_portion_prompt_notes")
 
     override val foodLogHint: String =
         "e.g. \"pasta with tomato sauce\" or \"2 slices of bread with cheese\""
-
-    override val askPortionHint: String =
-        "Know the dish but not grams? Estimates a standard European home serving " +
-            "(grams, millilitres, pieces)."
 
     override val barcodeExample: String = "4006381333931"
 }

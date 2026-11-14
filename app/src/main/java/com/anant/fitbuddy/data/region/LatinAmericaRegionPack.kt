@@ -68,15 +68,9 @@ object LatinAmericaRegionPack : RegionPack {
         get() = PromptCatalog.regionText(region, "progress_food_guidance")
     override val measurementPromptNotes: String
         get() = PromptCatalog.regionText(region, "measurement_prompt_notes")
-    override val askPortionPromptNotes: String
-        get() = PromptCatalog.regionText(region, "ask_portion_prompt_notes")
 
     override val foodLogHint: String =
         "e.g. \"2 tacos al pastor\" or \"arroz con pollo with beans\""
-
-    override val askPortionHint: String =
-        "Know the dish but not grams? Estimates a standard LatAm home/street serving " +
-            "(piezas, tazas, platos)."
 
     /** Mexico GS1 prefix example. */
     override val barcodeExample: String = "7501031311309"

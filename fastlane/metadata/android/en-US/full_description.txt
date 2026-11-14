@@ -5,7 +5,7 @@ Snap a photo or type what you ate — an LLM estimates calories and macros insta
 Features:
 • Region packs — personalise AI prompts, staples, portion language, and log examples to your region
 • Metric or imperial system — kg/cm/ml or lb/in/fl oz, defaulting to imperial in North America
-• Smart logging — photo or text; AI parses food and exercise automatically
+• Smart logging — photo or text; chain up to 5 photos with notes, or queue photos to analyze later; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc, and pick the log date (default today)
 • Editable workouts — structured sessions with a 1,500+ exercise catalog (demo GIFs via CDN), favourites, body-part/equipment filters, recent & frequent picks, AI session names, and upgrade for simple logs
 • Presets — searchable saved foods and meals; edit or delete anytime; recently used on top; one-tap log
@@ -13,7 +13,7 @@ Features:
 • Home-screen widgets — Quick Snap (photo log), Describe & Log (text), Calorie Orb (remaining kcal), Preset Launchpad (saved meals), Action Strip (photo · text · saved · barcode), and Water Intake (progress + quick-add)
 • Optional water tracking — Preferences toggle (off by default); water progress + quick-adds live in the calorie dashboard card; drinks appear in today’s log
 • Dashboard — daily calorie ring, combined food/exercise/water log, macro breakdown
-• Body goals — track weight, body-fat percentage, BMR, and muscle mass; current weight follows the newest reading; manually save calorie and macro targets, or calculate fresh adult targets with transparent Mifflin–St Jeor/TDEE estimates, quality-gated weight/body-fat/muscle trends, bounded AI-assisted personalization, activity guidance, and cautious weight milestones; AI can choose only between exact plans generated safely on-device
+• Body goals — track weight, body-fat percentage, BMR, and muscle mass; current weight follows the newest reading; manually save calorie and macro targets, or calculate fresh adult targets with transparent Mifflin–St Jeor/TDEE estimates, quality-gated weight/body-fat/muscle trends, bounded AI-assisted personalization, activity guidance; AI can choose only between exact plans generated safely on-device
 • Analytics — weekly or rolling 30-day calorie intake vs target, target-weight body charts, and a compact GitHub-style six-month calorie-burn heatmap
 • Encrypted backups — AES-256-GCM; gzip; optional cloud with append-only chunks
 • Loading animations — choose Analyzing / Insights wait animations in Settings

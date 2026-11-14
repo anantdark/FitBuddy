@@ -24,7 +24,6 @@ import com.anant.fitbuddy.ui.theme.appShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,20 +33,19 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import com.anant.fitbuddy.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.anant.fitbuddy.ui.viewmodel.ProgressChatMessage
 import com.anant.fitbuddy.ui.viewmodel.ProgressChatRole
 import com.anant.fitbuddy.ui.viewmodel.ProgressInsightUiState
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,14 +53,11 @@ fun ProgressCoachChatScreen(
     state: ProgressInsightUiState,
     isAiConfigured: Boolean,
     onBack: () -> Unit,
-    onClearAndBack: () -> Unit,
     onSendMessage: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var chatInput by remember { mutableStateOf("") }
-    var showExitDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    val hasUserMessages = state.chatMessages.any { it.role == ProgressChatRole.USER }
 
     LaunchedEffect(state.chatMessages.size, state.isChatLoading) {
         val lastIndex = state.chatMessages.lastIndex +
@@ -72,47 +67,7 @@ fun ProgressCoachChatScreen(
         }
     }
 
-    fun requestBack() {
-        if (hasUserMessages) {
-            showExitDialog = true
-        } else {
-            onBack()
-        }
-    }
-
-    BackHandler { requestBack() }
-
-    if (showExitDialog) {
-        AlertDialog(
-            onDismissRequest = { showExitDialog = false },
-            title = { Text(stringResource(R.string.coach_leave_conversation)) },
-            text = {
-                Text(
-                    stringResource(R.string.coach_you_can_keep_this_chat_for)
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showExitDialog = false
-                        onClearAndBack()
-                    }
-                ) {
-                    Text(stringResource(R.string.coach_clear_go_back))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showExitDialog = false
-                        onBack()
-                    }
-                ) {
-                    Text(stringResource(R.string.coach_keep_chat))
-                }
-            }
-        )
-    }
+    BackHandler(onBack = onBack)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -120,7 +75,7 @@ fun ProgressCoachChatScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.coach_progress_coach)) },
                 navigationIcon = {
-                    IconButton(onClick = ::requestBack) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.backup_back))
                     }
                 }

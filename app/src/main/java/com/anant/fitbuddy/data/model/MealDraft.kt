@@ -2,6 +2,7 @@ package com.anant.fitbuddy.data.model
 
 import androidx.compose.runtime.Immutable
 import com.anant.fitbuddy.util.roundMacro
+import com.anant.fitbuddy.util.roundQty
 import kotlin.math.roundToInt
 
 /**
@@ -27,6 +28,37 @@ data class FoodEntryDraft(
     val totalCarbs: Double get() = (baseCarbs * servings).roundMacro()
     val totalFats: Double get() = (baseFats * servings).roundMacro()
     val totalWeightG: Int get() = (baseWeightG * servings).roundToInt()
+
+    /**
+     * Qty shown in meal review (one decimal):
+     * one ingredient → that ingredient's count (× servings if servings were used before);
+     * multiple ingredients → whole-food servings.
+     */
+    val reviewQuantity: Double
+        get() = if (ingredients.size == 1) {
+            (ingredients[0].quantity * servings).roundQty().coerceAtLeast(0.0)
+        } else {
+            servings.roundQty().coerceAtLeast(0.0)
+        }
+
+    /**
+     * Applies a decimal qty from meal review.
+     * One ingredient → updates that ingredient's quantity and resets servings to 1.
+     * Multiple ingredients → updates [servings] (macros scale proportionally).
+     */
+    fun withReviewQuantity(qty: Double): FoodEntryDraft {
+        val q = qty.roundQty().coerceAtLeast(0.0)
+        return if (ingredients.size == 1) {
+            copy(
+                servings = 1.0,
+                ingredients = listOf(
+                    ingredients[0].copy(quantity = q)
+                )
+            )
+        } else {
+            copy(servings = q)
+        }
+    }
 }
 
 /** A logged (or in-progress) meal containing one or more [FoodEntryDraft] rows. */
@@ -69,3 +101,9 @@ fun FoodDraft.toSingleFoodMeal(): MealDraft = MealDraft(
     iconTopic = iconTopic
 )
 
+/**
+ * Prefer Food review when this meal is exactly one food (any ingredient count).
+ * Two or more foods → Meal review (returns null).
+ */
+fun MealDraft.asSingleFoodDraftOrNull(): FoodDraft? =
+    foods.singleOrNull()?.toFoodDraft(timestamp = timestamp, iconTopic = iconTopic)

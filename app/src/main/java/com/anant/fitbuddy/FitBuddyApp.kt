@@ -91,6 +91,7 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             bodyMeasurementDao = database.bodyMeasurementDao(),
             exerciseLogDao = database.exerciseLogDao(),
             userProfileDao = database.userProfileDao(),
+            waterLogDao = database.waterLogDao(),
         )
     }
 

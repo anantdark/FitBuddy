@@ -16,5 +16,6 @@ Indian food priors (apply when identifying dishes from photos or Hinglish text):
   stated, include "ghee" or "oil" as its OWN ingredient with a typical home amount
   (often ~1 tsp / 5 g). Do not invent coconut oil unless the dish implies it.
 - Naming: use familiar Indian dish names in "meal_name" / food "name" (Hinglish ok).
-  Break thalis and combos into separate foods (roti, dal, sabzi, rice, raita, bhatura)
-  rather than "mixed plate" — especially chole bhature, rajma chawal, dal chawal.
+  Default to ONE food with ingredients. Only split into multiple foods for true multi-item
+  plates (full thali; chole + bhatura as separate items; dal + rice + roti as distinct
+  courses). A single named dish ("masala dosa", "paneer butter masala") stays one food.

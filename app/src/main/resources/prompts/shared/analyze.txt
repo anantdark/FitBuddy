@@ -6,9 +6,9 @@ Decide the "status":
 - "SUCCESS": the input clearly shows/describes food or a meal and you can confidently
   estimate macros.
 - "EXERCISE_LOGGED": the input describes a physical activity/workout.
-- "CLARIFICATION_REQUIRED": it IS food/exercise but too vague (missing quantity, portion,
-  or which item) to estimate accurately. Ask a short, specific question in
-  "clarification_message".
+- "CLARIFICATION_REQUIRED": it IS food/exercise but too vague about WHICH item or activity
+  to estimate at all. Never use it for missing quantity or portion size. Ask a short,
+  specific question in "clarification_message".
 - "NOT_IDENTIFIED": there is NO identifiable food or physical activity. Use this when an
   attached image contains no food (e.g. a person, object, scenery, screenshot, document),
   or the text is unrelated to food/exercise. Put a short reason in "clarification_message"
@@ -18,10 +18,10 @@ Decide the "status":
 
 {{PROMPT_REFERENCE_TABLE}}
 
-Clarification for countable staples (text only, no clear photo portions):
-- If the user mentions discrete countable items (breads, eggs, snacks, etc.) without a count,
-  return CLARIFICATION_REQUIRED asking how many,
-  unless {{PORTION_OBVIOUSNESS_CLAUSE}}.
+Portion defaults (critical): NEVER ask a follow-up about quantity or portion. When no
+count or size is stated and the photo does not make it clear, assume ONE serving / one
+unit (1 roti, 1 egg, 1 slice, 1 bowl, 1 standard plate), return status "SUCCESS" and set
+"servings" to 1.
 {{STRICT_CLARIFICATION_BLOCK}}
 
 Accuracy rules (important):
@@ -33,13 +33,21 @@ Accuracy rules (important):
   break ties for ambiguous plates in this region.
 
 Food / meal structure (critical):
-- Split distinct plate items into separate entries in "foods" (e.g. burger + fries,
-  dal + rice + roti, thali components). Give the meal a clear "meal_name".
+- A FOOD is one dish/item (may have many ingredients). A MEAL is two or more foods
+  eaten together. The app opens Food review for exactly one food, Meal review for 2+.
+- DEFAULT to ONE food in "foods" with a clear name and its component "ingredients".
+  Most logs are a single dish (e.g. "masala dosa", "chicken burrito", "oatmeal with
+  banana") — do NOT split those into a multi-food meal.
+- Use multiple "foods" entries ONLY when the plate has clearly separate items the user
+  would track independently (e.g. burger + fries + soda; banana + glass of milk;
+  thali with roti, dal, sabzi, rice as distinct courses; starter + main). Give such
+  meals a clear "meal_name". Do NOT merge separate plate items into one food.
+- For a single food, set "meal_name" to the same dish name. Break it into ingredients
+  when useful (burger -> bun, patty, cheese). If breakdown is not useful (banana, soda,
+  fries alone), use one ingredient with the same name as the food.
 - Each food uses a BASE unit name. Put the count in "servings" (decimal allowed, one
-  place). Example: "2 burgers and fries" -> foods: burger servings=2, fries servings=1.
-- For EACH food, break it into "ingredients" when useful (burger -> bun, patty, cheese).
-  If it is not useful to break further (fries, banana, soda), use a single ingredient
-  with the same name as the food.
+  place). Example: "2 bananas" -> one food banana servings=2. "2 burgers and fries" ->
+  foods: burger servings=2, fries servings=1 (multi-food only because fries is separate).
 - Ingredient macros and weight_g are for ONE base unit of that food (servings scales them).
 - weight_g must be a whole number of grams. quantity/servings may be decimal (one place).
 {{MEASUREMENT_PROMPT_NOTES}}
@@ -47,8 +55,8 @@ Food / meal structure (critical):
 Ingredient quantity rules (critical for loose text):
 - When the user states a count of discrete items inside a food's ingredients, set
   "quantity" to that count and "weight_g" to the TOTAL grams for all units combined
-  (not grams per unit). Example: "4 almonds" as a lone snack -> one food "almonds"
-  servings=1 with ingredient almonds quantity=4, weight_g ~5-6 for all 4.
+  (not grams per unit). Example: "4 almonds" -> one food "almonds" servings=1 with
+  ingredient almonds quantity=4, weight_g ~5-6 for all 4.
 - Prefer food-level "servings" for whole items ("2 bananas" -> food banana servings=2,
   ingredient banana quantity=1 for one banana).
 - For bulk or continuous portions, use quantity 1 and weight_g as the portion weight.

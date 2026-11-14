@@ -96,7 +96,6 @@ fun BodyScreen(
     animationChoice: String = AppSettings.LOADING_ANIM_RANDOM,
     forceShowAnimation: Boolean = false,
     onSave: (
-        targetWeightKg: Double?,
         goal: String,
         activityLevel: String
     ) -> Unit,
@@ -121,7 +120,6 @@ fun BodyScreen(
         age: Int,
         heightCm: Double,
         weightKg: Double,
-        targetWeightKg: Double?,
         sex: String?,
         activityLevel: String,
         acceptActivityRecommendation: Boolean
@@ -133,29 +131,7 @@ fun BodyScreen(
         ?.takeIf { it.isFinite() && it > 0.0 }
     val units = LocalUnitSystem.current
     val wUnit = Units.weightUnit(units)
-    val targetWeight = remember(profile?.targetWeightKg, units) {
-        mutableStateOf(profile?.targetWeightKg?.let { Units.weightText(it, units) } ?: "")
-    }
     val goal = remember(profile?.goal) { mutableStateOf(profile?.goal ?: "RECOMP") }
-    val parsedTargetWeight = targetWeight.value.toDoubleOrNull()
-        ?.takeIf { it.isFinite() && it > 0.0 }
-        ?.let { Units.displayToKg(it, units) }
-    val targetWeightError = when {
-        targetWeight.value.isBlank() -> null
-        parsedTargetWeight == null -> stringResource(R.string.profile_enter_valid_weight_milestone)
-        currentWeight == null -> stringResource(R.string.profile_add_current_reading_before_setting_weight_milest)
-        goal.value == "GAIN_MUSCLE" && parsedTargetWeight < currentWeight ->
-            stringResource(R.string.profile_muscle_gain_target_cannot_below_current_weight)
-        goal.value == "LOSE_WEIGHT" && parsedTargetWeight > currentWeight ->
-            stringResource(R.string.profile_weight_loss_target_cannot_above_current_weight)
-        else -> null
-    }
-    val targetWeightInputValid = targetWeightError == null
-    val targetWeightForPlan = when {
-        targetWeight.value.isBlank() -> null
-        parsedTargetWeight != null -> parsedTargetWeight
-        else -> profile?.targetWeightKg
-    }
     val activity = remember(profile?.activityLevel) {
         mutableStateOf(profile?.activityLevel ?: "MODERATE")
     }
@@ -262,14 +238,6 @@ fun BodyScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            NumberField(stringResource(R.string.profile_weight_milestone_kg_optional, wUnit), targetWeight.value, decimal = true) {
-                targetWeight.value = it
-            }
-            Text(
-                text = stringResource(R.string.profile_personalized_targets_set_a_bounded_weight),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             val activityContext = LocalContext.current
             val activityOptions = remember(activityContext) {
                 ActivityLevels.optionRes.map { (value, res) ->
@@ -293,21 +261,12 @@ fun BodyScreen(
             )
             val goalOptions = GOAL_OPTION_RES.map { it.first to stringResource(it.second) }
             LabeledDropdown(stringResource(R.string.onboarding_goal), goal.value, goalOptions) { goal.value = it }
-            targetWeightError?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
         }
 
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = targetWeightInputValid,
             onClick = {
                 onSave(
-                    parsedTargetWeight,
                     goal.value,
                     activity.value
                 )
@@ -340,7 +299,6 @@ fun BodyScreen(
                 profile?.age ?: 0,
                 profile?.heightCm ?: 0.0,
                 currentWeight ?: 0.0,
-                targetWeightForPlan,
                 profile?.sex,
                 activity.value,
                 acceptActivityRecommendation
@@ -348,8 +306,6 @@ fun BodyScreen(
         }
         TargetProposalDialog(
             plan = plan,
-            currentWeightKg = currentWeight,
-            savedWeightMilestoneKg = profile?.targetWeightKg,
             currentActivityLevel = activity.value,
             onApply = { applyPlan(true) },
             onApplyCurrentActivity = { applyPlan(false) },
@@ -656,8 +612,6 @@ private fun ReadingsHistoryCard(
 @Composable
 private fun TargetProposalDialog(
     plan: TargetPlanResponse,
-    currentWeightKg: Double?,
-    savedWeightMilestoneKg: Double?,
     currentActivityLevel: String,
     onApply: () -> Unit,
     onApplyCurrentActivity: () -> Unit,
@@ -666,10 +620,6 @@ private fun TargetProposalDialog(
     val units = LocalUnitSystem.current
     val goalLabel = GOAL_OPTION_RES.firstOrNull { it.first == plan.recommendedGoal }?.let { stringResource(it.second) }
         ?: plan.recommendedGoal
-    val proposedTargetWeight = plan.targetWeightKg
-        ?.takeIf { it.isFinite() && it > 0.0 }
-    val isMaintenanceWeight = proposedTargetWeight != null && currentWeightKg != null &&
-        abs(proposedTargetWeight - currentWeightKg) < 0.05
     val recommendedActivity = plan.recommendedActivityLevel
         ?.takeIf { ActivityLevels.definition(it) != null }
     val activityChanged = recommendedActivity != null &&
@@ -678,9 +628,7 @@ private fun TargetProposalDialog(
     val activityLabelContext = LocalContext.current
     val activityUsedLabel = ActivityLevels.label(activityLabelContext, activityUsed)
     val currentActivityLabel = ActivityLevels.label(activityLabelContext, currentActivityLevel)
-    val weightMilestoneChanged = proposedTargetWeight != null &&
-        (savedWeightMilestoneKg == null || abs(proposedTargetWeight - savedWeightMilestoneKg) >= 0.05)
-    val canApply = plan.targetsChanged || weightMilestoneChanged || activityChanged
+    val canApply = plan.targetsChanged || activityChanged
     val rationaleParts = splitPlanRationale(plan.rationale)
     val localRationale = rationaleParts.localRationale.takeIf { it.isNotBlank() }
     val coachingNote = rationaleParts.coachingNote
@@ -695,8 +643,6 @@ private fun TargetProposalDialog(
     } ?: 0
     val title = when {
         plan.targetsChanged -> stringResource(R.string.profile_science_based_recommendation)
-        weightMilestoneChanged && activityChanged -> stringResource(R.string.profile_health_target_recommendation)
-        weightMilestoneChanged -> stringResource(R.string.profile_weight_milestone_recommendation)
         recommendedActivity != null -> stringResource(R.string.profile_activity_recommendation)
         else -> stringResource(R.string.profile_re_track)
     }
@@ -930,25 +876,6 @@ private fun TargetProposalDialog(
                     }
                 }
 
-                proposedTargetWeight?.let {
-                    RecommendationCard(title = stringResource(R.string.profile_weight_milestone)) {
-                        Text(
-                            text = "${formatOneDecimal(Units.kgToDisplay(it, units))} ${Units.weightUnit(units)}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (isMaintenanceWeight) {
-                                stringResource(R.string.profile_no_automatic_scale_weight_change_is)
-                            } else {
-                                stringResource(R.string.profile_initial_milestone_up_5_based_selected_weight)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
                 coachingNote?.let {
                     RecommendationCard(title = stringResource(R.string.profile_ai_coaching_note)) {
                         Text(
@@ -971,8 +898,6 @@ private fun TargetProposalDialog(
                     Text(
                         when {
                             plan.targetsChanged -> stringResource(R.string.profile_apply)
-                            weightMilestoneChanged && activityChanged -> stringResource(R.string.profile_apply_recommendations)
-                            weightMilestoneChanged -> stringResource(R.string.profile_save_weight_milestone)
                             else -> stringResource(R.string.profile_apply_activity_level)
                         }
                     )

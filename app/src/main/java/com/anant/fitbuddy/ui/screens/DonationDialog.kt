@@ -32,8 +32,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.Queue
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -125,13 +128,26 @@ internal fun MainTopBarActions(
     donationColor: Color,
     onDonate: () -> Unit,
     onSettings: () -> Unit,
+    queuedCount: Int = 0,
+    onQueue: () -> Unit = {},
 ) {
-    IconButton(onClick = onDonate) {
-        Icon(
-            imageVector = Icons.Filled.Favorite,
-            contentDescription = stringResource(R.string.donate_support_fitbuddy),
-            tint = donationColor,
-        )
+    if (queuedCount > 0) {
+        IconButton(onClick = onQueue) {
+            BadgedBox(badge = { Badge { Text(queuedCount.toString()) } }) {
+                Icon(
+                    imageVector = Icons.Filled.Queue,
+                    contentDescription = stringResource(R.string.photo_queue_title),
+                )
+            }
+        }
+    } else {
+        IconButton(onClick = onDonate) {
+            Icon(
+                imageVector = Icons.Filled.Favorite,
+                contentDescription = stringResource(R.string.donate_support_fitbuddy),
+                tint = donationColor,
+            )
+        }
     }
     IconButton(onClick = onSettings) {
         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.donate_settings))

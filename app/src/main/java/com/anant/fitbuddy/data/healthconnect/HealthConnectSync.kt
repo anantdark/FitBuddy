@@ -18,6 +18,7 @@ import com.anant.fitbuddy.data.database.ExerciseLogDao
 import com.anant.fitbuddy.data.database.FoodLog
 import com.anant.fitbuddy.data.database.FoodLogDao
 import com.anant.fitbuddy.data.database.UserProfileDao
+import com.anant.fitbuddy.data.database.WaterLogDao
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.util.DateUtils
 import java.time.Instant
@@ -62,6 +63,7 @@ class HealthConnectSync(
     private val bodyMeasurementDao: BodyMeasurementDao,
     private val exerciseLogDao: ExerciseLogDao,
     private val userProfileDao: UserProfileDao,
+    private val waterLogDao: WaterLogDao,
 ) {
     private val writer = HealthConnectWriter(manager)
     private val reader = HealthConnectReader(manager)
@@ -139,7 +141,6 @@ class HealthConnectSync(
             .onFailure { Log.w(TAG, "delete exercise failed: ${it.message}") }
     }
 
-    /** Ready for upcoming water logging. */
     suspend fun mirrorHydration(entryId: Long, milliliters: Double, timestampMs: Long) {
         if (!exportEnabled { it.exportHydration }) return
         runCatching { writer.writeHydration(entryId, milliliters, timestampMs) }
@@ -151,6 +152,41 @@ class HealthConnectSync(
         runCatching { writer.deleteHydration(entryId) }
     }
 
+    /**
+     * Pulls current Health Connect grants, turns off prefs for revoked types, and disables
+     * the master sync switch when nothing usable remains. Runs on every Sync now / auto-sync
+     * (including when the data pull is debounced).
+     *
+     * @return aligned metrics, or `null` when sync must stop (permissions revoked).
+     */
+    private suspend fun reconcilePermissions(): HealthConnectMetricPrefs? {
+        val settings = settingsRepository.settings.first()
+        val waterOn = settings.waterTrackingEnabled
+        val granted = manager.grantedPermissions()
+        val aligned = manager.alignToGranted(
+            settings.healthConnectMetrics, granted, waterOn
+        )
+        val visible = manager.visibilityFromGrants(granted, waterOn)
+        val noUsableGrants = !visible.anyImport() && !visible.anyExport()
+        if (
+            aligned != settings.healthConnectMetrics ||
+            (noUsableGrants && settings.healthConnectEnabled)
+        ) {
+            settingsRepository.update {
+                it.copy(
+                    healthConnectMetrics = aligned,
+                    healthConnectEnabled = it.healthConnectEnabled && !noUsableGrants
+                )
+            }
+        }
+        if (noUsableGrants) {
+            Log.i(TAG, "HC permissions empty or unusable — sync disabled")
+            return null
+        }
+        // Runtime gate: never push hydration when water tracking is off.
+        return aligned.forSync(waterOn)
+    }
+
     suspend fun syncNow(force: Boolean = true): HealthConnectSyncResult = mutex.withLock {
         val settings = settingsRepository.settings.first()
         if (!settings.healthConnectEnabled) {
@@ -159,13 +195,10 @@ class HealthConnectSync(
         if (!manager.isAvailable()) {
             return HealthConnectSyncResult(error = "Health Connect is unavailable on this device")
         }
-        val metrics = settings.healthConnectMetrics.sanitized()
-        val missing = manager.missingPermissions(metrics)
-        if (missing.isNotEmpty() && !manager.hasAnyPermission(metrics)) {
-            return HealthConnectSyncResult(
-                error = "Health Connect permissions not granted — open Integrations and authorize"
-            )
-        }
+
+        // Always refresh OS grants first (even when the data window is debounced).
+        val metrics = reconcilePermissions()
+            ?: return HealthConnectSyncResult(error = ERROR_PERMISSIONS_REVOKED)
 
         val now = System.currentTimeMillis()
         val syncPrefs = context.healthConnectSyncStore.data.first()
@@ -174,13 +207,12 @@ class HealthConnectSync(
             return HealthConnectSyncResult()
         }
 
-        // First sync: bootstrap recent history. Later syncs: only since last success
+        // First sync or manual Sync now: full window. Auto sync: since last success
         // (tiny overlap covers clock skew / in-flight writes).
         val bootstrapFrom = now - TimeUnit.DAYS.toMillis(SYNC_WINDOW_DAYS)
-        val fromMs = if (lastSyncAt > 0L) {
-            maxOf(0L, lastSyncAt - INCREMENTAL_OVERLAP_MS)
-        } else {
-            bootstrapFrom
+        val fromMs = when {
+            force || lastSyncAt <= 0L -> bootstrapFrom
+            else -> maxOf(0L, lastSyncAt - INCREMENTAL_OVERLAP_MS)
         }
         val from = Instant.ofEpochMilli(fromMs)
         val to = Instant.ofEpochMilli(now)
@@ -214,6 +246,9 @@ class HealthConnectSync(
             if (metrics.exportExercise) {
                 exercisesExported = pushRecentExercises(fromMs)
             }
+            if (metrics.exportHydration) {
+                pushRecentHydration(fromMs)
+            }
             if (metrics.importWeight) weightsImported = importWeights(from, to)
             if (metrics.importBodyFat) bodyFatImported = importBodyFats(from, to)
             if (metrics.importMuscleMass) importMuscleMasses(from, to)
@@ -227,7 +262,13 @@ class HealthConnectSync(
             }
         }.onFailure {
             Log.w(TAG, "sync failed: ${it.message}", it)
-            error = it.message ?: "Sync failed"
+            error = when (it) {
+                is SecurityException -> {
+                    reconcilePermissions()
+                    ERROR_PERMISSIONS_REVOKED
+                }
+                else -> it.message ?: "Sync failed"
+            }
         }
 
         HealthConnectSyncResult(
@@ -250,7 +291,11 @@ class HealthConnectSync(
 
     private suspend fun metricPrefs(): HealthConnectMetricPrefs? {
         val s = settingsRepository.settings.first()
-        return if (s.healthConnectEnabled) s.healthConnectMetrics else null
+        return if (s.healthConnectEnabled) {
+            s.healthConnectMetrics.forSync(s.waterTrackingEnabled)
+        } else {
+            null
+        }
     }
 
     private suspend fun exportEnabled(flag: (HealthConnectMetricPrefs) -> Boolean): Boolean {
@@ -285,6 +330,25 @@ class HealthConnectSync(
             if (log.timestamp < fromMs) continue
             if (isStepsLogName(log.activityName)) continue
             if (writer.writeExercise(log)) count++
+        }
+        return count
+    }
+
+    private suspend fun pushRecentHydration(fromMs: Long): Int {
+        if (!manager.hasHydrationWrite()) return 0
+        var count = 0
+        for (log in waterLogDao.getAllOnce()) {
+            if (log.timestamp < fromMs) continue
+            if (log.amountMl <= 0) continue
+            if (
+                writer.writeHydration(
+                    entryId = log.id.toLong(),
+                    milliliters = log.amountMl.toDouble(),
+                    timestampMs = log.timestamp
+                )
+            ) {
+                count++
+            }
         }
         return count
     }
@@ -399,11 +463,16 @@ class HealthConnectSync(
         for (session in reader.readExercises(from, to)) {
             if (session.recordId.isBlank()) continue
             if (session.recordId in importedIds) continue
-            val duplicate = existing.any { log ->
+            val match = existing.firstOrNull { log ->
                 kotlin.math.abs(log.timestamp - session.startMs) < DUPLICATE_WINDOW_MS &&
                     log.activityName.equals(session.title, ignoreCase = true)
             }
-            if (duplicate) {
+            if (match != null) {
+                if (match.healthConnectRecordId.isNullOrBlank()) {
+                    exerciseLogDao.insertExerciseLog(
+                        match.copy(healthConnectRecordId = session.recordId)
+                    )
+                }
                 newlyImported += session.recordId
                 continue
             }
@@ -422,7 +491,8 @@ class HealthConnectSync(
                     dateString = DateUtils.format(session.startMs),
                     caloriesBurned = calories,
                     durationMinutes = durationMin,
-                    iconTopic = null
+                    iconTopic = null,
+                    healthConnectRecordId = session.recordId
                 )
             )
             newlyImported += session.recordId
@@ -446,6 +516,7 @@ class HealthConnectSync(
             val calories = stepsToCalories(day.steps)
             val durationMin = (day.steps / STEPS_PER_MINUTE).toInt().coerceAtLeast(1)
             val name = "Steps (${day.steps})"
+            val stepsRecordId = stepsRecordId(day.dateString)
             val prior = existing.firstOrNull { log ->
                 log.dateString == day.dateString && isStepsLogName(log.activityName)
             }
@@ -453,7 +524,8 @@ class HealthConnectSync(
                 if (
                     prior.caloriesBurned == calories &&
                     prior.activityName == name &&
-                    prior.durationMinutes == durationMin
+                    prior.durationMinutes == durationMin &&
+                    prior.healthConnectRecordId == stepsRecordId
                 ) {
                     continue
                 }
@@ -462,7 +534,8 @@ class HealthConnectSync(
                         activityName = name,
                         caloriesBurned = calories,
                         durationMinutes = durationMin,
-                        timestamp = day.timestampMs
+                        timestamp = day.timestampMs,
+                        healthConnectRecordId = stepsRecordId
                     )
                 )
             } else {
@@ -473,7 +546,8 @@ class HealthConnectSync(
                         dateString = day.dateString,
                         caloriesBurned = calories,
                         durationMinutes = durationMin,
-                        iconTopic = null
+                        iconTopic = null,
+                        healthConnectRecordId = stepsRecordId
                     )
                 )
             }
@@ -505,14 +579,18 @@ class HealthConnectSync(
 
     companion object {
         private const val TAG = "FitBuddy/HC"
-        /** Bootstrap window used only when there is no prior successful sync. */
-        private const val SYNC_WINDOW_DAYS = 14L
+        /** Bootstrap / manual Sync now history window (Health Connect foreground default). */
+        private const val SYNC_WINDOW_DAYS = 30L
         private const val MIN_AUTO_SYNC_GAP_MS = 60L * 60L * 1000L
         private const val INCREMENTAL_OVERLAP_MS = 5L * 60L * 1000L
         private const val DUPLICATE_WINDOW_MS = 90_000L
         private const val MIN_STEPS_TO_LOG = 500L
         private const val STEPS_PER_MINUTE = 100L
         private const val KCAL_PER_STEP = 0.04
+
+        /** Stable sync error when OS grants are missing or revoked. */
+        const val ERROR_PERMISSIONS_REVOKED =
+            "Health Connect permissions were revoked — open Integrations and authorize"
 
         private val KEY_LAST_SYNC_AT = longPreferencesKey("hc_last_sync_at")
         private val KEY_LAST_EXPORTED_HEIGHT_CM = doublePreferencesKey("hc_last_exported_height_cm")
@@ -521,6 +599,8 @@ class HealthConnectSync(
         private val KEY_HYDRATION_DATE = stringPreferencesKey("hc_hydration_date")
         private val KEY_SLEEP_MINUTES = intPreferencesKey("hc_sleep_minutes")
         private val KEY_SLEEP_DATE = stringPreferencesKey("hc_sleep_date")
+
+        fun stepsRecordId(dateString: String): String = "steps:$dateString"
 
         fun stepsToCalories(steps: Long): Int =
             (steps * KCAL_PER_STEP).toInt().coerceAtLeast(1)

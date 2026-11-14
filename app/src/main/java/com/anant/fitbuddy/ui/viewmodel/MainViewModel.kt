@@ -15,6 +15,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.backup.BackupErrorMessages
 import com.anant.fitbuddy.data.backup.BackupImportResult
+import com.anant.fitbuddy.data.healthconnect.forSync
 import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -38,11 +39,15 @@ import com.anant.fitbuddy.data.model.COMMON_EXERCISES_SEED
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.FoodDraft
+import com.anant.fitbuddy.data.model.QueuedPhotoLog
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.HealthTargetInput
 import com.anant.fitbuddy.data.model.MealDraft
+import com.anant.fitbuddy.data.model.asSingleFoodDraftOrNull
+import com.anant.fitbuddy.data.model.snapshot
 import com.anant.fitbuddy.data.model.toFoodDraft
+import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toSingleFoodMeal
 import com.anant.fitbuddy.data.model.ModelOption
 import com.anant.fitbuddy.data.model.NutritionTargetHistory
@@ -74,9 +79,13 @@ import com.anant.fitbuddy.data.remote.oauth.OpenRouterPkce
 import com.anant.fitbuddy.data.region.AppRegion
 import com.anant.fitbuddy.data.repository.AnalysisOutcome
 import com.anant.fitbuddy.data.repository.FitnessRepository
+import com.anant.fitbuddy.data.model.ProgressChatSession
+import com.anant.fitbuddy.data.model.ProgressChatSessionMessage
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
+import com.anant.fitbuddy.data.settings.PhotoQueueStore
+import com.anant.fitbuddy.data.settings.ProgressChatSessionStore
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
 import com.anant.fitbuddy.reminders.DonationReminderScheduler
@@ -182,8 +191,25 @@ data class AnalysisUiState(
     val reviewMessage: String? = null,
     // Non-null when the review dialog is editing an existing log row (so Save updates in place).
     val editingFoodLogId: Int? = null,
+    /**
+     * When editing a food inside an open [mealDraft], the index being edited.
+     * Null when food review is standalone or for meal-builder (builder keeps its own index).
+     */
+    val editingMealFoodIndex: Int? = null,
     /** Developer: last raw AI JSON when "Show raw AI JSON" is on. */
     val rawAiJson: String? = null
+)
+
+const val MAX_PHOTO_LOG_IMAGES = 5
+
+/** Photos and note being composed in the photo-log dialog before sending or queueing. */
+@Immutable
+data class PhotoDraftUiState(
+    val visible: Boolean = false,
+    val photos: List<ByteArray> = emptyList(),
+    val note: String = "",
+    /** Set when editing an existing queue item instead of composing a new log. */
+    val editingQueueId: String? = null
 )
 
 /** State of the free/vision model catalog used by the Settings dropdown. */
@@ -205,16 +231,6 @@ data class TargetPlanUiState(
     val appliedRevision: Long = 0L
 )
 
-private fun targetWeightMatchesGoal(
-    targetWeightKg: Double,
-    currentWeightKg: Double,
-    goal: String
-): Boolean = when (goal.trim().uppercase()) {
-    "GAIN_MUSCLE" -> currentWeightKg <= 0.0 || targetWeightKg >= currentWeightKg
-    "LOSE_WEIGHT" -> currentWeightKg <= 0.0 || targetWeightKg <= currentWeightKg
-    else -> true
-}
-
 /** One message in the progress-coach follow-up chat. */
 @Immutable
 data class ProgressChatMessage(
@@ -235,7 +251,13 @@ data class ProgressInsightUiState(
     /** Full progress metrics JSON for follow-up chat (comprehensive data). */
     val metricsContextFull: String? = null,
     val chatMessages: List<ProgressChatMessage> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    /** True when a kept chat exists on disk and is still within the UTC-day window. */
+    val hasKeptChat: Boolean = false,
+    /** Shows the insight summary popup after a fresh generate (not when resuming a kept chat). */
+    val showInsightDialog: Boolean = false,
+    /** Epoch ms of the latest chat message; kept sessions expire after that UTC day. */
+    val lastMessageAtEpochMs: Long = 0L
 )
 
 /** State of saving a workout session + estimating its calories burned. */
@@ -995,6 +1017,7 @@ class MainViewModel(
             .distinctUntilChanged()
             .onEach { auto ->
                 if (auto) {
+                    // syncNow reconciles HC permissions before the data pull (and before debounce).
                     runCatching { repository.syncHealthConnect(force = false) }
                 }
             }
@@ -1033,7 +1056,6 @@ class MainViewModel(
                     targetFatsG = plan.targetFatsG,
                     goal = plan.recommendedGoal,
                     goalRationale = plan.rationale,
-                    targetWeightKg = plan.targetWeightKg,
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 ),
                 effectiveFromDate = DateUtils.today(),
@@ -1231,7 +1253,9 @@ class MainViewModel(
     fun updateHealthConnectMetrics(metrics: com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs) {
         viewModelScope.launch {
             settingsRepository.update {
-                it.copy(healthConnectMetrics = metrics.sanitized())
+                it.copy(
+                    healthConnectMetrics = metrics.forSync(it.waterTrackingEnabled)
+                )
             }
         }
     }
@@ -1247,11 +1271,21 @@ class MainViewModel(
                     )
                 }
             _healthConnectSyncBusy.value = false
+            val revoked = result.error ==
+                com.anant.fitbuddy.data.healthconnect.HealthConnectSync.ERROR_PERMISSIONS_REVOKED
+            if (revoked) {
+                settingsRepository.update {
+                    it.copy(healthConnectEnabled = false)
+                }
+            }
             if (!announce) return@launch
             _analysisState.update {
                 it.copy(
-                    userMessage = result.error?.takeIf { err -> err.isNotBlank() }
-                        ?: str(R.string.vm_health_connect_synced)
+                    userMessage = when {
+                        revoked -> str(R.string.vm_health_connect_permissions_revoked)
+                        !result.error.isNullOrBlank() -> result.error
+                        else -> str(R.string.vm_health_connect_synced)
+                    }
                 )
             }
         }
@@ -1876,20 +1910,82 @@ class MainViewModel(
     }
 
     fun openMealReview(draft: MealDraft) {
-        _analysisState.update { it.copy(mealDraft = draft, foodDraft = null) }
+        _analysisState.update {
+            it.copy(
+                mealDraft = draft.snapshot(),
+                foodDraft = null,
+                editingMealFoodIndex = null
+            )
+        }
     }
 
     fun dismissMealDraft() {
-        _analysisState.update { it.copy(mealDraft = null, editingFoodLogId = null) }
+        _analysisState.update {
+            it.copy(
+                mealDraft = null,
+                foodDraft = null,
+                editingFoodLogId = null,
+                editingMealFoodIndex = null
+            )
+        }
     }
 
     fun dismissFoodDraft() {
         _analysisState.update {
             it.copy(
                 foodDraft = null,
+                editingMealFoodIndex = null,
                 // Clear edit id only when we were editing a single-food log (no meal draft open).
                 editingFoodLogId = if (it.mealDraft == null) null else it.editingFoodLogId
             )
+        }
+    }
+
+    /** Opens Food review nested inside meal review for the food at [index]. */
+    fun editMealDraftFood(index: Int) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state
+            val food = meal.foods.getOrNull(index) ?: return@update state
+            state.copy(
+                foodDraft = food.toFoodDraft(timestamp = meal.timestamp, iconTopic = meal.iconTopic),
+                editingMealFoodIndex = index,
+                reviewMessage = null
+            )
+        }
+    }
+
+    fun setMealDraftName(name: String) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state
+            state.copy(mealDraft = meal.copy(name = name))
+        }
+    }
+
+    fun setMealDraftTimestamp(timestamp: Long) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state
+            state.copy(mealDraft = meal.copy(timestamp = timestamp))
+        }
+    }
+
+    fun setMealDraftFoodQuantity(index: Int, qty: Double) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state
+            if (index !in meal.foods.indices) return@update state
+            val updated = meal.foods[index].withReviewQuantity(qty)
+            state.copy(
+                mealDraft = meal.copy(
+                    foods = meal.foods.toMutableList().also { it[index] = updated }
+                )
+            )
+        }
+    }
+
+    /** Appends a food to the open meal review (e.g. Add food). */
+    fun addMealDraftFood(food: FoodEntryDraft) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state
+            state.copy(mealDraft = meal.copy(foods = meal.foods + food.snapshot()))
         }
     }
 
@@ -2405,7 +2501,6 @@ class MainViewModel(
         age: Int,
         heightCm: Double,
         weightKg: Double,
-        targetWeightKg: Double?,
         sex: String?,
         activityLevel: String,
         acceptActivityRecommendation: Boolean
@@ -2442,13 +2537,6 @@ class MainViewModel(
             } else {
                 plan
             }
-            val planGoal = appliedPlan.recommendedGoal.ifBlank { "RECOMP" }
-            val proposedTargetWeight = appliedPlan.targetWeightKg
-                ?.takeIf { it.isFinite() && it > 0.0 }
-                ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
-                ?: targetWeightKg
-                    ?.takeIf { it.isFinite() && it > 0.0 }
-                    ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
             val existing = dashboardState.value.profile
             val applyNutritionTargets = appliedPlan.targetsChanged
             repository.saveProfileRecordingTargets(
@@ -2482,7 +2570,6 @@ class MainViewModel(
                     goal = appliedPlan.recommendedGoal.ifBlank { existing?.goal ?: "RECOMP" },
                     activityLevel = appliedPlan.recommendedActivityLevel ?: activityLevel,
                     goalRationale = appliedPlan.rationale,
-                    targetWeightKg = proposedTargetWeight,
                     nutritionTargetHistory = existing?.nutritionTargetHistory.orEmpty()
                 ),
                 effectiveFromDate = DateUtils.today(),
@@ -2502,18 +2589,38 @@ class MainViewModel(
 
     // --- AI progress insight ----------------------------------------------------------------
 
+    private val progressChatSessionStore = ProgressChatSessionStore(app)
     private val _progressInsight = MutableStateFlow(ProgressInsightUiState())
     val progressInsightState: StateFlow<ProgressInsightUiState> = _progressInsight.asStateFlow()
 
+    init {
+        // After store init — earlier class init runs before this property exists.
+        refreshKeptProgressChatFlag()
+    }
+
+    /** Drops Continue chat once the kept session has crossed UTC midnight since last message. */
+    fun refreshKeptProgressChatFlag() {
+        viewModelScope.launch {
+            val kept = progressChatSessionStore.loadActive() != null
+            _progressInsight.update { state ->
+                if (state.hasKeptChat == kept) state else state.copy(hasKeptChat = kept)
+            }
+        }
+    }
+
     fun requestProgressInsight() {
         if (_progressInsight.value.isLoading) return
-        _progressInsight.update { it.copy(isLoading = true, error = null) }
+        val kept = _progressInsight.value.hasKeptChat
+        _progressInsight.update {
+            it.copy(isLoading = true, error = null, showInsightDialog = false)
+        }
         viewModelScope.launch {
             val contextJson = buildProgressContext()
             val compressed = ProgressMetricsCompressor.compress(contextJson)
             runCatching { repository.summarizeProgress(compressed) }
                 .onSuccess { r ->
                     val seedMessage = formatProgressInsightForChat(r)
+                    val now = System.currentTimeMillis()
                     _progressInsight.update {
                         ProgressInsightUiState(
                             summary = r.summary,
@@ -2522,15 +2629,70 @@ class MainViewModel(
                             metricsContextFull = contextJson,
                             chatMessages = listOf(
                                 ProgressChatMessage(ProgressChatRole.ASSISTANT, seedMessage)
-                            )
+                            ),
+                            hasKeptChat = kept,
+                            showInsightDialog = true,
+                            lastMessageAtEpochMs = now
                         )
                     }
                 }
                 .onFailure { e ->
                     _progressInsight.update {
-                        it.copy(isLoading = false, error = friendlyThrowableMessage(e, str(R.string.vm_couldn_t_generate_insight)))
+                        it.copy(
+                            isLoading = false,
+                            error = friendlyThrowableMessage(e, str(R.string.vm_couldn_t_generate_insight)),
+                            hasKeptChat = kept
+                        )
                     }
                 }
+        }
+    }
+
+    /**
+     * Opens chat for a freshly generated insight. Replaces any previously kept session
+     * (Continue disappears until this chat is kept again).
+     */
+    fun openProgressChatFromInsight() {
+        _progressInsight.update {
+            it.copy(hasKeptChat = false, showInsightDialog = false, error = null)
+        }
+        viewModelScope.launch { progressChatSessionStore.clear() }
+    }
+
+    /** Restores a kept chat; [onReady] is true when the chat screen can open. */
+    fun continueKeptProgressChat(onReady: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val session = progressChatSessionStore.loadActive()
+            if (session == null) {
+                _progressInsight.update { it.copy(hasKeptChat = false, showInsightDialog = false) }
+                onReady(false)
+                return@launch
+            }
+            val messages = session.messages.mapNotNull { msg ->
+                val role = when (msg.role.lowercase()) {
+                    "user" -> ProgressChatRole.USER
+                    "assistant" -> ProgressChatRole.ASSISTANT
+                    else -> return@mapNotNull null
+                }
+                ProgressChatMessage(role, msg.text)
+            }
+            if (messages.isEmpty() || session.metricsContextFull.isBlank()) {
+                progressChatSessionStore.clear()
+                _progressInsight.update { it.copy(hasKeptChat = false, showInsightDialog = false) }
+                onReady(false)
+                return@launch
+            }
+            _progressInsight.value = ProgressInsightUiState(
+                summary = session.summary,
+                recommendations = session.recommendations,
+                bodyScore = session.bodyScore,
+                metricsContextFull = session.metricsContextFull,
+                chatMessages = messages,
+                hasKeptChat = true,
+                showInsightDialog = false,
+                lastMessageAtEpochMs = session.lastMessageAtEpochMs
+            )
+            onReady(true)
         }
     }
 
@@ -2539,12 +2701,14 @@ class MainViewModel(
         if (trimmed.isBlank() || _progressInsight.value.isChatLoading) return
         val fullContext = _progressInsight.value.metricsContextFull ?: return
 
+        val now = System.currentTimeMillis()
         val userMessage = ProgressChatMessage(ProgressChatRole.USER, trimmed)
         _progressInsight.update {
             it.copy(
                 chatMessages = it.chatMessages + userMessage,
                 isChatLoading = true,
-                error = null
+                error = null,
+                lastMessageAtEpochMs = now
             )
         }
 
@@ -2557,11 +2721,13 @@ class MainViewModel(
             }
             runCatching { repository.chatProgressInsight(fullContext, history) }
                 .onSuccess { reply ->
+                    val replyAt = System.currentTimeMillis()
                     _progressInsight.update {
                         it.copy(
                             isChatLoading = false,
                             chatMessages = it.chatMessages +
-                                ProgressChatMessage(ProgressChatRole.ASSISTANT, reply)
+                                ProgressChatMessage(ProgressChatRole.ASSISTANT, reply),
+                            lastMessageAtEpochMs = replyAt
                         )
                     }
                 }
@@ -2576,21 +2742,45 @@ class MainViewModel(
         }
     }
 
-    /** Resets follow-up chat to the initial insight message only. */
-    fun clearProgressChat() {
-        _progressInsight.update { state ->
-            val seed = state.chatMessages.firstOrNull()
-            state.copy(
-                chatMessages = if (seed != null) listOf(seed) else emptyList(),
-                isChatLoading = false,
-                error = null
+    /** Persists the current chat on back so Continue works until the next UTC day. */
+    fun keepProgressChat() {
+        viewModelScope.launch {
+            val state = _progressInsight.value
+            val context = state.metricsContextFull
+            if (context.isNullOrBlank() || state.chatMessages.isEmpty()) {
+                _progressInsight.value = ProgressInsightUiState(
+                    hasKeptChat = progressChatSessionStore.loadActive() != null
+                )
+                return@launch
+            }
+            val lastAt = state.lastMessageAtEpochMs.takeIf { it > 0L }
+                ?: System.currentTimeMillis()
+            val session = ProgressChatSession(
+                messages = state.chatMessages.map {
+                    ProgressChatSessionMessage(
+                        role = if (it.role == ProgressChatRole.USER) "user" else "assistant",
+                        text = it.text
+                    )
+                },
+                metricsContextFull = context,
+                summary = state.summary,
+                recommendations = state.recommendations,
+                bodyScore = state.bodyScore,
+                lastMessageAtEpochMs = lastAt
             )
+            progressChatSessionStore.save(session)
+            _progressInsight.value = ProgressInsightUiState(hasKeptChat = true)
         }
     }
 
-    /** Dismisses the insight popup and clears coach state (does not persist on the Progress card). */
+    /**
+     * Dismisses the insight popup without ending a kept chat.
+     * Fresh (unsaved) generate state is discarded.
+     */
     fun dismissProgressInsight() {
-        _progressInsight.value = ProgressInsightUiState()
+        val kept = _progressInsight.value.hasKeptChat
+        _progressInsight.value = ProgressInsightUiState(hasKeptChat = kept)
+        if (kept) refreshKeptProgressChatFlag()
     }
 
     private fun formatProgressInsightForChat(response: ProgressInsightResponse): String = buildString {
@@ -3128,34 +3318,142 @@ class MainViewModel(
 
     // Retained so a clarification answer can be merged with the original prompt/photo.
     private var pendingText: String = ""
-    private var pendingImage: ByteArray? = null
+    private var pendingImages: List<ByteArray> = emptyList()
 
-    fun analyzeText(text: String) = submit(text, null)
+    fun analyzeText(text: String) {
+        runningQueueId = null
+        submit(text, emptyList())
+    }
 
-    fun analyzeImage(imageBytes: ByteArray, note: String = "") = submit(note, imageBytes)
+    // --- Photo log dialog + queue -----------------------------------------------------------
+
+    private val photoQueueStore = PhotoQueueStore(app)
+    val photoQueue: StateFlow<List<QueuedPhotoLog>> = photoQueueStore.items
+    private val _photoDraft = MutableStateFlow(PhotoDraftUiState())
+    val photoDraft: StateFlow<PhotoDraftUiState> = _photoDraft.asStateFlow()
+
+    // Queue item being analysed; removed once it produces a result so failures stay queued.
+    private var runningQueueId: String? = null
+
+    init {
+        viewModelScope.launch { photoQueueStore.load() }
+    }
+
+    fun addPhotosToDraft(photos: List<ByteArray>) = _photoDraft.update {
+        it.copy(visible = true, photos = (it.photos + photos).take(MAX_PHOTO_LOG_IMAGES))
+    }
+
+    fun removePhotoFromDraft(index: Int) = _photoDraft.update {
+        it.copy(photos = it.photos.filterIndexed { i, _ -> i != index })
+    }
+
+    fun setPhotoDraftNote(note: String) = _photoDraft.update { it.copy(note = note) }
+
+    fun dismissPhotoDraft() {
+        _photoDraft.value = PhotoDraftUiState()
+    }
+
+    fun sendPhotoDraft() {
+        val draft = _photoDraft.value
+        if (draft.photos.isEmpty()) return
+        dismissPhotoDraft()
+        runningQueueId = draft.editingQueueId
+        submit(draft.note.trim(), draft.photos)
+    }
+
+    fun queuePhotoDraft() {
+        val draft = _photoDraft.value
+        if (draft.photos.isEmpty()) return
+        dismissPhotoDraft()
+        viewModelScope.launch {
+            val editId = draft.editingQueueId
+            if (editId != null) {
+                photoQueueStore.update(editId, draft.photos, draft.note)
+            } else {
+                photoQueueStore.add(draft.photos, draft.note)
+            }
+            _analysisState.update {
+                it.copy(
+                    userMessage = str(
+                        if (editId != null) R.string.photo_queue_updated else R.string.photo_queue_saved
+                    )
+                )
+            }
+        }
+    }
+
+    fun editQueuedPhoto(id: String) {
+        val item = photoQueue.value.firstOrNull { it.id == id } ?: return
+        viewModelScope.launch {
+            val photos = photoQueueStore.photos(id)
+            if (photos.isEmpty()) {
+                photoQueueStore.remove(id)
+                _analysisState.update { it.copy(userMessage = str(R.string.photo_queue_missing)) }
+                return@launch
+            }
+            _photoDraft.value = PhotoDraftUiState(
+                visible = true,
+                photos = photos,
+                note = item.note,
+                editingQueueId = id
+            )
+        }
+    }
+
+    fun runQueuedPhoto(id: String) {
+        val item = photoQueue.value.firstOrNull { it.id == id } ?: return
+        viewModelScope.launch {
+            val photos = photoQueueStore.photos(id)
+            if (photos.isEmpty()) {
+                photoQueueStore.remove(id)
+                _analysisState.update { it.copy(userMessage = str(R.string.photo_queue_missing)) }
+                return@launch
+            }
+            runningQueueId = id
+            submit(item.note, photos)
+        }
+    }
+
+    suspend fun queuedThumbnail(id: String): ByteArray? = photoQueueStore.photos(id).firstOrNull()
+
+    fun deleteQueuedPhoto(id: String) {
+        viewModelScope.launch { photoQueueStore.remove(id) }
+    }
+
+    private fun finishQueuedRun() {
+        val id = runningQueueId ?: return
+        runningQueueId = null
+        viewModelScope.launch { photoQueueStore.remove(id) }
+    }
 
     fun submitClarification(answer: String) {
         val merged = listOf(pendingText, answer)
             .filter { it.isNotBlank() }
             .joinToString(". ")
-        submit(merged, pendingImage, resetPending = false)
+        submit(merged, pendingImages, resetPending = false)
     }
 
-    private fun submit(text: String, image: ByteArray?, resetPending: Boolean = true) {
+    private fun submit(text: String, images: List<ByteArray>, resetPending: Boolean = true) {
         if (resetPending) {
             pendingText = text
-            pendingImage = image
+            pendingImages = images
         }
         CrashReporter.breadcrumb(
             "ai",
-            if (image != null) "analyze_photo" else "analyze_text"
+            if (pendingImages.isNotEmpty()) "analyze_photo" else "analyze_text"
         )
-        val initialModel = settings.value.modelFor(image != null).takeIf { it.isNotBlank() }
-        _analysisState.update { it.copy(isLoading = true, clarificationMessage = null, analyzingModel = initialModel) }
+        val initialModel = settings.value.modelFor(pendingImages.isNotEmpty()).takeIf { it.isNotBlank() }
+        _analysisState.update {
+            it.copy(
+                isLoading = true,
+                clarificationMessage = null,
+                analyzingModel = initialModel,
+            )
+        }
         viewModelScope.launch {
             val outcome = repository.analyze(
                 text,
-                image,
+                pendingImages,
                 buildUserStateContext(),
                 customTimestamp = activeDayTimestamp(),
                 onModelActive = { modelId ->
@@ -3168,9 +3466,11 @@ class MainViewModel(
 
     private fun handleOutcome(outcome: AnalysisOutcome) {
         val rawJson = maybeRawAiJson()
+        // Capture before clearPending() wipes the photo buffer.
         when (outcome) {
             is AnalysisOutcome.FoodReady -> {
                 clearPending()
+                finishQueuedRun()
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
@@ -3179,6 +3479,7 @@ class MainViewModel(
                         foodDraft = outcome.draft,
                         mealDraft = null,
                         editingFoodLogId = null,
+                        editingMealFoodIndex = null,
                         userMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
@@ -3187,14 +3488,16 @@ class MainViewModel(
 
             is AnalysisOutcome.MealReady -> {
                 clearPending()
+                finishQueuedRun()
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
                         analyzingModel = null,
                         clarificationMessage = null,
                         foodDraft = null,
-                        mealDraft = outcome.draft,
+                        mealDraft = outcome.draft.snapshot(),
                         editingFoodLogId = null,
+                        editingMealFoodIndex = null,
                         userMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
@@ -3203,6 +3506,7 @@ class MainViewModel(
 
             is AnalysisOutcome.ExerciseSaved -> {
                 clearPending()
+                finishQueuedRun()
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
@@ -3284,6 +3588,7 @@ class MainViewModel(
                     foodDraft = null,
                     mealDraft = null,
                     editingFoodLogId = null,
+                    editingMealFoodIndex = null,
                     userMessage = if (editingId != null) {
                         str(R.string.vm_updated_kcal_2, draft.name, draft.totalCalories)
                     } else {
@@ -3294,36 +3599,28 @@ class MainViewModel(
         }
     }
 
-    /**
-     * Opens food review for a single-food log, or meal review for a multi-food meal.
-     */
+    /** Opens Food review for a one-food log; Meal review when two or more foods. */
     fun editFoodLog(log: FoodLog) {
         viewModelScope.launch {
             val draft = repository.mealLogToMealDraft(log)
-            if (draft.foods.size <= 1) {
-                val food = draft.foods.firstOrNull()
+            val foodDraft = draft.asSingleFoodDraftOrNull()
+            if (foodDraft != null) {
                 _analysisState.update {
                     it.copy(
-                        foodDraft = food?.toFoodDraft(
-                            timestamp = log.timestamp,
-                            iconTopic = log.iconTopic
-                        ) ?: FoodDraft(
-                            dishName = log.dishName,
-                            timestamp = log.timestamp,
-                            ingredients = emptyList(),
-                            iconTopic = log.iconTopic
-                        ),
+                        foodDraft = foodDraft,
                         mealDraft = null,
                         editingFoodLogId = log.id,
+                        editingMealFoodIndex = null,
                         reviewMessage = null
                     )
                 }
             } else {
                 _analysisState.update {
                     it.copy(
-                        mealDraft = draft,
+                        mealDraft = draft.snapshot(),
                         foodDraft = null,
                         editingFoodLogId = log.id,
+                        editingMealFoodIndex = null,
                         reviewMessage = null
                     )
                 }
@@ -3339,11 +3636,25 @@ class MainViewModel(
         }
     }
 
-    /** Removes an exercise entry from the log. */
+    /** Removes an exercise entry from the log (blocked for Health Connect imports). */
     fun deleteExerciseLog(log: ExerciseLog) {
         viewModelScope.launch {
-            repository.deleteExercise(log)
-            _analysisState.update { it.copy(userMessage = str(R.string.vm_removed, log.activityName)) }
+            if (log.isFromHealthConnect()) {
+                _analysisState.update {
+                    it.copy(userMessage = str(R.string.vm_health_connect_imported_not_deletable))
+                }
+                return@launch
+            }
+            val removed = repository.deleteExercise(log)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (removed) {
+                        str(R.string.vm_removed, log.activityName)
+                    } else {
+                        str(R.string.vm_health_connect_imported_not_deletable)
+                    }
+                )
+            }
         }
     }
 
@@ -3379,14 +3690,6 @@ class MainViewModel(
         }
     }
 
-    private val _cloneMealRequest = MutableStateFlow<MealDraft?>(null)
-    /** One-shot: open meal review with a clone-to-today draft. */
-    val cloneMealRequest: StateFlow<MealDraft?> = _cloneMealRequest.asStateFlow()
-
-    fun consumeCloneMealRequest() {
-        _cloneMealRequest.value = null
-    }
-
     /**
      * Opens food or meal review prefilled from [log], stamped for real today. Save inserts a new
      * row ([editingFoodLogId] stays null).
@@ -3395,29 +3698,27 @@ class MainViewModel(
         viewModelScope.launch {
             val todayTs = DateUtils.timestampOnDate(_realToday.value)
             val draft = repository.mealLogToMealDraft(log).copy(timestamp = todayTs)
-            if (draft.foods.size <= 1) {
-                val food = draft.foods.firstOrNull()
+            val foodDraft = draft.asSingleFoodDraftOrNull()
+            if (foodDraft != null) {
                 _analysisState.update {
                     it.copy(
-                        foodDraft = food?.toFoodDraft(
-                            timestamp = todayTs,
-                            iconTopic = draft.iconTopic
-                        ),
+                        foodDraft = foodDraft,
                         mealDraft = null,
                         editingFoodLogId = null,
+                        editingMealFoodIndex = null,
                         reviewMessage = null
                     )
                 }
             } else {
                 _analysisState.update {
                     it.copy(
-                        mealDraft = draft,
+                        mealDraft = draft.snapshot(),
                         foodDraft = null,
                         editingFoodLogId = null,
+                        editingMealFoodIndex = null,
                         reviewMessage = null
                     )
                 }
-                _cloneMealRequest.value = draft
             }
         }
     }
@@ -3490,17 +3791,58 @@ class MainViewModel(
         }
     }
 
-    fun openFoodEditor(draft: FoodDraft) {
-        _analysisState.update { it.copy(foodDraft = draft, reviewMessage = null) }
+    fun openFoodEditor(draft: FoodDraft, mealFoodIndex: Int? = null) {
+        _analysisState.update {
+            it.copy(
+                foodDraft = draft,
+                editingMealFoodIndex = mealFoodIndex,
+                reviewMessage = null
+            )
+        }
     }
 
     /** Updates a food row inside the in-progress meal review (after editing its ingredients). */
-    fun updateMealDraftFood(index: Int, food: com.anant.fitbuddy.data.model.FoodEntryDraft) {
+    fun updateMealDraftFood(index: Int, food: FoodEntryDraft) {
         _analysisState.update { state ->
             val meal = state.mealDraft ?: return@update state
             if (index !in meal.foods.indices) return@update state
-            val updated = meal.foods.toMutableList().also { it[index] = food }
+            val updated = meal.foods.toMutableList().also { it[index] = food.snapshot() }
             state.copy(mealDraft = meal.copy(foods = updated))
+        }
+    }
+
+    /** Removes a food row from the in-progress meal review draft. */
+    fun removeMealDraftFood(index: Int) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state
+            if (index !in meal.foods.indices) return@update state
+            val updated = meal.foods.toMutableList().also { it.removeAt(index) }
+            state.copy(
+                mealDraft = meal.copy(foods = updated),
+                editingMealFoodIndex = if (state.editingMealFoodIndex == index) null
+                else state.editingMealFoodIndex
+            )
+        }
+    }
+
+    /** Applies nested Food review confirm back into [mealDraft] and closes the food sheet. */
+    fun applyMealFoodEdit(confirmed: FoodDraft) {
+        _analysisState.update { state ->
+            val meal = state.mealDraft ?: return@update state.copy(
+                foodDraft = null,
+                editingMealFoodIndex = null
+            )
+            val index = state.editingMealFoodIndex
+            if (index == null || index !in meal.foods.indices) {
+                return@update state.copy(foodDraft = null, editingMealFoodIndex = null)
+            }
+            val entry = confirmed.toFoodEntry().snapshot()
+            val foods = meal.foods.toMutableList().also { it[index] = entry }
+            state.copy(
+                mealDraft = meal.copy(foods = foods),
+                foodDraft = null,
+                editingMealFoodIndex = null
+            )
         }
     }
 
@@ -3517,30 +3859,28 @@ class MainViewModel(
         viewModelScope.launch {
             // forceEstimate: the user is renaming an item mid-review, so always recompute a
             // best-effort result instead of bouncing back a clarification question.
-            val outcome = repository.analyze(text, null, buildUserStateContext(), forceEstimate = true)
+            val outcome = repository.analyze(text, emptyList(), buildUserStateContext(), forceEstimate = true)
             applyReanalyzeOutcome(outcome)
         }
     }
 
-    /**
-     * Re-runs analysis with a fixed portion template so the AI estimates a standard home serving
-     * when the user knows the dish but not grams.
-     */
-    fun askForPortion(dishName: String) {
-        val name = dishName.trim()
+    /** Re-runs analysis for the open meal review (name + current food names as context). */
+    fun reanalyzeMeal(correctedText: String) {
+        val meal = _analysisState.value.mealDraft ?: return
+        val name = correctedText.trim().ifBlank { meal.name }.trim()
         if (name.isBlank()) return
-        val pack = com.anant.fitbuddy.data.region.RegionPacks.packOrIndia(
-            com.anant.fitbuddy.data.region.AppRegion.fromStored(settings.value.region)
-        )
-        val prompt = com.anant.fitbuddy.data.prompts.PromptCatalog.askPortionUserPrompt(
-            name,
-            pack.askPortionPromptNotes
-        )
+        val prompt = buildString {
+            append(name)
+            if (meal.foods.isNotEmpty()) {
+                append(": ")
+                append(meal.foods.joinToString(", ") { it.name })
+            }
+        }
         _analysisState.update { it.copy(isReanalyzing = true, reviewMessage = null) }
         viewModelScope.launch {
             val outcome = repository.analyze(
                 prompt,
-                null,
+                emptyList(),
                 buildUserStateContext(),
                 forceEstimate = true
             )
@@ -3551,36 +3891,80 @@ class MainViewModel(
     private fun applyReanalyzeOutcome(outcome: AnalysisOutcome) {
         val rawJson = maybeRawAiJson()
         _analysisState.update { state ->
+            // Nested food edit keeps foodDraft while mealDraft is also set.
+            val foodReviewOpen = state.foodDraft != null
             when (outcome) {
-                is AnalysisOutcome.FoodReady ->
-                    state.copy(
-                        isReanalyzing = false,
-                        foodDraft = outcome.draft.copy(
-                            timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp,
-                            quantity = state.foodDraft?.quantity ?: outcome.draft.quantity,
-                            iconTopic = state.foodDraft?.iconTopic ?: outcome.draft.iconTopic
-                        ),
-                        reviewMessage = outcome.failoverNote,
-                        rawAiJson = rawJson
+                is AnalysisOutcome.FoodReady -> {
+                    val stamped = outcome.draft.copy(
+                        timestamp = state.foodDraft?.timestamp
+                            ?: state.mealDraft?.timestamp
+                            ?: outcome.draft.timestamp,
+                        quantity = state.foodDraft?.quantity ?: outcome.draft.quantity,
+                        iconTopic = state.foodDraft?.iconTopic
+                            ?: state.mealDraft?.iconTopic
+                            ?: outcome.draft.iconTopic
                     )
-
-                is AnalysisOutcome.MealReady -> {
-                    // Reanalyze is opened from food review — keep a single food sheet.
-                    val entry = outcome.draft.foods.firstOrNull()
-                    if (entry != null) {
+                    if (foodReviewOpen) {
                         state.copy(
                             isReanalyzing = false,
-                            foodDraft = entry.toFoodDraft(
-                                timestamp = state.foodDraft?.timestamp ?: outcome.draft.timestamp,
-                                iconTopic = state.foodDraft?.iconTopic ?: outcome.draft.iconTopic
-                            ).copy(quantity = state.foodDraft?.quantity ?: entry.servings),
+                            foodDraft = stamped,
                             reviewMessage = outcome.failoverNote,
                             rawAiJson = rawJson
                         )
                     } else {
+                        // Stay on meal review even when AI returns one food.
                         state.copy(
                             isReanalyzing = false,
-                            reviewMessage = str(R.string.vm_couldn_t_recompute_dish),
+                            mealDraft = stamped.toSingleFoodMeal().snapshot(),
+                            foodDraft = null,
+                            editingMealFoodIndex = null,
+                            reviewMessage = outcome.failoverNote,
+                            rawAiJson = rawJson
+                        )
+                    }
+                }
+
+                is AnalysisOutcome.MealReady -> {
+                    val preservedTs = state.foodDraft?.timestamp
+                        ?: state.mealDraft?.timestamp
+                        ?: outcome.draft.timestamp
+                    val preservedIcon = state.foodDraft?.iconTopic
+                        ?: state.mealDraft?.iconTopic
+                        ?: outcome.draft.iconTopic
+                    val meal = outcome.draft.copy(
+                        timestamp = preservedTs,
+                        iconTopic = preservedIcon
+                    ).snapshot()
+                    val single = meal.asSingleFoodDraftOrNull()
+                    if (foodReviewOpen) {
+                        if (single != null) {
+                            val priorQty = state.foodDraft?.quantity
+                            state.copy(
+                                isReanalyzing = false,
+                                foodDraft = single.copy(
+                                    quantity = priorQty ?: single.quantity
+                                ),
+                                reviewMessage = outcome.failoverNote,
+                                rawAiJson = rawJson
+                            )
+                        } else {
+                            // Multi-food result while editing a food → open meal review.
+                            state.copy(
+                                isReanalyzing = false,
+                                mealDraft = meal,
+                                foodDraft = null,
+                                editingMealFoodIndex = null,
+                                reviewMessage = outcome.failoverNote,
+                                rawAiJson = rawJson
+                            )
+                        }
+                    } else {
+                        state.copy(
+                            isReanalyzing = false,
+                            mealDraft = meal,
+                            foodDraft = null,
+                            editingMealFoodIndex = null,
+                            reviewMessage = outcome.failoverNote,
                             rawAiJson = rawJson
                         )
                     }
@@ -3642,7 +4026,7 @@ class MainViewModel(
 
     private fun clearPending() {
         pendingText = ""
-        pendingImage = null
+        pendingImages = emptyList()
     }
 
     // --- Profile ----------------------------------------------------------------------------
@@ -3952,7 +4336,6 @@ class MainViewModel(
                     goal = existing?.goal ?: "RECOMP",
                     activityLevel = existing?.activityLevel ?: "MODERATE",
                     goalRationale = existing?.goalRationale,
-                    targetWeightKg = existing?.targetWeightKg,
                     nutritionTargetHistory = existing?.nutritionTargetHistory.orEmpty()
                 ),
                 effectiveFromDate = DateUtils.today(),
@@ -4003,23 +4386,6 @@ class MainViewModel(
                             targetFatsG = plan.targetFatsG,
                             goal = plan.recommendedGoal.ifBlank { profile.goal },
                             goalRationale = plan.rationale,
-                            targetWeightKg = plan.targetWeightKg
-                                ?.takeIf { it.isFinite() && it > 0.0 }
-                                ?.takeIf {
-                                    targetWeightMatchesGoal(
-                                        it,
-                                        profile.weightKg,
-                                        plan.recommendedGoal.ifBlank { profile.goal }
-                                    )
-                                }
-                                ?: profile.targetWeightKg
-                                    ?.takeIf {
-                                        targetWeightMatchesGoal(
-                                            it,
-                                            profile.weightKg,
-                                            plan.recommendedGoal.ifBlank { profile.goal }
-                                        )
-                                    },
                             lastUpdatedTimestamp = System.currentTimeMillis()
                         ),
                         effectiveFromDate = DateUtils.today(),
@@ -4107,19 +4473,13 @@ class MainViewModel(
     }
 
     fun saveProfile(
-        targetWeightKg: Double?,
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
-        val currentWeight = currentWeightKg()
-        val validTargetWeight = targetWeightKg
-            ?.takeIf { it.isFinite() && it > 0.0 }
-            ?.takeIf { targetWeightMatchesGoal(it, currentWeight, goal) }
         viewModelScope.launch {
             runCatching {
                 check(
                     repository.updateBodyProfile(
-                        targetWeightKg = validTargetWeight,
                         goal = goal,
                         activityLevel = activityLevel
                     )
@@ -4436,7 +4796,6 @@ class MainViewModel(
             put("target_carbs_g", plan.targetCarbsG)
             put("target_fats_g", plan.targetFatsG)
             put("targets_changed", plan.targetsChanged)
-            put("target_weight_kg", plan.targetWeightKg ?: JSONObject.NULL)
             put("recommended_activity_level", plan.recommendedActivityLevel ?: JSONObject.NULL)
             put("activity_window_days", plan.activityWindowDays ?: JSONObject.NULL)
             put("activity_workout_days", plan.activityWorkoutDays ?: JSONObject.NULL)

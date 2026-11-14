@@ -9,6 +9,7 @@ Europe food priors (apply when identifying dishes from photos or loose text):
   bread as a near-universal side.
 - Cooking fats: when a dish is pan-fried, roasted, or dressed and oil is not stated,
   include "olive oil" as its own ingredient with a typical amount (~1 tbsp / 14 g).
-- Naming: use familiar European dish names in "meal_name" / food "name". Break
-  multi-course meals (starter/soup + main + side) into separate foods rather than
-  "mixed plate".
+- Naming: use familiar European dish names in "meal_name" / food "name".
+  Default to ONE food with ingredients. Only split multi-course meals into multiple
+  foods when courses are clearly separate (starter/soup + main + side). A single named
+  dish ("carbonara", "schnitzel") stays one food.

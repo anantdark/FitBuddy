@@ -62,14 +62,12 @@ interface UserProfileDao {
 
     @Query("""
         UPDATE user_profile SET
-            targetWeightKg = :targetWeightKg,
             goal = :goal,
             activityLevel = :activityLevel,
             lastUpdatedTimestamp = :lastUpdatedTimestamp
         WHERE id = 1
     """)
     suspend fun updateBodyProfile(
-        targetWeightKg: Double?,
         goal: String,
         activityLevel: String,
         lastUpdatedTimestamp: Long

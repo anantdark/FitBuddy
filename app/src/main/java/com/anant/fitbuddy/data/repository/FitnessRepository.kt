@@ -74,6 +74,7 @@ import com.anant.fitbuddy.data.region.IndiaRegionPack
 import com.anant.fitbuddy.data.region.RegionPack
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.data.region.RegionalDish
+import com.anant.fitbuddy.data.model.asSingleFoodDraftOrNull
 import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toMealDraft
@@ -1147,11 +1148,9 @@ class FitnessRepository(
     }
 
     suspend fun updateBodyProfile(
-        targetWeightKg: Double?,
         goal: String,
         activityLevel: String
     ): Boolean = userProfileDao.updateBodyProfile(
-        targetWeightKg = targetWeightKg,
         goal = goal,
         activityLevel = activityLevel,
         lastUpdatedTimestamp = System.currentTimeMillis()
@@ -1168,8 +1167,13 @@ class FitnessRepository(
         healthConnectSync?.syncNow(force = force)
             ?: HealthConnectSyncResult(error = "Health Connect is unavailable")
 
-    /** Deleting an exercise log also removes its workout session + exercises, if it was mirrored from one. */
-    suspend fun deleteExercise(log: ExerciseLog) {
+    /**
+     * Deleting an exercise log also removes its workout session + exercises, if it was mirrored
+     * from one. Health Connect–imported rows are not deletable (Android forbids deleting another
+     * app's HC records); returns false when blocked.
+     */
+    suspend fun deleteExercise(log: ExerciseLog): Boolean {
+        if (log.isFromHealthConnect()) return false
         workoutSessionDao.getByExerciseLogId(log.id)?.let { session ->
             workoutExerciseDao.deleteForSession(session.id)
             workoutSessionDao.delete(session)
@@ -1177,6 +1181,7 @@ class FitnessRepository(
         exerciseLogDao.deleteExerciseLog(log)
         healthConnectSync?.deleteExercise(log.id)
         notifyLocalDataChanged()
+        return true
     }
 
     // --- Workout sessions -------------------------------------------------------------------
@@ -1406,7 +1411,7 @@ class FitnessRepository(
      */
     suspend fun analyze(
         userText: String,
-        imageBytes: ByteArray?,
+        images: List<ByteArray>,
         userStateContextJson: String,
         forceEstimate: Boolean = false,
         customTimestamp: Long? = null,
@@ -1414,14 +1419,16 @@ class FitnessRepository(
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
         val forceOffline = settings.developerModeUnlocked && settings.forceOfflineAiSimulator
-        val modality = if (imageBytes != null) "photo" else "text"
+        val hasImages = images.isNotEmpty()
+        val modality = if (hasImages) "photo" else "text"
         DiagnosticLogger.log(
             "analyze",
             "start",
             mapOf(
                 "modality" to modality,
                 "provider" to settings.provider.name,
-                "model" to settings.modelFor(imageBytes != null),
+                "model" to settings.modelFor(hasImages),
+                "photos" to images.size.toString(),
                 "host" to DiagnosticLogger.hostOf(settings.chatUrl),
                 "configured" to settings.isConfigured.toString(),
                 "force_offline" to forceOffline.toString()
@@ -1433,16 +1440,16 @@ class FitnessRepository(
         // made every photo come back as the simulator's "Mixed Plate").
         if (settings.isConfigured && !forceOffline) {
             return try {
-                val dataUrl = imageBytes?.let {
+                val dataUrls = images.map {
                     "data:image/jpeg;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
                 }
                 val (response, failoverNote) = withAiFailover(
                     settings,
-                    preferVisionModels = imageBytes != null,
+                    preferVisionModels = hasImages,
                     onModelActive = onModelActive
                 ) { active ->
                     remoteAiDataSource.analyze(
-                        active, userText, userStateContextJson, dataUrl, forceEstimate
+                        active, userText, userStateContextJson, dataUrls, forceEstimate
                     )
                 }
                 val outcome = processResponse(response, customTimestamp = customTimestamp, userText = userText)
@@ -1473,7 +1480,7 @@ class FitnessRepository(
         }
 
         // Not configured / forced offline: the offline simulator cannot read images.
-        if (imageBytes != null) {
+        if (hasImages) {
             val message = if (forceOffline) {
                 "Force offline simulator can't analyse photos. Turn it off or use text."
             } else {
@@ -1504,7 +1511,8 @@ class FitnessRepository(
 
     /**
      * Reads the payload `status` and routes the data, returning a clean outcome.
-     * - SUCCESS -> [AnalysisOutcome.FoodReady] (1 food) or [AnalysisOutcome.MealReady] (2+)
+     * - SUCCESS -> [AnalysisOutcome.FoodReady] when exactly one food,
+     *   else [AnalysisOutcome.MealReady] (two or more foods)
      * - EXERCISE_LOGGED -> insert exercise, return [AnalysisOutcome.ExerciseSaved]
      * - CLARIFICATION_REQUIRED -> surface the question to the UI
      */
@@ -1524,11 +1532,9 @@ class FitnessRepository(
                 if (meal.foods.isEmpty()) {
                     return AnalysisOutcome.Error("Missing foods in food analysis")
                 }
-                if (meal.foods.size == 1) {
-                    val entry = meal.foods.first()
-                    AnalysisOutcome.FoodReady(
-                        entry.toFoodDraft(timestamp = meal.timestamp, iconTopic = meal.iconTopic)
-                    )
+                val foodDraft = meal.asSingleFoodDraftOrNull()
+                if (foodDraft != null) {
+                    AnalysisOutcome.FoodReady(foodDraft)
                 } else {
                     AnalysisOutcome.MealReady(meal)
                 }

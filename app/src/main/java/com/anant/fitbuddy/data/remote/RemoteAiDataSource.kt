@@ -79,19 +79,19 @@ class RemoteAiDataSource(
         settings: AppSettings,
         userText: String,
         userStateContextJson: String,
-        imageDataUrl: String?,
+        imageDataUrls: List<String>,
         forceEstimate: Boolean = false
     ): FitnessTrackerResponse {
         val pack = regionPack(settings)
         val promptText = PromptCatalog.analyzePrompt(
             userStateContextJson = userStateContextJson,
             userText = userText,
-            hasImage = imageDataUrl != null,
+            hasImage = imageDataUrls.isNotEmpty(),
             forceEstimate = forceEstimate,
             strictClarification = settings.developerModeUnlocked && settings.strictClarification,
             pack = pack
         )
-        val cleanJson = completeToJson(settings, promptText, imageDataUrl)
+        val cleanJson = completeToJson(settings, promptText, imageDataUrls)
         return parseJson(responseAdapter, cleanJson)
     }
 
@@ -103,7 +103,7 @@ class RemoteAiDataSource(
         val json = completeToJson(
             settings,
             PromptCatalog.targetPrompt(contextJson, regionPack(settings)),
-            imageDataUrl = null,
+            imageDataUrls = emptyList(),
             temperature = 0.0
         )
         return parseJson(targetPlanDecisionAdapter, json)
@@ -117,7 +117,7 @@ class RemoteAiDataSource(
         val json = completeToJson(
             settings,
             PromptCatalog.progressPrompt(compressedMetrics, regionPack(settings)),
-            null
+            emptyList()
         )
         return parseJson(progressInsightAdapter, json).normalized()
     }
@@ -165,7 +165,7 @@ class RemoteAiDataSource(
         val json = completeToJson(
             settings,
             PromptCatalog.classifyExercisePrompt(rawName, knownExerciseNames),
-            null
+            emptyList()
         )
         return parseJson(customExerciseAdapter, json)
     }
@@ -179,7 +179,7 @@ class RemoteAiDataSource(
         val json = completeToJson(
             settings,
             PromptCatalog.parseWorkoutPrompt(description, knownExerciseNames),
-            null
+            emptyList()
         )
         return parseJson(parsedWorkoutAdapter, json)
     }
@@ -189,7 +189,7 @@ class RemoteAiDataSource(
         settings: AppSettings,
         exerciseNames: List<String>
     ): WorkoutNameResponse {
-        val json = completeToJson(settings, PromptCatalog.workoutNamePrompt(exerciseNames), null)
+        val json = completeToJson(settings, PromptCatalog.workoutNamePrompt(exerciseNames), emptyList())
         return parseJson(workoutNameAdapter, json)
     }
 
@@ -207,15 +207,15 @@ class RemoteAiDataSource(
     private suspend fun completeToJson(
         settings: AppSettings,
         promptText: String,
-        imageDataUrl: String?,
+        imageDataUrls: List<String>,
         temperature: Double = 0.2
     ): String {
-        val hasImage = imageDataUrl != null
+        val hasImage = imageDataUrls.isNotEmpty()
         val response = try {
             sendChat(
                 settings,
                 promptText,
-                imageDataUrl,
+                imageDataUrls,
                 includeResponseFormat = true,
                 temperature = temperature
             )
@@ -225,7 +225,7 @@ class RemoteAiDataSource(
                 sendChat(
                     settings,
                     promptText,
-                    null,
+                    emptyList(),
                     includeResponseFormat = false,
                     temperature = temperature
                 )
@@ -243,16 +243,14 @@ class RemoteAiDataSource(
     private suspend fun sendChat(
         settings: AppSettings,
         promptText: String,
-        imageDataUrl: String?,
+        imageDataUrls: List<String>,
         includeResponseFormat: Boolean,
         temperature: Double = 0.2
     ): ChatResponse {
-        val hasImage = imageDataUrl != null
+        val hasImage = imageDataUrls.isNotEmpty()
         val contentParts = buildList {
             add(ContentPart(type = "text", text = promptText))
-            if (imageDataUrl != null) {
-                add(ContentPart(type = "image_url", imageUrl = ImageUrl(imageDataUrl)))
-            }
+            imageDataUrls.forEach { add(ContentPart(type = "image_url", imageUrl = ImageUrl(it))) }
         }
         val request = ChatRequest(
             model = settings.modelFor(hasImage),

@@ -1083,13 +1083,23 @@ private fun LogActionSheet(
                     onClick = { runAfterHide(onClone) }
                 )
             }
-            ActionRow(
-                icon = Icons.Filled.DeleteOutline,
-                label = stringResource(R.string.dashboard_remove_from_log),
-                onClick = { runAfterHide(onDelete) },
-                tint = MaterialTheme.colorScheme.error,
-                destructive = true,
-            )
+            val hcImported = item.exerciseLog?.isFromHealthConnect() == true
+            if (hcImported) {
+                Text(
+                    text = stringResource(R.string.dashboard_hc_imported_managed_elsewhere),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                )
+            } else {
+                ActionRow(
+                    icon = Icons.Filled.DeleteOutline,
+                    label = stringResource(R.string.dashboard_remove_from_log),
+                    onClick = { runAfterHide(onDelete) },
+                    tint = MaterialTheme.colorScheme.error,
+                    destructive = true,
+                )
+            }
         }
     }
 }

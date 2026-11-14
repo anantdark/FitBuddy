@@ -8,6 +8,8 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,6 +89,7 @@ import com.anant.fitbuddy.ui.components.GlyphShimmerCycle
 import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
+import com.anant.fitbuddy.ui.viewmodel.MAX_PHOTO_LOG_IMAGES
 import com.anant.fitbuddy.util.ImageUtils
 import com.anant.fitbuddy.util.OpenFoodFactsLauncher
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -152,6 +155,9 @@ fun MainScreen(
     val dismissKeyboard = rememberDismissKeyboard()
     val haptics = rememberAppHaptics()
 
+    val photoDraft by viewModel.photoDraft.collectAsStateWithLifecycle()
+    val photoQueue by viewModel.photoQueue.collectAsStateWithLifecycle()
+    var showPhotoQueue by remember { mutableStateOf(false) }
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
     val weekDates by viewModel.weekDates.collectAsStateWithLifecycle()
@@ -160,8 +166,6 @@ fun MainScreen(
     val weekSnapshots by viewModel.weekSnapshots.collectAsStateWithLifecycle()
     val todayWaterLogs by viewModel.todayWaterLogs.collectAsStateWithLifecycle()
     val todayWaterMl by viewModel.todayWaterMl.collectAsStateWithLifecycle()
-    val cloneMealRequest by viewModel.cloneMealRequest.collectAsStateWithLifecycle()
-
     val weeklyFood by viewModel.weeklyFood.collectAsStateWithLifecycle()
     val monthlyFood by viewModel.monthlyFood.collectAsStateWithLifecycle()
     val weeklyExercise by viewModel.weeklyExercise.collectAsStateWithLifecycle()
@@ -252,6 +256,7 @@ fun MainScreen(
                 }
                 Lifecycle.Event.ON_RESUME -> {
                     viewModel.refreshToToday()
+                    viewModel.refreshKeptProgressChatFlag()
                     viewModel.maybeShowEveningDonateReminder()
                 }
                 else -> Unit
@@ -299,13 +304,12 @@ fun MainScreen(
     val mealItems = remember { mutableStateListOf<FoodEntryDraft>() }
     var mealBuilderInitial by remember { mutableStateOf<MealDraft?>(null) }
     var foodEditorTarget by remember { mutableStateOf(FoodEditorTarget.LOG_MEAL) }
-    var mealFoodEditIndex by remember { mutableStateOf<Int?>(null) }
-    var mealReviewDraft by remember { mutableStateOf<MealDraft?>(null) }
+    /** Builder-only index; meal-review nested edit uses [AnalysisUiState.editingMealFoodIndex]. */
+    var mealBuilderFoodEditIndex by remember { mutableStateOf<Int?>(null) }
     /** True when meal review came from Build a meal (save preset, do not log today). */
     var mealReviewSavesAsPreset by remember { mutableStateOf(false) }
     /** Non-null while editing an existing saved meal preset via the meal builder/review flow. */
     var editingMealPreset by remember { mutableStateOf<MealPreset?>(null) }
-    var lastOpenedEditMealId by remember { mutableStateOf<Int?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     // Export password dialog state
     var showExportDialog by remember { mutableStateOf(false) }
@@ -328,38 +332,16 @@ fun MainScreen(
     }
     var showAnantEasterEgg by remember { mutableStateOf(false) }
 
-    LaunchedEffect(cloneMealRequest) {
-        val draft = cloneMealRequest ?: return@LaunchedEffect
-        mealReviewSavesAsPreset = false
-        mealReviewDraft = draft.snapshot()
-        viewModel.consumeCloneMealRequest()
-    }
-
-    val editingMealId = analysisState.editingFoodLogId
-    // Multi-food edit → meal review (not builder). Single-food edit uses foodDraft instead.
-    LaunchedEffect(editingMealId, analysisState.mealDraft) {
-        val id = editingMealId ?: run {
-            lastOpenedEditMealId = null
-            return@LaunchedEffect
-        }
-        if (id == lastOpenedEditMealId) return@LaunchedEffect
-        val draft = analysisState.mealDraft ?: return@LaunchedEffect
-        lastOpenedEditMealId = id
-        mealReviewSavesAsPreset = false
-        mealReviewDraft = draft.snapshot()
-    }
-
-    // AI multi-food result (no editing id) → meal review.
-    LaunchedEffect(analysisState.mealDraft, analysisState.editingFoodLogId) {
-        val draft = analysisState.mealDraft ?: return@LaunchedEffect
-        if (analysisState.editingFoodLogId != null) return@LaunchedEffect
+    // Reset preset-only flag when a fresh AI / clone meal draft opens (not from builder).
+    LaunchedEffect(analysisState.mealDraft, analysisState.editingFoodLogId, showMealBuilder) {
+        val draft = analysisState.mealDraft
+        if (draft == null) return@LaunchedEffect
         if (showMealBuilder) return@LaunchedEffect
-        if (mealReviewDraft != null) {
-            mealReviewDraft = draft.snapshot()
-            return@LaunchedEffect
+        if (editingMealPreset != null) return@LaunchedEffect
+        // Builder sets mealReviewSavesAsPreset before openMealReview; AI/edit/clone log to day.
+        if (analysisState.editingFoodLogId != null) {
+            mealReviewSavesAsPreset = false
         }
-        mealReviewSavesAsPreset = false
-        mealReviewDraft = draft.snapshot()
     }
 
     // Editing a single-food log opens FoodReview as a log/update confirm.
@@ -372,20 +354,32 @@ fun MainScreen(
         ) {
             foodEditorTarget = FoodEditorTarget.LOG_MEAL
         }
+        if (analysisState.foodDraft != null &&
+            analysisState.mealDraft != null &&
+            analysisState.editingMealFoodIndex != null
+        ) {
+            foodEditorTarget = FoodEditorTarget.MEAL_REVIEW
+        }
     }
 
     val scope = rememberCoroutineScope()
 
+    // The camera app can push us out of memory; the target path is saved so the full-size
+    // capture is still picked up after the process is recreated.
+    var pendingCameraFile by rememberSaveable { mutableStateOf<String?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            // Decode/scale/compress off the main thread to avoid dropping frames.
+        ActivityResultContracts.TakePicture()
+    ) { saved ->
+        val file = pendingCameraFile?.let(::File)
+        pendingCameraFile = null
+        if (file != null) {
             scope.launch(Dispatchers.Default) {
-                val bytes = ImageUtils.bitmapToJpeg(bitmap)
-                foodEditorTarget = FoodEditorTarget.LOG_MEAL
-                mealFoodEditIndex = null
-                viewModel.analyzeImage(bytes)
+                if (saved && file.length() > 0) {
+                    ImageUtils.uriToJpeg(context, Uri.fromFile(file))
+                        ?.let { viewModel.addPhotosToDraft(listOf(it)) }
+                }
+                file.delete()
             }
         }
     }
@@ -399,13 +393,18 @@ fun MainScreen(
             return
         }
         try {
-            cameraLauncher.launch(null)
+            val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+            dir.listFiles()?.forEach { it.delete() }
+            val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
+            pendingCameraFile = file.absolutePath
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraLauncher.launch(uri)
         } catch (_: ActivityNotFoundException) {
             SystemToast.show(context, context.getString(R.string.main_no_camera_app_available_use_gallery))
         }
     }
 
-    // TakePicturePreview starts IMAGE_CAPTURE, which requires CAMERA at runtime on
+    // TakePicture starts IMAGE_CAPTURE, which requires CAMERA at runtime on
     // Android 6+. Launching without it crashes with SecurityException (permission denial).
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
         if (granted) {
@@ -417,13 +416,12 @@ fun MainScreen(
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
+        ActivityResultContracts.PickMultipleVisualMedia(MAX_PHOTO_LOG_IMAGES)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
             scope.launch(Dispatchers.Default) {
-                foodEditorTarget = FoodEditorTarget.LOG_MEAL
-                mealFoodEditIndex = null
-                ImageUtils.uriToJpeg(context, uri)?.let { viewModel.analyzeImage(it) }
+                val photos = uris.mapNotNull { ImageUtils.uriToJpeg(context, it) }
+                if (photos.isNotEmpty()) viewModel.addPhotosToDraft(photos)
             }
         }
     }
@@ -683,9 +681,8 @@ fun MainScreen(
         ProgressCoachChatScreen(
             state = progressInsightState,
             isAiConfigured = isAiOnline,
-            onBack = { showProgressChat = false },
-            onClearAndBack = {
-                viewModel.clearProgressChat()
+            onBack = {
+                viewModel.keepProgressChat()
                 showProgressChat = false
             },
             onSendMessage = viewModel::sendProgressChatMessage
@@ -714,6 +711,8 @@ fun MainScreen(
                                 donationColor = currentDonationHeartColor,
                                 onDonate = { showDonationDialog = true },
                                 onSettings = { showSettings = true },
+                                queuedCount = photoQueue.size,
+                                onQueue = { showPhotoQueue = true },
                             )
                         }
                     )
@@ -732,6 +731,8 @@ fun MainScreen(
                                 donationColor = currentDonationHeartColor,
                                 onDonate = { showDonationDialog = true },
                                 onSettings = { showSettings = true },
+                                queuedCount = photoQueue.size,
+                                onQueue = { showPhotoQueue = true },
                             )
                         }
                     )
@@ -826,7 +827,6 @@ fun MainScreen(
                                     dashboardState.profile?.targetsForDate(date)?.kcal
                                         ?: dashboardState.targetCalories
                                 },
-                                targetWeightKg = dashboardState.profile?.targetWeightKg,
                                 goal = dashboardState.profile?.goal ?: "RECOMP",
                                 monthlyEndDate = monthlyEndDate,
                                 realToday = realToday,
@@ -836,7 +836,15 @@ fun MainScreen(
                                 forceShowAnimation = settings.forceShowLoadingAnimations,
                                 onShiftMonth = viewModel::shiftAnalyticsMonth,
                                 onRequestInsight = viewModel::requestProgressInsight,
-                                onOpenChat = { showProgressChat = true },
+                                onContinueChat = {
+                                    viewModel.continueKeptProgressChat { ok ->
+                                        if (ok) showProgressChat = true
+                                    }
+                                },
+                                onOpenChat = {
+                                    viewModel.openProgressChatFromInsight()
+                                    showProgressChat = true
+                                },
                                 onDismissInsight = viewModel::dismissProgressInsight
                             )
 
@@ -950,6 +958,55 @@ fun MainScreen(
         AnantEasterEggDialog(onDismiss = { showAnantEasterEgg = false })
     }
 
+    if (photoDraft.visible) {
+        PhotoLogSheet(
+            draft = photoDraft,
+            onAddCamera = {
+                viewModel.notifyExternalMediaLaunch()
+                if (cameraPermission.status.isGranted) {
+                    launchCameraPreview()
+                } else {
+                    cameraPermission.launchPermissionRequest()
+                }
+            },
+            onAddGallery = {
+                viewModel.notifyExternalMediaLaunch()
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onRemovePhoto = viewModel::removePhotoFromDraft,
+            onNoteChange = viewModel::setPhotoDraftNote,
+            onSend = {
+                foodEditorTarget = FoodEditorTarget.LOG_MEAL
+                mealBuilderFoodEditIndex = null
+                viewModel.sendPhotoDraft()
+            },
+            onQueue = viewModel::queuePhotoDraft,
+            onDismiss = viewModel::dismissPhotoDraft
+        )
+    }
+
+    if (showPhotoQueue) {
+        if (photoQueue.isEmpty()) showPhotoQueue = false
+        PhotoQueueSheet(
+            items = photoQueue,
+            thumbnails = viewModel::queuedThumbnail,
+            onRun = { id ->
+                showPhotoQueue = false
+                foodEditorTarget = FoodEditorTarget.LOG_MEAL
+                mealBuilderFoodEditIndex = null
+                viewModel.runQueuedPhoto(id)
+            },
+            onEdit = { id ->
+                showPhotoQueue = false
+                viewModel.editQueuedPhoto(id)
+            },
+            onDelete = viewModel::deleteQueuedPhoto,
+            onDismiss = { showPhotoQueue = false }
+        )
+    }
+
     if (showLogHub) {
         LogHubSheet(
             onDismiss = { showLogHub = false },
@@ -1042,12 +1099,12 @@ fun MainScreen(
                 when (savedFoodSheetMode) {
                     SavedFoodSheetMode.PICK_FOR_MEAL -> {
                         foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
-                        mealFoodEditIndex = null
+                        mealBuilderFoodEditIndex = null
                         viewModel.openFoodEditor(blankFoodDraft(blankFoodName, blankIngredientName))
                     }
                     SavedFoodSheetMode.LOG_TO_DAY -> {
                         foodEditorTarget = FoodEditorTarget.SAVE_LIBRARY
-                        mealFoodEditIndex = null
+                        mealBuilderFoodEditIndex = null
                         viewModel.openFoodEditor(blankFoodDraft(blankFoodName, blankIngredientName))
                     }
                 }
@@ -1065,7 +1122,6 @@ fun MainScreen(
                 val snapshot = draft.copy(timestamp = ts).snapshot()
                 // New builds and preset edits save as preset; editing a logged meal updates that log.
                 mealReviewSavesAsPreset = mealBuilderInitial == null || editingMealPreset != null
-                mealReviewDraft = snapshot
                 showMealBuilder = false
                 mealBuilderInitial = null
                 mealItems.clear()
@@ -1073,12 +1129,12 @@ fun MainScreen(
             },
             onCreateFood = {
                 foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
-                mealFoodEditIndex = null
+                mealBuilderFoodEditIndex = null
                 viewModel.openFoodEditor(blankFoodDraft(blankFoodName, blankIngredientName))
             },
             onEditFood = { index ->
                 foodEditorTarget = FoodEditorTarget.MEAL_BUILDER
-                mealFoodEditIndex = index
+                mealBuilderFoodEditIndex = index
                 viewModel.openFoodEditor(mealItems[index].toFoodDraft())
             },
             onScanProduct = {
@@ -1094,7 +1150,6 @@ fun MainScreen(
                 mealBuilderInitial = null
                 editingMealPreset = null
                 mealItems.clear()
-                lastOpenedEditMealId = null
                 viewModel.dismissMealDraft()
             }
         )
@@ -1287,7 +1342,7 @@ fun MainScreen(
             onSubmit = { text ->
                 showTextDialog = false
                 foodEditorTarget = FoodEditorTarget.LOG_MEAL
-                mealFoodEditIndex = null
+                mealBuilderFoodEditIndex = null
                 viewModel.analyzeText(text)
             }
         )
@@ -1301,7 +1356,10 @@ fun MainScreen(
         )
     }
 
-    mealReviewDraft?.let { draft ->
+    // Meal review uses VM mealDraft only (no local mirror). Hide while meal builder is open.
+    val mealReviewDraft = analysisState.mealDraft
+    if (mealReviewDraft != null && !showMealBuilder) {
+        val draft = mealReviewDraft
         val editingMeal = analysisState.editingFoodLogId != null
         val editingPreset = editingMealPreset != null
         val saveAsPresetOnly = mealReviewSavesAsPreset && !editingMeal
@@ -1309,9 +1367,12 @@ fun MainScreen(
             draft = draft,
             isEditing = editingMeal || editingPreset,
             saveAsPresetOnly = saveAsPresetOnly,
+            isReanalyzing = analysisState.isReanalyzing,
+            isAiOnline = isAiOnline,
+            reviewMessage = analysisState.reviewMessage,
+            onReviewMessageShown = viewModel::consumeReviewMessage,
             onConfirm = { confirmed ->
                 viewModel.confirmMeal(confirmed)
-                mealReviewDraft = null
                 mealReviewSavesAsPreset = false
                 editingMealPreset = null
             },
@@ -1325,19 +1386,28 @@ fun MainScreen(
                     SystemToast.show(context, context.getString(R.string.main_saved_meal_preset, mealDraft.name))
                 }
                 if (saveAsPresetOnly) {
-                    mealReviewDraft = null
                     mealReviewSavesAsPreset = false
                     editingMealPreset = null
                     viewModel.dismissMealDraft()
                 }
             },
-            onEditFood = { index, food ->
+            onEditFood = { index, _ ->
                 foodEditorTarget = FoodEditorTarget.MEAL_REVIEW
-                mealFoodEditIndex = index
-                viewModel.openFoodEditor(food.toFoodDraft())
+                viewModel.editMealDraftFood(index)
             },
+            onRemoveFood = viewModel::removeMealDraftFood,
+            onQuantityChange = viewModel::setMealDraftFoodQuantity,
+            onAddFood = {
+                foodEditorTarget = FoodEditorTarget.MEAL_REVIEW
+                viewModel.openFoodEditor(
+                    blankFoodDraft(blankFoodName, blankIngredientName),
+                    mealFoodIndex = null
+                )
+            },
+            onReanalyze = viewModel::reanalyzeMeal,
+            onNameChange = viewModel::setMealDraftName,
+            onTimestampChange = viewModel::setMealDraftTimestamp,
             onDismiss = {
-                mealReviewDraft = null
                 mealReviewSavesAsPreset = false
                 editingMealPreset = null
                 viewModel.dismissMealDraft()
@@ -1346,67 +1416,74 @@ fun MainScreen(
     }
 
     analysisState.foodDraft?.let { draft ->
+        val nestedInMeal = foodEditorTarget == FoodEditorTarget.MEAL_REVIEW
+        val editingNestedFood = nestedInMeal && analysisState.editingMealFoodIndex != null
         FoodReviewDialog(
             draft = draft,
             isReanalyzing = analysisState.isReanalyzing,
             reviewMessage = analysisState.reviewMessage,
             onReviewMessageShown = viewModel::consumeReviewMessage,
+            title = when (foodEditorTarget) {
+                FoodEditorTarget.MEAL_REVIEW ->
+                    if (editingNestedFood) stringResource(R.string.food_review_edit_food)
+                    else stringResource(R.string.food_review_add_food)
+                else -> stringResource(R.string.food_review_food)
+            },
             showLogDate = foodEditorTarget == FoodEditorTarget.LOG_MEAL,
+            isAiOnline = isAiOnline,
             confirmLabel = when (foodEditorTarget) {
                 FoodEditorTarget.SAVE_LIBRARY -> stringResource(R.string.main_save_food)
-                FoodEditorTarget.MEAL_BUILDER,
-                FoodEditorTarget.MEAL_REVIEW -> stringResource(R.string.main_add_to_meal)
+                FoodEditorTarget.MEAL_BUILDER -> stringResource(R.string.main_add_to_meal)
+                FoodEditorTarget.MEAL_REVIEW ->
+                    if (editingNestedFood) stringResource(R.string.food_review_done)
+                    else stringResource(R.string.main_add_to_meal)
                 FoodEditorTarget.LOG_MEAL ->
-                    if (analysisState.editingFoodLogId != null) stringResource(R.string.main_update_food) else stringResource(R.string.food_review_log_food)
+                    if (analysisState.editingFoodLogId != null) {
+                        stringResource(R.string.main_update_food)
+                    } else {
+                        stringResource(R.string.food_review_log_food)
+                    }
             },
-            showSaveAsPreset = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY,
+            showSaveAsPreset = foodEditorTarget == FoodEditorTarget.LOG_MEAL,
             onConfirm = { confirmed ->
                 when (foodEditorTarget) {
                     FoodEditorTarget.LOG_MEAL -> {
-                        // Defensive: never leave a stale meal-review sheet after a log update.
-                        mealReviewDraft = null
                         mealReviewSavesAsPreset = false
                         viewModel.confirmFood(confirmed)
                     }
                     FoodEditorTarget.MEAL_BUILDER -> {
                         val entry = confirmed.toFoodEntry()
-                        val idx = mealFoodEditIndex
+                        val idx = mealBuilderFoodEditIndex
                         if (idx != null && idx in mealItems.indices) {
                             mealItems[idx] = entry
                         } else {
                             mealItems.add(entry)
                         }
-                        mealFoodEditIndex = null
+                        mealBuilderFoodEditIndex = null
                         viewModel.dismissFoodDraft()
                     }
                     FoodEditorTarget.MEAL_REVIEW -> {
-                        mealFoodEditIndex?.let { idx ->
-                            val entry = confirmed.toFoodEntry().snapshot()
-                            viewModel.updateMealDraftFood(idx, entry)
-                            // Keep local meal-review sheet in sync (VM mealDraft alone isn't enough).
-                            mealReviewDraft = mealReviewDraft?.let { meal ->
-                                if (idx !in meal.foods.indices) meal
-                                else meal.copy(
-                                    foods = meal.foods.toMutableList().also { it[idx] = entry }
-                                )
-                            }
+                        if (analysisState.editingMealFoodIndex != null) {
+                            viewModel.applyMealFoodEdit(confirmed)
+                        } else {
+                            viewModel.addMealDraftFood(confirmed.toFoodEntry())
+                            viewModel.dismissFoodDraft()
                         }
-                        mealFoodEditIndex = null
-                        viewModel.dismissFoodDraft()
                     }
                     FoodEditorTarget.SAVE_LIBRARY -> {
                         viewModel.saveDraftAsSavedFood(confirmed)
-                        SystemToast.show(context, context.getString(R.string.main_saved_food_library, confirmed.dishName))
+                        SystemToast.show(
+                            context,
+                            context.getString(R.string.main_saved_food_library, confirmed.dishName)
+                        )
                         viewModel.dismissFoodDraft()
                     }
                 }
             },
             onSaveAsPreset = viewModel::saveDraftAsSavedFood,
             onReanalyze = viewModel::reanalyzeFood,
-            onAskForPortion = viewModel::askForPortion,
-            askPortionHint = regionPack.askPortionHint,
             onDismiss = {
-                mealFoodEditIndex = null
+                mealBuilderFoodEditIndex = null
                 viewModel.dismissFoodDraft()
             }
         )

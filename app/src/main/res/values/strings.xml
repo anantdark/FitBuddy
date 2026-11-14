@@ -28,6 +28,7 @@
     <string name="analytics_calories_eaten_vs_target">Calories Eaten vs Target</string>
     <string name="analytics_connect_an_ai_provider_in_settings">Connect an AI provider in Settings to enable insights.</string>
     <string name="analytics_generate_an_insight_from_your_charts">Generate an insight from your charts, then ask follow-up questions in a dedicated chat.</string>
+    <string name="analytics_continue_chat">Continue chat</string>
     <string name="analytics_generate_insight">Generate insight</string>
     <string name="analytics_great_alignment_with_your_goal">Great alignment with your goal</string>
     <string name="analytics_making_progress_room_to_improve">Making progress, room to improve</string>
@@ -60,12 +61,8 @@
     <string name="charts_no_readings_yet">No readings yet</string>
     <string name="charts_swipe_the_calendar_and_tap_a">Swipe the calendar and tap a square for details</string>
     <string name="coach_ask_about_your_trends_macros_or">Ask about your trends, macros, or body comp…</string>
-    <string name="coach_clear_go_back">Clear &amp; go back</string>
-    <string name="coach_keep_chat">Keep chat</string>
-    <string name="coach_leave_conversation">Leave conversation?</string>
     <string name="coach_progress_coach">Progress Coach</string>
     <string name="coach_thinking">Thinking…</string>
-    <string name="coach_you_can_keep_this_chat_for">You can keep this chat for next time, or clear it and start fresh when you open the coach again.</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_ok">OK</string>
     <string name="common_pick_log_date">Pick log date</string>
@@ -191,7 +188,6 @@
     <string name="food_add">Add</string>
     <string name="food_add_ingredient">Add ingredient</string>
     <string name="food_adjust_weight_or_edit_macros">adjust weight or edit macros</string>
-    <string name="food_ask_for_portion">Ask for portion</string>
     <string name="food_calories">Calories</string>
     <string name="food_calories_per_serving">Calories per serving</string>
     <string name="food_change_this_to_scale_every_ingredient">Change this to scale every ingredient\'s weight (and macros) proportionally. Use ingredient Qty for counts (supports decimals).</string>
@@ -209,6 +205,12 @@
     <string name="food_qty">Qty</string>
     <string name="food_recalculate_with_ai">Recalculate with AI</string>
     <string name="food_review_food">Review food</string>
+    <string name="food_review_edit_food">Edit food</string>
+    <string name="food_review_add_food">Add food</string>
+    <string name="food_review_done">Done</string>
+    <string name="food_review_totals_subtitle">Total for this food · %1$d g</string>
+    <string name="food_review_ingredient_summary">%1$d g · %2$d kcal · P %3$s g</string>
+    <string name="food_review_edit_macros">Edit macros</string>
     <string name="food_save">Save</string>
     <string name="food_save_as_food_preset">Save as food preset</string>
     <string name="food_saved_foods">Saved foods</string>
@@ -284,7 +286,7 @@
     <string name="meal_foods">Foods</string>
     <string name="meal_foods_in_this_meal">Foods in this meal</string>
     <string name="meal_meal_name">Meal name</string>
-    <string name="meal_no_foods_in_this_meal_go">No foods in this meal. Go back and add at least one food.</string>
+    <string name="meal_no_foods_in_this_meal_go">No foods in this meal. Tap Add food below.</string>
     <string name="meal_no_saved_meals_yet_create_one">No saved meals yet. Create one above, then save it as a preset on the review screen.</string>
     <string name="meal_remove">Remove</string>
     <string name="meal_review_save_as_preset">Review &amp; save as preset</string>
@@ -351,10 +353,8 @@
     <string name="profile_loading_from_freescale">Loading from FreeScale…</string>
     <string name="profile_manual_targets_are_applied_across_your">Manual targets are applied across your dashboard. Personalized target calculation starts fresh from your body data and does not use these values. Consult a qualified health professional before changing health targets.</string>
     <string name="profile_mifflin_st_jeor_resting_estimate_adjusted">Mifflin–St Jeor resting estimate, adjusted for the activity level above and your goal.</string>
-    <string name="profile_no_automatic_scale_weight_change_is">No automatic scale-weight change is recommended, so your current weight is used as a maintenance milestone.</string>
     <string name="profile_no_readings_yet_add_your_weight">No readings yet. Add your weight (and optional smart-scale metrics) to start tracking.</string>
     <string name="profile_no_trend_adjustment_was_applied_the">No trend adjustment was applied; the profile-based formula remains available without scale history.</string>
-    <string name="profile_personalized_targets_set_a_bounded_weight">Personalized targets set a bounded weight milestone when appropriate; otherwise your current weight is used as a maintenance milestone.</string>
     <string name="profile_pull_latest_from_freescale">Pull latest from FreeScale</string>
     <string name="profile_reading_history">Reading history</string>
     <string name="profile_save_body_data">Save body data</string>
@@ -367,7 +367,6 @@
     <string name="profile_this_target_was_calculated_locally_from">This target was calculated locally from your profile, activity level, and goal.</string>
     <string name="profile_track_composition_and_set_calorie_and">Track composition and set calorie and macro targets.</string>
     <string name="profile_use_current">Use current</string>
-    <string name="profile_weight_milestone">Weight milestone</string>
     <string name="profile_workout_logs_may_not_include_physical">Workout logs may not include physical work, daily movement, or unlogged exercise.</string>
     <string name="profile_your_saved_nutrition_targets_remain_unchanged">Your saved nutrition targets remain unchanged.</string>
     <string name="region_anonymous_support_id">Anonymous Support ID</string>
@@ -552,6 +551,8 @@
     <string name="settings_health_connect_auto_sync">Auto-sync</string>
     <string name="settings_health_connect_auto_sync_hint">When on, FitBuddy syncs on open and mirrors new logs as you save them. Turn off to sync only when you tap Sync now.</string>
     <string name="settings_hc_metrics">Metrics</string>
+    <string name="settings_hc_metrics_hint">Only data types you’ve allowed in Health Connect appear here. Use Authorize more to request additional access.</string>
+    <string name="settings_hc_authorize_more">Authorize more data types</string>
     <string name="settings_hc_import">Import</string>
     <string name="settings_hc_export">Export</string>
     <string name="settings_hc_import_weight">Weight</string>
@@ -570,6 +571,7 @@
     <string name="settings_hc_export_hydration">Hydration</string>
     <string name="settings_hc_export_exercise">Exercise / activity</string>
     <string name="settings_health_connect_available">Health Connect is available on this device.</string>
+    <string name="settings_health_connect_needs_authorization">Health Connect needs authorization — turn sync on again and grant access.</string>
     <string name="settings_health_connect_update_required">Health Connect needs an update before FitBuddy can connect.</string>
     <string name="settings_health_connect_unavailable">Health Connect is not available on this device (common on some de-Googled builds).</string>
     <string name="settings_health_connect_open">Open Health Connect</string>
@@ -577,9 +579,12 @@
     <string name="settings_health_connect_sync_now">Sync now</string>
     <string name="settings_health_connect_syncing">Syncing…</string>
     <string name="settings_health_connect_permissions_denied">Health Connect permissions were not granted</string>
+    <string name="dashboard_hc_imported_managed_elsewhere">Imported from Health Connect. Remove or edit it in the source app or Health Connect.</string>
     <string name="vm_health_connect_disabled">Health Connect sync turned off</string>
     <string name="vm_health_connect_sync_failed">Health Connect sync failed</string>
+    <string name="vm_health_connect_permissions_revoked">Health Connect permissions were revoked — open Integrations and authorize</string>
     <string name="vm_health_connect_synced">Health Connect Synced</string>
+    <string name="vm_health_connect_imported_not_deletable">Imported Health Connect entries can’t be removed here — manage them in the source app or Health Connect</string>
     <string name="settings_preview_onboarding_flow">Preview onboarding flow</string>
     <string name="settings_preview_themes_and_loading_animations_without">Preview themes and loading animations without waiting on AI.</string>
     <string name="settings_profile">Profile</string>
@@ -761,8 +766,6 @@
     <string name="analytics_monthly">Monthly</string>
     <string name="analytics_last_30_days">Last 30 days</string>
     <string name="analytics_latest">Latest %1$s%2$s</string>
-    <string name="analytics_within_1_kg_green_above_1_kg">Within ±%1$s green · above by &gt;%1$s yellow · below by &gt;%1$s red</string>
-    <string name="analytics_within_1_kg_green_below_1_kg">Within ±%1$s green · below by &gt;%1$s yellow · above by &gt;%1$s red</string>
     <string name="analytics_total">Total</string>
     <string name="analytics_active_days">Active days</string>
     <string name="analytics_avg_day">Avg/day</string>
@@ -823,7 +826,9 @@
     <string name="food_review_log_food">Log food</string>
     <string name="food_review_saved_food_preset">Saved \"%1$s\" as food preset</string>
     <string name="food_review_recalculating_ai">Recalculating with AI…</string>
-    <string name="food_review_wrong_item_rename_e_g_pineapple_cake">Wrong item? Rename it (e.g. \"pineapple cake\") and tap ✨ to let AI recompute calories, macros and ingredients.</string>
+    <string name="food_review_wrong_item_rename_e_g_pineapple_cake">Wrong item? Rename it (e.g. \"pineapple cake\") and tap the sparkle to recompute with AI.</string>
+    <string name="meal_review_recalculate_with_ai">Recalculate meal with AI</string>
+    <string name="meal_review_ai_hint">Wrong meal? Rename it and tap the sparkle to recompute foods and macros.</string>
     <string name="food_review_remove">Remove %1$s</string>
     <string name="food_review_g_total">= %1$s g total</string>
     <string name="food_review_quantity">Quantity</string>
@@ -872,6 +877,13 @@
     <string name="meal_review_update_meal">Update meal</string>
     <string name="meal_review_save_meal">Save meal</string>
     <string name="meal_review_qty_g_ingredient_s">Qty %1$s · %2$s g · %3$d ingredient(s)</string>
+    <string name="meal_review_edit_meal">Edit meal</string>
+    <string name="meal_review_foods_in_meal">%1$d food(s) in this meal</string>
+    <string name="meal_review_total_for_meal">Total for this meal · %1$d food(s)</string>
+    <string name="meal_review_g_ingredient_s">%1$s g · %2$d ingredient(s)</string>
+    <string name="meal_review_servings">Servings</string>
+    <string name="meal_review_qty_scales_ingredient">Ingredient quantity</string>
+    <string name="meal_review_qty_scales_servings">Scales all ingredients</string>
     <string name="onboarding_choose_automatically">Choose automatically</string>
     <string name="onboarding_lose_weight">Lose weight</string>
     <string name="onboarding_gain_muscle">Gain muscle</string>
@@ -910,13 +922,8 @@
     <string name="onboarding_required_2">%1$s is required (%2$s–%3$s %4$s)</string>
     <string name="onboarding_enter_valid_number">Enter a valid number</string>
     <string name="onboarding_must_between_2">Must be between %1$s and %2$s %3$s</string>
-    <string name="profile_enter_valid_weight_milestone">Enter a valid weight milestone</string>
-    <string name="profile_add_current_reading_before_setting_weight_milest">Add a current reading before setting a weight milestone</string>
-    <string name="profile_muscle_gain_target_cannot_below_current_weight">A muscle-gain target cannot be below your current weight</string>
-    <string name="profile_weight_loss_target_cannot_above_current_weight">A weight-loss target cannot be above your current weight</string>
     <string name="profile_synced_latest_reading">Synced from the latest reading (%1$s)</string>
     <string name="profile_add_reading_update_current_weight">Add a reading to update your current weight</string>
-    <string name="profile_weight_milestone_kg_optional">Weight milestone (%1$s, optional)</string>
     <string name="profile_latest_reading">Latest reading · %1$s</string>
     <string name="profile_analysing">Analysing…</string>
     <string name="profile_calculating_targets">Calculating targets…</string>
@@ -935,8 +942,6 @@
     <string name="profile_fat"> · %1$s%% fat</string>
     <string name="profile_kg_muscle"> · %1$s %2$s muscle</string>
     <string name="profile_science_based_recommendation">Science-based recommendation</string>
-    <string name="profile_health_target_recommendation">Health target recommendation</string>
-    <string name="profile_weight_milestone_recommendation">Weight milestone recommendation</string>
     <string name="profile_activity_recommendation">Activity recommendation</string>
     <string name="profile_re_track">You\'re on track</string>
     <string name="profile_kcal_day">%1$s kcal/day</string>
@@ -960,10 +965,7 @@
     <string name="profile_kcal_day_bounded_trend_adjustment_applied">A %1$s kcal/day bounded trend adjustment was applied.</string>
     <string name="profile_food_logs_previous_28_completed_days_composition">Food logs: %1$s of the previous 28 completed days. Composition readings are supporting evidence and can vary with hydration.</string>
     <string name="profile_more_consistent_readings_needed">More consistent readings are needed.</string>
-    <string name="profile_initial_milestone_up_5_based_selected_weight">An initial milestone of up to 5% based on your selected weight-loss goal.</string>
     <string name="profile_apply">Apply</string>
-    <string name="profile_apply_recommendations">Apply recommendations</string>
-    <string name="profile_save_weight_milestone">Save weight milestone</string>
     <string name="profile_apply_activity_level">Apply activity level</string>
     <string name="profile_body_fat_2">Body fat (%)</string>
     <string name="profile_bmr_kcal">BMR (kcal)</string>
@@ -1225,4 +1227,28 @@
     <string name="water_edit_amount_save">Save</string>
     <string name="water_edit_log_title">Edit %1$s</string>
     <string name="water_edit_log_hint">Change today’s logged amount for this drink (%1$s–%2$s).</string>
+    <string name="photo_log_title">Log from photos</string>
+    <string name="photo_log_count">%1$d of %2$d photos</string>
+    <string name="photo_log_remove">Remove photo</string>
+    <string name="photo_log_add_camera">Camera</string>
+    <string name="photo_log_add_gallery">Gallery</string>
+    <string name="photo_log_note_label">Notes (optional)</string>
+    <string name="photo_log_note_hint">e.g. 2 rotis, homemade dal, little ghee</string>
+    <string name="photo_log_edit_title">Edit queued photos</string>
+    <string name="photo_log_save_changes">Save changes</string>
+    <string name="photo_queue_edit">Edit queued item</string>
+    <string name="photo_queue_updated">Queue item updated.</string>
+    <string name="photo_log_queue">Queue</string>
+    <string name="photo_log_send">Analyze</string>
+    <string name="photo_queue_title">Queued photos</string>
+    <string name="photo_queue_empty">Nothing queued.</string>
+    <string name="photo_queue_no_note">No notes</string>
+    <string name="photo_queue_run">Run</string>
+    <string name="photo_queue_delete">Delete from queue</string>
+    <string name="photo_queue_saved">Queued. Run it later from the queue button.</string>
+    <string name="photo_queue_missing">Queued photos were missing and were removed.</string>
+    <plurals name="photo_queue_photos">
+        <item quantity="one">%d photo</item>
+        <item quantity="other">%d photos</item>
+    </plurals>
 </resources>

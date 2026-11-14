@@ -1,1 +1,1 @@
-An image is attached. First check whether it actually contains food; if it does not, return NOT_IDENTIFIED.
+One or more images are attached. If several, they show the same meal from different angles or courses: combine them into one result and do not count a dish twice. First check whether the images actually contain food; if they do not, return NOT_IDENTIFIED.

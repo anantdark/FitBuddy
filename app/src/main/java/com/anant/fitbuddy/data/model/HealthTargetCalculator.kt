@@ -79,7 +79,6 @@ object HealthTargetCalculator {
         val outputProtein = if (targetsChanged) idealProtein else input.currentProteinG
         val outputCarbs = if (targetsChanged) idealCarbs else input.currentCarbsG
         val outputFats = if (targetsChanged) idealFats else input.currentFatsG
-        val targetWeight = targetWeightMilestone(goal, input.weightKg)
 
         return TargetPlanResponse(
             recommendedGoal = goal,
@@ -95,11 +94,9 @@ object HealthTargetCalculator {
                 calorieTarget = idealCalories,
                 proteinTarget = idealProtein,
                 proteinPerKg = proteinPerKg,
-                targetWeight = targetWeight,
                 targetsChanged = targetsChanged
             ),
             targetsChanged = targetsChanged,
-            targetWeightKg = targetWeight,
             estimatedRestingCalories = roundedRestingCalories,
             activityFactor = activityFactor,
             estimatedMaintenanceCalories = roundedMaintenanceCalories,
@@ -197,11 +194,6 @@ object HealthTargetCalculator {
             fatShare in 0.20..0.35
     }
 
-    private fun targetWeightMilestone(goal: String, currentWeightKg: Double): Double {
-        if (goal != "LOSE_WEIGHT") return currentWeightKg
-        return (ceil(currentWeightKg * 0.95 * 2.0) / 2.0).coerceAtMost(currentWeightKg)
-    }
-
     private fun rationale(
         input: HealthTargetInput,
         goal: String,
@@ -210,7 +202,6 @@ object HealthTargetCalculator {
         calorieTarget: Int,
         proteinTarget: Int,
         proteinPerKg: Double,
-        targetWeight: Double,
         targetsChanged: Boolean
     ): String {
         val sexNote = if (input.sex.isNullOrBlank()) {
@@ -227,18 +218,12 @@ object HealthTargetCalculator {
         }
         val macroSentence = "Protein is set near ${formatOneDecimal(proteinPerKg)} g/kg of body weight " +
             "($proteinTarget g), with fat near 25% of energy and carbohydrates filling the remainder within adult ranges."
-        val milestoneSentence = if (goal == "LOSE_WEIGHT" && abs(targetWeight - input.weightKg) >= 0.05) {
-            "The ${formatOneDecimal(targetWeight)} kg target is an initial milestone of up to 5%, not an ideal weight."
-        } else {
-            "Current weight is retained as a maintenance milestone unless you set a different one."
-        }
         return if (targetsChanged) {
-            listOf(energySentence, goalSentence, macroSentence, milestoneSentence).joinToString(" ")
+            listOf(energySentence, goalSentence, macroSentence).joinToString(" ")
         } else {
             listOf(
                 energySentence,
-                "Your saved targets are already close to the calculated starting point, so they were kept stable.",
-                milestoneSentence
+                "Your saved targets are already close to the calculated starting point, so they were kept stable."
             ).joinToString(" ")
         }
     }
