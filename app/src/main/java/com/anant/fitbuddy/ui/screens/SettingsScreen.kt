@@ -157,8 +157,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.activity.compose.rememberLauncherForActivityResult
 import com.anant.fitbuddy.FitBuddyApp
-import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricAvailability
 import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
+import com.anant.fitbuddy.data.healthconnect.forSync
 import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.healthconnect.HealthConnectSdkStatus
 import kotlinx.coroutines.launch
@@ -273,6 +273,8 @@ fun SettingsScreen(
     }
     var pendingEnableHealthConnect by remember { mutableStateOf(false) }
     var pendingSyncAfterPermission by remember { mutableStateOf(false) }
+    /** Live HC grants — drives which metric toggles are visible. */
+    var healthConnectGrantedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
     val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = healthConnectManager.permissionContract()
     ) { resultGranted ->
@@ -284,12 +286,14 @@ fun SettingsScreen(
         pendingSyncAfterPermission = false
         coroutineScope.launch {
             val fromApi = healthConnectManager.grantedPermissions()
+            healthConnectGrantedPermissions = fromApi.ifEmpty { resultGranted }
             val previous = settings.healthConnectMetrics
             val aligned = healthConnectManager.applyPermissionResult(
                 previous = previous,
                 desired = desired,
                 resultGranted = resultGranted,
-                allGranted = fromApi
+                allGranted = fromApi,
+                waterTrackingEnabled = settings.waterTrackingEnabled
             )
             onHealthConnectMetricsChange(aligned)
             val anyOn = aligned.anyImport() || aligned.anyExport()
@@ -313,22 +317,38 @@ fun SettingsScreen(
                         context.getString(R.string.settings_health_connect_permissions_denied)
                     )
                 }
-                // Single-metric toggle: stay silent; denied metrics simply remain off.
+                // Authorize-more / metric sheet: prefs already aligned; stay silent on partial deny.
             }
         }
     }
 
-    // When HC is first turned on, drop any toggles that lack a grant. Do not key on
-    // metrics themselves — getGrantedPermissions() can briefly return empty right after
-    // the permission sheet and would otherwise snap granted toggles back off.
+    // When HC is on, align metric toggles to real OS grants. Empty grants after a short
+    // settle mean a real revoke (not a flaky post-sheet probe) → turn sync off.
     LaunchedEffect(settings.healthConnectEnabled) {
         if (!settings.healthConnectEnabled) return@LaunchedEffect
         if (healthConnectManager.sdkStatus() != HealthConnectSdkStatus.Available) return@LaunchedEffect
-        val granted = healthConnectManager.grantedPermissions()
-        if (granted.isEmpty()) return@LaunchedEffect
+        if (pendingHealthConnectMetrics != null) return@LaunchedEffect
+        var granted = healthConnectManager.grantedPermissions()
+        if (granted.isEmpty()) {
+            delay(400)
+            if (pendingHealthConnectMetrics != null) return@LaunchedEffect
+            granted = healthConnectManager.grantedPermissions()
+        }
+        healthConnectGrantedPermissions = granted
+        val waterOn = settings.waterTrackingEnabled
+        if (granted.isEmpty()) {
+            val current = settings.healthConnectMetrics
+            val aligned = healthConnectManager.alignToGranted(current, emptySet(), waterOn)
+            if (aligned != current) onHealthConnectMetricsChange(aligned)
+            onHealthConnectEnabledChange(false)
+            return@LaunchedEffect
+        }
         val current = settings.healthConnectMetrics
-        val aligned = healthConnectManager.alignToGranted(current, granted)
+        val aligned = healthConnectManager.alignToGranted(current, granted, waterOn)
         if (aligned != current) onHealthConnectMetricsChange(aligned)
+        if (!aligned.anyImport() && !aligned.anyExport()) {
+            onHealthConnectEnabledChange(false)
+        }
     }
     // Local editable copies, re-seeded whenever persisted settings change.
     var provider by remember(settings) { mutableStateOf(settings.provider) }
@@ -1263,6 +1283,12 @@ fun SettingsScreen(
                     onSaveQuiet(
                         settings.copy(
                             waterTrackingEnabled = enabled,
+                            // No local water feature → stop HC hydration export.
+                            healthConnectMetrics = if (enabled) {
+                                settings.healthConnectMetrics
+                            } else {
+                                settings.healthConnectMetrics.copy(exportHydration = false)
+                            },
                             // Toggling water resets the layout; it can still be changed in Theme.
                             dashboardLayout = if (enabled) {
                                 AppDashboardLayout.COMPACT
@@ -1478,11 +1504,11 @@ fun SettingsScreen(
             hintTitle = stringResource(R.string.settings_health_connect),
             hint = stringResource(R.string.settings_health_connect_hint)
         ) {
+            var healthConnectNeedsAuth by remember { mutableStateOf(false) }
             DisposableEffect(lifecycleOwner, settings.healthConnectEnabled) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
                         healthConnectSdkStatus = healthConnectManager.sdkStatus()
-                        if (!settings.healthConnectEnabled) return@LifecycleEventObserver
                         if (healthConnectManager.sdkStatus() != HealthConnectSdkStatus.Available) {
                             return@LifecycleEventObserver
                         }
@@ -1490,12 +1516,37 @@ fun SettingsScreen(
                         // the HC sheet closes and grants may not be readable yet.
                         if (pendingHealthConnectMetrics != null) return@LifecycleEventObserver
                         coroutineScope.launch {
-                            val granted = healthConnectManager.grantedPermissions()
-                            if (granted.isEmpty()) return@launch
+                            var granted = healthConnectManager.grantedPermissions()
+                            if (granted.isEmpty() && settings.healthConnectEnabled) {
+                                delay(400)
+                                if (pendingHealthConnectMetrics != null) return@launch
+                                granted = healthConnectManager.grantedPermissions()
+                            }
+                            healthConnectGrantedPermissions = granted
+                            if (!settings.healthConnectEnabled) return@launch
+                            val waterOn = settings.waterTrackingEnabled
+                            if (granted.isEmpty()) {
+                                healthConnectNeedsAuth = true
+                                val current = settings.healthConnectMetrics
+                                val aligned = healthConnectManager.alignToGranted(
+                                    current, emptySet(), waterOn
+                                )
+                                if (aligned != current) {
+                                    onHealthConnectMetricsChange(aligned)
+                                }
+                                onHealthConnectEnabledChange(false)
+                                return@launch
+                            }
+                            healthConnectNeedsAuth = false
                             val current = settings.healthConnectMetrics
-                            val aligned = healthConnectManager.alignToGranted(current, granted)
+                            val aligned = healthConnectManager.alignToGranted(
+                                current, granted, waterOn
+                            )
                             if (aligned != current) {
                                 onHealthConnectMetricsChange(aligned)
+                            }
+                            if (!aligned.anyImport() && !aligned.anyExport()) {
+                                onHealthConnectEnabledChange(false)
                             }
                         }
                     }
@@ -1508,15 +1559,17 @@ fun SettingsScreen(
                 when (healthConnectManager.sdkStatus()) {
                     HealthConnectSdkStatus.Available -> {
                         coroutineScope.launch {
-                            val missing = healthConnectManager.missingPermissions(next)
+                            val waterOn = settings.waterTrackingEnabled
+                            val gated = next.forSync(waterOn)
+                            val missing = healthConnectManager.missingPermissions(gated, waterOn)
                             if (missing.isNotEmpty()) {
                                 // Always re-show the permission sheet when enabling a metric.
-                                pendingHealthConnectMetrics = next
+                                pendingHealthConnectMetrics = gated
                                 pendingEnableHealthConnect = alsoEnable
                                 healthConnectPermissionLauncher.launch(missing)
                             } else {
                                 // No missing perms for this selection — apply as requested.
-                                onHealthConnectMetricsChange(next)
+                                onHealthConnectMetricsChange(gated)
                                 if (alsoEnable) onHealthConnectEnabledChange(true)
                             }
                         }
@@ -1568,165 +1621,257 @@ fun SettingsScreen(
                 )
             }
             Text(
-                text = when (healthConnectSdkStatus) {
-                    HealthConnectSdkStatus.Available ->
-                        stringResource(R.string.settings_health_connect_available)
-                    HealthConnectSdkStatus.UpdateRequired ->
+                text = when {
+                    healthConnectSdkStatus == HealthConnectSdkStatus.UpdateRequired ->
                         stringResource(R.string.settings_health_connect_update_required)
-                    HealthConnectSdkStatus.Unavailable ->
+                    healthConnectSdkStatus == HealthConnectSdkStatus.Unavailable ->
                         stringResource(R.string.settings_health_connect_unavailable)
+                    healthConnectNeedsAuth ||
+                        (settings.healthConnectEnabled &&
+                            !settings.healthConnectMetrics.anyImport() &&
+                            !settings.healthConnectMetrics.anyExport()) ->
+                        stringResource(R.string.settings_health_connect_needs_authorization)
+                    else -> stringResource(R.string.settings_health_connect_available)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             val metrics = settings.healthConnectMetrics
-            val metricsEnabled = settings.healthConnectEnabled
-            fun setMetric(
-                enable: Boolean,
-                transform: (HealthConnectMetricPrefs) -> HealthConnectMetricPrefs
-            ) {
-                val next = transform(metrics).sanitized()
-                if (enable) requestOrApplyMetrics(next)
-                else onHealthConnectMetricsChange(next)
+            val waterOn = settings.waterTrackingEnabled
+            val visibleMetrics = healthConnectManager.visibilityFromGrants(
+                healthConnectGrantedPermissions,
+                waterOn
+            )
+            val hasVisibleImport = visibleMetrics.anyImport()
+            val hasVisibleExport = visibleMetrics.anyExport()
+            val missingHcPermissions =
+                healthConnectManager.allPermissions(waterOn) - healthConnectGrantedPermissions
+            fun setMetric(transform: (HealthConnectMetricPrefs) -> HealthConnectMetricPrefs) {
+                // Only granted types are shown — toggles adjust sync prefs, not OS grants.
+                onHealthConnectMetricsChange(transform(metrics).forSync(waterOn))
             }
-            var metricsExpanded by remember { mutableStateOf(false) }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { metricsExpanded = !metricsExpanded },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_hc_metrics),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Icon(
-                    imageVector = if (metricsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            AnimatedVisibility(visible = metricsExpanded) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+            if (settings.healthConnectEnabled) {
+                var metricsExpanded by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { metricsExpanded = !metricsExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stringResource(R.string.settings_hc_import),
+                        text = stringResource(R.string.settings_hc_metrics),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_weight),
-                        checked = metrics.importWeight,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importWeight,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importWeight = it) } }
+                    Icon(
+                        imageVector = if (metricsExpanded) {
+                            Icons.Filled.ExpandLess
+                        } else {
+                            Icons.Filled.ExpandMore
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_height),
-                        checked = metrics.importHeight,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importHeight,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importHeight = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_body_fat),
-                        checked = metrics.importBodyFat,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importBodyFat,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importBodyFat = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_muscle_mass),
-                        checked = metrics.importMuscleMass,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importMuscleMass,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importMuscleMass = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_exercise),
-                        checked = metrics.importExercise,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importExercise,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importExercise = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_steps),
-                        checked = metrics.importSteps,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importSteps,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importSteps = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_hydration),
-                        checked = metrics.importHydration,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importHydration,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importHydration = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_import_sleep),
-                        checked = metrics.importSleep,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.importSleep,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(importSleep = it) } }
-                    )
-
-                    Text(
-                        text = stringResource(R.string.settings_hc_export),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_nutrition),
-                        checked = metrics.exportNutrition,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportNutrition,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportNutrition = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_weight),
-                        checked = metrics.exportWeight,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportWeight,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportWeight = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_height),
-                        checked = metrics.exportHeight,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportHeight,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportHeight = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_body_fat),
-                        checked = metrics.exportBodyFat,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportBodyFat,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportBodyFat = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_muscle_mass),
-                        checked = metrics.exportMuscleMass,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportMuscleMass,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportMuscleMass = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_hydration),
-                        checked = metrics.exportHydration,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportHydration,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportHydration = it) } }
-                    )
-                    SettingToggleRow(
-                        title = stringResource(R.string.settings_hc_export_exercise),
-                        checked = metrics.exportExercise,
-                        enabled = metricsEnabled && HealthConnectMetricAvailability.exportExercise,
-                        onCheckedChange = { setMetric(it) { m -> m.copy(exportExercise = it) } }
-                    )
+                }
+                AnimatedVisibility(visible = metricsExpanded) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_hc_metrics_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (hasVisibleImport) {
+                            Text(
+                                text = stringResource(R.string.settings_hc_import),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (visibleMetrics.importWeight) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_weight),
+                                    checked = metrics.importWeight,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importWeight = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importHeight) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_height),
+                                    checked = metrics.importHeight,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importHeight = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importBodyFat) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_body_fat),
+                                    checked = metrics.importBodyFat,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importBodyFat = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importMuscleMass) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_muscle_mass),
+                                    checked = metrics.importMuscleMass,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importMuscleMass = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importExercise) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_exercise),
+                                    checked = metrics.importExercise,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importExercise = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importSteps) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_steps),
+                                    checked = metrics.importSteps,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importSteps = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importHydration) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_hydration),
+                                    checked = metrics.importHydration,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importHydration = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.importSleep) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_import_sleep),
+                                    checked = metrics.importSleep,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(importSleep = it) }
+                                    }
+                                )
+                            }
+                        }
+                        if (hasVisibleExport) {
+                            Text(
+                                text = stringResource(R.string.settings_hc_export),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (visibleMetrics.exportNutrition) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_nutrition),
+                                    checked = metrics.exportNutrition,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportNutrition = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.exportWeight) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_weight),
+                                    checked = metrics.exportWeight,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportWeight = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.exportHeight) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_height),
+                                    checked = metrics.exportHeight,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportHeight = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.exportBodyFat) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_body_fat),
+                                    checked = metrics.exportBodyFat,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportBodyFat = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.exportMuscleMass) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_muscle_mass),
+                                    checked = metrics.exportMuscleMass,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportMuscleMass = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.exportHydration) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_hydration),
+                                    checked = metrics.exportHydration,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportHydration = it) }
+                                    }
+                                )
+                            }
+                            if (visibleMetrics.exportExercise) {
+                                SettingToggleRow(
+                                    title = stringResource(R.string.settings_hc_export_exercise),
+                                    checked = metrics.exportExercise,
+                                    onCheckedChange = {
+                                        setMetric { m -> m.copy(exportExercise = it) }
+                                    }
+                                )
+                            }
+                        }
+                        if (missingHcPermissions.isNotEmpty()) {
+                            TextButton(
+                                onClick = {
+                                    val desired = HealthConnectMetricPrefs().forSync(waterOn)
+                                    pendingHealthConnectMetrics = desired
+                                    pendingEnableHealthConnect = true
+                                    healthConnectPermissionLauncher.launch(missingHcPermissions)
+                                }
+                            ) {
+                                Text(stringResource(R.string.settings_hc_authorize_more))
+                            }
+                        }
+                    }
                 }
             }
 
+            // After Sync now finishes, re-probe grants so metric toggles match HC.
+            var hcSyncWasBusy by remember { mutableStateOf(false) }
+            LaunchedEffect(healthConnectSyncBusy) {
+                if (hcSyncWasBusy && !healthConnectSyncBusy) {
+                    if (healthConnectManager.sdkStatus() == HealthConnectSdkStatus.Available) {
+                        healthConnectGrantedPermissions =
+                            healthConnectManager.grantedPermissions()
+                    }
+                }
+                hcSyncWasBusy = healthConnectSyncBusy
+            }
             if (settings.healthConnectEnabled) {
                 OutlinedButton(
                     onClick = {
+                        // Sync now always reconciles permissions inside HealthConnectSync;
+                        // only re-prompt the sheet when preferred metrics still lack grants.
                         coroutineScope.launch {
-                            val missing = healthConnectManager.missingPermissions(
-                                settings.healthConnectMetrics
-                            )
+                            val waterOn = settings.waterTrackingEnabled
+                            val gated = settings.healthConnectMetrics.forSync(waterOn)
+                            val missing = healthConnectManager.missingPermissions(gated, waterOn)
                             if (missing.isNotEmpty()) {
-                                pendingHealthConnectMetrics = settings.healthConnectMetrics
+                                pendingHealthConnectMetrics = gated
                                 pendingSyncAfterPermission = true
                                 healthConnectPermissionLauncher.launch(missing)
                             } else {

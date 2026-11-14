@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutExercise::class,
         WaterLog::class,
     ],
-    version = 26,
+    version = 27,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -172,6 +172,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_23_24,
                         MIGRATION_24_25,
                         MIGRATION_25_26,
+                        MIGRATION_26_27,
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -461,6 +462,13 @@ abstract class AppDatabase : RoomDatabase() {
             )
             db.execSQL(
                 "CREATE INDEX IF NOT EXISTS index_water_logs_dateString ON water_logs (dateString)"
+            )
+        }
+
+        /** Provenance for Health Connect–imported exercise/steps rows. */
+        val MIGRATION_26_27 = migration(26, 27) { db ->
+            db.execSQL(
+                "ALTER TABLE exercise_logs ADD COLUMN healthConnectRecordId TEXT"
             )
         }
 

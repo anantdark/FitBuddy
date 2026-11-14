@@ -121,20 +121,25 @@ fun WorkoutLogDialog(
             mutableStateListOf<ExerciseDraft>().apply { initialDraft?.exercises?.let(::addAll) }
         }
         var durationText by remember {
-            mutableStateOf((initialDraft?.durationMinutes ?: WorkoutDraft.DEFAULT_DURATION_MINUTES).toString())
+            mutableStateOf(
+                (initialDraft?.durationMinutes ?: WorkoutDraft.DEFAULT_DURATION_MINUTES).toString()
+            )
         }
-        // When editing, respect the already-logged duration instead of re-estimating it from
-        // scratch as soon as the pre-filled exercises are loaded in.
-        var durationTouched by remember { mutableStateOf(isEditing) }
+        // Only latch when the user edits the session field — not merely because we opened an
+        // existing workout. Otherwise per-exercise duration edits never refresh the total (HC).
+        var durationTouched by remember { mutableStateOf(false) }
         var showDurationEdit by remember { mutableStateOf(isEditing) }
         var showPicker by remember { mutableStateOf(false) }
         var pendingExercise by remember { mutableStateOf<CatalogExercise?>(null) }
 
         val exerciseSnapshot = exercises.toList()
+        // Skip the first composition so edit-open does not overwrite a saved session total.
+        var priorExerciseSnapshot by remember { mutableStateOf<List<ExerciseDraft>?>(null) }
         LaunchedEffect(exerciseSnapshot, durationTouched) {
-            if (!durationTouched) {
-                durationText = WorkoutDraft.estimateDurationMinutes(exerciseSnapshot).toString()
-            }
+            val prior = priorExerciseSnapshot
+            priorExerciseSnapshot = exerciseSnapshot
+            if (prior == null || durationTouched || prior == exerciseSnapshot) return@LaunchedEffect
+            durationText = WorkoutDraft.estimateDurationMinutes(exerciseSnapshot).toString()
         }
 
         LaunchedEffect(state.savedSuccessfully) {

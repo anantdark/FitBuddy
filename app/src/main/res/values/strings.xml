@@ -552,6 +552,8 @@
     <string name="settings_health_connect_auto_sync">Auto-sync</string>
     <string name="settings_health_connect_auto_sync_hint">When on, FitBuddy syncs on open and mirrors new logs as you save them. Turn off to sync only when you tap Sync now.</string>
     <string name="settings_hc_metrics">Metrics</string>
+    <string name="settings_hc_metrics_hint">Only data types you’ve allowed in Health Connect appear here. Use Authorize more to request additional access.</string>
+    <string name="settings_hc_authorize_more">Authorize more data types</string>
     <string name="settings_hc_import">Import</string>
     <string name="settings_hc_export">Export</string>
     <string name="settings_hc_import_weight">Weight</string>
@@ -570,6 +572,7 @@
     <string name="settings_hc_export_hydration">Hydration</string>
     <string name="settings_hc_export_exercise">Exercise / activity</string>
     <string name="settings_health_connect_available">Health Connect is available on this device.</string>
+    <string name="settings_health_connect_needs_authorization">Health Connect needs authorization — turn sync on again and grant access.</string>
     <string name="settings_health_connect_update_required">Health Connect needs an update before FitBuddy can connect.</string>
     <string name="settings_health_connect_unavailable">Health Connect is not available on this device (common on some de-Googled builds).</string>
     <string name="settings_health_connect_open">Open Health Connect</string>
@@ -577,9 +580,12 @@
     <string name="settings_health_connect_sync_now">Sync now</string>
     <string name="settings_health_connect_syncing">Syncing…</string>
     <string name="settings_health_connect_permissions_denied">Health Connect permissions were not granted</string>
+    <string name="dashboard_hc_imported_managed_elsewhere">Imported from Health Connect. Remove or edit it in the source app or Health Connect.</string>
     <string name="vm_health_connect_disabled">Health Connect sync turned off</string>
     <string name="vm_health_connect_sync_failed">Health Connect sync failed</string>
+    <string name="vm_health_connect_permissions_revoked">Health Connect permissions were revoked — open Integrations and authorize</string>
     <string name="vm_health_connect_synced">Health Connect Synced</string>
+    <string name="vm_health_connect_imported_not_deletable">Imported Health Connect entries can’t be removed here — manage them in the source app or Health Connect</string>
     <string name="settings_preview_onboarding_flow">Preview onboarding flow</string>
     <string name="settings_preview_themes_and_loading_animations_without">Preview themes and loading animations without waiting on AI.</string>
     <string name="settings_profile">Profile</string>

@@ -128,8 +128,19 @@ data class ExerciseLog(
     val caloriesBurned: Int,
     val durationMinutes: Int,
     /** AI [LogIconTopic] id for the dashboard glyph; null → default strength icon. */
-    val iconTopic: String? = null
-)
+    val iconTopic: String? = null,
+    /**
+     * Health Connect record id when this row was imported (session metadata.id, or
+     * `steps:{date}` for daily steps). Null = FitBuddy-authored. Imported rows are not
+     * deletable in-app (Android forbids deleting another app's HC records).
+     */
+    val healthConnectRecordId: String? = null
+) {
+    fun isFromHealthConnect(): Boolean =
+        !healthConnectRecordId.isNullOrBlank() ||
+            activityName.equals("Steps", ignoreCase = true) ||
+            activityName.startsWith("Steps (", ignoreCase = true)
+}
 
 /** A reusable single-food library item (ingredients + macros) for meal building only. */
 @JsonClass(generateAdapter = true)

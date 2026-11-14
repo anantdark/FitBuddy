@@ -15,6 +15,7 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.backup.BackupErrorMessages
 import com.anant.fitbuddy.data.backup.BackupImportResult
+import com.anant.fitbuddy.data.healthconnect.forSync
 import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.ExerciseDailySummary
@@ -995,6 +996,7 @@ class MainViewModel(
             .distinctUntilChanged()
             .onEach { auto ->
                 if (auto) {
+                    // syncNow reconciles HC permissions before the data pull (and before debounce).
                     runCatching { repository.syncHealthConnect(force = false) }
                 }
             }
@@ -1231,7 +1233,9 @@ class MainViewModel(
     fun updateHealthConnectMetrics(metrics: com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs) {
         viewModelScope.launch {
             settingsRepository.update {
-                it.copy(healthConnectMetrics = metrics.sanitized())
+                it.copy(
+                    healthConnectMetrics = metrics.forSync(it.waterTrackingEnabled)
+                )
             }
         }
     }
@@ -1247,11 +1251,21 @@ class MainViewModel(
                     )
                 }
             _healthConnectSyncBusy.value = false
+            val revoked = result.error ==
+                com.anant.fitbuddy.data.healthconnect.HealthConnectSync.ERROR_PERMISSIONS_REVOKED
+            if (revoked) {
+                settingsRepository.update {
+                    it.copy(healthConnectEnabled = false)
+                }
+            }
             if (!announce) return@launch
             _analysisState.update {
                 it.copy(
-                    userMessage = result.error?.takeIf { err -> err.isNotBlank() }
-                        ?: str(R.string.vm_health_connect_synced)
+                    userMessage = when {
+                        revoked -> str(R.string.vm_health_connect_permissions_revoked)
+                        !result.error.isNullOrBlank() -> result.error
+                        else -> str(R.string.vm_health_connect_synced)
+                    }
                 )
             }
         }
@@ -3339,11 +3353,25 @@ class MainViewModel(
         }
     }
 
-    /** Removes an exercise entry from the log. */
+    /** Removes an exercise entry from the log (blocked for Health Connect imports). */
     fun deleteExerciseLog(log: ExerciseLog) {
         viewModelScope.launch {
-            repository.deleteExercise(log)
-            _analysisState.update { it.copy(userMessage = str(R.string.vm_removed, log.activityName)) }
+            if (log.isFromHealthConnect()) {
+                _analysisState.update {
+                    it.copy(userMessage = str(R.string.vm_health_connect_imported_not_deletable))
+                }
+                return@launch
+            }
+            val removed = repository.deleteExercise(log)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (removed) {
+                        str(R.string.vm_removed, log.activityName)
+                    } else {
+                        str(R.string.vm_health_connect_imported_not_deletable)
+                    }
+                )
+            }
         }
     }
 

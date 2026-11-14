@@ -1168,8 +1168,13 @@ class FitnessRepository(
         healthConnectSync?.syncNow(force = force)
             ?: HealthConnectSyncResult(error = "Health Connect is unavailable")
 
-    /** Deleting an exercise log also removes its workout session + exercises, if it was mirrored from one. */
-    suspend fun deleteExercise(log: ExerciseLog) {
+    /**
+     * Deleting an exercise log also removes its workout session + exercises, if it was mirrored
+     * from one. Health Connect–imported rows are not deletable (Android forbids deleting another
+     * app's HC records); returns false when blocked.
+     */
+    suspend fun deleteExercise(log: ExerciseLog): Boolean {
+        if (log.isFromHealthConnect()) return false
         workoutSessionDao.getByExerciseLogId(log.id)?.let { session ->
             workoutExerciseDao.deleteForSession(session.id)
             workoutSessionDao.delete(session)
@@ -1177,6 +1182,7 @@ class FitnessRepository(
         exerciseLogDao.deleteExerciseLog(log)
         healthConnectSync?.deleteExercise(log.id)
         notifyLocalDataChanged()
+        return true
     }
 
     // --- Workout sessions -------------------------------------------------------------------
