@@ -69,3 +69,8 @@
 -assumenosideeffects class androidx.core.view.accessibility.AccessibilityEventCompat {
     public static void setAccessibilityDataSensitive(android.view.accessibility.AccessibilityEvent, boolean);
 }
+
+# WorkManager (used by Glance widgets) instantiates InputMergers reflectively via the no-arg
+# constructor. The library's own rule keeps the class but R8 still strips <init>, which makes
+# every widget update job fail and leaves home-screen widgets stuck on the loading layout.
+-keep class * extends androidx.work.InputMerger { <init>(); }

@@ -49,7 +49,11 @@
     <string name="barcode_enter_barcode_instead">Enter barcode instead</string>
     <string name="barcode_look_up">Look up</string>
     <string name="barcode_looking_up_product">Looking up product…</string>
-    <string name="barcode_point_at_the_barcode_on_the">Point at the barcode on the packet</string>
+    <string name="barcode_point_at_the_barcode_on_the">Place the barcode inside the box</string>
+    <string name="barcode_capture_now">Capture now</string>
+    <string name="barcode_flashlight_on">Turn flashlight on</string>
+    <string name="barcode_flashlight_off">Turn flashlight off</string>
+    <string name="barcode_manual_capture_miss">No barcode found. Hold steady and try again.</string>
     <string name="barcode_type_the_ean_or_upc_digits">Type the EAN or UPC digits printed under the barcode.</string>
     <string name="barcode_use_camera_instead">Use camera instead</string>
     <string name="charts_calories_burned_contribution_calendar">Calories burned contribution calendar</string>
