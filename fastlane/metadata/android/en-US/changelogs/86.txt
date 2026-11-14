@@ -1,0 +1,9 @@
+• docs: add Weblate translation guide [skip ci]
+• feat: cycle calorie ring shimmer with donate heart [skip ci]
+• feat: add Abhi to supporters and gate themes by badge [skip ci]
+• fix: stop profile crash on percent signs in trend text
+• feat: switch dashboard layout when water logging is toggled
+• feat: make water widget fill flat and single-colour
+• feat: add gentle wave animation to water tumblers
+• feat: show water intake as filling tumblers on the dashboard
+• feat: cycle cal
