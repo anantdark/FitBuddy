@@ -91,6 +91,7 @@ private fun WaterIntakeContent(context: Context, data: WidgetData) {
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(28.dp)
+            .clickable(WidgetIntents.openAppAction(context))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

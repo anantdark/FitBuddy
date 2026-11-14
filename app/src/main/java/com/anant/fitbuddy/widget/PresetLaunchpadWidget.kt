@@ -47,6 +47,7 @@ private fun PresetLaunchpadContent(context: Context, data: WidgetData) {
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(20.dp)
+            .clickable(WidgetIntents.openLogAction(context, MainActivity.LOG_ACTION_PRESETS))
             .padding(8.dp),
     ) {
         Text(
