@@ -3,10 +3,10 @@
     android:description="@string/widget_water_description"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:minWidth="110dp"
-    android:minHeight="110dp"
+    android:minHeight="40dp"
     android:previewLayout="@layout/widget_preview_water_intake"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"
-    android:targetCellHeight="2"
+    android:targetCellHeight="1"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen" />

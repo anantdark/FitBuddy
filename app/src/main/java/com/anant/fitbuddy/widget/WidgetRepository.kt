@@ -83,11 +83,18 @@ object WidgetRepository {
  */
 internal object WidgetRefresh {
     val version = MutableStateFlow(0L)
+    val latest = MutableStateFlow<WidgetData?>(null)
     fun bump() = version.update { it + 1 }
+
+    fun publish(data: WidgetData) {
+        latest.value = data
+        bump()
+    }
 }
 
 @Composable
 internal fun rememberWidgetData(context: Context, initial: WidgetData): WidgetData {
     val version by WidgetRefresh.version.collectAsState()
-    return produceState(initial, version) { value = WidgetRepository.load(context) }.value
+    val latest by WidgetRefresh.latest.collectAsState()
+    return produceState(latest ?: initial, version) { value = WidgetRepository.load(context) }.value
 }
