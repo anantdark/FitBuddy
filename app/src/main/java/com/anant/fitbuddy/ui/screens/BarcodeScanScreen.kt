@@ -5,14 +5,34 @@ import com.anant.fitbuddy.R
 import androidx.compose.ui.res.stringResource
 
 import android.Manifest
+import android.graphics.Rect
+import android.view.MotionEvent
 import android.util.Log
 import android.util.Size
+import androidx.camera.core.Camera
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Rect as ComposeRect
+import androidx.compose.ui.geometry.Size as ComposeSize
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +44,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -259,6 +281,31 @@ private fun ManualBarcodeEntry(
     }
 }
 
+
+private const val CROP_WIDTH_FRACTION = 0.9f
+private const val CROP_HEIGHT_FRACTION = 0.5f
+private const val BOX_WIDTH_FRACTION = 0.8f
+private const val BOX_HEIGHT_FRACTION = 0.3f
+
+private fun scanReader(tryHarder: Boolean) = BarcodeReader().apply {
+    options.formats = setOf(Format.EAN_13, Format.EAN_8, Format.UPC_A, Format.UPC_E)
+    options.tryHarder = tryHarder
+    options.tryRotate = true
+}
+
+private fun ImageProxy.centerCrop(widthFraction: Float, heightFraction: Float): Rect {
+    val upright = imageInfo.rotationDegrees % 180 == 0
+    val uprightW = if (upright) width else height
+    val uprightH = if (upright) height else width
+    val cropW = (uprightW * widthFraction).toInt()
+    val cropH = (uprightH * heightFraction).toInt()
+    val bufW = if (upright) cropW else cropH
+    val bufH = if (upright) cropH else cropW
+    val left = (width - bufW) / 2
+    val top = (height - bufH) / 2
+    return Rect(left, top, left + bufW, top + bufH)
+}
+
 @Composable
 private fun BarcodeCameraPreview(
     modifier: Modifier = Modifier,
@@ -270,6 +317,7 @@ private fun BarcodeCameraPreview(
     val onBarcodeState by rememberUpdatedState(onBarcode)
     val enabledState by rememberUpdatedState(enabled)
     val delivered = remember { AtomicBoolean(false) }
+    val manualRequested = remember { AtomicBoolean(false) }
     LaunchedEffect(enabled) {
         if (enabled) delivered.set(false)
     }
@@ -279,17 +327,14 @@ private fun BarcodeCameraPreview(
         }
     }
     var cameraError by remember { mutableStateOf<String?>(null) }
+    var manualMiss by remember { mutableStateOf(false) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var torchOn by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val executor = Executors.newSingleThreadExecutor()
-        val reader = BarcodeReader().apply {
-            options.formats = setOf(
-                Format.EAN_13,
-                Format.EAN_8,
-                Format.UPC_A,
-                Format.UPC_E
-            )
-        }
+        val fastReader = scanReader(tryHarder = false)
+        val thoroughReader = scanReader(tryHarder = true)
         val mainExecutor = ContextCompat.getMainExecutor(context)
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -299,8 +344,16 @@ private fun BarcodeCameraPreview(
                 val preview = Preview.Builder().build().also {
                     it.surfaceProvider = previewView.surfaceProvider
                 }
+                val resolution = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(1920, 1080),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                        )
+                    )
+                    .build()
                 val analysis = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(1280, 720))
+                    .setResolutionSelector(resolution)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 analysis.setAnalyzer(executor) { imageProxy ->
@@ -308,21 +361,43 @@ private fun BarcodeCameraPreview(
                         imageProxy.close()
                         return@setAnalyzer
                     }
-                    val results = imageProxy.use { reader.read(it) }
+                    val manual = manualRequested.getAndSet(false)
+                    val results = imageProxy.use {
+                        if (manual) {
+                            thoroughReader.read(it)
+                        } else {
+                            it.setCropRect(it.centerCrop(CROP_WIDTH_FRACTION, CROP_HEIGHT_FRACTION))
+                            fastReader.read(it)
+                        }
+                    }
                     val code = results.firstOrNull()?.text
                         ?.filter(Char::isDigit)
                         ?.takeIf { it.isNotBlank() }
                     if (code != null && delivered.compareAndSet(false, true)) {
                         mainExecutor.execute { onBarcodeState(code) }
+                    } else if (manual) {
+                        mainExecutor.execute { manualMiss = true }
                     }
                 }
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                val bound = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
                     analysis
                 )
+                camera = bound.takeIf { it.cameraInfo.hasFlashUnit() }
+                torchOn = false
+                previewView.setOnTouchListener { view, event ->
+                    if (event.action == MotionEvent.ACTION_UP) {
+                        val point = previewView.meteringPointFactory.createPoint(event.x, event.y)
+                        bound.cameraControl.startFocusAndMetering(
+                            FocusMeteringAction.Builder(point).build()
+                        )
+                        view.performClick()
+                    }
+                    true
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Camera bind failed", e)
                 cameraError = e.message
@@ -348,9 +423,80 @@ private fun BarcodeCameraPreview(
             modifier = Modifier.padding(16.dp)
         )
     } else {
-        AndroidView(
-            factory = { previewView },
-            modifier = modifier
+        Box(modifier = modifier) {
+            AndroidView(
+                factory = { previewView },
+                modifier = Modifier.fillMaxSize()
+            )
+            ViewfinderOverlay(modifier = Modifier.fillMaxSize())
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (manualMiss) {
+                    Text(
+                        text = stringResource(R.string.barcode_manual_capture_miss),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White
+                    )
+                }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            manualMiss = false
+                            manualRequested.set(true)
+                        },
+                        enabled = enabled,
+                        modifier = Modifier.align(Alignment.Center)
+                    ) { Text(stringResource(R.string.barcode_capture_now)) }
+                    if (camera != null) {
+                        IconButton(
+                            onClick = {
+                                torchOn = !torchOn
+                                camera?.cameraControl?.enableTorch(torchOn)
+                            },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (torchOn) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                                contentDescription = stringResource(
+                                    if (torchOn) R.string.barcode_flashlight_off else R.string.barcode_flashlight_on
+                                ),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewfinderOverlay(modifier: Modifier = Modifier) {
+    val scrim = Color.Black.copy(alpha = 0.5f)
+    Canvas(modifier = modifier) {
+        val boxW = size.width * BOX_WIDTH_FRACTION
+        val boxH = size.height * BOX_HEIGHT_FRACTION
+        val topLeft = Offset((size.width - boxW) / 2f, (size.height - boxH) / 2f)
+        val boxSize = ComposeSize(boxW, boxH)
+        val radius = CornerRadius(16.dp.toPx())
+        val hole = Path().apply {
+            addRoundRect(RoundRect(ComposeRect(topLeft, boxSize), radius))
+        }
+        clipPath(hole, clipOp = ClipOp.Difference) { drawRect(scrim) }
+        drawRoundRect(
+            color = Color.White,
+            topLeft = topLeft,
+            size = boxSize,
+            cornerRadius = radius,
+            style = Stroke(width = 3.dp.toPx())
         )
     }
 }
