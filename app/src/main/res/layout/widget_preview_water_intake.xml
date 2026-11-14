@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#F5FBF7"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
 
     <ProgressBar
         style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
+        android:layout_width="44dp"
         android:layout_height="match_parent"
         android:indeterminate="false"
         android:max="1000"
@@ -13,44 +17,63 @@
         android:progressDrawable="@drawable/widget_water_level_progress" />
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:gravity="bottom"
-        android:orientation="vertical"
-        android:padding="10dp">
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="1.2 L"
+            android:textColor="#171D1B"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="58% of 2 L"
+            android:textColor="#3F4945"
+            android:textSize="11sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:orientation="horizontal">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="@drawable/widget_transparent_chip"
+                android:background="@drawable/widget_water_preview_chip"
                 android:gravity="center"
-                android:paddingVertical="10dp"
+                android:paddingVertical="8dp"
                 android:text="+250"
                 android:textColor="#0D47A1"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
             <Space
-                android:layout_width="8dp"
+                android:layout_width="6dp"
                 android:layout_height="1dp" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="@drawable/widget_transparent_chip"
+                android:background="@drawable/widget_water_preview_chip"
                 android:gravity="center"
-                android:paddingVertical="10dp"
+                android:paddingVertical="8dp"
                 android:text="+500"
                 android:textColor="#0D47A1"
                 android:textSize="13sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
-</FrameLayout>
+</LinearLayout>

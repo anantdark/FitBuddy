@@ -1071,7 +1071,15 @@ class MainViewModel(
 
     fun saveSettings(newSettings: AppSettings, announce: Boolean = false) {
         viewModelScope.launch {
+            val old = settings.value
+            val waterToggled = old.waterTrackingEnabled != newSettings.waterTrackingEnabled ||
+                old.waterGoalMl != newSettings.waterGoalMl ||
+                old.waterQuickAddMl != newSettings.waterQuickAddMl ||
+                old.bottleQuickAddMl != newSettings.bottleQuickAddMl
             settingsRepository.save(newSettings)
+            if (waterToggled) {
+                com.anant.fitbuddy.widget.FitBuddyWidgetUpdater.notifyDataChanged(app)
+            }
             if (announce) {
                 _analysisState.update { it.copy(userMessage = str(R.string.vm_settings_saved)) }
             }
@@ -3674,6 +3682,7 @@ class MainViewModel(
     fun setWaterQuickAddMl(kind: WaterDrinkKind, amountMl: Int) {
         viewModelScope.launch {
             settingsRepository.update { it.withQuickAddMl(kind, amountMl) }
+            com.anant.fitbuddy.widget.FitBuddyWidgetUpdater.notifyDataChanged(app)
         }
     }
 

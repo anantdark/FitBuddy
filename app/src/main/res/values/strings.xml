@@ -1216,6 +1216,7 @@
     <string name="widget_action_barcode">Scan</string>
     <string name="widget_water_title">Water Intake</string>
     <string name="widget_water_title_short">Water</string>
+    <string name="widget_water_disabled">Water tracking is off. Enable it in Settings.</string>
     <string name="widget_water_description">Track today\'s water and quick-add a glass or bottle</string>
     <string name="widget_describe_log_label">Describe &amp; log</string>
     <string name="water_progress_ratio">%1$s / %2$s</string>

@@ -473,8 +473,9 @@ fun EditWaterLogDialog(
         hintOverride = stringResource(
             R.string.water_edit_log_hint,
             AppSettings.QUICK_ADD_ML_MIN,
-            AppSettings.QUICK_ADD_ML_MAX,
+            AppSettings.LOG_AMOUNT_ML_MAX,
         ),
+        maxMl = AppSettings.LOG_AMOUNT_ML_MAX,
     )
 }
 

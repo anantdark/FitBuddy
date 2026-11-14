@@ -23,6 +23,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
@@ -58,6 +59,10 @@ class WaterIntakeWidget : GlanceAppWidget() {
 
 @Composable
 private fun WaterIntakeContent(context: Context, data: WidgetData) {
+    if (!data.waterTrackingEnabled) {
+        WaterDisabledContent(context)
+        return
+    }
     val density = context.resources.displayMetrics.density
     val size = LocalSize.current
     val layers = remember(data.waterOnlyMl, data.coffeeMl, data.teaMl, data.waterGoalMl) {
@@ -137,6 +142,29 @@ private fun WaterIntakeContent(context: Context, data: WidgetData) {
     }
 }
 
+@Composable
+private fun WaterDisabledContent(context: Context) {
+    Box(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .background(GlanceTheme.colors.widgetBackground)
+            .cornerRadius(28.dp)
+            .padding(12.dp)
+            .clickable(WidgetIntents.openAppAction(context)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = context.getString(R.string.widget_water_disabled),
+            style = TextStyle(
+                color = GlanceTheme.colors.onSurfaceVariant,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            ),
+            maxLines = 2,
+        )
+    }
+}
+
 private fun formatVolume(ml: Int): String =
     if (ml >= 1000) String.format(java.util.Locale.US, "%.1f L", ml / 1000f).replace(".0 L", " L")
     else "$ml ml"
@@ -182,9 +210,10 @@ class AddWaterActionCallback : ActionCallback {
         val kind = WaterDrinkKind.fromStored(kindName)
         val app = context.applicationContext as? FitBuddyApp ?: return
         val settings = app.settingsRepository.settings.first()
+        if (!settings.waterTrackingEnabled) return
         val amount = parameters[amountKey] ?: settings.quickAddMl(kind)
         app.repository.addWaterLog(amountMl = amount, drinkKind = kind)
-        WidgetRefresh.bump()
+        WidgetRefresh.publish(WidgetRepository.load(context))
         WaterIntakeWidget().update(context, glanceId)
     }
 
