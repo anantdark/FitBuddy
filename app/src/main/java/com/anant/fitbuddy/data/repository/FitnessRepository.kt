@@ -1148,11 +1148,9 @@ class FitnessRepository(
     }
 
     suspend fun updateBodyProfile(
-        targetWeightKg: Double?,
         goal: String,
         activityLevel: String
     ): Boolean = userProfileDao.updateBodyProfile(
-        targetWeightKg = targetWeightKg,
         goal = goal,
         activityLevel = activityLevel,
         lastUpdatedTimestamp = System.currentTimeMillis()

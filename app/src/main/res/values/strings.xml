@@ -353,10 +353,8 @@
     <string name="profile_loading_from_freescale">Loading from FreeScale…</string>
     <string name="profile_manual_targets_are_applied_across_your">Manual targets are applied across your dashboard. Personalized target calculation starts fresh from your body data and does not use these values. Consult a qualified health professional before changing health targets.</string>
     <string name="profile_mifflin_st_jeor_resting_estimate_adjusted">Mifflin–St Jeor resting estimate, adjusted for the activity level above and your goal.</string>
-    <string name="profile_no_automatic_scale_weight_change_is">No automatic scale-weight change is recommended, so your current weight is used as a maintenance milestone.</string>
     <string name="profile_no_readings_yet_add_your_weight">No readings yet. Add your weight (and optional smart-scale metrics) to start tracking.</string>
     <string name="profile_no_trend_adjustment_was_applied_the">No trend adjustment was applied; the profile-based formula remains available without scale history.</string>
-    <string name="profile_personalized_targets_set_a_bounded_weight">Personalized targets set a bounded weight milestone when appropriate; otherwise your current weight is used as a maintenance milestone.</string>
     <string name="profile_pull_latest_from_freescale">Pull latest from FreeScale</string>
     <string name="profile_reading_history">Reading history</string>
     <string name="profile_save_body_data">Save body data</string>
@@ -369,7 +367,6 @@
     <string name="profile_this_target_was_calculated_locally_from">This target was calculated locally from your profile, activity level, and goal.</string>
     <string name="profile_track_composition_and_set_calorie_and">Track composition and set calorie and macro targets.</string>
     <string name="profile_use_current">Use current</string>
-    <string name="profile_weight_milestone">Weight milestone</string>
     <string name="profile_workout_logs_may_not_include_physical">Workout logs may not include physical work, daily movement, or unlogged exercise.</string>
     <string name="profile_your_saved_nutrition_targets_remain_unchanged">Your saved nutrition targets remain unchanged.</string>
     <string name="region_anonymous_support_id">Anonymous Support ID</string>
@@ -769,8 +766,6 @@
     <string name="analytics_monthly">Monthly</string>
     <string name="analytics_last_30_days">Last 30 days</string>
     <string name="analytics_latest">Latest %1$s%2$s</string>
-    <string name="analytics_within_1_kg_green_above_1_kg">Within ±%1$s green · above by &gt;%1$s yellow · below by &gt;%1$s red</string>
-    <string name="analytics_within_1_kg_green_below_1_kg">Within ±%1$s green · below by &gt;%1$s yellow · above by &gt;%1$s red</string>
     <string name="analytics_total">Total</string>
     <string name="analytics_active_days">Active days</string>
     <string name="analytics_avg_day">Avg/day</string>
@@ -927,13 +922,8 @@
     <string name="onboarding_required_2">%1$s is required (%2$s–%3$s %4$s)</string>
     <string name="onboarding_enter_valid_number">Enter a valid number</string>
     <string name="onboarding_must_between_2">Must be between %1$s and %2$s %3$s</string>
-    <string name="profile_enter_valid_weight_milestone">Enter a valid weight milestone</string>
-    <string name="profile_add_current_reading_before_setting_weight_milest">Add a current reading before setting a weight milestone</string>
-    <string name="profile_muscle_gain_target_cannot_below_current_weight">A muscle-gain target cannot be below your current weight</string>
-    <string name="profile_weight_loss_target_cannot_above_current_weight">A weight-loss target cannot be above your current weight</string>
     <string name="profile_synced_latest_reading">Synced from the latest reading (%1$s)</string>
     <string name="profile_add_reading_update_current_weight">Add a reading to update your current weight</string>
-    <string name="profile_weight_milestone_kg_optional">Weight milestone (%1$s, optional)</string>
     <string name="profile_latest_reading">Latest reading · %1$s</string>
     <string name="profile_analysing">Analysing…</string>
     <string name="profile_calculating_targets">Calculating targets…</string>
@@ -952,8 +942,6 @@
     <string name="profile_fat"> · %1$s%% fat</string>
     <string name="profile_kg_muscle"> · %1$s %2$s muscle</string>
     <string name="profile_science_based_recommendation">Science-based recommendation</string>
-    <string name="profile_health_target_recommendation">Health target recommendation</string>
-    <string name="profile_weight_milestone_recommendation">Weight milestone recommendation</string>
     <string name="profile_activity_recommendation">Activity recommendation</string>
     <string name="profile_re_track">You\'re on track</string>
     <string name="profile_kcal_day">%1$s kcal/day</string>
@@ -977,10 +965,7 @@
     <string name="profile_kcal_day_bounded_trend_adjustment_applied">A %1$s kcal/day bounded trend adjustment was applied.</string>
     <string name="profile_food_logs_previous_28_completed_days_composition">Food logs: %1$s of the previous 28 completed days. Composition readings are supporting evidence and can vary with hydration.</string>
     <string name="profile_more_consistent_readings_needed">More consistent readings are needed.</string>
-    <string name="profile_initial_milestone_up_5_based_selected_weight">An initial milestone of up to 5% based on your selected weight-loss goal.</string>
     <string name="profile_apply">Apply</string>
-    <string name="profile_apply_recommendations">Apply recommendations</string>
-    <string name="profile_save_weight_milestone">Save weight milestone</string>
     <string name="profile_apply_activity_level">Apply activity level</string>
     <string name="profile_body_fat_2">Body fat (%)</string>
     <string name="profile_bmr_kcal">BMR (kcal)</string>

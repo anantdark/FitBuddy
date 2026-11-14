@@ -103,7 +103,6 @@ fun AnalyticsScreen(
     sixMonthExercise: List<ExerciseDailySummary>,
     measurements: List<BodyMeasurement>,
     targetCaloriesForDate: (String) -> Int,
-    targetWeightKg: Double? = null,
     /** Profile goal: LOSE_WEIGHT | GAIN_MUSCLE | RECOMP | AUTO */
     goal: String = "RECOMP",
     monthlyEndDate: String,
@@ -219,11 +218,7 @@ fun AnalyticsScreen(
 
         // Independent of Weekly/Monthly: always the most recent scale readings.
         item {
-            BodyMetricCard(
-                measurements = measurements,
-                targetWeightKg = targetWeightKg,
-                goal = goal
-            )
+            BodyMetricCard(measurements = measurements)
         }
     }
 }
@@ -287,18 +282,13 @@ private fun MonthRangeNavigator(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BodyMetricCard(
-    measurements: List<BodyMeasurement>,
-    targetWeightKg: Double?,
-    goal: String
+    measurements: List<BodyMeasurement>
 ) {
     val pagerState = rememberPagerState(pageCount = { BODY_METRICS.size })
     val scope = rememberCoroutineScope()
     val units = LocalUnitSystem.current
     fun BodyMetric.shownUnit() = if (isMass) " ${Units.weightUnit(units)}" else unit
     fun BodyMetric.shown(v: Double) = if (isMass) Units.kgToDisplay(v, units) else v
-    val weightTarget = targetWeightKg?.takeIf { it.isFinite() && it > 0.0 }
-        ?.let { Units.kgToDisplay(it, units) }
-    val preferHigherWeight = remember(goal) { calorieTargetPrefersSurplus(goal) }
 
     ChartCard(title = stringResource(R.string.analytics_body_composition)) {
         HorizontalPager(
@@ -325,9 +315,6 @@ private fun BodyMetricCard(
                 points = points,
                 unit = metric.shownUnit(),
                 decreaseIsPositive = metric.decreaseIsPositive,
-                targetValue = if (metric.labelRes == R.string.onboarding_weight) weightTarget else null,
-                targetPreferHigher = preferHigherWeight,
-                targetTolerance = Units.kgToDisplay(1.0, units),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp)
@@ -363,19 +350,6 @@ private fun BodyMetricCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-
-        if (currentMetric.labelRes == R.string.onboarding_weight && weightTarget != null) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = if (preferHigherWeight) {
-                    stringResource(R.string.analytics_within_1_kg_green_above_1_kg, Units.weightLabel(1.0, units))
-                } else {
-                    stringResource(R.string.analytics_within_1_kg_green_below_1_kg, Units.weightLabel(1.0, units))
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
 
         Spacer(Modifier.height(12.dp))

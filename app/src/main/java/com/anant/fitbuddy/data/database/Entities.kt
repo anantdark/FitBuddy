@@ -28,7 +28,7 @@ data class UserProfile(
     val activityLevel: String = "MODERATE", // "SEDENTARY" | "LIGHT" | "MODERATE" | "ACTIVE" | "VERY_ACTIVE"
     // Latest rationale for the calculated goal/targets (shown in the proposal dialog).
     val goalRationale: String? = null,
-    // Optional AI-recommended or manually entered body-weight target.
+    // Legacy column from the removed weight-milestone feature; kept so the Room schema is unchanged.
     val targetWeightKg: Double? = null,
     /** Change-point timeline of nutrition targets; empty until seeded / first real save. */
     val nutritionTargetHistory: List<NutritionTargetPeriod> = emptyList()

@@ -827,7 +827,6 @@ fun MainScreen(
                                     dashboardState.profile?.targetsForDate(date)?.kcal
                                         ?: dashboardState.targetCalories
                                 },
-                                targetWeightKg = dashboardState.profile?.targetWeightKg,
                                 goal = dashboardState.profile?.goal ?: "RECOMP",
                                 monthlyEndDate = monthlyEndDate,
                                 realToday = realToday,

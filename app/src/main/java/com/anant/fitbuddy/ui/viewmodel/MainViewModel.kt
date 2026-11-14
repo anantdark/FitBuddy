@@ -231,16 +231,6 @@ data class TargetPlanUiState(
     val appliedRevision: Long = 0L
 )
 
-private fun targetWeightMatchesGoal(
-    targetWeightKg: Double,
-    currentWeightKg: Double,
-    goal: String
-): Boolean = when (goal.trim().uppercase()) {
-    "GAIN_MUSCLE" -> currentWeightKg <= 0.0 || targetWeightKg >= currentWeightKg
-    "LOSE_WEIGHT" -> currentWeightKg <= 0.0 || targetWeightKg <= currentWeightKg
-    else -> true
-}
-
 /** One message in the progress-coach follow-up chat. */
 @Immutable
 data class ProgressChatMessage(
@@ -1066,7 +1056,6 @@ class MainViewModel(
                     targetFatsG = plan.targetFatsG,
                     goal = plan.recommendedGoal,
                     goalRationale = plan.rationale,
-                    targetWeightKg = plan.targetWeightKg,
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 ),
                 effectiveFromDate = DateUtils.today(),
@@ -2512,7 +2501,6 @@ class MainViewModel(
         age: Int,
         heightCm: Double,
         weightKg: Double,
-        targetWeightKg: Double?,
         sex: String?,
         activityLevel: String,
         acceptActivityRecommendation: Boolean
@@ -2549,13 +2537,6 @@ class MainViewModel(
             } else {
                 plan
             }
-            val planGoal = appliedPlan.recommendedGoal.ifBlank { "RECOMP" }
-            val proposedTargetWeight = appliedPlan.targetWeightKg
-                ?.takeIf { it.isFinite() && it > 0.0 }
-                ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
-                ?: targetWeightKg
-                    ?.takeIf { it.isFinite() && it > 0.0 }
-                    ?.takeIf { targetWeightMatchesGoal(it, weightKg, planGoal) }
             val existing = dashboardState.value.profile
             val applyNutritionTargets = appliedPlan.targetsChanged
             repository.saveProfileRecordingTargets(
@@ -2589,7 +2570,6 @@ class MainViewModel(
                     goal = appliedPlan.recommendedGoal.ifBlank { existing?.goal ?: "RECOMP" },
                     activityLevel = appliedPlan.recommendedActivityLevel ?: activityLevel,
                     goalRationale = appliedPlan.rationale,
-                    targetWeightKg = proposedTargetWeight,
                     nutritionTargetHistory = existing?.nutritionTargetHistory.orEmpty()
                 ),
                 effectiveFromDate = DateUtils.today(),
@@ -4356,7 +4336,6 @@ class MainViewModel(
                     goal = existing?.goal ?: "RECOMP",
                     activityLevel = existing?.activityLevel ?: "MODERATE",
                     goalRationale = existing?.goalRationale,
-                    targetWeightKg = existing?.targetWeightKg,
                     nutritionTargetHistory = existing?.nutritionTargetHistory.orEmpty()
                 ),
                 effectiveFromDate = DateUtils.today(),
@@ -4407,23 +4386,6 @@ class MainViewModel(
                             targetFatsG = plan.targetFatsG,
                             goal = plan.recommendedGoal.ifBlank { profile.goal },
                             goalRationale = plan.rationale,
-                            targetWeightKg = plan.targetWeightKg
-                                ?.takeIf { it.isFinite() && it > 0.0 }
-                                ?.takeIf {
-                                    targetWeightMatchesGoal(
-                                        it,
-                                        profile.weightKg,
-                                        plan.recommendedGoal.ifBlank { profile.goal }
-                                    )
-                                }
-                                ?: profile.targetWeightKg
-                                    ?.takeIf {
-                                        targetWeightMatchesGoal(
-                                            it,
-                                            profile.weightKg,
-                                            plan.recommendedGoal.ifBlank { profile.goal }
-                                        )
-                                    },
                             lastUpdatedTimestamp = System.currentTimeMillis()
                         ),
                         effectiveFromDate = DateUtils.today(),
@@ -4511,19 +4473,13 @@ class MainViewModel(
     }
 
     fun saveProfile(
-        targetWeightKg: Double?,
         goal: String = "RECOMP",
         activityLevel: String = "MODERATE"
     ) {
-        val currentWeight = currentWeightKg()
-        val validTargetWeight = targetWeightKg
-            ?.takeIf { it.isFinite() && it > 0.0 }
-            ?.takeIf { targetWeightMatchesGoal(it, currentWeight, goal) }
         viewModelScope.launch {
             runCatching {
                 check(
                     repository.updateBodyProfile(
-                        targetWeightKg = validTargetWeight,
                         goal = goal,
                         activityLevel = activityLevel
                     )
@@ -4840,7 +4796,6 @@ class MainViewModel(
             put("target_carbs_g", plan.targetCarbsG)
             put("target_fats_g", plan.targetFatsG)
             put("targets_changed", plan.targetsChanged)
-            put("target_weight_kg", plan.targetWeightKg ?: JSONObject.NULL)
             put("recommended_activity_level", plan.recommendedActivityLevel ?: JSONObject.NULL)
             put("activity_window_days", plan.activityWindowDays ?: JSONObject.NULL)
             put("activity_workout_days", plan.activityWorkoutDays ?: JSONObject.NULL)
