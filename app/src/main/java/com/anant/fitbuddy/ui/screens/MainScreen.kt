@@ -8,6 +8,8 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -362,13 +364,22 @@ fun MainScreen(
 
     val scope = rememberCoroutineScope()
 
+    // The camera app can push us out of memory; the target path is saved so the full-size
+    // capture is still picked up after the process is recreated.
+    var pendingCameraFile by rememberSaveable { mutableStateOf<String?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            // Decode/scale/compress off the main thread to avoid dropping frames.
+        ActivityResultContracts.TakePicture()
+    ) { saved ->
+        val file = pendingCameraFile?.let(::File)
+        pendingCameraFile = null
+        if (file != null) {
             scope.launch(Dispatchers.Default) {
-                viewModel.addPhotosToDraft(listOf(ImageUtils.bitmapToJpeg(bitmap)))
+                if (saved && file.length() > 0) {
+                    ImageUtils.uriToJpeg(context, Uri.fromFile(file))
+                        ?.let { viewModel.addPhotosToDraft(listOf(it)) }
+                }
+                file.delete()
             }
         }
     }
@@ -382,13 +393,18 @@ fun MainScreen(
             return
         }
         try {
-            cameraLauncher.launch(null)
+            val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+            dir.listFiles()?.forEach { it.delete() }
+            val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
+            pendingCameraFile = file.absolutePath
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraLauncher.launch(uri)
         } catch (_: ActivityNotFoundException) {
             SystemToast.show(context, context.getString(R.string.main_no_camera_app_available_use_gallery))
         }
     }
 
-    // TakePicturePreview starts IMAGE_CAPTURE, which requires CAMERA at runtime on
+    // TakePicture starts IMAGE_CAPTURE, which requires CAMERA at runtime on
     // Android 6+. Launching without it crashes with SecurityException (permission denial).
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA) { granted ->
         if (granted) {
