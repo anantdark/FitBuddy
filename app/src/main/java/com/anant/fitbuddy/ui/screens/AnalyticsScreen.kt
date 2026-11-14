@@ -114,6 +114,7 @@ fun AnalyticsScreen(
     forceShowAnimation: Boolean = false,
     onShiftMonth: (Int) -> Unit,
     onRequestInsight: () -> Unit,
+    onContinueChat: () -> Unit,
     onOpenChat: () -> Unit,
     onDismissInsight: () -> Unit,
     modifier: Modifier = Modifier
@@ -129,7 +130,7 @@ fun AnalyticsScreen(
         if (isLatestWindow) last30DaysLabel else DateUtils.rolling30DayLabel(monthlyEndDate)
     }
 
-    progressInsightState.summary?.let {
+    if (progressInsightState.showInsightDialog) {
         ProgressInsightDialog(
             state = progressInsightState,
             onOpenChat = onOpenChat,
@@ -148,7 +149,8 @@ fun AnalyticsScreen(
                 isAiConfigured = isAiConfigured,
                 animationChoice = animationChoice,
                 forceShowAnimation = forceShowAnimation,
-                onRequestInsight = onRequestInsight
+                onRequestInsight = onRequestInsight,
+                onContinueChat = onContinueChat
             )
         }
 
@@ -439,7 +441,8 @@ private fun InsightCard(
     isAiConfigured: Boolean,
     animationChoice: String,
     forceShowAnimation: Boolean = false,
-    onRequestInsight: () -> Unit
+    onRequestInsight: () -> Unit,
+    onContinueChat: () -> Unit
 ) {
     ChartCard(title = stringResource(R.string.analytics_ai_progress_coach)) {
         Text(
@@ -456,32 +459,44 @@ private fun InsightCard(
         }
 
         val insightLoading = state.isLoading || forceShowAnimation
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = isAiConfigured && !insightLoading && !state.isChatLoading,
-            onClick = onRequestInsight,
-            // Keep primary colors while loading — disabled greys out the spinner caption.
-            colors = if (insightLoading) {
-                ButtonDefaults.buttonColors(
-                    disabledContainerColor = MaterialTheme.colorScheme.primary,
-                    disabledContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                ButtonDefaults.buttonColors()
-            },
-            contentPadding = if (insightLoading) PaddingValues(0.dp)
-                             else PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            if (insightLoading) {
-                LoadingAnimationHost(
-                    slot = LoadingAnimationSlot.INSIGHT,
-                    animationChoice = animationChoice,
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
-                )
-            } else {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+        if (state.hasKeptChat && !insightLoading) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = isAiConfigured && !state.isChatLoading,
+                onClick = onContinueChat
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text(stringResource(R.string.analytics_generate_insight))
+                Text(stringResource(R.string.analytics_continue_chat))
+            }
+        } else {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = isAiConfigured && !insightLoading && !state.isChatLoading,
+                onClick = onRequestInsight,
+                // Keep primary colors while loading — disabled greys out the spinner caption.
+                colors = if (insightLoading) {
+                    ButtonDefaults.buttonColors(
+                        disabledContainerColor = MaterialTheme.colorScheme.primary,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    ButtonDefaults.buttonColors()
+                },
+                contentPadding = if (insightLoading) PaddingValues(0.dp)
+                                 else PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                if (insightLoading) {
+                    LoadingAnimationHost(
+                        slot = LoadingAnimationSlot.INSIGHT,
+                        animationChoice = animationChoice,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    )
+                } else {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.analytics_generate_insight))
+                }
             }
         }
         if (!isAiConfigured) {
@@ -536,9 +551,7 @@ private fun ProgressInsightDialog(
             TextButton(onClick = onOpenChat) {
                 Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text(
-                    if (state.chatMessages.size > 1) "Continue chat" else stringResource(R.string.analytics_ask_follow_up)
-                )
+                Text(stringResource(R.string.analytics_ask_follow_up))
             }
         },
         dismissButton = {

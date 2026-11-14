@@ -28,6 +28,7 @@
     <string name="analytics_calories_eaten_vs_target">Calories Eaten vs Target</string>
     <string name="analytics_connect_an_ai_provider_in_settings">Connect an AI provider in Settings to enable insights.</string>
     <string name="analytics_generate_an_insight_from_your_charts">Generate an insight from your charts, then ask follow-up questions in a dedicated chat.</string>
+    <string name="analytics_continue_chat">Continue chat</string>
     <string name="analytics_generate_insight">Generate insight</string>
     <string name="analytics_great_alignment_with_your_goal">Great alignment with your goal</string>
     <string name="analytics_making_progress_room_to_improve">Making progress, room to improve</string>
@@ -60,12 +61,8 @@
     <string name="charts_no_readings_yet">No readings yet</string>
     <string name="charts_swipe_the_calendar_and_tap_a">Swipe the calendar and tap a square for details</string>
     <string name="coach_ask_about_your_trends_macros_or">Ask about your trends, macros, or body comp…</string>
-    <string name="coach_clear_go_back">Clear &amp; go back</string>
-    <string name="coach_keep_chat">Keep chat</string>
-    <string name="coach_leave_conversation">Leave conversation?</string>
     <string name="coach_progress_coach">Progress Coach</string>
     <string name="coach_thinking">Thinking…</string>
-    <string name="coach_you_can_keep_this_chat_for">You can keep this chat for next time, or clear it and start fresh when you open the coach again.</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_ok">OK</string>
     <string name="common_pick_log_date">Pick log date</string>
@@ -209,6 +206,12 @@
     <string name="food_qty">Qty</string>
     <string name="food_recalculate_with_ai">Recalculate with AI</string>
     <string name="food_review_food">Review food</string>
+    <string name="food_review_edit_food">Edit food</string>
+    <string name="food_review_add_food">Add food</string>
+    <string name="food_review_done">Done</string>
+    <string name="food_review_totals_subtitle">Total for this food · %1$d g</string>
+    <string name="food_review_ingredient_summary">%1$d g · %2$d kcal · P %3$s g</string>
+    <string name="food_review_edit_macros">Edit macros</string>
     <string name="food_save">Save</string>
     <string name="food_save_as_food_preset">Save as food preset</string>
     <string name="food_saved_foods">Saved foods</string>
@@ -284,7 +287,7 @@
     <string name="meal_foods">Foods</string>
     <string name="meal_foods_in_this_meal">Foods in this meal</string>
     <string name="meal_meal_name">Meal name</string>
-    <string name="meal_no_foods_in_this_meal_go">No foods in this meal. Go back and add at least one food.</string>
+    <string name="meal_no_foods_in_this_meal_go">No foods in this meal. Tap Add food below.</string>
     <string name="meal_no_saved_meals_yet_create_one">No saved meals yet. Create one above, then save it as a preset on the review screen.</string>
     <string name="meal_remove">Remove</string>
     <string name="meal_review_save_as_preset">Review &amp; save as preset</string>
@@ -829,7 +832,9 @@
     <string name="food_review_log_food">Log food</string>
     <string name="food_review_saved_food_preset">Saved \"%1$s\" as food preset</string>
     <string name="food_review_recalculating_ai">Recalculating with AI…</string>
-    <string name="food_review_wrong_item_rename_e_g_pineapple_cake">Wrong item? Rename it (e.g. \"pineapple cake\") and tap ✨ to let AI recompute calories, macros and ingredients.</string>
+    <string name="food_review_wrong_item_rename_e_g_pineapple_cake">Wrong item? Rename it (e.g. \"pineapple cake\") and tap the sparkle to recompute with AI.</string>
+    <string name="meal_review_recalculate_with_ai">Recalculate meal with AI</string>
+    <string name="meal_review_ai_hint">Wrong meal? Rename it and tap the sparkle to recompute foods and macros.</string>
     <string name="food_review_remove">Remove %1$s</string>
     <string name="food_review_g_total">= %1$s g total</string>
     <string name="food_review_quantity">Quantity</string>
@@ -878,6 +883,13 @@
     <string name="meal_review_update_meal">Update meal</string>
     <string name="meal_review_save_meal">Save meal</string>
     <string name="meal_review_qty_g_ingredient_s">Qty %1$s · %2$s g · %3$d ingredient(s)</string>
+    <string name="meal_review_edit_meal">Edit meal</string>
+    <string name="meal_review_foods_in_meal">%1$d food(s) in this meal</string>
+    <string name="meal_review_total_for_meal">Total for this meal · %1$d food(s)</string>
+    <string name="meal_review_g_ingredient_s">%1$s g · %2$d ingredient(s)</string>
+    <string name="meal_review_servings">Servings</string>
+    <string name="meal_review_qty_scales_ingredient">Ingredient quantity</string>
+    <string name="meal_review_qty_scales_servings">Scales all ingredients</string>
     <string name="onboarding_choose_automatically">Choose automatically</string>
     <string name="onboarding_lose_weight">Lose weight</string>
     <string name="onboarding_gain_muscle">Gain muscle</string>

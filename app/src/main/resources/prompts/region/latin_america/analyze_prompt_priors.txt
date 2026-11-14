@@ -11,5 +11,7 @@ Latin America food priors (apply when identifying dishes from photos or loose te
 - Cooking fats: when a dish is fried, refried, or dressed and fat is not stated, include
   "cooking oil" or "manteca" as its own ingredient with a typical amount (~1 tbsp / 14 g).
 - Naming: prefer familiar Spanish/Portuguese dish names in "meal_name" / food "name"
-  when the user wrote them that way; otherwise use clear English. Break combo plates
-  (taco + rice + beans + soda) into separate foods rather than "mixed plate".
+  when the user wrote them that way; otherwise use clear English. Default to ONE food
+  with ingredients. Only split combo plates into multiple foods when items are clearly
+  separate (taco + rice + beans + soda). A single named dish ("taco al pastor",
+  "arepa") stays one food.

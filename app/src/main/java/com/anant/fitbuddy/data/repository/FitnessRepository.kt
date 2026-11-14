@@ -74,6 +74,7 @@ import com.anant.fitbuddy.data.region.IndiaRegionPack
 import com.anant.fitbuddy.data.region.RegionPack
 import com.anant.fitbuddy.data.region.RegionPacks
 import com.anant.fitbuddy.data.region.RegionalDish
+import com.anant.fitbuddy.data.model.asSingleFoodDraftOrNull
 import com.anant.fitbuddy.data.model.toFoodDraft
 import com.anant.fitbuddy.data.model.toFoodEntry
 import com.anant.fitbuddy.data.model.toMealDraft
@@ -1510,7 +1511,8 @@ class FitnessRepository(
 
     /**
      * Reads the payload `status` and routes the data, returning a clean outcome.
-     * - SUCCESS -> [AnalysisOutcome.FoodReady] (1 food) or [AnalysisOutcome.MealReady] (2+)
+     * - SUCCESS -> [AnalysisOutcome.FoodReady] when exactly one food,
+     *   else [AnalysisOutcome.MealReady] (two or more foods)
      * - EXERCISE_LOGGED -> insert exercise, return [AnalysisOutcome.ExerciseSaved]
      * - CLARIFICATION_REQUIRED -> surface the question to the UI
      */
@@ -1530,11 +1532,9 @@ class FitnessRepository(
                 if (meal.foods.isEmpty()) {
                     return AnalysisOutcome.Error("Missing foods in food analysis")
                 }
-                if (meal.foods.size == 1) {
-                    val entry = meal.foods.first()
-                    AnalysisOutcome.FoodReady(
-                        entry.toFoodDraft(timestamp = meal.timestamp, iconTopic = meal.iconTopic)
-                    )
+                val foodDraft = meal.asSingleFoodDraftOrNull()
+                if (foodDraft != null) {
+                    AnalysisOutcome.FoodReady(foodDraft)
                 } else {
                     AnalysisOutcome.MealReady(meal)
                 }
