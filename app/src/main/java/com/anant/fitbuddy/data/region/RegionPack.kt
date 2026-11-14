@@ -32,17 +32,11 @@ interface RegionPack {
     /** Example line under the text-log dialog, e.g. `e.g. "2 rotis with dal tadka"…`. */
     val foodLogHint: String
 
-    /** Helper under "Ask for portion" in the food review sheet. */
-    val askPortionHint: String
-
     /**
      * Prompt block for portion/quantity language in this region (katori vs cups vs g/ml).
      * Injected into the analyze system prompt; macros still reported in grams.
      */
     val measurementPromptNotes: String
-
-    /** Suffix for the "ask for portion" re-analyze user prompt. */
-    val askPortionPromptNotes: String
 
     /** Example barcode digits for the manual barcode entry placeholder. */
     val barcodeExample: String

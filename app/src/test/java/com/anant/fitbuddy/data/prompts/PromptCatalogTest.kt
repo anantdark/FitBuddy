@@ -15,8 +15,7 @@ class PromptCatalogTest {
         "progress_chat",
         "classify_exercise",
         "parse_workout",
-        "workout_name",
-        "ask_portion"
+        "workout_name"
     )
 
     private val regionFiles = listOf(
@@ -26,8 +25,7 @@ class PromptCatalogTest {
         "analyze_prompt_priors",
         "target_coach_notes",
         "progress_food_guidance",
-        "measurement_prompt_notes",
-        "ask_portion_prompt_notes"
+        "measurement_prompt_notes"
     )
 
     private val fragments = listOf(
@@ -89,16 +87,6 @@ class PromptCatalogTest {
     }
 
     @Test
-    fun askPortionUserPrompt_rendersDishAndNotes() {
-        val pack = RegionPacks.pack(AppRegion.INDIA)
-        val prompt = PromptCatalog.askPortionUserPrompt("Paneer bhurji", pack.askPortionPromptNotes)
-        assertTrue(prompt.startsWith("Paneer bhurji."))
-        assertTrue(prompt.contains("katori", ignoreCase = true))
-        assertTrue(prompt.contains("Break into named ingredients"))
-        assertFalse(prompt.contains("{{"))
-    }
-
-    @Test
     fun strictClarificationAndImageFragments_injectWhenEnabled() {
         val pack = RegionPacks.pack(AppRegion.US)
         val withFlags = PromptCatalog.analyzePrompt(
@@ -112,6 +100,6 @@ class PromptCatalogTest {
         assertTrue(withFlags.contains("STRICT CLARIFICATION MODE"))
         assertTrue(withFlags.contains("images are attached"))
         assertTrue(withFlags.contains("ALWAYS return status \"SUCCESS\""))
-        assertTrue(withFlags.contains("the attached photo makes portion size obvious"))
+        assertTrue(withFlags.contains("NEVER ask a follow-up about quantity or portion"))
     }
 }

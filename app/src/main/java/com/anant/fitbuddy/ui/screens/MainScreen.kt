@@ -1467,7 +1467,6 @@ fun MainScreen(
             },
             onSaveAsPreset = viewModel::saveDraftAsSavedFood,
             onReanalyze = viewModel::reanalyzeFood,
-            onAskForPortion = viewModel::askForPortion,
             onDismiss = {
                 mealBuilderFoodEditIndex = null
                 viewModel.dismissFoodDraft()

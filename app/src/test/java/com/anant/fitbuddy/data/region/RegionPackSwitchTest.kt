@@ -11,7 +11,7 @@ import org.junit.Test
  * resolves a distinct pack for prompts, UI hints, and staples — with no cross-pack merge.
  *
  * Production resolve sites: RemoteAiDataSource.regionPack, MainScreen remember(settings.region),
- * MainViewModel.askForPortion, FitnessRepository offline analyze branch.
+ * FitnessRepository offline analyze branch.
  */
 class RegionPackSwitchTest {
 
@@ -44,9 +44,7 @@ class RegionPackSwitchTest {
         assertDistinct(packs.map { it.progressSystemIntro })
         assertDistinct(packs.map { it.progressFoodGuidance })
         assertDistinct(packs.map { it.measurementPromptNotes })
-        assertDistinct(packs.map { it.askPortionPromptNotes })
         assertDistinct(packs.map { it.foodLogHint })
-        assertDistinct(packs.map { it.askPortionHint })
         assertDistinct(packs.map { it.barcodeExample })
 
         packs.forEach { pack ->

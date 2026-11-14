@@ -3908,32 +3908,6 @@ class MainViewModel(
         }
     }
 
-    /**
-     * Re-runs analysis with a fixed portion template so the AI estimates a standard home serving
-     * when the user knows the dish but not grams.
-     */
-    fun askForPortion(dishName: String) {
-        val name = dishName.trim()
-        if (name.isBlank()) return
-        val pack = com.anant.fitbuddy.data.region.RegionPacks.packOrIndia(
-            com.anant.fitbuddy.data.region.AppRegion.fromStored(settings.value.region)
-        )
-        val prompt = com.anant.fitbuddy.data.prompts.PromptCatalog.askPortionUserPrompt(
-            name,
-            pack.askPortionPromptNotes
-        )
-        _analysisState.update { it.copy(isReanalyzing = true, reviewMessage = null) }
-        viewModelScope.launch {
-            val outcome = repository.analyze(
-                prompt,
-                emptyList(),
-                buildUserStateContext(),
-                forceEstimate = true
-            )
-            applyReanalyzeOutcome(outcome)
-        }
-    }
-
     private fun applyReanalyzeOutcome(outcome: AnalysisOutcome) {
         val rawJson = maybeRawAiJson()
         _analysisState.update { state ->

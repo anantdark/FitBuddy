@@ -188,7 +188,6 @@
     <string name="food_add">Add</string>
     <string name="food_add_ingredient">Add ingredient</string>
     <string name="food_adjust_weight_or_edit_macros">adjust weight or edit macros</string>
-    <string name="food_ask_for_portion">Ask for portion</string>
     <string name="food_calories">Calories</string>
     <string name="food_calories_per_serving">Calories per serving</string>
     <string name="food_change_this_to_scale_every_ingredient">Change this to scale every ingredient\'s weight (and macros) proportionally. Use ingredient Qty for counts (supports decimals).</string>

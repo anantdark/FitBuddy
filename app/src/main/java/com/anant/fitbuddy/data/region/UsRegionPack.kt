@@ -40,15 +40,9 @@ object UsRegionPack : RegionPack {
         get() = PromptCatalog.regionText(region, "progress_food_guidance")
     override val measurementPromptNotes: String
         get() = PromptCatalog.regionText(region, "measurement_prompt_notes")
-    override val askPortionPromptNotes: String
-        get() = PromptCatalog.regionText(region, "ask_portion_prompt_notes")
 
     override val foodLogHint: String =
         "e.g. \"cheeseburger with fries\" or \"2 scrambled eggs and toast\""
-
-    override val askPortionHint: String =
-        "Know the dish but not grams? Estimates a standard North American home/restaurant " +
-            "serving (cups, ounces, slices)."
 
     override val barcodeExample: String = "0012345678905"
 }

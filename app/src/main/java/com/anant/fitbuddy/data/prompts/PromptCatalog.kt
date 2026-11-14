@@ -56,18 +56,12 @@ object PromptCatalog {
         } else {
             ""
         }
-        val portionClause = if (hasImage) {
-            "the attached photo makes portion size obvious"
-        } else {
-            "a count is stated"
-        }
         return render(
             load("prompts/shared/analyze.txt"),
             mapOf(
                 "ANALYZE_SYSTEM_INTRO" to pack.analyzeSystemIntro,
                 "ANALYZE_PROMPT_PRIORS" to pack.analyzePromptPriors,
                 "PROMPT_REFERENCE_TABLE" to pack.promptReferenceTable(),
-                "PORTION_OBVIOUSNESS_CLAUSE" to portionClause,
                 "STRICT_CLARIFICATION_BLOCK" to strictBlock,
                 "MEASUREMENT_PROMPT_NOTES" to pack.measurementPromptNotes,
                 "USER_STATE_CONTEXT_JSON" to userStateContextJson,
@@ -137,13 +131,4 @@ object PromptCatalog {
             mapOf("EXERCISE_LIST" to list)
         )
     }
-
-    fun askPortionUserPrompt(dishName: String, askPortionPromptNotes: String): String =
-        render(
-            load("prompts/shared/ask_portion.txt"),
-            mapOf(
-                "DISH_NAME" to dishName,
-                "ASK_PORTION_PROMPT_NOTES" to askPortionPromptNotes
-            )
-        )
 }
