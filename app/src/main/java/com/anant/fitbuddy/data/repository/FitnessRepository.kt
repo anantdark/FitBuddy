@@ -1413,7 +1413,7 @@ class FitnessRepository(
      */
     suspend fun analyze(
         userText: String,
-        imageBytes: ByteArray?,
+        images: List<ByteArray>,
         userStateContextJson: String,
         forceEstimate: Boolean = false,
         customTimestamp: Long? = null,
@@ -1421,14 +1421,16 @@ class FitnessRepository(
     ): AnalysisOutcome {
         val settings = settingsRepository.settings.first()
         val forceOffline = settings.developerModeUnlocked && settings.forceOfflineAiSimulator
-        val modality = if (imageBytes != null) "photo" else "text"
+        val hasImages = images.isNotEmpty()
+        val modality = if (hasImages) "photo" else "text"
         DiagnosticLogger.log(
             "analyze",
             "start",
             mapOf(
                 "modality" to modality,
                 "provider" to settings.provider.name,
-                "model" to settings.modelFor(imageBytes != null),
+                "model" to settings.modelFor(hasImages),
+                "photos" to images.size.toString(),
                 "host" to DiagnosticLogger.hostOf(settings.chatUrl),
                 "configured" to settings.isConfigured.toString(),
                 "force_offline" to forceOffline.toString()
@@ -1440,16 +1442,16 @@ class FitnessRepository(
         // made every photo come back as the simulator's "Mixed Plate").
         if (settings.isConfigured && !forceOffline) {
             return try {
-                val dataUrl = imageBytes?.let {
+                val dataUrls = images.map {
                     "data:image/jpeg;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
                 }
                 val (response, failoverNote) = withAiFailover(
                     settings,
-                    preferVisionModels = imageBytes != null,
+                    preferVisionModels = hasImages,
                     onModelActive = onModelActive
                 ) { active ->
                     remoteAiDataSource.analyze(
-                        active, userText, userStateContextJson, dataUrl, forceEstimate
+                        active, userText, userStateContextJson, dataUrls, forceEstimate
                     )
                 }
                 val outcome = processResponse(response, customTimestamp = customTimestamp, userText = userText)
@@ -1480,7 +1482,7 @@ class FitnessRepository(
         }
 
         // Not configured / forced offline: the offline simulator cannot read images.
-        if (imageBytes != null) {
+        if (hasImages) {
             val message = if (forceOffline) {
                 "Force offline simulator can't analyse photos. Turn it off or use text."
             } else {

@@ -87,6 +87,7 @@ import com.anant.fitbuddy.ui.components.GlyphShimmerCycle
 import com.anant.fitbuddy.ui.haptics.rememberAppHaptics
 import com.anant.fitbuddy.ui.util.rememberDismissKeyboard
 import com.anant.fitbuddy.ui.viewmodel.MainViewModel
+import com.anant.fitbuddy.ui.viewmodel.MAX_PHOTO_LOG_IMAGES
 import com.anant.fitbuddy.util.ImageUtils
 import com.anant.fitbuddy.util.OpenFoodFactsLauncher
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -152,6 +153,9 @@ fun MainScreen(
     val dismissKeyboard = rememberDismissKeyboard()
     val haptics = rememberAppHaptics()
 
+    val photoDraft by viewModel.photoDraft.collectAsStateWithLifecycle()
+    val photoQueue by viewModel.photoQueue.collectAsStateWithLifecycle()
+    var showPhotoQueue by remember { mutableStateOf(false) }
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
     val weekDates by viewModel.weekDates.collectAsStateWithLifecycle()
@@ -364,10 +368,7 @@ fun MainScreen(
         if (bitmap != null) {
             // Decode/scale/compress off the main thread to avoid dropping frames.
             scope.launch(Dispatchers.Default) {
-                val bytes = ImageUtils.bitmapToJpeg(bitmap)
-                foodEditorTarget = FoodEditorTarget.LOG_MEAL
-                mealBuilderFoodEditIndex = null
-                viewModel.analyzeImage(bytes)
+                viewModel.addPhotosToDraft(listOf(ImageUtils.bitmapToJpeg(bitmap)))
             }
         }
     }
@@ -399,13 +400,12 @@ fun MainScreen(
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
+        ActivityResultContracts.PickMultipleVisualMedia(MAX_PHOTO_LOG_IMAGES)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
             scope.launch(Dispatchers.Default) {
-                foodEditorTarget = FoodEditorTarget.LOG_MEAL
-                mealBuilderFoodEditIndex = null
-                ImageUtils.uriToJpeg(context, uri)?.let { viewModel.analyzeImage(it) }
+                val photos = uris.mapNotNull { ImageUtils.uriToJpeg(context, it) }
+                if (photos.isNotEmpty()) viewModel.addPhotosToDraft(photos)
             }
         }
     }
@@ -695,6 +695,8 @@ fun MainScreen(
                                 donationColor = currentDonationHeartColor,
                                 onDonate = { showDonationDialog = true },
                                 onSettings = { showSettings = true },
+                                queuedCount = photoQueue.size,
+                                onQueue = { showPhotoQueue = true },
                             )
                         }
                     )
@@ -713,6 +715,8 @@ fun MainScreen(
                                 donationColor = currentDonationHeartColor,
                                 onDonate = { showDonationDialog = true },
                                 onSettings = { showSettings = true },
+                                queuedCount = photoQueue.size,
+                                onQueue = { showPhotoQueue = true },
                             )
                         }
                     )
@@ -937,6 +941,55 @@ fun MainScreen(
 
     if (showAnantEasterEgg) {
         AnantEasterEggDialog(onDismiss = { showAnantEasterEgg = false })
+    }
+
+    if (photoDraft.visible) {
+        PhotoLogSheet(
+            draft = photoDraft,
+            onAddCamera = {
+                viewModel.notifyExternalMediaLaunch()
+                if (cameraPermission.status.isGranted) {
+                    launchCameraPreview()
+                } else {
+                    cameraPermission.launchPermissionRequest()
+                }
+            },
+            onAddGallery = {
+                viewModel.notifyExternalMediaLaunch()
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onRemovePhoto = viewModel::removePhotoFromDraft,
+            onNoteChange = viewModel::setPhotoDraftNote,
+            onSend = {
+                foodEditorTarget = FoodEditorTarget.LOG_MEAL
+                mealBuilderFoodEditIndex = null
+                viewModel.sendPhotoDraft()
+            },
+            onQueue = viewModel::queuePhotoDraft,
+            onDismiss = viewModel::dismissPhotoDraft
+        )
+    }
+
+    if (showPhotoQueue) {
+        if (photoQueue.isEmpty()) showPhotoQueue = false
+        PhotoQueueSheet(
+            items = photoQueue,
+            thumbnails = viewModel::queuedThumbnail,
+            onRun = { id ->
+                showPhotoQueue = false
+                foodEditorTarget = FoodEditorTarget.LOG_MEAL
+                mealBuilderFoodEditIndex = null
+                viewModel.runQueuedPhoto(id)
+            },
+            onEdit = { id ->
+                showPhotoQueue = false
+                viewModel.editQueuedPhoto(id)
+            },
+            onDelete = viewModel::deleteQueuedPhoto,
+            onDismiss = { showPhotoQueue = false }
+        )
     }
 
     if (showLogHub) {

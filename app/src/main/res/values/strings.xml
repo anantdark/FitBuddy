@@ -1243,4 +1243,28 @@
     <string name="water_edit_amount_save">Save</string>
     <string name="water_edit_log_title">Edit %1$s</string>
     <string name="water_edit_log_hint">Change today’s logged amount for this drink (%1$s–%2$s).</string>
+    <string name="photo_log_title">Log from photos</string>
+    <string name="photo_log_count">%1$d of %2$d photos</string>
+    <string name="photo_log_remove">Remove photo</string>
+    <string name="photo_log_add_camera">Camera</string>
+    <string name="photo_log_add_gallery">Gallery</string>
+    <string name="photo_log_note_label">Notes (optional)</string>
+    <string name="photo_log_note_hint">e.g. 2 rotis, homemade dal, little ghee</string>
+    <string name="photo_log_edit_title">Edit queued photos</string>
+    <string name="photo_log_save_changes">Save changes</string>
+    <string name="photo_queue_edit">Edit queued item</string>
+    <string name="photo_queue_updated">Queue item updated.</string>
+    <string name="photo_log_queue">Queue</string>
+    <string name="photo_log_send">Analyze</string>
+    <string name="photo_queue_title">Queued photos</string>
+    <string name="photo_queue_empty">Nothing queued.</string>
+    <string name="photo_queue_no_note">No notes</string>
+    <string name="photo_queue_run">Run</string>
+    <string name="photo_queue_delete">Delete from queue</string>
+    <string name="photo_queue_saved">Queued. Run it later from the queue button.</string>
+    <string name="photo_queue_missing">Queued photos were missing and were removed.</string>
+    <plurals name="photo_queue_photos">
+        <item quantity="one">%d photo</item>
+        <item quantity="other">%d photos</item>
+    </plurals>
 </resources>

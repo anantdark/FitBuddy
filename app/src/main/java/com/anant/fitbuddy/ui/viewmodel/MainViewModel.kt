@@ -39,6 +39,7 @@ import com.anant.fitbuddy.data.model.COMMON_EXERCISES_SEED
 import com.anant.fitbuddy.data.model.ExerciseDraft
 import com.anant.fitbuddy.data.model.Equipment
 import com.anant.fitbuddy.data.model.FoodDraft
+import com.anant.fitbuddy.data.model.QueuedPhotoLog
 import com.anant.fitbuddy.data.model.FoodEntryDraft
 import com.anant.fitbuddy.data.model.HealthTargetCalculator
 import com.anant.fitbuddy.data.model.HealthTargetInput
@@ -83,6 +84,7 @@ import com.anant.fitbuddy.data.model.ProgressChatSessionMessage
 import com.anant.fitbuddy.data.settings.AiProvider
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.FailoverLadders
+import com.anant.fitbuddy.data.settings.PhotoQueueStore
 import com.anant.fitbuddy.data.settings.ProgressChatSessionStore
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.data.remote.dto.ModelCatalogModality
@@ -196,6 +198,18 @@ data class AnalysisUiState(
     val editingMealFoodIndex: Int? = null,
     /** Developer: last raw AI JSON when "Show raw AI JSON" is on. */
     val rawAiJson: String? = null
+)
+
+const val MAX_PHOTO_LOG_IMAGES = 5
+
+/** Photos and note being composed in the photo-log dialog before sending or queueing. */
+@Immutable
+data class PhotoDraftUiState(
+    val visible: Boolean = false,
+    val photos: List<ByteArray> = emptyList(),
+    val note: String = "",
+    /** Set when editing an existing queue item instead of composing a new log. */
+    val editingQueueId: String? = null
 )
 
 /** State of the free/vision model catalog used by the Settings dropdown. */
@@ -3324,29 +3338,131 @@ class MainViewModel(
 
     // Retained so a clarification answer can be merged with the original prompt/photo.
     private var pendingText: String = ""
-    private var pendingImage: ByteArray? = null
+    private var pendingImages: List<ByteArray> = emptyList()
 
-    fun analyzeText(text: String) = submit(text, null)
+    fun analyzeText(text: String) {
+        runningQueueId = null
+        submit(text, emptyList())
+    }
 
-    fun analyzeImage(imageBytes: ByteArray, note: String = "") = submit(note, imageBytes)
+    // --- Photo log dialog + queue -----------------------------------------------------------
+
+    private val photoQueueStore = PhotoQueueStore(app)
+    val photoQueue: StateFlow<List<QueuedPhotoLog>> = photoQueueStore.items
+    private val _photoDraft = MutableStateFlow(PhotoDraftUiState())
+    val photoDraft: StateFlow<PhotoDraftUiState> = _photoDraft.asStateFlow()
+
+    // Queue item being analysed; removed once it produces a result so failures stay queued.
+    private var runningQueueId: String? = null
+
+    init {
+        viewModelScope.launch { photoQueueStore.load() }
+    }
+
+    fun addPhotosToDraft(photos: List<ByteArray>) = _photoDraft.update {
+        it.copy(visible = true, photos = (it.photos + photos).take(MAX_PHOTO_LOG_IMAGES))
+    }
+
+    fun removePhotoFromDraft(index: Int) = _photoDraft.update {
+        it.copy(photos = it.photos.filterIndexed { i, _ -> i != index })
+    }
+
+    fun setPhotoDraftNote(note: String) = _photoDraft.update { it.copy(note = note) }
+
+    fun dismissPhotoDraft() {
+        _photoDraft.value = PhotoDraftUiState()
+    }
+
+    fun sendPhotoDraft() {
+        val draft = _photoDraft.value
+        if (draft.photos.isEmpty()) return
+        dismissPhotoDraft()
+        runningQueueId = draft.editingQueueId
+        submit(draft.note.trim(), draft.photos)
+    }
+
+    fun queuePhotoDraft() {
+        val draft = _photoDraft.value
+        if (draft.photos.isEmpty()) return
+        dismissPhotoDraft()
+        viewModelScope.launch {
+            val editId = draft.editingQueueId
+            if (editId != null) {
+                photoQueueStore.update(editId, draft.photos, draft.note)
+            } else {
+                photoQueueStore.add(draft.photos, draft.note)
+            }
+            _analysisState.update {
+                it.copy(
+                    userMessage = str(
+                        if (editId != null) R.string.photo_queue_updated else R.string.photo_queue_saved
+                    )
+                )
+            }
+        }
+    }
+
+    fun editQueuedPhoto(id: String) {
+        val item = photoQueue.value.firstOrNull { it.id == id } ?: return
+        viewModelScope.launch {
+            val photos = photoQueueStore.photos(id)
+            if (photos.isEmpty()) {
+                photoQueueStore.remove(id)
+                _analysisState.update { it.copy(userMessage = str(R.string.photo_queue_missing)) }
+                return@launch
+            }
+            _photoDraft.value = PhotoDraftUiState(
+                visible = true,
+                photos = photos,
+                note = item.note,
+                editingQueueId = id
+            )
+        }
+    }
+
+    fun runQueuedPhoto(id: String) {
+        val item = photoQueue.value.firstOrNull { it.id == id } ?: return
+        viewModelScope.launch {
+            val photos = photoQueueStore.photos(id)
+            if (photos.isEmpty()) {
+                photoQueueStore.remove(id)
+                _analysisState.update { it.copy(userMessage = str(R.string.photo_queue_missing)) }
+                return@launch
+            }
+            runningQueueId = id
+            submit(item.note, photos)
+        }
+    }
+
+    suspend fun queuedThumbnail(id: String): ByteArray? = photoQueueStore.photos(id).firstOrNull()
+
+    fun deleteQueuedPhoto(id: String) {
+        viewModelScope.launch { photoQueueStore.remove(id) }
+    }
+
+    private fun finishQueuedRun() {
+        val id = runningQueueId ?: return
+        runningQueueId = null
+        viewModelScope.launch { photoQueueStore.remove(id) }
+    }
 
     fun submitClarification(answer: String) {
         val merged = listOf(pendingText, answer)
             .filter { it.isNotBlank() }
             .joinToString(". ")
-        submit(merged, pendingImage, resetPending = false)
+        submit(merged, pendingImages, resetPending = false)
     }
 
-    private fun submit(text: String, image: ByteArray?, resetPending: Boolean = true) {
+    private fun submit(text: String, images: List<ByteArray>, resetPending: Boolean = true) {
         if (resetPending) {
             pendingText = text
-            pendingImage = image
+            pendingImages = images
         }
         CrashReporter.breadcrumb(
             "ai",
-            if (pendingImage != null) "analyze_photo" else "analyze_text"
+            if (pendingImages.isNotEmpty()) "analyze_photo" else "analyze_text"
         )
-        val initialModel = settings.value.modelFor(pendingImage != null).takeIf { it.isNotBlank() }
+        val initialModel = settings.value.modelFor(pendingImages.isNotEmpty()).takeIf { it.isNotBlank() }
         _analysisState.update {
             it.copy(
                 isLoading = true,
@@ -3357,7 +3473,7 @@ class MainViewModel(
         viewModelScope.launch {
             val outcome = repository.analyze(
                 text,
-                pendingImage,
+                pendingImages,
                 buildUserStateContext(),
                 customTimestamp = activeDayTimestamp(),
                 onModelActive = { modelId ->
@@ -3374,6 +3490,7 @@ class MainViewModel(
         when (outcome) {
             is AnalysisOutcome.FoodReady -> {
                 clearPending()
+                finishQueuedRun()
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
@@ -3391,6 +3508,7 @@ class MainViewModel(
 
             is AnalysisOutcome.MealReady -> {
                 clearPending()
+                finishQueuedRun()
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
@@ -3408,6 +3526,7 @@ class MainViewModel(
 
             is AnalysisOutcome.ExerciseSaved -> {
                 clearPending()
+                finishQueuedRun()
                 _analysisState.update {
                     it.copy(
                         isLoading = false,
@@ -3760,7 +3879,7 @@ class MainViewModel(
         viewModelScope.launch {
             // forceEstimate: the user is renaming an item mid-review, so always recompute a
             // best-effort result instead of bouncing back a clarification question.
-            val outcome = repository.analyze(text, null, buildUserStateContext(), forceEstimate = true)
+            val outcome = repository.analyze(text, emptyList(), buildUserStateContext(), forceEstimate = true)
             applyReanalyzeOutcome(outcome)
         }
     }
@@ -3781,7 +3900,7 @@ class MainViewModel(
         viewModelScope.launch {
             val outcome = repository.analyze(
                 prompt,
-                null,
+                emptyList(),
                 buildUserStateContext(),
                 forceEstimate = true
             )
@@ -3807,7 +3926,7 @@ class MainViewModel(
         viewModelScope.launch {
             val outcome = repository.analyze(
                 prompt,
-                null,
+                emptyList(),
                 buildUserStateContext(),
                 forceEstimate = true
             )
@@ -3953,7 +4072,7 @@ class MainViewModel(
 
     private fun clearPending() {
         pendingText = ""
-        pendingImage = null
+        pendingImages = emptyList()
     }
 
     // --- Profile ----------------------------------------------------------------------------
