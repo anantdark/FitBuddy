@@ -698,7 +698,8 @@ data class AppSettings(
         const val DEFAULT_WATER_GOAL_ML = 2000
         val WATER_GOAL_OPTIONS_ML: List<Int> = listOf(1500, 2000, 2500, 3000, 3500)
         const val QUICK_ADD_ML_MIN = 50
-        const val QUICK_ADD_ML_MAX = 2000
+        const val QUICK_ADD_ML_MAX = 1000
+        const val LOG_AMOUNT_ML_MAX = 2000
         const val DEFAULT_REMINDER_HOUR = 20
         const val DEFAULT_REMINDER_MINUTE = 0
         const val DEFAULT_DAY_CHANGE_HOUR = 0
