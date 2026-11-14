@@ -83,8 +83,6 @@ fun FoodReviewDialog(
     onAskForPortion: (String) -> Unit = {},
     title: String? = null,
     showLogDate: Boolean = true,
-    /** Ask-for-portion above ingredients (standalone log only). */
-    showAskForPortion: Boolean = true,
     isAiOnline: Boolean = true,
     confirmLabel: String? = null,
     showSaveAsPreset: Boolean = true,
@@ -285,15 +283,13 @@ fun FoodReviewDialog(
                     )
                 }
 
-                if (showAskForPortion) {
-                    item {
-                        OutlinedButton(
-                            onClick = { onAskForPortion(dishName) },
-                            enabled = dishName.isNotBlank() && !isReanalyzing && isAiOnline,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(stringResource(R.string.food_ask_for_portion))
-                        }
+                item {
+                    OutlinedButton(
+                        onClick = { onAskForPortion(dishName) },
+                        enabled = dishName.isNotBlank() && !isReanalyzing && isAiOnline,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.food_ask_for_portion))
                     }
                 }
 

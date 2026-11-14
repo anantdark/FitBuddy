@@ -194,11 +194,6 @@ data class AnalysisUiState(
      * Null when food review is standalone or for meal-builder (builder keeps its own index).
      */
     val editingMealFoodIndex: Int? = null,
-    /**
-     * True when the open review came from a text description (not a photo).
-     * Text logs already carry an assumed portion — hide "Ask for portion".
-     */
-    val fromTextDescription: Boolean = false,
     /** Developer: last raw AI JSON when "Show raw AI JSON" is on. */
     val rawAiJson: String? = null
 )
@@ -3347,7 +3342,6 @@ class MainViewModel(
             pendingText = text
             pendingImage = image
         }
-        val fromText = pendingImage == null
         CrashReporter.breadcrumb(
             "ai",
             if (pendingImage != null) "analyze_photo" else "analyze_text"
@@ -3358,7 +3352,6 @@ class MainViewModel(
                 isLoading = true,
                 clarificationMessage = null,
                 analyzingModel = initialModel,
-                fromTextDescription = fromText
             )
         }
         viewModelScope.launch {
@@ -3378,7 +3371,6 @@ class MainViewModel(
     private fun handleOutcome(outcome: AnalysisOutcome) {
         val rawJson = maybeRawAiJson()
         // Capture before clearPending() wipes the photo buffer.
-        val fromText = pendingImage == null
         when (outcome) {
             is AnalysisOutcome.FoodReady -> {
                 clearPending()
@@ -3391,7 +3383,6 @@ class MainViewModel(
                         mealDraft = null,
                         editingFoodLogId = null,
                         editingMealFoodIndex = null,
-                        fromTextDescription = fromText,
                         userMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
@@ -3409,7 +3400,6 @@ class MainViewModel(
                         mealDraft = outcome.draft.snapshot(),
                         editingFoodLogId = null,
                         editingMealFoodIndex = null,
-                        fromTextDescription = fromText,
                         userMessage = outcome.failoverNote,
                         rawAiJson = rawJson
                     )
@@ -3522,8 +3512,6 @@ class MainViewModel(
                         mealDraft = null,
                         editingFoodLogId = log.id,
                         editingMealFoodIndex = null,
-                        // Already logged — portions are known; don't offer Ask for portion.
-                        fromTextDescription = true,
                         reviewMessage = null
                     )
                 }
@@ -3534,7 +3522,6 @@ class MainViewModel(
                         foodDraft = null,
                         editingFoodLogId = log.id,
                         editingMealFoodIndex = null,
-                        fromTextDescription = true,
                         reviewMessage = null
                     )
                 }

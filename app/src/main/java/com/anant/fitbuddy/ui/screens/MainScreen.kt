@@ -1362,11 +1362,6 @@ fun MainScreen(
                 else -> stringResource(R.string.food_review_food)
             },
             showLogDate = foodEditorTarget == FoodEditorTarget.LOG_MEAL,
-            // Hide only for fresh text-describe logs (portion assumed = 1). Show for photos,
-            // edits, and nested meal-food review.
-            showAskForPortion = foodEditorTarget != FoodEditorTarget.SAVE_LIBRARY &&
-                foodEditorTarget != FoodEditorTarget.MEAL_BUILDER &&
-                !(analysisState.fromTextDescription && analysisState.editingFoodLogId == null),
             isAiOnline = isAiOnline,
             confirmLabel = when (foodEditorTarget) {
                 FoodEditorTarget.SAVE_LIBRARY -> stringResource(R.string.main_save_food)
