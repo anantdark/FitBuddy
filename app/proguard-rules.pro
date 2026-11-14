@@ -74,3 +74,7 @@
 # constructor. The library's own rule keeps the class but R8 still strips <init>, which makes
 # every widget update job fail and leaves home-screen widgets stuck on the loading layout.
 -keep class * extends androidx.work.InputMerger { <init>(); }
+
+# Glance instantiates ActionCallbacks reflectively via the no-arg constructor; without this R8
+# strips <init> and widget buttons throw NoSuchMethodException (widget then falls back to loading).
+-keep class * implements androidx.glance.appwidget.action.ActionCallback { <init>(); }
