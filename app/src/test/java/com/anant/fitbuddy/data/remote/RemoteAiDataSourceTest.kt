@@ -111,7 +111,7 @@ class RemoteAiDataSourceTest {
         val api = FakeAiApi(mutableListOf(chatResponse(json)))
         val source = RemoteAiDataSource(api, moshi)
 
-        val result = source.analyze(settings, "idli", "{}", null)
+        val result = source.analyze(settings, "idli", "{}", emptyList())
 
         assertEquals("SUCCESS", result.status)
         assertEquals("Idli", result.foodAnalysis?.dishName)
@@ -122,7 +122,7 @@ class RemoteAiDataSourceTest {
         val api = FakeAiApi(mutableListOf(ChatResponse(choices = emptyList())))
         val source = RemoteAiDataSource(api, moshi)
 
-        val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
+        val error = runCatching { source.analyze(settings, "idli", "{}", emptyList()) }.exceptionOrNull()
 
         assertTrue(error is IllegalStateException)
         assertTrue(error!!.message!!.startsWith("Empty response from AI service"))
@@ -134,7 +134,7 @@ class RemoteAiDataSourceTest {
         val api = FakeAiApi(mutableListOf(chatResponse(content = null, reasoningContent = json)))
         val source = RemoteAiDataSource(api, moshi)
 
-        val result = source.analyze(settings, "idli", "{}", null)
+        val result = source.analyze(settings, "idli", "{}", emptyList())
 
         assertEquals("SUCCESS", result.status)
         assertEquals("Idli", result.foodAnalysis?.dishName)
@@ -145,7 +145,7 @@ class RemoteAiDataSourceTest {
         val api = FakeAiApi(mutableListOf(ChatResponse(message = "Model not found")))
         val source = RemoteAiDataSource(api, moshi)
 
-        val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
+        val error = runCatching { source.analyze(settings, "idli", "{}", emptyList()) }.exceptionOrNull()
 
         assertTrue(error is IllegalStateException)
         assertTrue(error!!.message!!.contains("Model not found"))
@@ -158,7 +158,7 @@ class RemoteAiDataSourceTest {
         ))
         val source = RemoteAiDataSource(api, moshi)
 
-        val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
+        val error = runCatching { source.analyze(settings, "idli", "{}", emptyList()) }.exceptionOrNull()
 
         assertEquals(1, api.callCount)
         assertTrue(error is IllegalStateException)
@@ -178,7 +178,7 @@ class RemoteAiDataSourceTest {
         ))
         val source = RemoteAiDataSource(api, moshi)
 
-        val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
+        val error = runCatching { source.analyze(settings, "idli", "{}", emptyList()) }.exceptionOrNull()
 
         assertEquals(3, api.callCount) // initial attempt + 2 retries
         assertTrue(error is IllegalStateException)
@@ -196,7 +196,7 @@ class RemoteAiDataSourceTest {
         ))
         val source = RemoteAiDataSource(api, moshi)
 
-        val result = source.analyze(settings, "idli", "{}", null)
+        val result = source.analyze(settings, "idli", "{}", emptyList())
 
         assertEquals(2, api.callCount)
         assertEquals("SUCCESS", result.status)
@@ -209,7 +209,7 @@ class RemoteAiDataSourceTest {
         val api = FakeAiApi(mutableListOf(chatResponse(content = "User Safety: safe")))
         val source = RemoteAiDataSource(api, moshi)
 
-        val error = runCatching { source.analyze(settings, "idli", "{}", null) }.exceptionOrNull()
+        val error = runCatching { source.analyze(settings, "idli", "{}", emptyList()) }.exceptionOrNull()
 
         assertTrue(error is IllegalStateException)
         assertTrue(error!!.message!!.contains("plain text"))
@@ -428,7 +428,7 @@ class RemoteAiDataSourceTest {
             customTextModel = "fitbutler"
         )
 
-        source.analyze(custom, "idli", "{}", null)
+        source.analyze(custom, "idli", "{}", emptyList())
 
         assertEquals(false, api.lastChatRequest?.enableThinking)
     }
@@ -445,7 +445,7 @@ class RemoteAiDataSourceTest {
             customTextModel = "gpt-4o"
         )
 
-        source.analyze(openAi, "idli", "{}", null)
+        source.analyze(openAi, "idli", "{}", emptyList())
 
         assertNull(api.lastChatRequest?.enableThinking)
     }
@@ -461,7 +461,7 @@ class RemoteAiDataSourceTest {
             ollamaTextModel = "llama3.2"
         )
 
-        source.analyze(ollama, "idli", "{}", null)
+        source.analyze(ollama, "idli", "{}", emptyList())
 
         assertEquals(false, api.lastChatRequest?.enableThinking)
     }
@@ -475,7 +475,7 @@ class RemoteAiDataSourceTest {
             openRouterTextModel = "/home/verelias/models/Qwen3.6-35B-A3B.gguf"
         )
 
-        source.analyze(openRouter, "idli", "{}", null)
+        source.analyze(openRouter, "idli", "{}", emptyList())
 
         assertEquals(false, api.lastChatRequest?.enableThinking)
     }
@@ -489,7 +489,7 @@ class RemoteAiDataSourceTest {
             openRouterTextModel = "qwen/qwen3-32b:free"
         )
 
-        source.analyze(openRouter, "idli", "{}", null)
+        source.analyze(openRouter, "idli", "{}", emptyList())
 
         assertEquals(false, api.lastChatRequest?.enableThinking)
     }
@@ -499,7 +499,7 @@ class RemoteAiDataSourceTest {
         val api = FakeAiApi(mutableListOf(chatResponse(successJson)))
         val source = RemoteAiDataSource(api, moshi)
 
-        source.analyze(settings, "idli", "{}", null)
+        source.analyze(settings, "idli", "{}", emptyList())
 
         assertNull(api.lastChatRequest?.enableThinking)
     }

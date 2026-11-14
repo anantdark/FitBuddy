@@ -110,7 +110,7 @@ class PromptCatalogTest {
             pack = pack
         )
         assertTrue(withFlags.contains("STRICT CLARIFICATION MODE"))
-        assertTrue(withFlags.contains("An image is attached"))
+        assertTrue(withFlags.contains("images are attached"))
         assertTrue(withFlags.contains("ALWAYS return status \"SUCCESS\""))
         assertTrue(withFlags.contains("the attached photo makes portion size obvious"))
     }
