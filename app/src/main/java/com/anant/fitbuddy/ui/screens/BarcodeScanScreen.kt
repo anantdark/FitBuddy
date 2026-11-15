@@ -290,6 +290,7 @@ private fun ManualBarcodeEntry(
 private const val BOX_WIDTH_FRACTION = 0.8f
 private const val BOX_HEIGHT_FRACTION = 0.3f
 private const val REFOCUS_INTERVAL_MS = 2000L
+private const val SCAN_ZOOM_RATIO = 1.5f
 
 private fun scanReader(tryHarder: Boolean) = BarcodeReader().apply {
     options.formats = setOf(Format.EAN_13, Format.EAN_8, Format.UPC_A, Format.UPC_E)
@@ -403,6 +404,11 @@ private fun BarcodeCameraPreview(
                     analysis
                 )
                 boundCamera = bound
+                bound.cameraInfo.zoomState.value?.let { zoom ->
+                    bound.cameraControl.setZoomRatio(
+                        SCAN_ZOOM_RATIO.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio)
+                    )
+                }
                 camera = bound.takeIf { it.cameraInfo.hasFlashUnit() }
                 torchOn = false
                 previewView.setOnTouchListener { view, event ->
@@ -436,9 +442,11 @@ private fun BarcodeCameraPreview(
     LaunchedEffect(boundCamera) {
         val active = boundCamera ?: return@LaunchedEffect
         while (true) {
-            delay(REFOCUS_INTERVAL_MS)
             val size = viewSize.get()
-            if (size.width == 0 || size.height == 0) continue
+            if (size.width == 0 || size.height == 0) {
+                delay(100)
+                continue
+            }
             runCatching {
                 val point = previewView.meteringPointFactory.createPoint(size.width / 2f, size.height / 2f)
                 active.cameraControl.startFocusAndMetering(
@@ -447,6 +455,7 @@ private fun BarcodeCameraPreview(
                         .build()
                 )
             }
+            delay(REFOCUS_INTERVAL_MS)
         }
     }
 
