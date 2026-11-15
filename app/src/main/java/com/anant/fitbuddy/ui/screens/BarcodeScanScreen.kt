@@ -65,9 +65,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -79,8 +81,11 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import zxingcpp.BarcodeReader
 import zxingcpp.BarcodeReader.Format
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
@@ -282,10 +287,9 @@ private fun ManualBarcodeEntry(
 }
 
 
-private const val CROP_WIDTH_FRACTION = 0.9f
-private const val CROP_HEIGHT_FRACTION = 0.5f
 private const val BOX_WIDTH_FRACTION = 0.8f
 private const val BOX_HEIGHT_FRACTION = 0.3f
+private const val REFOCUS_INTERVAL_MS = 2000L
 
 private fun scanReader(tryHarder: Boolean) = BarcodeReader().apply {
     options.formats = setOf(Format.EAN_13, Format.EAN_8, Format.UPC_A, Format.UPC_E)
@@ -293,12 +297,21 @@ private fun scanReader(tryHarder: Boolean) = BarcodeReader().apply {
     options.tryRotate = true
 }
 
-private fun ImageProxy.centerCrop(widthFraction: Float, heightFraction: Float): Rect {
+/**
+ * Maps the on-screen viewfinder box to buffer coordinates. PreviewView (FILL_CENTER) shows a
+ * centered crop of the upright frame with the view's aspect ratio; the box is a centered
+ * fraction of that visible area.
+ */
+private fun ImageProxy.viewfinderCrop(viewWidth: Int, viewHeight: Int): Rect {
     val upright = imageInfo.rotationDegrees % 180 == 0
     val uprightW = if (upright) width else height
     val uprightH = if (upright) height else width
-    val cropW = (uprightW * widthFraction).toInt()
-    val cropH = (uprightH * heightFraction).toInt()
+    val viewAspect = if (viewWidth > 0 && viewHeight > 0) viewWidth.toFloat() / viewHeight else uprightW.toFloat() / uprightH
+    val frameAspect = uprightW.toFloat() / uprightH
+    val visibleW = if (frameAspect > viewAspect) uprightH * viewAspect else uprightW.toFloat()
+    val visibleH = if (frameAspect > viewAspect) uprightH.toFloat() else uprightW / viewAspect
+    val cropW = (visibleW * BOX_WIDTH_FRACTION).toInt().coerceIn(1, uprightW)
+    val cropH = (visibleH * BOX_HEIGHT_FRACTION).toInt().coerceIn(1, uprightH)
     val bufW = if (upright) cropW else cropH
     val bufH = if (upright) cropH else cropW
     val left = (width - bufW) / 2
@@ -329,6 +342,8 @@ private fun BarcodeCameraPreview(
     var cameraError by remember { mutableStateOf<String?>(null) }
     var manualMiss by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    var boundCamera by remember { mutableStateOf<Camera?>(null) }
+    val viewSize = remember { AtomicReference(IntSize.Zero) }
     var torchOn by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
@@ -366,7 +381,8 @@ private fun BarcodeCameraPreview(
                         if (manual) {
                             thoroughReader.read(it)
                         } else {
-                            it.setCropRect(it.centerCrop(CROP_WIDTH_FRACTION, CROP_HEIGHT_FRACTION))
+                            val size = viewSize.get()
+                            it.setCropRect(it.viewfinderCrop(size.width, size.height))
                             fastReader.read(it)
                         }
                     }
@@ -386,6 +402,7 @@ private fun BarcodeCameraPreview(
                     preview,
                     analysis
                 )
+                boundCamera = bound
                 camera = bound.takeIf { it.cameraInfo.hasFlashUnit() }
                 torchOn = false
                 previewView.setOnTouchListener { view, event ->
@@ -416,6 +433,23 @@ private fun BarcodeCameraPreview(
         }
     }
 
+    LaunchedEffect(boundCamera) {
+        val active = boundCamera ?: return@LaunchedEffect
+        while (true) {
+            delay(REFOCUS_INTERVAL_MS)
+            val size = viewSize.get()
+            if (size.width == 0 || size.height == 0) continue
+            runCatching {
+                val point = previewView.meteringPointFactory.createPoint(size.width / 2f, size.height / 2f)
+                active.cameraControl.startFocusAndMetering(
+                    FocusMeteringAction.Builder(point)
+                        .setAutoCancelDuration(REFOCUS_INTERVAL_MS, TimeUnit.MILLISECONDS)
+                        .build()
+                )
+            }
+        }
+    }
+
     if (cameraError != null) {
         Text(
             text = cameraError ?: "",
@@ -423,7 +457,7 @@ private fun BarcodeCameraPreview(
             modifier = Modifier.padding(16.dp)
         )
     } else {
-        Box(modifier = modifier) {
+        Box(modifier = modifier.onSizeChanged { viewSize.set(it) }) {
             AndroidView(
                 factory = { previewView },
                 modifier = Modifier.fillMaxSize()
