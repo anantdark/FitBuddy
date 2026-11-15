@@ -1,6 +1,7 @@
 package com.anant.fitbuddy.data.remote
 
 import com.anant.fitbuddy.data.model.ScannedProduct
+import com.anant.fitbuddy.data.remote.dto.OffProductResponse
 import com.anant.fitbuddy.util.roundMacro
 import kotlin.math.roundToInt
 import retrofit2.HttpException
@@ -16,17 +17,21 @@ class OpenFoodFactsDataSource(
         val code = normalizeBarcode(barcode)
         require(code.isNotBlank()) { "Invalid barcode" }
 
-        val http = api.getProduct(code, OpenFoodFactsApi.FIELDS)
-        if (http.code() == 404) {
-            throw OpenFoodFactsProductUnavailableException(code)
+        // Open Food Facts indexes many UPC-A codes as 13-digit EAN with a leading zero.
+        val candidates = if (code.length == 12) listOf(code, "0$code") else listOf(code)
+        var response: OffProductResponse? = null
+        for (candidate in candidates) {
+            val http = api.getProduct(candidate, OpenFoodFactsApi.FIELDS)
+            if (http.code() == 404) continue
+            if (!http.isSuccessful) throw HttpException(http)
+            val body = http.body()
+                ?: throw IllegalStateException("Open Food Facts returned an empty response")
+            if (body.status == 1 && body.product != null) {
+                response = body
+                break
+            }
         }
-        if (!http.isSuccessful) {
-            throw HttpException(http)
-        }
-
-        val response = http.body()
-            ?: throw IllegalStateException("Open Food Facts returned an empty response")
-        if (response.status != 1 || response.product == null) {
+        if (response?.product == null) {
             throw OpenFoodFactsProductUnavailableException(code)
         }
 
