@@ -121,7 +121,8 @@ fun CalorieRing(
     val mako = isMakoStyle()
     val onTarget = remainingKcal != null && kotlin.math.abs(remainingKcal) <= 100
     val goalReached = remainingKcal != null && remainingKcal <= 100
-    val shimmerPhase = rememberLedShimmerPhase(enabled = !goalReached)
+    val ringFull = goalReached
+    val shimmerPhase = rememberLedShimmerPhase(enabled = !goalReached || ringFull)
     val shimmerStyle = GlyphShimmerCycle.style
     val scheme = MaterialTheme.colorScheme
     val ringColor = when {
@@ -132,7 +133,10 @@ fun CalorieRing(
     val glyphSubstrate = scheme.surfaceContainerLowest
     val glyphOn = ringColor
     val glyphOff = androidx.compose.ui.graphics.lerp(scheme.surfaceContainerHighest, ringColor, 0.16f)
-    val glyphEnd = if (onTarget) TrendGreen else GlyphLedRed
+    // Green ring: the top-center box is a more saturated green than the other cells.
+    val glyphEnd = if (onTarget) {
+        if (ringFull) androidx.compose.ui.graphics.lerp(TrendGreen, Color(0xFF00FF55), 0.7f) else TrendGreen
+    } else GlyphLedRed
 
     Box(
         modifier = modifier,
@@ -201,13 +205,14 @@ fun CalorieRing(
 
             drawGlyphBoxes(
                 cells = cells,
-                fillFrac = frac,
+                fillFrac = if (ringFull) 1f else frac,
                 phase = shimmerPhase,
                 onColor = glyphOn,
                 offColor = glyphOff,
                 endColor = glyphEnd,
-                shimmerEnabled = !goalReached,
+                shimmerEnabled = !goalReached || ringFull,
                 style = shimmerStyle,
+                pinnedEnd = ringFull,
             )
         }
 
