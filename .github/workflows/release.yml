@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+    # Weblate merges only touch locale strings. Don't publish a release for those.
+    paths-ignore:
+      - "app/src/main/res/values-*/strings.xml"
   workflow_dispatch:
 
 concurrency:
@@ -11,6 +14,11 @@ concurrency:
 
 jobs:
   release:
+    # Path filters miss a translation push that also touches another file.
+    # Weblate commits are always chore(l10n); a manual dispatch still releases.
+    if: >-
+      github.event_name != 'push' ||
+      !contains(github.event.head_commit.message, 'chore(l10n)')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
