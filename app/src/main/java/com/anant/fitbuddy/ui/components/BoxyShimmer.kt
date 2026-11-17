@@ -173,17 +173,22 @@ fun DrawScope.drawGlyphBoxes(
     endColor: Color = GlyphLedRed,
     shimmerEnabled: Boolean = true,
     style: GlyphShimmerStyle = GlyphShimmerStyle.SOFT,
+    pinnedEnd: Boolean = false,
 ) {
     if (cells.isEmpty()) return
     val litCount = (cells.size * fillFrac.coerceIn(0f, 1f))
         .let { kotlin.math.ceil(it.toDouble()).toInt() }
         .coerceIn(0, cells.size)
+    // Full ring: the end box stays at top-middle (cell 0) and pulses between the normal cell color and its brighter color; the rest shimmer.
+    val pinnedIndex = if (pinnedEnd && litCount == cells.size) 0 else -1
+    val glow = 0.5f + 0.5f * sin((phase - PI / 2).toDouble()).toFloat()
 
     cells.forEachIndexed { i, cell ->
         val lit = i < litCount
-        val isEnd = lit && i == litCount - 1
+        val isEnd = if (pinnedIndex >= 0) i == pinnedIndex else lit && i == litCount - 1
         val shimmer = if (shimmerEnabled) glyphShimmer(style, i, cells.size, phase) else 1f
         val color = when {
+            isEnd && pinnedIndex >= 0 -> androidx.compose.ui.graphics.lerp(onColor, endColor, glow)
             isEnd -> endColor.copy(alpha = shimmer)
             lit -> onColor.copy(alpha = shimmer)
             else -> offColor.copy(alpha = 0.90f)
