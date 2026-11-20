@@ -1,0 +1,8 @@
+• feat: update animations
+• perf: zoom in and focus immediately when scanning
+• perf: scan only inside the viewfinder box and auto-focus on it
+• fix: find US (UPC-A) products that scanned as 12 digits
+• fix: water widget chips work in release builds; all widgets open the app on tap
+• feat: compact water widget that updates instantly and turns off with water tracking
+• feat: limit water quick-add chip amounts to 1000 ml
+• feat: faster barcode scanner with viewfinder box, capture a
