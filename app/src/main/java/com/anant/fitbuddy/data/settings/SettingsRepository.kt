@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.anant.fitbuddy.BuildConfig
+import com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth
 import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.data.healthconnect.HealthConnectMetricPrefs
 import com.anant.fitbuddy.data.healthconnect.sanitized
@@ -221,9 +222,11 @@ class SettingsRepository(context: Context) {
                 exportHydration = prefs[KEY_HC_EXPORT_HYDRATION] ?: true,
                 exportExercise = prefs[KEY_HC_EXPORT_EXERCISE] ?: true,
             ).sanitized(),
-            // Debug builds never sync to cloud (including after restore / Auto Backup).
-            cloudBackupEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
-            cloudAutoUploadEnabled = !BuildConfig.DEBUG && (prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true),
+            // TEMPORARY: CloudProxyAuth.ALLOW_CLOUD_IN_DEBUG lets debug builds keep the toggle.
+            cloudBackupEnabled = CloudProxyAuth.cloudUploadsAllowed() &&
+                (prefs[KEY_CLOUD_BACKUP_ENABLED] ?: false),
+            cloudAutoUploadEnabled = CloudProxyAuth.cloudUploadsAllowed() &&
+                (prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true),
             cloudBackupPasswordSet = prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] ?: false,
             mongoDbName = prefs[KEY_MONGO_DB_NAME]?.ifBlank { null }
                 ?: AppSettings.DEFAULT_MONGO_DB_NAME,
@@ -554,8 +557,10 @@ class SettingsRepository(context: Context) {
             prefs[KEY_HC_EXPORT_MUSCLE_MASS] = hc.exportMuscleMass
             prefs[KEY_HC_EXPORT_HYDRATION] = hc.exportHydration
             prefs[KEY_HC_EXPORT_EXERCISE] = hc.exportExercise
-            prefs[KEY_CLOUD_BACKUP_ENABLED] = !BuildConfig.DEBUG && settings.cloudBackupEnabled
-            prefs[KEY_CLOUD_AUTO_UPLOAD] = !BuildConfig.DEBUG && settings.cloudAutoUploadEnabled
+            prefs[KEY_CLOUD_BACKUP_ENABLED] =
+                CloudProxyAuth.cloudUploadsAllowed() && settings.cloudBackupEnabled
+            prefs[KEY_CLOUD_AUTO_UPLOAD] =
+                CloudProxyAuth.cloudUploadsAllowed() && settings.cloudAutoUploadEnabled
             prefs[KEY_CLOUD_BACKUP_PASSWORD_SET] = settings.cloudBackupPasswordSet
             prefs[KEY_MONGO_DB_NAME] = settings.mongoDbName.ifBlank {
                 AppSettings.DEFAULT_MONGO_DB_NAME

@@ -15,6 +15,8 @@ import com.anant.fitbuddy.BuildConfig
 import com.anant.fitbuddy.MainActivity
 import com.anant.fitbuddy.data.backup.BackupErrorMessages
 import com.anant.fitbuddy.data.backup.BackupImportResult
+import com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth
+import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.healthconnect.forSync
 import com.anant.fitbuddy.data.healthconnect.sanitized
 import com.anant.fitbuddy.data.database.BodyMeasurement
@@ -64,7 +66,6 @@ import com.anant.fitbuddy.util.BackupShare
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.crash.HeartbeatInfo
 import com.anant.fitbuddy.crash.HeartbeatKind
-import com.anant.fitbuddy.data.donors.DemoDonors
 import com.anant.fitbuddy.data.donors.DonorBadgeRules
 import com.anant.fitbuddy.data.donors.DonorEntry
 import com.anant.fitbuddy.data.donors.DonorListRepository
@@ -94,6 +95,8 @@ import com.anant.fitbuddy.util.ProgressMetricsCompressor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -314,6 +317,79 @@ private data class TargetPlanningContext(
     val bodyTrend: BodyTrendEvidence,
     val nutritionTrend: NutritionTrendEvidence
 )
+
+/** Onboarding / Settings: device attestation gate for the cloud backup toggle. */
+@Immutable
+data class CloudAttestUi(
+    /** Proxy session ready — cloud backup may be enabled. */
+    val ready: Boolean = false,
+    /** Attestation request in flight. */
+    val busy: Boolean = false,
+    /** Consumer-facing reason when [ready] is false after an attempt. */
+    val message: String? = null,
+    /** Retry button enabled (false while busy or during exponential backoff). */
+    val retryEnabled: Boolean = false,
+    /** Epoch ms when retry becomes available; 0 when no backoff. */
+    val retryAfterMs: Long = 0L
+)
+
+/** Developer tools: cached cloud proxy token. */
+@Immutable
+data class AttestTokenUi(
+    val token: String = "",
+    val expiresAtMs: Long? = null,
+    val packageName: String = "",
+    val message: String = "",
+    val lastAction: String = "",
+    val busy: Boolean = false
+) {
+    companion object {
+        fun fromSnapshot(
+            snapshot: CloudProxyAuth.Snapshot,
+            lastAction: String,
+            busy: Boolean
+        ): AttestTokenUi {
+            val now = System.currentTimeMillis()
+            val message = when {
+                !snapshot.token.isNullOrBlank() -> "Cached token"
+                snapshot.deniedUntilMs > now ->
+                    "Denied until ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                        .format(java.util.Date(snapshot.deniedUntilMs))}: ${snapshot.deniedMessage}"
+                else -> "No token cached"
+            }
+            return AttestTokenUi(
+                token = snapshot.token.orEmpty(),
+                expiresAtMs = snapshot.expMs,
+                packageName = snapshot.packageName,
+                message = message,
+                lastAction = lastAction,
+                busy = busy
+            )
+        }
+
+        fun fromStatus(status: CloudProxyAuth.Status, lastAction: String): AttestTokenUi {
+            val snap = CloudProxyAuth.peek()
+            return when (status) {
+                is CloudProxyAuth.Status.Ready -> AttestTokenUi(
+                    token = status.token,
+                    expiresAtMs = snap.expMs,
+                    packageName = snap.packageName,
+                    message = "OK",
+                    lastAction = lastAction,
+                    busy = false
+                )
+                is CloudProxyAuth.Status.Unavailable -> AttestTokenUi(
+                    token = "",
+                    expiresAtMs = null,
+                    packageName = snap.packageName,
+                    message = status.message,
+                    lastAction = lastAction,
+                    busy = false
+                )
+            }
+        }
+    }
+}
 
 class MainViewModel(
     private val app: Application,
@@ -618,7 +694,13 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     val message = if (useCloud) {
-                        str(R.string.vm_cloud_upload_failed, BackupErrorMessages.encryptionFailed(e.message))
+                        str(
+                            R.string.vm_cloud_upload_failed,
+                            BackupErrorMessages.userFacingCloudReason(
+                                e.message,
+                                CloudProxyAuth.hasInternetAccess(app)
+                            )
+                        )
                     } else {
                         str(R.string.vm_export_failed, e.message ?: "")
                     }
@@ -816,11 +898,6 @@ class MainViewModel(
         }
     }
 
-    /** Developer: gallery with hard-coded demo supporters (does not touch last-seen). */
-    fun showTestDonorGallery() {
-        _donorGallery.value = DemoDonors.forGallery
-    }
-
     private val _lastSeenDonorDonationDate = MutableStateFlow<String?>(null)
     val lastSeenDonorDonationDate: StateFlow<String?> = _lastSeenDonorDonationDate.asStateFlow()
 
@@ -845,9 +922,6 @@ class MainViewModel(
             val file = runCatching { donorListRepository.refresh(forceNetwork = true) }
                 .getOrElse { donorListRepository.cachedOrEmpty() }
             val latest = DonorBadgeRules.latestDonationDate(file)
-                ?: DonorBadgeRules.latestDonationDate(
-                    com.anant.fitbuddy.data.donors.DonorsFile(donors = DemoDonors.all),
-                )
             if (latest == null) {
                 showTransientMessage(str(R.string.vm_no_donation_dates_found))
                 return@launch
@@ -876,10 +950,6 @@ class MainViewModel(
 
     fun showTestDonationReminderDialog() {
         _donationReminderVisible.value = true
-    }
-
-    fun showTestNewDonorsThankYou() {
-        _newDonorsThankYou.value = DemoDonors.forThankYou
     }
 
     fun showTestDonationDialog() {
@@ -1177,13 +1247,16 @@ class MainViewModel(
         _regionSelectionSaving.value = true
         viewModelScope.launch {
             val current = settings.value
-            val cloudOn = (cloudBackupEnabled ?: current.cloudBackupEnabled) && !BuildConfig.DEBUG
-            val reporting = (crashReportingEnabled ?: current.crashReportingEnabled) || cloudOn
+            var cloudOn = (cloudBackupEnabled ?: current.cloudBackupEnabled) &&
+                CloudProxyAuth.cloudUploadsAllowed()
+            var attestError: String? = null
             if (cloudOn) {
                 settingsRepository.ensureSupportId()
-                // Onboarding/region path: Support ID default — no custom password prompt.
-                settingsRepository.setCloudBackupPasswordBlob(null)
+                attestError = attestForCloudEnable()
+                if (attestError != null) cloudOn = false
+                else settingsRepository.setCloudBackupPasswordBlob(null)
             }
+            val reporting = (crashReportingEnabled ?: current.crashReportingEnabled) || cloudOn
             settingsRepository.save(
                 current.copy(
                     region = region.name,
@@ -1194,6 +1267,9 @@ class MainViewModel(
                 )
             )
             CrashReporter.setReportingEnabled(reporting)
+            if (attestError != null) {
+                _analysisState.update { it.copy(userMessage = attestError) }
+            }
             _regionSelectionSaving.value = false
         }
     }
@@ -1351,7 +1427,8 @@ class MainViewModel(
             aiProvider = s.provider.name,
             recordCount = recordCount,
             isDeveloper = s.developerModeUnlocked,
-            signupDate = s.signupDate
+            signupDate = s.signupDate,
+            username = s.sentryUsername
         )
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
         val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
@@ -2896,8 +2973,146 @@ class MainViewModel(
     private val _mongoBackupBusy = MutableStateFlow(false)
     val mongoBackupBusy: StateFlow<Boolean> = _mongoBackupBusy.asStateFlow()
 
+    private val _cloudAttestUi = MutableStateFlow(CloudAttestUi())
+    val cloudAttestUi: StateFlow<CloudAttestUi> = _cloudAttestUi.asStateFlow()
+
+    private var cloudAttestFailCount = 0
+    private var cloudAttestRetryJob: Job? = null
+    private var cloudAttestInFlight: Job? = null
+
+    private val _attestTokenUi = MutableStateFlow(AttestTokenUi())
+    val attestTokenUi: StateFlow<AttestTokenUi> = _attestTokenUi.asStateFlow()
+
+    /**
+     * If no active proxy session, attest as soon as onboarding (or Settings) needs cloud.
+     * Skips when a valid session already exists. Failures grey out the cloud toggle until Retry.
+     */
+    fun ensureCloudAttestation() {
+        if (!MongoUriVault.isAvailable() || !CloudProxyAuth.cloudUploadsAllowed()) {
+            _cloudAttestUi.value = CloudAttestUi(ready = false)
+            return
+        }
+        if (CloudProxyAuth.hasActiveSession()) {
+            cloudAttestFailCount = 0
+            cloudAttestRetryJob?.cancel()
+            _cloudAttestUi.value = CloudAttestUi(ready = true)
+            return
+        }
+        if (cloudAttestInFlight?.isActive == true) return
+        if (_cloudAttestUi.value.ready) return
+        if (CloudProxyAuth.verifyRetryRemainingMs() > 0L) {
+            if (_cloudAttestUi.value.message == null) {
+                markCloudAttestFailure(
+                    CloudProxyAuth.lastVerifyMessage(),
+                    CloudProxyAuth.FailureKind.VERIFY
+                )
+            }
+            return
+        }
+        runCloudAttestation(forceRefresh = false)
+    }
+
+    /** Explicit Retry after a failed attestation; respects exponential backoff. */
+    fun retryCloudAttestation() {
+        val ui = _cloudAttestUi.value
+        if (ui.busy || !ui.retryEnabled) return
+        if (System.currentTimeMillis() < ui.retryAfterMs) return
+        runCloudAttestation(forceRefresh = true)
+    }
+
+    private fun runCloudAttestation(forceRefresh: Boolean) {
+        if (!MongoUriVault.isAvailable() || !CloudProxyAuth.cloudUploadsAllowed()) {
+            _cloudAttestUi.value = CloudAttestUi(ready = false)
+            return
+        }
+        cloudAttestInFlight?.cancel()
+        cloudAttestRetryJob?.cancel()
+        cloudAttestInFlight = viewModelScope.launch {
+            _cloudAttestUi.value = CloudAttestUi(
+                ready = false,
+                busy = true,
+                message = null,
+                retryEnabled = false,
+                retryAfterMs = 0L
+            )
+            val status = if (forceRefresh) CloudProxyAuth.refresh() else CloudProxyAuth.apply()
+            when (status) {
+                is CloudProxyAuth.Status.Ready -> {
+                    cloudAttestFailCount = 0
+                    _cloudAttestUi.value = CloudAttestUi(ready = true)
+                }
+                is CloudProxyAuth.Status.Unavailable -> {
+                    markCloudAttestFailure(status.message, status.kind)
+                }
+            }
+        }
+    }
+
+    private fun markCloudAttestFailure(message: String, kind: CloudProxyAuth.FailureKind) {
+        val delayMs = (2_000L * (1L shl cloudAttestFailCount.coerceAtMost(5)))
+            .coerceAtMost(60_000L)
+        cloudAttestFailCount++
+        val retryAfter = System.currentTimeMillis() + delayMs
+        _cloudAttestUi.value = CloudAttestUi(
+            ready = false,
+            busy = false,
+            message = message,
+            retryEnabled = false,
+            retryAfterMs = retryAfter
+        )
+        cloudAttestRetryJob?.cancel()
+        cloudAttestRetryJob = viewModelScope.launch {
+            delay(delayMs)
+            _cloudAttestUi.update { current ->
+                if (current.ready || current.busy || current.message == null) current
+                else current.copy(retryEnabled = true)
+            }
+            if (kind == CloudProxyAuth.FailureKind.VERIFY) {
+                delay((CloudProxyAuth.verifyRetryRemainingMs() - delayMs).coerceAtLeast(0L))
+                runCloudAttestation(forceRefresh = true)
+            }
+        }
+    }
+
+    fun peekAttestToken() {
+        _attestTokenUi.value = AttestTokenUi.fromSnapshot(
+            CloudProxyAuth.peek(),
+            lastAction = "peek",
+            busy = false
+        )
+    }
+
+    fun applyAttestToken() {
+        viewModelScope.launch {
+            _attestTokenUi.update { it.copy(busy = true, message = "Applying…") }
+            val status = CloudProxyAuth.apply()
+            _attestTokenUi.value = AttestTokenUi.fromStatus(status, lastAction = "apply")
+            syncCloudAttestFromStatus(status)
+        }
+    }
+
+    fun refreshAttestToken() {
+        viewModelScope.launch {
+            _attestTokenUi.update { it.copy(busy = true, message = "Refreshing…") }
+            val status = CloudProxyAuth.refresh()
+            _attestTokenUi.value = AttestTokenUi.fromStatus(status, lastAction = "refresh")
+            syncCloudAttestFromStatus(status)
+        }
+    }
+
+    private fun syncCloudAttestFromStatus(status: CloudProxyAuth.Status) {
+        when (status) {
+            is CloudProxyAuth.Status.Ready -> {
+                cloudAttestFailCount = 0
+                cloudAttestRetryJob?.cancel()
+                _cloudAttestUi.value = CloudAttestUi(ready = true)
+            }
+            is CloudProxyAuth.Status.Unavailable -> markCloudAttestFailure(status.message, status.kind)
+        }
+    }
+
     fun uploadMongoBackup() {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             _analysisState.update {
                 it.copy(userMessage = str(R.string.vm_cloud_backup_uploads_disabled_debug_builds))
             }
@@ -2920,7 +3135,15 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = str(R.string.vm_cloud_upload_failed, BackupErrorMessages.encryptionFailed(e.message)))
+                        it.copy(
+                            userMessage = str(
+                                R.string.vm_cloud_upload_failed,
+                                BackupErrorMessages.userFacingCloudReason(
+                                    e.message,
+                                    CloudProxyAuth.hasInternetAccess(app)
+                                )
+                            )
+                        )
                     }
                 }
             _mongoBackupBusy.value = false
@@ -2929,7 +3152,7 @@ class MainViewModel(
 
     /** Developer tools: freeze current tip log rows and append a new cloud tip chunk. */
     fun forceNewCloudBackupChunk() {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             _analysisState.update {
                 it.copy(userMessage = str(R.string.vm_cloud_backup_uploads_disabled_debug_builds))
             }
@@ -2955,7 +3178,13 @@ class MainViewModel(
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(
-                            userMessage = str(R.string.vm_create_chunk_failed, e.message ?: e.javaClass.simpleName)
+                            userMessage = str(
+                                R.string.vm_create_chunk_failed,
+                                BackupErrorMessages.userFacingCloudReason(
+                                    e.message ?: e.javaClass.simpleName,
+                                    CloudProxyAuth.hasInternetAccess(app)
+                                )
+                            )
                         )
                     }
                 }
@@ -2971,7 +3200,7 @@ class MainViewModel(
         supportId: String,
         passwordProvider: suspend () -> CharArray? = { null }
     ) {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             _analysisState.update {
                 it.copy(
                     userMessage = str(R.string.vm_debug_builds_restore_cloud_only_during_onboardin)
@@ -2986,11 +3215,10 @@ class MainViewModel(
                 val count = repository.downloadMongoBackup(enteredId, passwordProvider)
                 val restored = settingsRepository.settings.first()
                 val reusedId = restored.supportId.trim().ifBlank { enteredId }
-                val cloudOn = !BuildConfig.DEBUG
+                val cloudOn = CloudProxyAuth.cloudUploadsAllowed()
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
-                        // Debug builds never opt into cloud upload after restore.
                         cloudBackupEnabled = cloudOn,
                         crashReportingEnabled = if (cloudOn) true else restored.crashReportingEnabled
                     )
@@ -3007,7 +3235,12 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = BackupErrorMessages.cloudRestoreFailed(e.message))
+                        it.copy(
+                            userMessage = BackupErrorMessages.cloudRestoreFailed(
+                                e.message,
+                                CloudProxyAuth.hasInternetAccess(app)
+                            )
+                        )
                     }
                 }
             _mongoBackupBusy.value = false
@@ -3015,7 +3248,7 @@ class MainViewModel(
     }
 
     fun changeCloudPassword(newPassword: CharArray?) {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             newPassword?.fill('\u0000')
             _analysisState.update {
                 it.copy(userMessage = str(R.string.vm_cloud_backup_uploads_disabled_debug_builds))
@@ -3038,7 +3271,13 @@ class MainViewModel(
                 .onFailure { e ->
                     _analysisState.update {
                         it.copy(
-                            userMessage = str(R.string.vm_password_change_failed, BackupErrorMessages.encryptionFailed(e.message))
+                            userMessage = str(
+                                R.string.vm_password_change_failed,
+                                BackupErrorMessages.userFacingCloudReason(
+                                    e.message,
+                                    CloudProxyAuth.hasInternetAccess(app)
+                                )
+                            )
                         )
                     }
                 }
@@ -3052,16 +3291,52 @@ class MainViewModel(
         }
     }
 
+    /** Null when the proxy accepted this install; otherwise a toast message and keep cloud off. */
+    private suspend fun attestForCloudEnable(): String? {
+        if (CloudProxyAuth.hasActiveSession() && _cloudAttestUi.value.ready) return null
+        val status = CloudProxyAuth.apply()
+        return when (status) {
+            is CloudProxyAuth.Status.Ready -> {
+                cloudAttestFailCount = 0
+                cloudAttestRetryJob?.cancel()
+                _cloudAttestUi.value = CloudAttestUi(ready = true)
+                null
+            }
+            is CloudProxyAuth.Status.Unavailable -> {
+                markCloudAttestFailure(status.message, status.kind)
+                status.message
+            }
+        }
+    }
+
     fun setCloudBackupEnabled(enabled: Boolean) {
-        if (BuildConfig.DEBUG && enabled) {
+        if (!CloudProxyAuth.cloudUploadsAllowed() && enabled) {
             _analysisState.update {
                 it.copy(userMessage = str(R.string.vm_cloud_backup_disabled_debug_builds))
             }
             return
         }
+        if (enabled && !_cloudAttestUi.value.ready) {
+            _analysisState.update {
+                it.copy(
+                    userMessage = _cloudAttestUi.value.message
+                        ?: str(R.string.backup_unable_to_verify_app)
+                )
+            }
+            ensureCloudAttestation()
+            return
+        }
         viewModelScope.launch {
             if (enabled) {
                 settingsRepository.ensureSupportId()
+                val attestError = attestForCloudEnable()
+                if (attestError != null) {
+                    settingsRepository.update {
+                        it.copy(cloudBackupEnabled = false, cloudAutoUploadEnabled = false)
+                    }
+                    _analysisState.update { it.copy(userMessage = attestError) }
+                    return@launch
+                }
             }
             val current = settings.value
             val next = current.copy(
@@ -3091,16 +3366,37 @@ class MainViewModel(
      * failure the toggle stays enabled and a retry runs on the next auto-upload.
      */
     fun enableCloudBackup(password: CharArray?) {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             password?.fill('\u0000')
             _analysisState.update {
                 it.copy(userMessage = str(R.string.vm_cloud_backup_disabled_debug_builds))
             }
             return
         }
+        if (!_cloudAttestUi.value.ready && !CloudProxyAuth.hasActiveSession()) {
+            password?.fill('\u0000')
+            _analysisState.update {
+                it.copy(
+                    userMessage = _cloudAttestUi.value.message
+                        ?: str(R.string.backup_unable_to_verify_app)
+                )
+            }
+            ensureCloudAttestation()
+            return
+        }
         viewModelScope.launch {
             _mongoBackupBusy.value = true
             val isBlank = password == null || password.isEmpty() || password.all { it.isWhitespace() }
+            val attestError = attestForCloudEnable()
+            if (attestError != null) {
+                password?.fill('\u0000')
+                settingsRepository.update {
+                    it.copy(cloudBackupEnabled = false, cloudAutoUploadEnabled = false)
+                }
+                _analysisState.update { it.copy(userMessage = attestError) }
+                _mongoBackupBusy.value = false
+                return@launch
+            }
             runCatching {
                 settingsRepository.ensureSupportId()
                 val current = settingsRepository.settings.first()
@@ -3128,7 +3424,15 @@ class MainViewModel(
                 }
                 .onFailure { e ->
                     _analysisState.update {
-                        it.copy(userMessage = str(R.string.vm_cloud_backup_enable_failed, e.message ?: ""))
+                        it.copy(
+                            userMessage = str(
+                                R.string.vm_cloud_backup_enable_failed,
+                                BackupErrorMessages.userFacingCloudReason(
+                                    e.message,
+                                    CloudProxyAuth.hasInternetAccess(app)
+                                )
+                            )
+                        )
                     }
                 }
             _mongoBackupBusy.value = false
@@ -3144,6 +3448,7 @@ class MainViewModel(
     /** Guest path: ensure a Support ID exists before the AI/profile steps. */
     fun startGuestOnboarding() {
         if (_forceFullOnboarding.value) return // preview — do not mint / touch Support ID
+        ensureCloudAttestation()
         viewModelScope.launch {
             settingsRepository.ensureSupportId()
         }
@@ -3172,11 +3477,10 @@ class MainViewModel(
                 val restored = settingsRepository.settings.first()
                 // Prefer Support ID from restored settings; fall back to the ID used to fetch.
                 val reusedId = restored.supportId.trim().ifBlank { enteredId }
-                val cloudOn = !BuildConfig.DEBUG
+                val cloudOn = CloudProxyAuth.cloudUploadsAllowed()
                 settingsRepository.save(
                     restored.copy(
                         supportId = reusedId,
-                        // Debug builds never opt into cloud upload after restore.
                         cloudBackupEnabled = cloudOn,
                         cloudAutoUploadEnabled = cloudOn,
                         crashReportingEnabled = if (cloudOn) true else restored.crashReportingEnabled
@@ -4204,14 +4508,16 @@ class MainViewModel(
                 require(heightCm in 100.0..250.0) { "Enter a valid height between 100 and 250 cm" }
                 require(weightKg in 25.0..400.0) { "Enter a valid weight between 25 and 400 kg" }
                 val current = settings.value
-                val cloudOn = cloudBackupEnabled && !BuildConfig.DEBUG
-                // Cloud backup implies crash reporting.
-                val crashOn = crashReportingEnabled || cloudOn
+                var cloudOn = cloudBackupEnabled && CloudProxyAuth.cloudUploadsAllowed()
+                var attestError: String? = null
                 if (cloudOn) {
                     settingsRepository.ensureSupportId()
-                    // Onboarding: Support ID default — change password later in Settings.
-                    settingsRepository.setCloudBackupPasswordBlob(null)
+                    attestError = attestForCloudEnable()
+                    if (attestError != null) cloudOn = false
+                    else settingsRepository.setCloudBackupPasswordBlob(null)
                 }
+                // Cloud backup implies crash reporting.
+                val crashOn = crashReportingEnabled || cloudOn
                 settingsRepository.save(
                     current.copy(
                         firstName = firstName.trim(),
@@ -4284,6 +4590,9 @@ class MainViewModel(
                 CrashReporter.setReportingEnabled(crashOn)
                 _forceAiSetup.value = false
                 _forceFullOnboarding.value = false
+                if (attestError != null) {
+                    _analysisState.update { it.copy(userMessage = attestError) }
+                }
             }.onFailure { e ->
                 _analysisState.update {
                     it.copy(userMessage = e.message ?: str(R.string.vm_couldn_t_save_profile))

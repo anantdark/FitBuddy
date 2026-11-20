@@ -18,6 +18,7 @@ import com.anant.fitbuddy.data.backup.FrozenBackupIndexJson
 import com.anant.fitbuddy.data.backup.crypto.BackupFormat
 import com.anant.fitbuddy.data.backup.crypto.BackupPasswordStore
 import com.anant.fitbuddy.data.backup.crypto.OpenResult
+import com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupRepository
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import com.anant.fitbuddy.data.remote.NetworkModule
@@ -581,7 +582,7 @@ class FitnessRepository(
         force: Boolean = false,
         forceNewChunk: Boolean = false
     ): CloudUploadResult {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             error("Cloud backup uploads are disabled in debug builds")
         }
         val settings = settingsRepository.settings.first()
@@ -655,7 +656,7 @@ class FitnessRepository(
 
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
-                        apiKey = MongoUriVault.resolve(),
+                        apiKey = CloudProxyAuth.bearer(),
                         databaseName = dbName,
                         collectionName = collName,
                         supportId = supportId,
@@ -672,7 +673,7 @@ class FitnessRepository(
                     )
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
-                        apiKey = MongoUriVault.resolve(),
+                        apiKey = CloudProxyAuth.bearer(),
                         databaseName = dbName,
                         collectionName = collName,
                         supportId = supportId,
@@ -708,7 +709,7 @@ class FitnessRepository(
                     val tipIndex = BackupChunkIds.parseChunkIndex(tipId, supportId) ?: 0
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
-                        apiKey = MongoUriVault.resolve(),
+                        apiKey = CloudProxyAuth.bearer(),
                         databaseName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME },
                         collectionName = settings.mongoCollectionName.ifBlank {
                             AppSettings.DEFAULT_MONGO_COLLECTION
@@ -775,9 +776,10 @@ class FitnessRepository(
         val settings = settingsRepository.settings.first()
         val dbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
         val collName = settings.mongoCollectionName.ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
+        // Pulls do not require device attestation — Support ID + encrypted payload is enough.
+        // Uploads still go through CloudProxyAuth.bearer().
         val chain = mongoBackupRepository.downloadChain(
             baseUrl = MongoUriVault.baseUrl(),
-            apiKey = MongoUriVault.resolve(),
             databaseName = dbName,
             collectionName = collName,
             supportId = id
@@ -830,7 +832,7 @@ class FitnessRepository(
             )
             // Legacy single plaintext head: migrate to sealed Support-ID tip when possible.
             // Debug builds never push — even this one-shot migration rewrite.
-            if (!BuildConfig.DEBUG &&
+            if (CloudProxyAuth.cloudUploadsAllowed() &&
                 chain.size == 1 &&
                 backupManager.crypto.classify(chain[0].payloadJson) == BackupFormat.LEGACY_PLAIN
             ) {
@@ -843,7 +845,7 @@ class FitnessRepository(
                     }
                     mongoBackupRepository.upload(
                         baseUrl = MongoUriVault.baseUrl(),
-                        apiKey = MongoUriVault.resolve(),
+                        apiKey = CloudProxyAuth.bearer(),
                         databaseName = dbName,
                         collectionName = collName,
                         supportId = id,
@@ -937,7 +939,7 @@ class FitnessRepository(
      * PUTs each node (tip-only rule does not apply).
      */
     suspend fun changeCloudPassword(newPassword: CharArray?) {
-        if (BuildConfig.DEBUG) {
+        if (!CloudProxyAuth.cloudUploadsAllowed()) {
             error("Cloud backup uploads are disabled in debug builds")
         }
         // Validate: non-blank password must be 8–128 characters
@@ -956,15 +958,16 @@ class FitnessRepository(
         val oldPassword = resolveUploadPassword(settings, supportId)
         val effectivePassword = if (isBlank) supportId.toCharArray() else newPassword.copyOf()
         try {
+            // Pull without attestation; Bearer is only required for the reseal uploads below.
             val chain = runCatching {
                 mongoBackupRepository.downloadChain(
                     baseUrl = MongoUriVault.baseUrl(),
-                    apiKey = MongoUriVault.resolve(),
                     databaseName = dbName,
                     collectionName = collName,
                     supportId = supportId
                 )
             }.getOrDefault(emptyList())
+            val apiKey = CloudProxyAuth.bearer()
 
             if (chain.size > 1) {
                 for (doc in chain) {
@@ -983,7 +986,7 @@ class FitnessRepository(
                         }.getOrNull() ?: 0
                     mongoBackupRepository.uploadChunk(
                         baseUrl = MongoUriVault.baseUrl(),
-                        apiKey = MongoUriVault.resolve(),
+                        apiKey = apiKey,
                         databaseName = dbName,
                         collectionName = collName,
                         supportId = supportId,
@@ -1006,7 +1009,7 @@ class FitnessRepository(
                 val sealedPayload = backupManager.crypto.seal(payloadJson, effectivePassword.copyOf())
                 mongoBackupRepository.upload(
                     baseUrl = MongoUriVault.baseUrl(),
-                    apiKey = MongoUriVault.resolve(),
+                    apiKey = apiKey,
                     databaseName = dbName,
                     collectionName = collName,
                     supportId = supportId,
@@ -1045,7 +1048,7 @@ class FitnessRepository(
         settings: AppSettings,
         nowMs: Long = System.currentTimeMillis()
     ): Boolean {
-        if (BuildConfig.DEBUG) return false
+        if (!CloudProxyAuth.cloudUploadsAllowed()) return false
         if (!settings.cloudBackupEnabled || !settings.cloudAutoUploadEnabled) return false
         if (!MongoUriVault.isAvailable()) return false
         if (settings.supportId.isBlank()) return false

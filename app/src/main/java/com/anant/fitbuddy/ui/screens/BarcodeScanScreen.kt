@@ -14,6 +14,11 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -33,12 +38,18 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,6 +57,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.ZoomIn
 import com.anant.fitbuddy.ui.components.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -60,6 +72,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -67,6 +80,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntSize
@@ -88,6 +102,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import kotlin.math.ln
+import kotlin.math.pow
 
 private const val TAG = "BarcodeScan"
 
@@ -291,6 +307,20 @@ private const val BOX_WIDTH_FRACTION = 0.8f
 private const val BOX_HEIGHT_FRACTION = 0.3f
 private const val REFOCUS_INTERVAL_MS = 2000L
 private const val SCAN_ZOOM_RATIO = 1.5f
+private val ZoomControlGlass = Color.Black.copy(alpha = 0.45f)
+private val ZoomAccent = Color.White
+
+/** Maps a 0–1 slider position to a zoom ratio using a log scale (feels natural on camera apps). */
+private fun linearToZoomRatio(t: Float, min: Float, max: Float): Float {
+    if (max <= min) return min
+    return min * (max / min).toDouble().pow(t.toDouble()).toFloat()
+}
+
+private fun zoomRatioToLinear(ratio: Float, min: Float, max: Float): Float {
+    if (max <= min) return 0f
+    val clamped = ratio.coerceIn(min, max)
+    return (ln(clamped / min) / ln(max / min)).coerceIn(0f, 1f)
+}
 
 private fun scanReader(tryHarder: Boolean) = BarcodeReader().apply {
     options.formats = setOf(Format.EAN_13, Format.EAN_8, Format.UPC_A, Format.UPC_E)
@@ -346,6 +376,11 @@ private fun BarcodeCameraPreview(
     var boundCamera by remember { mutableStateOf<Camera?>(null) }
     val viewSize = remember { AtomicReference(IntSize.Zero) }
     var torchOn by remember { mutableStateOf(false) }
+    var showZoomSlider by remember { mutableStateOf(false) }
+    var minZoomRatio by remember { mutableFloatStateOf(1f) }
+    var maxZoomRatio by remember { mutableFloatStateOf(1f) }
+    var zoomRatio by remember { mutableFloatStateOf(SCAN_ZOOM_RATIO) }
+    val zoomSupported = maxZoomRatio > minZoomRatio + 0.01f
 
     DisposableEffect(lifecycleOwner) {
         val executor = Executors.newSingleThreadExecutor()
@@ -405,12 +440,15 @@ private fun BarcodeCameraPreview(
                 )
                 boundCamera = bound
                 bound.cameraInfo.zoomState.value?.let { zoom ->
-                    bound.cameraControl.setZoomRatio(
-                        SCAN_ZOOM_RATIO.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio)
-                    )
+                    minZoomRatio = zoom.minZoomRatio
+                    maxZoomRatio = zoom.maxZoomRatio
+                    val initial = SCAN_ZOOM_RATIO.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio)
+                    zoomRatio = initial
+                    bound.cameraControl.setZoomRatio(initial)
                 }
                 camera = bound.takeIf { it.cameraInfo.hasFlashUnit() }
                 torchOn = false
+                showZoomSlider = false
                 previewView.setOnTouchListener { view, event ->
                     if (event.action == MotionEvent.ACTION_UP) {
                         val point = previewView.meteringPointFactory.createPoint(event.x, event.y)
@@ -487,7 +525,47 @@ private fun BarcodeCameraPreview(
                         color = Color.White
                     )
                 }
+                if (zoomSupported) {
+                    AnimatedVisibility(
+                        visible = showZoomSlider,
+                        enter = fadeIn() + scaleIn(initialScale = 0.95f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.95f)
+                    ) {
+                        ZoomSliderBar(
+                            zoomRatio = zoomRatio,
+                            minZoomRatio = minZoomRatio,
+                            maxZoomRatio = maxZoomRatio,
+                            enabled = enabled,
+                            onZoomRatioChange = { ratio ->
+                                zoomRatio = ratio
+                                boundCamera?.cameraControl?.setZoomRatio(ratio)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
                 Box(modifier = Modifier.fillMaxWidth()) {
+                    if (zoomSupported) {
+                        IconButton(
+                            onClick = { showZoomSlider = !showZoomSlider },
+                            enabled = enabled,
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .size(48.dp)
+                                .background(
+                                    if (showZoomSlider) ZoomAccent.copy(alpha = 0.22f) else ZoomControlGlass,
+                                    CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ZoomIn,
+                                contentDescription = stringResource(
+                                    if (showZoomSlider) R.string.barcode_zoom_hide else R.string.barcode_zoom
+                                ),
+                                tint = ZoomAccent
+                            )
+                        }
+                    }
                     Button(
                         onClick = {
                             manualMiss = false
@@ -504,20 +582,63 @@ private fun BarcodeCameraPreview(
                             },
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                                .background(ZoomControlGlass, CircleShape)
                         ) {
                             Icon(
                                 imageVector = if (torchOn) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
                                 contentDescription = stringResource(
                                     if (torchOn) R.string.barcode_flashlight_off else R.string.barcode_flashlight_on
                                 ),
-                                tint = Color.White
+                                tint = ZoomAccent
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ZoomSliderBar(
+    zoomRatio: Float,
+    minZoomRatio: Float,
+    maxZoomRatio: Float,
+    enabled: Boolean,
+    onZoomRatioChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val linear = zoomRatioToLinear(zoomRatio, minZoomRatio, maxZoomRatio)
+    Row(
+        modifier = modifier
+            .background(ZoomControlGlass, RoundedCornerShape(28.dp))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.barcode_zoom_level, zoomRatio),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = ZoomAccent,
+            modifier = Modifier.width(56.dp)
+        )
+        Slider(
+            value = linear,
+            onValueChange = { t ->
+                onZoomRatioChange(linearToZoomRatio(t, minZoomRatio, maxZoomRatio))
+            },
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = ZoomAccent,
+                activeTrackColor = ZoomAccent,
+                inactiveTrackColor = ZoomAccent.copy(alpha = 0.28f),
+                disabledThumbColor = ZoomAccent.copy(alpha = 0.5f),
+                disabledActiveTrackColor = ZoomAccent.copy(alpha = 0.35f),
+                disabledInactiveTrackColor = ZoomAccent.copy(alpha = 0.16f)
+            )
+        )
     }
 }
 

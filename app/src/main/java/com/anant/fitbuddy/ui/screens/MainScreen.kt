@@ -181,6 +181,8 @@ fun MainScreen(
     val textModelsState by viewModel.textModels.collectAsStateWithLifecycle()
     val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
     val mongoBackupBusy by viewModel.mongoBackupBusy.collectAsStateWithLifecycle()
+    val cloudAttestUi by viewModel.cloudAttestUi.collectAsStateWithLifecycle()
+    val attestTokenUi by viewModel.attestTokenUi.collectAsStateWithLifecycle()
     val healthConnectSyncBusy by viewModel.healthConnectSyncBusy.collectAsStateWithLifecycle()
     val mealPresets by viewModel.mealPresets.collectAsStateWithLifecycle()
     val savedFoods by viewModel.savedFoods.collectAsStateWithLifecycle()
@@ -614,11 +616,6 @@ fun MainScreen(
                     )
                 },
                 onShowTestDonateReminderDialog = viewModel::showTestDonationReminderDialog,
-                onShowTestNewDonorsThankYou = viewModel::showTestNewDonorsThankYou,
-                onShowTestDonorGallery = {
-                    showSettings = false
-                    viewModel.showTestDonorGallery()
-                },
                 onShowTestDonationDialog = {
                     showSettings = false
                     viewModel.showTestDonationDialog()
@@ -655,6 +652,13 @@ fun MainScreen(
                 onCloudAutoUploadChange = viewModel::setCloudAutoUploadEnabled,
                 onMongoUpload = viewModel::uploadMongoBackup,
                 onForceNewCloudChunk = viewModel::forceNewCloudBackupChunk,
+                cloudAttestUi = cloudAttestUi,
+                onEnsureCloudAttest = viewModel::ensureCloudAttestation,
+                onRetryCloudAttest = viewModel::retryCloudAttestation,
+                attestTokenUi = attestTokenUi,
+                onPeekAttestToken = viewModel::peekAttestToken,
+                onApplyAttestToken = viewModel::applyAttestToken,
+                onRefreshAttestToken = viewModel::refreshAttestToken,
                 onMongoDownload = { supportId ->
                     viewModel.downloadMongoBackup(supportId) {
                         // Provider runs off the main thread; publish the prompt + continuation on

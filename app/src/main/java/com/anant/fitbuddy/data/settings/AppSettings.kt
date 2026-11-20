@@ -356,6 +356,18 @@ data class AppSettings(
     val hasUserName: Boolean
         get() = displayFirstName.isNotEmpty()
 
+    /** First + last for Sentry heartbeat `username` attribute (blank when unnamed). */
+    val sentryUsername: String
+        get() {
+            val first = firstName.trim()
+            val last = lastName.trim()
+            return when {
+                first.isEmpty() -> ""
+                last.isEmpty() -> first
+                else -> "$first $last"
+            }.take(128)
+        }
+
     /**
      * Cloud backup implies crash reporting (one-way): enabling cloud turns crash reports on
      * and keeps them on; turning crash reports on never enables cloud.
@@ -367,7 +379,7 @@ data class AppSettings(
             this
         }
 
-    /** True when cloud backup is opted in and this build has a vault URI + Support ID. */
+    /** True when cloud backup is opted in, the proxy URL is set, and a Support ID exists. */
     val isMongoBackupConfigured: Boolean
         get() = cloudBackupEnabled &&
             supportId.isNotBlank() &&

@@ -149,6 +149,9 @@ fun OnboardingScreen(
     regionRequestAlreadySent: Boolean = false,
     onRegionRequestSent: () -> Unit = {},
     cloudRestoreAvailable: Boolean = false,
+    cloudAttestUi: com.anant.fitbuddy.ui.viewmodel.CloudAttestUi =
+        com.anant.fitbuddy.ui.viewmodel.CloudAttestUi(ready = true),
+    onRetryCloudAttest: () -> Unit = {},
     openRouterOAuthBusy: Boolean = false,
     openRouterOAuthKey: String = "",
     userMessage: String? = null,
@@ -522,9 +525,11 @@ fun OnboardingScreen(
     if (!aiOnly && showCloudStep && step == stepCloud) {
         CloudBackupOptInScreen(
             initialEnabled = cloudBackupChoice,
+            cloudAttestUi = cloudAttestUi,
+            onRetryAttest = onRetryCloudAttest,
             onContinue = { enabled ->
-                cloudBackupChoice = enabled
-                if (enabled) {
+                cloudBackupChoice = enabled && cloudAttestUi.ready
+                if (cloudBackupChoice) {
                     // Cloud backup requires crash reporting — skip the crash opt-in page.
                     crashReportingChoice = true
                     if (!previewMode) {

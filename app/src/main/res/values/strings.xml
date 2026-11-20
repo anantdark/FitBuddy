@@ -43,6 +43,12 @@
     <string name="backup_crash_reports_will_also_be_enabled">Crash reports will also be enabled.</string>
     <string name="backup_enable_cloud_backup">Enable cloud backup</string>
     <string name="backup_encrypted_backup_to_fitbuddy_s_cloud">Encrypted backup to FitBuddy’s cloud. Off by default — change anytime in Settings.</string>
+    <string name="backup_verifying_app">Verifying app…</string>
+    <string name="backup_unable_to_verify_app">Unable to verify this app. Cloud backup stays off.</string>
+    <string name="backup_no_internet">No internet connection. Connect and try again.</string>
+    <string name="backup_cloud_unreachable">Couldn\'t reach cloud backup. Try again.</string>
+    <string name="backup_retry">Retry</string>
+    <string name="backup_retry_in_seconds">Retry in %1$d s</string>
     <string name="barcode_allow_camera">Allow camera</string>
     <string name="barcode_barcode">Barcode</string>
     <string name="barcode_camera_access_is_needed_to_scan">Camera access is needed to scan barcodes.</string>
@@ -53,6 +59,9 @@
     <string name="barcode_capture_now">Capture now</string>
     <string name="barcode_flashlight_on">Turn flashlight on</string>
     <string name="barcode_flashlight_off">Turn flashlight off</string>
+    <string name="barcode_zoom">Zoom</string>
+    <string name="barcode_zoom_hide">Hide zoom</string>
+    <string name="barcode_zoom_level">Zoom %1$.1fx</string>
     <string name="barcode_manual_capture_miss">No barcode found. Hold steady and try again.</string>
     <string name="barcode_type_the_ean_or_upc_digits">Type the EAN or UPC digits printed under the barcode.</string>
     <string name="barcode_use_camera_instead">Use camera instead</string>
@@ -465,6 +474,13 @@
     <string name="settings_clear_model_cooldowns">Clear model cooldowns</string>
     <string name="settings_cloud">Cloud</string>
     <string name="settings_cloud_atlas">Cloud (Atlas)</string>
+    <string name="settings_proxy_attestation">Proxy attestation</string>
+    <string name="settings_attest_apply">Apply</string>
+    <string name="settings_attest_see">See</string>
+    <string name="settings_attest_refresh">Refresh</string>
+    <string name="settings_attest_token">Token</string>
+    <string name="settings_attest_no_token">No token</string>
+    <string name="settings_attest_status">Package: %1$s\nStatus: %2$s\nExpires: %3$s\nLast action: %4$s</string>
     <string name="settings_cloud_backup_is_not_available_in">Cloud backup is not available in this build.</string>
     <string name="settings_cloud_backup_off_debug">Cloud backup off (debug)</string>
     <string name="settings_cloud_backup_uploads_are_disabled_in">Cloud backup uploads are disabled in debug builds. You can still pull an existing backup during onboarding with a Support ID. Use a release build to enable uploads.</string>
@@ -481,7 +497,10 @@
     <string name="settings_connected_with_openrouter">Connected with OpenRouter</string>
     <string name="settings_continue_with_openrouter">Continue with OpenRouter</string>
     <string name="settings_copy_id_enable">Copy ID &amp; enable</string>
+    <string name="settings_enable">Enable</string>
     <string name="settings_copy_support_id">Copy support ID</string>
+    <string name="settings_save_your_support_id">Save your Support ID — you\'ll need it to restore after reinstalling.</string>
+    <string name="settings_enable_cloud_backup_short">Encrypted on device. Copy your Support ID to restore later.</string>
     <string name="settings_create_new_cloud_chunk">Create new cloud chunk</string>
     <string name="settings_daily_log_reminder">Daily log reminder</string>
     <string name="settings_database_name">Database name</string>
@@ -494,7 +513,7 @@
     <string name="settings_disable_crash_reports">Disable crash reports?</string>
     <string name="settings_disconnect_openrouter">Disconnect OpenRouter</string>
     <string name="settings_donate">Donate</string>
-    <string name="settings_donate_test_actions_bypass_the_3">Donate test actions bypass the 3–8 day schedule. Demo thank-you does not change last-seen donors.</string>
+    <string name="settings_donate_test_actions_bypass_the_3">Donate test actions bypass the 3–8 day schedule.</string>
     <string name="settings_download_restore_from_cloud">Download &amp; restore from cloud</string>
     <string name="settings_enter_the_support_id_of_the">Enter the Support ID of the backup to restore. This replaces all local FitBuddy data (same as file import).</string>
     <string name="settings_exact_alarms_are_off_for_fitbuddy">Exact alarms are off for FitBuddy. Reminders may be delayed until you allow Alarms &amp; reminders in system settings.</string>
@@ -627,7 +646,7 @@
     <string name="settings_themes">Themes</string>
     <string name="settings_themes_are_available_exclusively_for_supporters">Themes are available exclusively for supporters. Donate to get access.</string>
     <string name="settings_toggles_and_tools_for_the_live">Toggles and tools for the live AI path. Does not change ranking rules.</string>
-    <string name="settings_turning_off_crash_reports_will_also">Turning off crash reports will also disable cloud backup. You can turn either back on later in Settings.</string>
+    <string name="settings_turning_off_crash_reports_will_also">This also turns off cloud backup. You can re-enable either later.</string>
     <string name="settings_ui_preview">UI preview</string>
     <string name="settings_update_available">Update available</string>
     <string name="settings_updates_support">Updates &amp; support</string>
