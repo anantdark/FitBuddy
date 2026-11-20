@@ -59,6 +59,9 @@
     <string name="barcode_capture_now">Capture now</string>
     <string name="barcode_flashlight_on">Turn flashlight on</string>
     <string name="barcode_flashlight_off">Turn flashlight off</string>
+    <string name="barcode_zoom">Zoom</string>
+    <string name="barcode_zoom_hide">Hide zoom</string>
+    <string name="barcode_zoom_level">Zoom %1$.1fx</string>
     <string name="barcode_manual_capture_miss">No barcode found. Hold steady and try again.</string>
     <string name="barcode_type_the_ean_or_upc_digits">Type the EAN or UPC digits printed under the barcode.</string>
     <string name="barcode_use_camera_instead">Use camera instead</string>

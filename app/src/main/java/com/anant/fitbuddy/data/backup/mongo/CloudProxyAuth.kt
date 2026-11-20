@@ -33,6 +33,8 @@ object CloudProxyAuth {
     private const val FILE = "proxy-session.txt"
     private const val REFRESH_EARLY_MS = 60_000L
     private const val DENY_COOLDOWN_MS = 15 * 60_000L
+    private const val VERIFY_FAIL_FILE = "proxy-verify-fail.txt"
+    private const val VERIFY_RETRY_MS = 25L * 60 * 60 * 1000
 
     const val ALLOW_CLOUD_IN_DEBUG = true
 
@@ -139,12 +141,14 @@ object CloudProxyAuth {
             val session = attest()
             memory = session
             write(session)
+            clearVerifyFailure()
             Status.Ready(session.token)
         } catch (e: CloudProxyException) {
             if (!e.retryable) {
                 deniedUntil = System.currentTimeMillis() + DENY_COOLDOWN_MS
                 deniedMessage = e.message ?: VERIFY_FAILED
                 deniedKind = e.kind
+                if (e.kind == FailureKind.VERIFY) recordVerifyFailure()
             }
             Status.Unavailable(e.message ?: VERIFY_FAILED, e.retryable, e.kind)
         } catch (e: IOException) {
@@ -159,6 +163,7 @@ object CloudProxyAuth {
             deniedUntil = System.currentTimeMillis() + DENY_COOLDOWN_MS
             deniedMessage = VERIFY_FAILED
             deniedKind = FailureKind.VERIFY
+            recordVerifyFailure()
             Status.Unavailable(VERIFY_FAILED, retryable = false, kind = FailureKind.VERIFY)
         }
     }
@@ -203,7 +208,7 @@ object CloudProxyAuth {
             val text = response.body.string()
             if (!response.isSuccessful) throw httpFailure(response.code, text)
             val parsed = JSONObject(text)
-            val expiresIn = parsed.optLong("expiresIn", 3600L).coerceIn(60L, 24 * 3600L)
+            val expiresIn = parsed.optLong("expiresIn", 3600L).coerceIn(60L, 48 * 3600L)
             return Session(
                 token = parsed.getString("token"),
                 expMs = System.currentTimeMillis() + expiresIn * 1000L
@@ -285,6 +290,28 @@ object CloudProxyAuth {
         val pad = (4 - value.length % 4) % 4
         return Base64.getUrlDecoder().decode(value + "=".repeat(pad))
     }
+
+    /** Millis until a persisted verify failure may be retried automatically; 0 when due or none. */
+    fun verifyRetryRemainingMs(): Long {
+        val last = runCatching {
+            verifyFailFile()?.takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull()
+        }.getOrNull() ?: return 0L
+        val elapsed = System.currentTimeMillis() - last
+        if (elapsed < 0) return 0L
+        return (VERIFY_RETRY_MS - elapsed).coerceAtLeast(0L)
+    }
+
+    fun lastVerifyMessage(): String = deniedMessage
+
+    private fun recordVerifyFailure() {
+        runCatching { verifyFailFile()?.writeText(System.currentTimeMillis().toString()) }
+    }
+
+    private fun clearVerifyFailure() {
+        runCatching { verifyFailFile()?.delete() }
+    }
+
+    private fun verifyFailFile() = app?.noBackupFilesDir?.resolve(VERIFY_FAIL_FILE)
 
     private fun sessionFile() = app?.noBackupFilesDir?.resolve(FILE)
 

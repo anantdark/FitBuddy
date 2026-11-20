@@ -131,9 +131,13 @@ open class MongoBackupRepository(
         }
     }
 
+    /**
+     * Downloads one backup chunk. [apiKey] is optional — cloud pulls do not require device
+     * attestation (Support ID + on-device encryption are the gate). Uploads still need a Bearer.
+     */
     open suspend fun downloadDoc(
         baseUrl: String,
-        apiKey: String,
+        apiKey: String = "",
         databaseName: String,
         collectionName: String,
         supportId: String,
@@ -153,7 +157,10 @@ open class MongoBackupRepository(
             .build()
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
+            .apply {
+                val token = apiKey.trim()
+                if (token.isNotEmpty()) header("Authorization", "Bearer $token")
+            }
             .get()
             .build()
 
@@ -166,9 +173,10 @@ open class MongoBackupRepository(
         }
     }
 
+    /** Pulls the full chunk chain. See [downloadDoc] — attestation Bearer is optional. */
     open suspend fun downloadChain(
         baseUrl: String,
-        apiKey: String,
+        apiKey: String = "",
         databaseName: String,
         collectionName: String,
         supportId: String

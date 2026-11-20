@@ -776,9 +776,10 @@ class FitnessRepository(
         val settings = settingsRepository.settings.first()
         val dbName = settings.mongoDbName.ifBlank { AppSettings.DEFAULT_MONGO_DB_NAME }
         val collName = settings.mongoCollectionName.ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION }
+        // Pulls do not require device attestation — Support ID + encrypted payload is enough.
+        // Uploads still go through CloudProxyAuth.bearer().
         val chain = mongoBackupRepository.downloadChain(
             baseUrl = MongoUriVault.baseUrl(),
-            apiKey = CloudProxyAuth.bearer(),
             databaseName = dbName,
             collectionName = collName,
             supportId = id
@@ -956,17 +957,17 @@ class FitnessRepository(
 
         val oldPassword = resolveUploadPassword(settings, supportId)
         val effectivePassword = if (isBlank) supportId.toCharArray() else newPassword.copyOf()
-        val apiKey = CloudProxyAuth.bearer()
         try {
+            // Pull without attestation; Bearer is only required for the reseal uploads below.
             val chain = runCatching {
                 mongoBackupRepository.downloadChain(
                     baseUrl = MongoUriVault.baseUrl(),
-                    apiKey = apiKey,
                     databaseName = dbName,
                     collectionName = collName,
                     supportId = supportId
                 )
             }.getOrDefault(emptyList())
+            val apiKey = CloudProxyAuth.bearer()
 
             if (chain.size > 1) {
                 for (doc in chain) {

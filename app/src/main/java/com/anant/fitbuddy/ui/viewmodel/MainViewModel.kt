@@ -3000,6 +3000,15 @@ class MainViewModel(
         }
         if (cloudAttestInFlight?.isActive == true) return
         if (_cloudAttestUi.value.ready) return
+        if (CloudProxyAuth.verifyRetryRemainingMs() > 0L) {
+            if (_cloudAttestUi.value.message == null) {
+                markCloudAttestFailure(
+                    CloudProxyAuth.lastVerifyMessage(),
+                    CloudProxyAuth.FailureKind.VERIFY
+                )
+            }
+            return
+        }
         runCloudAttestation(forceRefresh = false)
     }
 
@@ -3033,13 +3042,13 @@ class MainViewModel(
                     _cloudAttestUi.value = CloudAttestUi(ready = true)
                 }
                 is CloudProxyAuth.Status.Unavailable -> {
-                    markCloudAttestFailure(status.message)
+                    markCloudAttestFailure(status.message, status.kind)
                 }
             }
         }
     }
 
-    private fun markCloudAttestFailure(message: String) {
+    private fun markCloudAttestFailure(message: String, kind: CloudProxyAuth.FailureKind) {
         val delayMs = (2_000L * (1L shl cloudAttestFailCount.coerceAtMost(5)))
             .coerceAtMost(60_000L)
         cloudAttestFailCount++
@@ -3057,6 +3066,10 @@ class MainViewModel(
             _cloudAttestUi.update { current ->
                 if (current.ready || current.busy || current.message == null) current
                 else current.copy(retryEnabled = true)
+            }
+            if (kind == CloudProxyAuth.FailureKind.VERIFY) {
+                delay((CloudProxyAuth.verifyRetryRemainingMs() - delayMs).coerceAtLeast(0L))
+                runCloudAttestation(forceRefresh = true)
             }
         }
     }
@@ -3094,7 +3107,7 @@ class MainViewModel(
                 cloudAttestRetryJob?.cancel()
                 _cloudAttestUi.value = CloudAttestUi(ready = true)
             }
-            is CloudProxyAuth.Status.Unavailable -> markCloudAttestFailure(status.message)
+            is CloudProxyAuth.Status.Unavailable -> markCloudAttestFailure(status.message, status.kind)
         }
     }
 
@@ -3290,7 +3303,7 @@ class MainViewModel(
                 null
             }
             is CloudProxyAuth.Status.Unavailable -> {
-                markCloudAttestFailure(status.message)
+                markCloudAttestFailure(status.message, status.kind)
                 status.message
             }
         }
