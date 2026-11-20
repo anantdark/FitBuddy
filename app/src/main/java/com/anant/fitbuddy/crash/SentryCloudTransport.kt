@@ -1,6 +1,5 @@
 package com.anant.fitbuddy.crash
 
-import android.util.Log
 import io.sentry.Hint
 import io.sentry.SentryEnvelope
 import io.sentry.SentryOptions
@@ -9,26 +8,18 @@ import io.sentry.transport.RateLimiter
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 
-/**
- * Sentry transport that sends every envelope through FitBuddy’s Vercel ingest when available.
- *
- * Wraps the SDK’s HTTP transport ([delegate]) only as a fallback when cloud ingest is
- * unavailable or the POST fails — so the SDK’s disk cache / retry still applies.
- */
+/** Sentry transport that only talks to the FitBuddy proxy. */
 internal class SentryCloudTransport(
-    private val options: SentryOptions,
-    private val delegate: ITransport
+    private val options: SentryOptions
 ) : ITransport {
 
     override fun send(envelope: SentryEnvelope, hint: Hint) {
-        if (SentryCloudIngest.isAvailable()) {
-            val bytes = serialize(envelope)
-            if (bytes != null && SentryCloudIngest.forwardEnvelope(bytes)) {
-                return
-            }
-            Log.w(TAG, "cloud ingest failed; falling back to direct transport")
+        if (!SentryCloudIngest.isAvailable()) return
+        val bytes = serialize(envelope) ?: return
+        when (SentryCloudIngest.forwardEnvelope(bytes)) {
+            IngestResult.Sent, IngestResult.Drop -> Unit
+            IngestResult.Retry -> throw IOException("cloud ingest failed")
         }
-        delegate.send(envelope, hint)
     }
 
     private fun serialize(envelope: SentryEnvelope): ByteArray? =
@@ -37,23 +28,17 @@ internal class SentryCloudTransport(
                 options.serializer.serialize(envelope, out)
                 out.toByteArray()
             }
-        }.onFailure { e ->
-            Log.w(TAG, "envelope serialize failed", e)
         }.getOrNull()
 
-    override fun isHealthy(): Boolean = delegate.isHealthy
+    override fun isHealthy(): Boolean = true
 
-    override fun flush(timeoutMillis: Long) = delegate.flush(timeoutMillis)
+    override fun flush(timeoutMillis: Long) = Unit
 
-    override fun getRateLimiter(): RateLimiter? = delegate.rateLimiter
-
-    @Throws(IOException::class)
-    override fun close(isRestarting: Boolean) = delegate.close(isRestarting)
+    override fun getRateLimiter(): RateLimiter? = null
 
     @Throws(IOException::class)
-    override fun close() = delegate.close()
+    override fun close(isRestarting: Boolean) = Unit
 
-    companion object {
-        private const val TAG = "FitBuddyCrash"
-    }
+    @Throws(IOException::class)
+    override fun close() = Unit
 }

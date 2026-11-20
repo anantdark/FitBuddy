@@ -42,7 +42,8 @@ class HeartbeatReceiver : BroadcastReceiver() {
                     aiProvider = settings.provider.name,
                     recordCount = recordCount,
                     isDeveloper = settings.developerModeUnlocked,
-                    signupDate = settings.signupDate
+                    signupDate = settings.signupDate,
+                    username = settings.sentryUsername
                 )
                 val sent = CrashReporter.sendHeartbeat(info, HeartbeatKind.DAILY)
                 if (sent) {

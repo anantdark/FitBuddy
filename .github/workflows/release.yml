@@ -88,9 +88,8 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
-        # Sentry DSN and the cloud-backup API key are committed obfuscated in
-        # build.gradle.kts — no secrets needed here. GitHub Releases ship the
-        # github flavor; F-Droid builds its own fdroid flavor from the fdroid branch.
+        # No Sentry DSN or backup key in the APK. GitHub Releases ship the github
+        # flavor; F-Droid builds its own fdroid flavor from the fdroid branch.
         run: >
           ./gradlew :app:assembleGithubRelease :app:bundleGithubRelease --no-daemon
           -PappVersionCode=${{ steps.version.outputs.version_code }}

@@ -229,8 +229,6 @@ fun SettingsScreen(
     onShowTestUpdatePrompt: () -> Unit = {},
     onShowTestDonateNotification: () -> Unit = {},
     onShowTestDonateReminderDialog: () -> Unit = {},
-    onShowTestNewDonorsThankYou: () -> Unit = {},
-    onShowTestDonorGallery: () -> Unit = {},
     onShowTestDonationDialog: () -> Unit = {},
     lastSeenDonorDonationDate: String? = null,
     onRefreshLastSeenDonorDonationDate: () -> Unit = {},
@@ -250,6 +248,15 @@ fun SettingsScreen(
     onForceNewCloudChunk: () -> Unit = {},
     onMongoDownload: (supportId: String) -> Unit = {},
     onChangeCloudPassword: (CharArray?) -> Unit = {},
+    cloudAttestUi: com.anant.fitbuddy.ui.viewmodel.CloudAttestUi =
+        com.anant.fitbuddy.ui.viewmodel.CloudAttestUi(ready = true),
+    onEnsureCloudAttest: () -> Unit = {},
+    onRetryCloudAttest: () -> Unit = {},
+    attestTokenUi: com.anant.fitbuddy.ui.viewmodel.AttestTokenUi =
+        com.anant.fitbuddy.ui.viewmodel.AttestTokenUi(),
+    onPeekAttestToken: () -> Unit = {},
+    onApplyAttestToken: () -> Unit = {},
+    onRefreshAttestToken: () -> Unit = {},
     onRegenerateSupportId: () -> Unit = {},
     /** Settings-only: ♥ double-tap side effect (crash reporting on). */
     onHeartDoubleTapHeartbeat: () -> Unit = {},
@@ -1991,7 +1998,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else if (BuildConfig.DEBUG) {
+            } else if (!com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth.cloudUploadsAllowed()) {
                 Text(
                     text = stringResource(R.string.settings_cloud_backup_uploads_are_disabled_in),
                     style = MaterialTheme.typography.bodySmall,
@@ -2005,37 +2012,14 @@ fun SettingsScreen(
                     hintTitle = context.getString(R.string.backup_enable_cloud_backup),
                     hint = stringResource(R.string.settings_unavailable_debug_builds)
                 )
-                SettingToggleRow(
-                    title = context.getString(R.string.settings_auto_upload_on_startup),
-                    checked = false,
-                    onCheckedChange = {},
-                    enabled = false,
-                    hintTitle = context.getString(R.string.settings_auto_upload),
-                    hint = stringResource(R.string.settings_unavailable_debug_builds)
-                )
-                Text(
-                    text = stringResource(R.string.settings_cloud_backup_off_debug),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = false
-                ) {
-                    Text(stringResource(R.string.settings_upload_now))
-                }
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = false
-                ) {
-                    Text(stringResource(R.string.settings_change_cloud_backup_password))
-                }
             } else {
+                LaunchedEffect(cloudVaultAvailable) {
+                    if (cloudVaultAvailable) onEnsureCloudAttest()
+                }
+                val attestReady = cloudAttestUi.ready
                 SettingToggleRow(
                     title = context.getString(R.string.backup_enable_cloud_backup),
-                    checked = settings.cloudBackupEnabled,
+                    checked = settings.cloudBackupEnabled && attestReady,
                     onCheckedChange = { enabled ->
                         if (enabled) {
                             onPrepareCloudBackupEnable()
@@ -2044,14 +2028,38 @@ fun SettingsScreen(
                             onCloudBackupEnabledChange(false)
                         }
                     },
+                    enabled = attestReady && !cloudAttestUi.busy,
                     hintTitle = context.getString(R.string.backup_enable_cloud_backup),
                     hint = stringResource(R.string.settings_when_can_upload_manually_automatically_after_log)
                 )
+                when {
+                    cloudAttestUi.busy -> {
+                        Text(
+                            text = stringResource(R.string.backup_verifying_app),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    !attestReady && cloudAttestUi.message != null -> {
+                        Text(
+                            text = cloudAttestUi.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        OutlinedButton(
+                            onClick = onRetryCloudAttest,
+                            enabled = cloudAttestUi.retryEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.backup_retry))
+                        }
+                    }
+                }
                 SettingToggleRow(
                     title = context.getString(R.string.settings_auto_upload_on_startup),
                     checked = settings.cloudAutoUploadEnabled,
                     onCheckedChange = onCloudAutoUploadChange,
-                    enabled = settings.cloudBackupEnabled,
+                    enabled = settings.cloudBackupEnabled && attestReady,
                     hintTitle = context.getString(R.string.settings_auto_upload),
                     hint = stringResource(R.string.settings_when_enabled_fitbuddy_uploads_app_start_if)
                 )
@@ -2076,14 +2084,14 @@ fun SettingsScreen(
                 OutlinedButton(
                     onClick = onMongoUpload,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = settings.cloudBackupEnabled && !mongoBackupBusy
+                    enabled = settings.cloudBackupEnabled && attestReady && !mongoBackupBusy
                 ) {
                     Text(stringResource(R.string.settings_upload_now))
                 }
                 OutlinedButton(
                     onClick = { showChangeCloudPasswordDialog = true },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = settings.cloudBackupEnabled && !mongoBackupBusy
+                    enabled = settings.cloudBackupEnabled && attestReady && !mongoBackupBusy
                 ) {
                     Text(stringResource(R.string.settings_change_cloud_backup_password))
                 }
@@ -2134,30 +2142,14 @@ fun SettingsScreen(
                     }
                 )
             }
-            var showCrashOffDisablesCloudWarning by remember {
-                mutableStateOf(false)
-            }
+            var showCrashOffDisablesCloudWarning by remember { mutableStateOf(false) }
             if (showCrashOffDisablesCloudWarning) {
-                AlertDialog(
-                    onDismissRequest = { showCrashOffDisablesCloudWarning = false },
-                    title = { Text(stringResource(R.string.settings_disable_crash_reports)) },
-                    text = {
-                        Text(stringResource(R.string.settings_turning_off_crash_reports_will_also)
-                        )
+                DisableCrashReportsDialog(
+                    onConfirm = {
+                        showCrashOffDisablesCloudWarning = false
+                        onCrashReportingChange(false)
                     },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                showCrashOffDisablesCloudWarning = false
-                                onCrashReportingChange(false)
-                            }
-                        ) { Text(stringResource(R.string.settings_disable_both)) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showCrashOffDisablesCloudWarning = false }) {
-                            Text(stringResource(R.string.common_cancel))
-                        }
-                    }
+                    onDismiss = { showCrashOffDisablesCloudWarning = false }
                 )
             }
             SettingToggleRow(
@@ -2399,23 +2391,16 @@ fun SettingsScreen(
                             showMongoRestoreConfirm = true
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !BuildConfig.DEBUG &&
+                        enabled = com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth.cloudUploadsAllowed() &&
                             cloudVaultAvailable &&
                             !mongoBackupBusy
                     ) {
                         Text(stringResource(R.string.settings_download_restore_from_cloud))
                     }
-                    if (BuildConfig.DEBUG) {
-                        Text(
-                            text = stringResource(R.string.settings_debug_builds_restore_from_cloud_only),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                     OutlinedButton(
                         onClick = onForceNewCloudChunk,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !BuildConfig.DEBUG &&
+                        enabled = com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth.cloudUploadsAllowed() &&
                             cloudVaultAvailable &&
                             settings.cloudBackupEnabled &&
                             !mongoBackupBusy
@@ -2427,6 +2412,62 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                DeveloperSection(
+                    title = stringResource(R.string.settings_proxy_attestation)
+                ) {
+                    LaunchedEffect(Unit) { onPeekAttestToken() }
+                    val expiresLabel = attestTokenUi.expiresAtMs?.let { exp ->
+                        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                            .format(java.util.Date(exp))
+                    } ?: "—"
+                    Text(
+                        text = stringResource(
+                            R.string.settings_attest_status,
+                            attestTokenUi.packageName.ifBlank { "—" },
+                            attestTokenUi.message.ifBlank { "—" },
+                            expiresLabel,
+                            attestTokenUi.lastAction.ifBlank { "—" }
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = attestTokenUi.token.ifBlank {
+                            stringResource(R.string.settings_attest_no_token)
+                        },
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.settings_attest_token)) },
+                        minLines = 3,
+                        maxLines = 6
+                    )
+                    if (attestTokenUi.busy) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    OutlinedButton(
+                        onClick = onApplyAttestToken,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !attestTokenUi.busy && cloudVaultAvailable
+                    ) {
+                        Text(stringResource(R.string.settings_attest_apply))
+                    }
+                    OutlinedButton(
+                        onClick = onPeekAttestToken,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !attestTokenUi.busy
+                    ) {
+                        Text(stringResource(R.string.settings_attest_see))
+                    }
+                    OutlinedButton(
+                        onClick = onRefreshAttestToken,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !attestTokenUi.busy && cloudVaultAvailable
+                    ) {
+                        Text(stringResource(R.string.settings_attest_refresh))
+                    }
                 }
 
                 DeveloperSection(
@@ -2516,7 +2557,6 @@ fun SettingsScreen(
                     title = context.getString(R.string.settings_testing),
                     description = stringResource(R.string.settings_one_shot_checks_for_update_ui)
                 ) {
-                    DemoDonorsPreview(donors = com.anant.fitbuddy.data.donors.DemoDonors.all)
                     OutlinedButton(
                         onClick = onShowTestUpdatePrompt,
                         modifier = Modifier.fillMaxWidth()
@@ -2549,23 +2589,6 @@ fun SettingsScreen(
                     ) {
                         Text(stringResource(R.string.settings_show_donate_reminder_dialog))
                     }
-                    OutlinedButton(
-                        onClick = onShowTestNewDonorsThankYou,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(stringResource(R.string.settings_show_new_donors_thank_you))
-                    }
-                    OutlinedButton(
-                        onClick = onShowTestDonorGallery,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(stringResource(R.string.donate_show_donors))
-                    }
-                    Text(
-                        text = stringResource(R.string.settings_opens_the_supporters_gallery_with_demo),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     OutlinedButton(
                         onClick = onShowTestDonationDialog,
                         modifier = Modifier.fillMaxWidth()
@@ -2666,21 +2689,23 @@ fun SettingsScreen(
         )
 
         if (showCloudBackupEnableConfirm) {
+            LaunchedEffect(settings.cloudBackupEnabled) {
+                if (settings.cloudBackupEnabled) showCloudBackupEnableConfirm = false
+            }
             EnableCloudBackupDialog(
                 supportId = settings.supportId,
                 busy = mongoBackupBusy,
                 onCopySupportId = {
                     val id = settings.supportId
                     if (id.isNotBlank()) {
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(id))
+                        clipboardManager.setText(AnnotatedString(id))
                         onSupportIdCopied()
                     }
                 },
-                onConfirm = { password ->
-                    showCloudBackupEnableConfirm = false
-                    onEnableCloudBackup(password)
-                },
-                onDismiss = { showCloudBackupEnableConfirm = false }
+                onConfirm = { password -> onEnableCloudBackup(password) },
+                onDismiss = {
+                    if (!mongoBackupBusy) showCloudBackupEnableConfirm = false
+                }
             )
         }
 
@@ -2748,8 +2773,10 @@ fun SettingsScreen(
 
 private fun formatMongoUploadTime(context: android.content.Context, epochMs: Long): String {
     if (epochMs <= 0L) return context.getString(R.string.settings_never)
-    return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        .format(java.util.Date(epochMs))
+    // ISO-8601 UTC, e.g. 2026-11-20T11:53:00Z
+    return java.time.Instant.ofEpochMilli(epochMs)
+        .truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+        .toString()
 }
 
 /** Update / download dialogs — shown from [MainScreen] so startup checks work outside Settings. */
@@ -3749,11 +3776,39 @@ private fun AboutLinkRow(label: String, value: String, url: String) {
     }
 }
 
+/** Warns that turning crash reports off also disables cloud backup. */
+@Composable
+private fun DisableCrashReportsDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_disable_crash_reports)) },
+        text = {
+            Text(
+                text = stringResource(R.string.settings_turning_off_crash_reports_will_also),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.settings_disable_both))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        }
+    )
+}
+
 /**
- * Shown when the user turns on cloud backup (Requirement 12). Explains that backups are encrypted
- * on-device before upload (12.3), lets the user copy their Support ID, and offers an optional
- * password (blank → Support ID default, 12.4). Non-blank passwords are validated 8–128 (12.5).
- * Cancelling leaves cloud backup off and performs no upload (12.6).
+ * Shown when the user turns on cloud backup (Requirement 12). Explains on-device encryption (12.3),
+ * shows Support ID with an explicit copy action, and optional password (blank → Support ID
+ * default, 12.4; 8–128 when set, 12.5). Stays open while enabling; cancel leaves cloud off (12.6).
  */
 @Composable
 private fun EnableCloudBackupDialog(
@@ -3765,67 +3820,50 @@ private fun EnableCloudBackupDialog(
 ) {
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-
-    val isBlank = password.isEmpty() || password.all { it.isWhitespace() }
-    val passwordsMatch = password == confirmPassword
-    val lengthValid = isBlank || password.length in 8..128
-
-    val validationError = when {
-        !lengthValid && password.length < 8 -> stringResource(R.string.main_password_must_be_at_least_8)
-        !lengthValid -> stringResource(R.string.main_password_must_be_128_characters_or)
-        !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch -> stringResource(R.string.main_passwords_do_not_match)
-        else -> null
-    }
-    val canConfirm = !busy && (isBlank || (lengthValid && passwordsMatch))
+    val fields = rememberCloudPasswordFields(password, confirmPassword)
+    val canConfirm = !busy && fields.isValid
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(stringResource(R.string.backup_enable_cloud_backup)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    stringResource(R.string.settings_your_backup_is_encrypted_on_this)
-                )
-                Text(
-                    stringResource(R.string.settings_cloud_backups_are_keyed_by_your)
-                )
-                Text(
-                    text = supportId.ifBlank { stringResource(R.string.settings_generating) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    stringResource(R.string.settings_optionally_set_a_password_leave_blank),
+                    text = stringResource(R.string.settings_enable_cloud_backup_short),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(stringResource(R.string.main_password_optional)) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = validationError != null && confirmPassword.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (!isBlank) {
-                    OutlinedTextField(
-                        value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
-                        label = { Text(stringResource(R.string.main_confirm_password)) },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        isError = confirmPassword.isNotEmpty() && !passwordsMatch,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                if (validationError != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        text = validationError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        text = supportId.ifBlank { stringResource(R.string.settings_generating) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = onCopySupportId,
+                        enabled = !busy && supportId.isNotBlank()
+                    ) {
+                        Icon(
+                            Icons.Filled.ContentCopy,
+                            contentDescription = stringResource(R.string.settings_copy_support_id)
+                        )
+                    }
                 }
+                CloudPasswordFields(
+                    password = password,
+                    confirmPassword = confirmPassword,
+                    onPasswordChange = { password = it },
+                    onConfirmPasswordChange = { confirmPassword = it },
+                    passwordLabel = stringResource(R.string.main_password_optional),
+                    confirmOnlyWhenNonBlank = true,
+                    enabled = !busy,
+                    fields = fields
+                )
                 if (busy) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -3833,15 +3871,14 @@ private fun EnableCloudBackupDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    onCopySupportId()
-                    onConfirm(if (isBlank) null else password.toCharArray())
-                },
-                enabled = canConfirm
-            ) { Text(stringResource(R.string.settings_copy_id_enable)) }
+                onClick = { onConfirm(fields.passwordOrNull(password)) },
+                enabled = canConfirm && supportId.isNotBlank()
+            ) { Text(stringResource(R.string.settings_enable)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.common_cancel))
+            }
         }
     )
 }
@@ -3854,56 +3891,28 @@ private fun ChangeCloudPasswordDialog(
 ) {
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-
-    val isBlank = newPassword.isEmpty() || newPassword.all { it.isWhitespace() }
-    val passwordsMatch = newPassword == confirmPassword
-    val lengthValid = isBlank || newPassword.length in 8..128
-
-    // Derive validation error
-    val validationError = when {
-        !lengthValid && newPassword.length < 8 -> stringResource(R.string.main_password_must_be_at_least_8)
-        !lengthValid -> stringResource(R.string.main_password_must_be_128_characters_or)
-        !isBlank && !passwordsMatch && confirmPassword.isNotEmpty() -> stringResource(R.string.main_passwords_do_not_match)
-        else -> null
-    }
-    val canConfirm = !busy && (isBlank || (lengthValid && passwordsMatch))
+    val fields = rememberCloudPasswordFields(newPassword, confirmPassword)
+    val canConfirm = !busy && fields.isValid
 
     AlertDialog(
-        onDismissRequest = {
-            if (!busy) onDismiss()
-        },
+        onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(stringResource(R.string.settings_change_cloud_backup_password)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    stringResource(R.string.settings_set_a_new_password_to_protect),
+                    text = stringResource(R.string.settings_set_a_new_password_to_protect),
                     style = MaterialTheme.typography.bodyMedium
                 )
-                OutlinedTextField(
-                    value = newPassword,
-                    onValueChange = { newPassword = it },
-                    label = { Text(stringResource(R.string.settings_new_password)) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = validationError != null && confirmPassword.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth()
+                CloudPasswordFields(
+                    password = newPassword,
+                    confirmPassword = confirmPassword,
+                    onPasswordChange = { newPassword = it },
+                    onConfirmPasswordChange = { confirmPassword = it },
+                    passwordLabel = stringResource(R.string.settings_new_password),
+                    confirmOnlyWhenNonBlank = false,
+                    enabled = !busy,
+                    fields = fields
                 )
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text(stringResource(R.string.main_confirm_password)) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    isError = !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (validationError != null) {
-                    Text(
-                        text = validationError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
                 if (busy) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -3911,20 +3920,97 @@ private fun ChangeCloudPasswordDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    val password = if (isBlank) null else newPassword.toCharArray()
-                    onConfirm(password)
-                },
+                onClick = { onConfirm(fields.passwordOrNull(newPassword)) },
                 enabled = canConfirm
             ) { Text(stringResource(R.string.settings_change)) }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !busy
-            ) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.common_cancel))
+            }
         }
     )
+}
+
+/** Shared 8–128 / match validation for cloud backup password dialogs. */
+private data class CloudPasswordFieldState(
+    val isBlank: Boolean,
+    val passwordsMatch: Boolean,
+    val lengthValid: Boolean,
+    val validationError: String?,
+    val isValid: Boolean
+) {
+    fun passwordOrNull(password: String): CharArray? =
+        if (isBlank) null else password.toCharArray()
+}
+
+@Composable
+private fun rememberCloudPasswordFields(
+    password: String,
+    confirmPassword: String
+): CloudPasswordFieldState {
+    val isBlank = password.isEmpty() || password.all { it.isWhitespace() }
+    val passwordsMatch = password == confirmPassword
+    val lengthValid = isBlank || password.length in 8..128
+    val validationError = when {
+        !lengthValid && password.length < 8 ->
+            stringResource(R.string.main_password_must_be_at_least_8)
+        !lengthValid ->
+            stringResource(R.string.main_password_must_be_128_characters_or)
+        !isBlank && confirmPassword.isNotEmpty() && !passwordsMatch ->
+            stringResource(R.string.main_passwords_do_not_match)
+        else -> null
+    }
+    return CloudPasswordFieldState(
+        isBlank = isBlank,
+        passwordsMatch = passwordsMatch,
+        lengthValid = lengthValid,
+        validationError = validationError,
+        isValid = isBlank || (lengthValid && passwordsMatch)
+    )
+}
+
+@Composable
+private fun CloudPasswordFields(
+    password: String,
+    confirmPassword: String,
+    onPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+    passwordLabel: String,
+    confirmOnlyWhenNonBlank: Boolean,
+    enabled: Boolean,
+    fields: CloudPasswordFieldState
+) {
+    val showConfirm = !confirmOnlyWhenNonBlank || !fields.isBlank
+    OutlinedTextField(
+        value = password,
+        onValueChange = onPasswordChange,
+        label = { Text(passwordLabel) },
+        singleLine = true,
+        enabled = enabled,
+        visualTransformation = PasswordVisualTransformation(),
+        isError = fields.validationError != null && confirmPassword.isNotEmpty(),
+        modifier = Modifier.fillMaxWidth()
+    )
+    if (showConfirm) {
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = onConfirmPasswordChange,
+            label = { Text(stringResource(R.string.main_confirm_password)) },
+            singleLine = true,
+            enabled = enabled,
+            visualTransformation = PasswordVisualTransformation(),
+            isError = !fields.isBlank && confirmPassword.isNotEmpty() && !fields.passwordsMatch,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+    fields.validationError?.let { error ->
+        Text(
+            text = error,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
 }
 
 /**

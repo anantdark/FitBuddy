@@ -161,6 +161,9 @@ progress charts, editable meal review, and reusable food presets.
   reflective classes, add proguard keeps.
 - Bumping the Room schema wipes local data (destructive migration) — acceptable in dev only.
 - Don't reintroduce removed deps (navigation3 / adaptive) or the kotlin.android plugin.
+- Cloud backup and crash upload do not embed a Sentry DSN or `BACKUP_API_KEY`. Those stay on
+  the proxy (`SENTRY_DSN`, etc.). Keep accepting `BACKUP_API_KEY` until SplitBill no longer
+  needs it, then rotate that key. Do not put either secret back into the app or git.
 - User-visible copy: edit English only in `app/src/main/res/values/strings.xml`. Translations
   come from Hosted Weblate PRs (`values-*/strings.xml`) — see `docs/TRANSLATING.md`. Do not
   hand-edit locale files in feature PRs except to resolve Weblate merge conflicts.

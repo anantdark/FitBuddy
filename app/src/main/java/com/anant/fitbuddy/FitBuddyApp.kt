@@ -7,6 +7,7 @@ import com.anant.fitbuddy.crash.HeartbeatKind
 import com.anant.fitbuddy.crash.HeartbeatScheduler
 import com.anant.fitbuddy.data.backup.BackupManager
 import com.anant.fitbuddy.data.backup.crypto.BackupCrypto
+import com.anant.fitbuddy.data.backup.mongo.CloudProxyAuth
 import com.anant.fitbuddy.data.backup.mongo.MongoBackupScheduler
 import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.remote.NetworkModule
@@ -34,6 +35,7 @@ import com.anant.fitbuddy.reminders.ReminderReceiver
 import com.anant.fitbuddy.reminders.ReminderScheduler
 import com.anant.fitbuddy.util.DiagnosticLogger
 import com.anant.fitbuddy.widget.FitBuddyWidgetUpdater
+import com.anant.fitbuddy.widget.GlanceTrampolineGuard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -170,6 +172,10 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // Before any activity: a widget tap can be the thing that starts this process.
+        GlanceTrampolineGuard.install(this)
+        CloudProxyAuth.install(this)
+        FitBuddyWidgetUpdater.requestUpdate(this)
         val settings = runBlocking {
             settingsRepository.ensureSupportId()
             // Fold legacy dedicated OpenAI → OpenAI-compatible before anything reads settings.
@@ -338,7 +344,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             aiProvider = settings.provider.name,
             recordCount = recordCount,
             isDeveloper = settings.developerModeUnlocked,
-            signupDate = settings.signupDate
+            signupDate = settings.signupDate,
+            username = settings.sentryUsername
         )
     }
 }

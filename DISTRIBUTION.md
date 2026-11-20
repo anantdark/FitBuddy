@@ -49,18 +49,15 @@ signature):
 | `RELEASE_KEY_ALIAS` | Release alias (default `fitbuddy`) |
 | `RELEASE_KEY_PASSWORD` | Release key password |
 
-Sentry DSN and the cloud-backup API key are not CI secrets — both are committed obfuscated
-(XOR + Base64) directly in `app/build.gradle.kts`, so no env vars are needed to build. To
-rotate one, XOR the new plaintext against its mask seed (`sentryDsnMaskSeed` /
-`backupApiKeyMaskSeed` in that file), Base64-encode, and paste the result in as the new
-`...BlobEscaped` literal. Rotating the API key in Vercel also instantly invalidates any
-previously leaked copy, since the proxy checks against its live env var.
+Cloud backup and crash reports do not put a secret in the APK. Official installs authorize
+against the fitbuddy-cloud-backup proxy; the Sentry DSN stays in the proxy environment.
+Configure the proxy from that repo’s `.env.example` before shipping a build that stopped
+embedding the old shared key. Keep `BACKUP_API_KEY` until SplitBill no longer needs it,
+then rotate it (that value is in git history, so it is not a secret until rotated).
 
-The app never holds Atlas credentials — those live only in the fitbuddy-cloud-backup Vercel
-project's env vars. `CLOUD_BACKUP_BASE_URL` and `MONGO_DB_NAME` are non-secret defaults in
-`app/build.gradle.kts` / `local.properties.example`. Override via env if needed.
+Atlas credentials stay only on the proxy. `CLOUD_BACKUP_BASE_URL` and `MONGO_DB_NAME` are
+non-secret defaults in `app/build.gradle.kts` / `local.properties.example`.
 
-Cloud backup uses a build-baked API key (never pasted in Settings) to call the HTTPS proxy.
 Guest installs opt in via **Enable cloud backup**; restores are onboarding-only (or Developer
 tools). Auto-upload runs on app startup with a 12-hour debounce unless the user taps **Upload now**.
 

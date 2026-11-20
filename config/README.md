@@ -71,7 +71,6 @@ The app stores a **last-seen donation date** (`yyyy-MM-dd`) locally (not in clou
 
 List / thank-you / gallery preserve **array order** in this file.
 
-Demo data: `DemoDonors` in `app/.../data/donors/DonorModels.kt`.
 
 ### Example entry (dummy)
 

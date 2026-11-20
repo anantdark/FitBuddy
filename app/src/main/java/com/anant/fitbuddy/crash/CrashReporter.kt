@@ -25,7 +25,7 @@ import io.sentry.protocol.SentryId
 import io.sentry.protocol.User
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Coarse snapshot attached to daily heartbeats (no personal names). */
+/** Coarse snapshot attached to daily heartbeats. */
 data class HeartbeatInfo(
     val aiProvider: String,
     val recordCount: Int = 0,
@@ -33,6 +33,10 @@ data class HeartbeatInfo(
     val isDeveloper: Boolean = false,
     /** First food/exercise log day (`yyyy-MM-dd`); empty until minted. Heartbeats only. */
     val signupDate: String = "",
+    /** Display name for the heartbeat `username` attribute (may be blank). */
+    val username: String = "",
+    /** True for the F-Droid product flavor (`BuildConfig.IS_FDROID`). */
+    val isFdroid: Boolean = BuildConfig.IS_FDROID,
     val androidSdk: Int = Build.VERSION.SDK_INT,
     val manufacturer: String = Build.MANUFACTURER.orEmpty().take(64),
     val model: String = Build.MODEL.orEmpty().take(64)
@@ -52,12 +56,7 @@ enum class HeartbeatKind {
         }
 }
 
-/**
- * Thin Sentry wrapper: crashes/ANRs, optional daily heartbeat check-ins, no PII.
- * Empty [BuildConfig.SENTRY_DSN_BLOB] keeps the SDK uninitialized (local builds without a key).
- * When FitBuddy cloud ingest is configured, all envelopes go through Vercel — never direct
- * to Sentry ingest hosts unless cloud ingest is unavailable.
- */
+/** Crashes/ANRs + optional daily heartbeat; envelopes go via the cloud proxy. */
 object CrashReporter {
 
     /** Fleet-level cron monitor: any install with reporting on may check in once per UTC day. */
@@ -75,18 +74,12 @@ object CrashReporter {
         enabled: Boolean,
         supportId: String
     ) {
-        if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) return
-        val dsn = MongoUriVault.decode(BuildConfig.SENTRY_DSN_BLOB, BuildConfig.SENTRY_DSN_MASK).trim()
-        if (dsn.isEmpty()) return
+        if (!MongoUriVault.isAvailable()) return
         reportingEnabled = enabled
         SentryAndroid.init(app) { options ->
-            options.dsn = dsn
-            val defaultFactory = io.sentry.AsyncHttpTransportFactory()
-            options.setTransportFactory { transportOptions, requestDetails ->
-                SentryCloudTransport(
-                    options = transportOptions,
-                    delegate = defaultFactory.create(transportOptions, requestDetails)
-                )
+            options.dsn = "https://00000000000000000000000000000000@127.0.0.1/1"
+            options.setTransportFactory { transportOptions, _ ->
+                SentryCloudTransport(options = transportOptions)
             }
             options.isSendDefaultPii = false
             options.tracesSampleRate = 0.0
@@ -260,9 +253,14 @@ object CrashReporter {
             add(SentryAttribute.stringAttribute("app_id", BuildConfig.APPLICATION_ID))
             add(SentryAttribute.integerAttribute("record_count", info.recordCount))
             add(SentryAttribute.booleanAttribute("is_developer", info.isDeveloper))
+            add(SentryAttribute.booleanAttribute("is_fdroid", info.isFdroid))
             val signup = info.signupDate.trim()
             if (signup.isNotEmpty()) {
                 add(SentryAttribute.stringAttribute(SIGNUP_DT_KEY, signup))
+            }
+            val username = info.username.trim()
+            if (username.isNotEmpty()) {
+                add(SentryAttribute.stringAttribute("username", username.take(128)))
             }
         }
         val attrs = SentryAttributes.of(*attrList.toTypedArray())

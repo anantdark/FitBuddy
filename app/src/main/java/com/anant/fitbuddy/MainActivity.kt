@@ -89,12 +89,20 @@ class MainActivity : ComponentActivity() {
                     val onboardingRestoring by viewModel.onboardingRestoring.collectAsStateWithLifecycle()
                     val openRouterOAuthBusy by viewModel.openRouterOAuthBusy.collectAsStateWithLifecycle()
                     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
+                    val cloudAttestUi by viewModel.cloudAttestUi.collectAsStateWithLifecycle()
 
                     LaunchedEffect(openRouterOAuthUri) {
                         val uri = openRouterOAuthUri ?: return@LaunchedEffect
                         viewModel.handleOpenRouterOAuthCallback(uri)
                         openRouterOAuthUri = null
                         intent?.data = null
+                    }
+
+                    // Attest early when onboarding begins (skip if a proxy session is already active).
+                    LaunchedEffect(needsOnboarding, needsRegionSelection) {
+                        if (needsOnboarding == true || needsRegionSelection) {
+                            viewModel.ensureCloudAttestation()
+                        }
                     }
 
                     val onStartupPermissionsDenied: (List<String>) -> Unit = { denied ->
@@ -129,6 +137,8 @@ class MainActivity : ComponentActivity() {
                                 regionRequestAlreadySent = settings.regionRequestSentAt > 0L,
                                 onRegionRequestSent = viewModel::markRegionRequestSent,
                                 cloudRestoreAvailable = MongoUriVault.isAvailable(),
+                                cloudAttestUi = cloudAttestUi,
+                                onRetryCloudAttest = viewModel::retryCloudAttestation,
                                 openRouterOAuthBusy = openRouterOAuthBusy,
                                 openRouterOAuthKey = settings.openRouterOAuthKey,
                                 userMessage = analysisState.userMessage,
@@ -174,9 +184,11 @@ class MainActivity : ComponentActivity() {
                                 showCloudStep && pendingCloudChoice == null -> {
                                     CloudBackupOptInScreen(
                                         initialEnabled = false,
+                                        cloudAttestUi = cloudAttestUi,
+                                        onRetryAttest = viewModel::retryCloudAttestation,
                                         onContinue = { enabled ->
-                                            pendingCloudChoice = enabled
-                                            if (enabled) {
+                                            pendingCloudChoice = enabled && cloudAttestUi.ready
+                                            if (pendingCloudChoice == true) {
                                                 pendingCrashChoice = true
                                                 CrashReporter.setReportingEnabled(true)
                                             }

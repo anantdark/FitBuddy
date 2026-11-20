@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -113,6 +114,18 @@
                     android:scheme="fitbuddy" />
             </intent-filter>
         </activity>
+
+        <!-- singleInstance list trampoline. Keep it out of recents so the system does not
+             relaunch it later with the nested target intent stripped. -->
+        <activity
+            android:name="androidx.glance.appwidget.action.InvisibleActionTrampolineActivity"
+            android:excludeFromRecents="true"
+            tools:node="merge" />
+        <activity
+            android:name="androidx.glance.appwidget.action.ActionTrampolineActivity"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            tools:node="merge" />
 
         <receiver
             android:name=".reminders.ReminderReceiver"
