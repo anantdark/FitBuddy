@@ -40,7 +40,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -1287,7 +1287,7 @@ private fun LabeledDropdown(
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

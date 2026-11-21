@@ -54,8 +54,9 @@ data class ModelDto(
     /** Free if both prompt and completion token prices are zero. */
     val isFree: Boolean
         get() {
-            val prompt = pricing?.prompt?.toDoubleOrNull() ?: return false
-            val completion = pricing?.completion?.toDoubleOrNull() ?: return false
+            val prices = pricing ?: return false
+            val prompt = prices.prompt?.toDoubleOrNull() ?: return false
+            val completion = prices.completion?.toDoubleOrNull() ?: return false
             return prompt == 0.0 && completion == 0.0
         }
 }

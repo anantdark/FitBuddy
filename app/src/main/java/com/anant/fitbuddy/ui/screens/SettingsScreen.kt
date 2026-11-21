@@ -74,7 +74,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -97,12 +97,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
+import android.content.ClipData
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -420,7 +422,7 @@ fun SettingsScreen(
     }
     var showCloudBackupEnableConfirm by remember { mutableStateOf(false) }
     var showChangeCloudPasswordDialog by remember { mutableStateOf(false) }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val cloudVaultAvailable = remember {
         com.anant.fitbuddy.data.backup.mongo.MongoUriVault.isAvailable()
     }
@@ -1014,7 +1016,7 @@ fun SettingsScreen(
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = themeExpanded,
@@ -1060,7 +1062,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = componentExpanded,
@@ -1105,7 +1107,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = dashboardExpanded,
@@ -1150,7 +1152,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = fontExpanded,
@@ -1323,7 +1325,7 @@ fun SettingsScreen(
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = waterGoalExpanded)
                         },
                         modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
@@ -1399,7 +1401,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = dayChangeExpanded,
@@ -1956,7 +1958,11 @@ fun SettingsScreen(
                     onClick = {
                         val id = settings.supportId
                         if (id.isNotBlank()) {
-                            clipboardManager.setText(AnnotatedString(id))
+                            coroutineScope.launch {
+                                clipboard.setClipEntry(
+                                    ClipEntry(ClipData.newPlainText("support_id", id))
+                                )
+                            }
                             onSupportIdCopied()
                         }
                     },
@@ -2698,7 +2704,11 @@ fun SettingsScreen(
                 onCopySupportId = {
                     val id = settings.supportId
                     if (id.isNotBlank()) {
-                        clipboardManager.setText(AnnotatedString(id))
+                        coroutineScope.launch {
+                            clipboard.setClipEntry(
+                                ClipEntry(ClipData.newPlainText("support_id", id))
+                            )
+                        }
                         onSupportIdCopied()
                     }
                 },
@@ -2984,7 +2994,7 @@ private fun ModelDropdown(
             },
             // PrimaryNotEditable makes the whole field a tap target that toggles the menu.
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
 
@@ -3316,7 +3326,7 @@ private fun LoadingAnimationChoiceDropdown(
             },
             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(
@@ -3421,7 +3431,7 @@ private fun ProfileSexDropdown(
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
