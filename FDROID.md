@@ -19,10 +19,23 @@ separate branch. F-Droid builds the `fdroid` product flavor; GitHub Releases bui
   since F-Droid owns updates for that build.
 - Crash reporting and auto-update-check default to **off** (still user-toggleable).
 
+### Barcode scanning (hard separation)
+
+| Flavor | Dependency | Source set |
+|--------|------------|------------|
+| `github` | `com.google.mlkit:barcode-scanning` (`githubImplementation` only) | `src/github/.../barcode/` |
+| `fdroid` | `io.github.zxing-cpp:android` (`fdroidImplementation` only) | `src/fdroid/.../barcode/` |
+
+Shared UI (`BarcodeScanScreen`) talks only to `BarcodeFrameDecoder` /
+`createBarcodeFrameDecoder()` in `main`. **Never** put ML Kit on plain `implementation`,
+and never import `com.google.mlkit` or `zxingcpp` from `src/main` — that would break the
+F-Droid free-software classpath or leak proprietary code into the wrong APK.
+
 Sentry, MongoDB Atlas cloud backup, and Google Play Services (via CameraX/location) are
 compiled into this build same as the GitHub build — they're optional/opt-in and mostly
 default-off, but F-Droid's scanner will flag them regardless (see AntiFeatures below).
-That's an accepted tradeoff for keeping one codebase.
+That's an accepted tradeoff for keeping one codebase. ML Kit is **not** in that shared
+bucket: it stays github-only.
 
 ## Release a new F-Droid version
 

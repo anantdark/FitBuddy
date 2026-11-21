@@ -97,6 +97,8 @@ progress charts, editable meal review, and reusable food presets.
   `AnalyticsScreen`, `ProfileScreen`, `SettingsScreen` (Integrations → Health Connect),
   `FoodReviewScreen` (`FoodReviewDialog`), `PresetPickerSheet`, `WorkoutLogScreen` +
   `ExercisePickerComponents` (catalog GIFs, filters, recent/frequent).
+- `barcode/` — `BarcodeFrameDecoder` in `main`; flavor impls in `src/github` (ML Kit) and
+  `src/fdroid` (ZXing-cpp). Do not import ML Kit / ZXing from `main`.
 - `healthconnect/HealthPermissionsRationaleActivity` — HC-required privacy-policy entry point.
 - `ui/components/CustomCharts.kt` — `CalorieRing`, line/stacked-bar charts.
 - `util/` — `DateUtils` (yyyy-MM-dd), `ImageUtils` (bitmap→scaled JPEG bytes).
@@ -149,7 +151,8 @@ progress charts, editable meal review, and reusable food presets.
 
 ## Performance notes (already applied)
 - Release build: R8 minify + `shrinkResources` + `proguard-rules.pro` keeps (Moshi/Retrofit/Room);
-  ART startup profile auto-compiled.
+  ART baseline profiles are not embedded (sideload INSTALL_BASELINE_PROFILE_FAILED on
+  some OEMs + F-Droid RB); Play can still apply cloud profiles.
 - Image decode/scale/compress runs on `Dispatchers.Default` (off main thread).
 - Today's food totals = **one** Room query (`FoodTotals`) instead of 4 separate SUM flows.
 - Dashboard combined-log list memoized with `remember`; UI state models marked `@Immutable`.

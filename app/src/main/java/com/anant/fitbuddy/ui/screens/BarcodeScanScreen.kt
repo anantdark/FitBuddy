@@ -93,8 +93,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import zxingcpp.BarcodeReader
-import zxingcpp.BarcodeReader.Format
+import com.anant.fitbuddy.barcode.createBarcodeFrameDecoder
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -322,12 +321,6 @@ private fun zoomRatioToLinear(ratio: Float, min: Float, max: Float): Float {
     return (ln(clamped / min) / ln(max / min)).coerceIn(0f, 1f)
 }
 
-private fun scanReader(tryHarder: Boolean) = BarcodeReader().apply {
-    options.formats = setOf(Format.EAN_13, Format.EAN_8, Format.UPC_A, Format.UPC_E)
-    options.tryHarder = tryHarder
-    options.tryRotate = true
-}
-
 /**
  * Maps the on-screen viewfinder box to buffer coordinates. PreviewView (FILL_CENTER) shows a
  * centered crop of the upright frame with the view's aspect ratio; the box is a centered
@@ -384,8 +377,7 @@ private fun BarcodeCameraPreview(
 
     DisposableEffect(lifecycleOwner) {
         val executor = Executors.newSingleThreadExecutor()
-        val fastReader = scanReader(tryHarder = false)
-        val thoroughReader = scanReader(tryHarder = true)
+        val decoder = createBarcodeFrameDecoder()
         val mainExecutor = ContextCompat.getMainExecutor(context)
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -413,18 +405,15 @@ private fun BarcodeCameraPreview(
                         return@setAnalyzer
                     }
                     val manual = manualRequested.getAndSet(false)
-                    val results = imageProxy.use {
-                        if (manual) {
-                            thoroughReader.read(it)
+                    val code = imageProxy.use { proxy ->
+                        val crop = if (manual) {
+                            null
                         } else {
                             val size = viewSize.get()
-                            it.setCropRect(it.viewfinderCrop(size.width, size.height))
-                            fastReader.read(it)
+                            proxy.viewfinderCrop(size.width, size.height)
                         }
+                        decoder.decode(proxy, crop)
                     }
-                    val code = results.firstOrNull()?.text
-                        ?.filter(Char::isDigit)
-                        ?.takeIf { it.isNotBlank() }
                     if (code != null && delivered.compareAndSet(false, true)) {
                         mainExecutor.execute { onBarcodeState(code) }
                     } else if (manual) {
@@ -473,6 +462,7 @@ private fun BarcodeCameraPreview(
                     cameraProviderFuture.get().unbindAll()
                 }
             }
+            decoder.close()
             executor.shutdown()
         }
     }
