@@ -234,11 +234,11 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     // Real org.json for JVM unit tests (Android stubs throw at runtime).
-    testImplementation("org.json:json:20260719")
+    testImplementation(libs.org.json)
     // Robolectric supplies real android.util.Base64 (and framework) impls on the JVM so
-    // BackupCrypto's seal/open/classify can be exercised as plain unit tests. 4.16 supports
-    // SDK 36 and requires JDK 21, matching this project's compileSdk/toolchain.
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    // BackupCrypto's seal/open/classify can be exercised as plain unit tests. Requires
+    // JDK 21, matching this project's compileSdk/toolchain.
+    testImplementation(libs.robolectric)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -10,6 +10,7 @@ lifecycleRuntimeCompose = "2.8.7"
 # Capped by forced androidx.core 1.15.0 — 1.13+ needs PictureInPictureProvider from newer core.
 activityCompose = "1.11.0"
 kotlin = "2.4.10"
+# 2026.08+ pulls Compose UI 1.13 / Material3 1.5 needing compileSdk 37+.
 composeBom = "2026.06.01"
 googleDevtoolsKsp = "2.3.11"
 navigation3Ui = "1.0.1"
@@ -46,7 +47,9 @@ mlkitBarcodeScanning = "17.3.0"
 sentryAndroid = "8.65.0"
 browser = "1.10.0"
 healthConnect = "1.1.0"
-glance = "1.1.1"
+glance = "1.2.0"
+robolectric = "4.18.1"
+orgJson = "20260719"
 
 [libraries]
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
@@ -104,6 +107,8 @@ mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning"
 sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "sentryAndroid" }
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
