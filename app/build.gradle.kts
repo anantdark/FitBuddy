@@ -80,11 +80,14 @@ android {
 
     // github flavor: checks GitHub Releases and downloads the APK. fdroid flavor: checks
     // f-droid.org and opens F-Droid / Droid-ify / the website (never GitHub APKs).
+    // Barcode engines are also flavor-scoped: ML Kit (github) vs ZXing-cpp (fdroid) —
+    // see src/github|fdroid/.../barcode/ and githubImplementation / fdroidImplementation.
     flavorDimensions += "distribution"
     productFlavors {
         create("github") {
             dimension = "distribution"
             buildConfigField("boolean", "IS_FDROID", "false")
+            proguardFile("proguard-github.pro")
         }
         create("fdroid") {
             dimension = "distribution"
@@ -140,6 +143,9 @@ android {
     // Always install into the personal profile (user 0), never the work profile (user 10).
     installation {
         installOptions += listOf("--user", "0")
+        // Xiaomi/MIUI and some API 35 devices hard-fail adb/Studio installs with
+        // INSTALL_BASELINE_PROFILE_FAILED when AGP attaches a baseline profile.
+        enableBaselineProfile = false
     }
     // Omit AGP dependency-metadata signing block (rejected by F-Droid's APK scanner).
     dependenciesInfo {
@@ -219,7 +225,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation(libs.sentry.android)
-    implementation(libs.zxing.cpp)
+    // Barcode decode: proprietary ML Kit on GitHub/sideload only; OSS ZXing-cpp on F-Droid.
+    // Never move mlkit to implementation — F-Droid builds the same commit.
+    "githubImplementation"(libs.mlkit.barcode.scanning)
+    "fdroidImplementation"(libs.zxing.cpp)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)
@@ -241,10 +250,13 @@ dependencies {
     "ksp"(libs.moshi.kotlin.codegen)
 }
 
-// Baseline profiles are not bit-reproducible across machines (F-Droid RB), so only the
-// fdroid flavor skips them; github builds ship the profile for faster startup.
+// Skip embedding assets/dexopt/baseline.prof*:
+// - F-Droid: not bit-reproducible across machines (RB).
+// - GitHub sideload: some OEMs (notably Xiaomi) fail the whole APK install with
+//   INSTALL_BASELINE_PROFILE_FAILED during ART profile verify.
+// Matches merge/compile/expand*ArtProfile* and merge*StartupProfile*.
 tasks.whenTaskAdded {
-    if (name.contains("ArtProfile") && name.contains("Fdroid")) {
+    if (name.contains("ArtProfile") || name.contains("StartupProfile")) {
         enabled = false
     }
 }
