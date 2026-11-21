@@ -164,6 +164,9 @@ progress charts, editable meal review, and reusable food presets.
   reflective classes, add proguard keeps.
 - Bumping the Room schema wipes local data (destructive migration) — acceptable in dev only.
 - Don't reintroduce removed deps (navigation3 / adaptive) or the kotlin.android plugin.
+- `androidx.core` / `core-ktx` stay forced at **1.15.0** (Android 14 system-bar crash on
+  1.16+). That also caps `activity-compose` at **1.11.x** — newer activity needs a newer
+  core (`PictureInPictureProvider`). Don't bump either without a coordinated core decision.
 - Cloud backup and crash upload do not embed a Sentry DSN or `BACKUP_API_KEY`. Those stay on
   the proxy (`SENTRY_DSN`, etc.). Keep accepting `BACKUP_API_KEY` until SplitBill no longer
   needs it, then rotate that key. Do not put either secret back into the app or git.
