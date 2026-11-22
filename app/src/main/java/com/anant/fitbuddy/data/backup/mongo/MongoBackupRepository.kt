@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 /** One cloud backup chunk document returned by the Vercel proxy. */
@@ -23,8 +24,11 @@ data class CloudBackupDoc(
     val tipChunkId: String?,
     val storageVersion: Int,
     val schemaVersion: Int,
+    /** Epoch millis (parsed from ISO-8601 or legacy numeric Mongo field). */
     val exportedAt: Long,
     val appPackage: String,
+    /** App [BuildConfig.VERSION_NAME] when the chunk was written; blank on older docs. */
+    val appVersion: String,
     val deviceName: String,
     val macId: String,
     /** Plaintext record count for this chunk (outside encrypted [payloadJson]). */
@@ -96,8 +100,10 @@ open class MongoBackupRepository(
         val body = JSONObject()
             .put("payloadJson", payloadJson)
             .put("schemaVersion", BackupData.CURRENT_VERSION)
-            .put("exportedAt", exportedAt)
+            // ISO-8601 UTC so Atlas / Compass show a readable time (legacy docs used epoch ms).
+            .put("exportedAt", formatExportedAtIso(exportedAt))
             .put("appPackage", BuildConfig.APPLICATION_ID)
+            .put("appVersion", BuildConfig.VERSION_NAME)
             .put("deviceName", deviceName.trim().take(128))
             .put("macId", macId.trim().take(64))
             .put("chunkId", chunkId.trim())
@@ -209,8 +215,9 @@ open class MongoBackupRepository(
             tipChunkId = optionalChunkRef(json, "tipChunkId"),
             storageVersion = json.optInt("storageVersion", 1),
             schemaVersion = json.optInt("schemaVersion", 0),
-            exportedAt = json.optLong("exportedAt", 0L),
+            exportedAt = parseExportedAt(json),
             appPackage = json.optString("appPackage"),
+            appVersion = json.optString("appVersion"),
             deviceName = json.optString("deviceName"),
             macId = json.optString("macId"),
             recordCount = json.optInt("recordCount", 0).coerceAtLeast(0),
@@ -227,6 +234,26 @@ open class MongoBackupRepository(
         val value = json.optString(key).trim()
         if (value.isEmpty() || value.equals("null", ignoreCase = true)) return null
         return value
+    }
+
+    /**
+     * Accepts ISO-8601 (`2026-11-21T22:34:02.149Z`) and legacy epoch-millis numbers/strings.
+     */
+    internal fun parseExportedAt(json: JSONObject): Long {
+        if (!json.has("exportedAt") || json.isNull("exportedAt")) return 0L
+        val raw = json.opt("exportedAt") ?: return 0L
+        return when (raw) {
+            is Number -> raw.toLong()
+            is String -> {
+                val s = raw.trim()
+                if (s.isEmpty()) 0L
+                else {
+                    s.toLongOrNull()
+                        ?: runCatching { Instant.parse(s).toEpochMilli() }.getOrDefault(0L)
+                }
+            }
+            else -> json.optLong("exportedAt", 0L)
+        }
     }
 
     private fun backupUrl(
@@ -252,6 +279,10 @@ open class MongoBackupRepository(
 
     companion object {
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+
+        /** UTC ISO-8601 with millis, e.g. `2026-11-21T22:34:02.149Z`. */
+        fun formatExportedAtIso(epochMillis: Long): String =
+            Instant.ofEpochMilli(epochMillis.coerceAtLeast(0L)).toString()
 
         private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

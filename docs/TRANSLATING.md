@@ -28,6 +28,9 @@ FitBuddy UI strings live in Android `strings.xml` files and are translated on
 - Prefer natural phrasing in the target language over word-for-word calques.
 - Preserve placeholders exactly: `%1$s`, `%2$d`, `%s`, etc. Do not reorder
   numbers unless the language grammar requires it — then keep every index.
+- A bare `%` (as in `50%` or `(%)`) crashes the app when the string is
+  formatted. Use `%%` for a literal percent inside a placeholder string, or
+  keep `formatted="false"` on strings that are never passed format args.
 - Preserve XML entities (`&amp;`, `&lt;`, `\'`) and typographic characters
   that appear in the source when they matter for layout.
 - Do not translate brand names: **FitBuddy**, provider names (OpenRouter,

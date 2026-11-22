@@ -580,7 +580,7 @@
     <string name="settings_hc_export">Export</string>
     <string name="settings_hc_import_weight">Weight</string>
     <string name="settings_hc_import_height">Height</string>
-    <string name="settings_hc_import_body_fat">Body fat %</string>
+    <string name="settings_hc_import_body_fat" formatted="false">Body fat %</string>
     <string name="settings_hc_import_muscle_mass">Muscle mass</string>
     <string name="settings_hc_import_exercise">Exercise / workouts</string>
     <string name="settings_hc_import_steps">Steps</string>
@@ -589,7 +589,7 @@
     <string name="settings_hc_export_nutrition">Nutrition</string>
     <string name="settings_hc_export_weight">Weight</string>
     <string name="settings_hc_export_height">Height</string>
-    <string name="settings_hc_export_body_fat">Body fat %</string>
+    <string name="settings_hc_export_body_fat" formatted="false">Body fat %</string>
     <string name="settings_hc_export_muscle_mass">Muscle mass</string>
     <string name="settings_hc_export_hydration">Hydration</string>
     <string name="settings_hc_export_exercise">Exercise / activity</string>
@@ -990,8 +990,8 @@
     <string name="profile_more_consistent_readings_needed">More consistent readings are needed.</string>
     <string name="profile_apply">Apply</string>
     <string name="profile_apply_activity_level">Apply activity level</string>
-    <string name="profile_body_fat_2">Body fat (%)</string>
-    <string name="profile_bmr_kcal">BMR (kcal)</string>
+    <string name="profile_body_fat_2">Body fat (%1$s)</string>
+    <string name="profile_bmr_kcal">BMR (%1$s)</string>
     <string name="profile_muscle_mass_kg">Muscle mass (%1$s)</string>
     <string name="profile_loaded_freescale_reading_review_tap_save">Loaded FreeScale reading — review and tap Save.</string>
     <string name="profile_could_not_load_freescale_reading">Could not load FreeScale reading</string>
