@@ -1,3 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="about_31_taps_same_energy_as_hitting">31回タップ達成。1日のタンパク質目標をクリアしたときと同じ熱量ですね。</string>
+    <string name="about_back_to_gains">トレーニングに戻る</string>
+    <string name="about_crafted_with">制作：</string>
+    <string name="about_double_tap_to_celebrate">ダブルタップでお祝い</string>
 </resources>
