@@ -578,7 +578,7 @@
     <string name="settings_hc_export">Exportar</string>
     <string name="settings_hc_import_weight">Peso</string>
     <string name="settings_hc_import_height">Altura</string>
-    <string name="settings_hc_import_body_fat">% de grasa corporal</string>
+    <string name="settings_hc_import_body_fat" formatted="false">% de grasa corporal</string>
     <string name="settings_hc_import_muscle_mass">Masa muscular</string>
     <string name="settings_hc_import_exercise">Ejercicio / entrenamientos</string>
     <string name="settings_hc_import_steps">Pasos</string>
@@ -587,7 +587,7 @@
     <string name="settings_hc_export_nutrition">Nutrición</string>
     <string name="settings_hc_export_weight">Peso</string>
     <string name="settings_hc_export_height">Altura</string>
-    <string name="settings_hc_export_body_fat">% de grasa corporal</string>
+    <string name="settings_hc_export_body_fat" formatted="false">% de grasa corporal</string>
     <string name="settings_hc_export_muscle_mass">Masa muscular</string>
     <string name="settings_hc_export_hydration">Hidratación</string>
     <string name="settings_hc_export_exercise">Ejercicio / actividad</string>
@@ -938,8 +938,8 @@
     <string name="profile_more_consistent_readings_needed">Se necesitan lecturas más constantes.</string>
     <string name="profile_apply">Aplicar</string>
     <string name="profile_apply_activity_level">Aplicar nivel de actividad</string>
-    <string name="profile_body_fat_2">Grasa corporal (%)</string>
-    <string name="profile_bmr_kcal">TMB (kcal)</string>
+    <string name="profile_body_fat_2">Grasa corporal (%1$s)</string>
+    <string name="profile_bmr_kcal">TMB (%1$s)</string>
     <string name="profile_loaded_freescale_reading_review_tap_save">Lectura de FreeScale cargada: revísala y toca Guardar.</string>
     <string name="profile_could_not_load_freescale_reading">No se pudo cargar la lectura de FreeScale</string>
     <string name="saved_food_add_food_meal_edit_delete_saved_foods">Añade un alimento a esta comida. Edita o elimina los alimentos guardados en cualquier momento. Los alimentos usados recientemente aparecen arriba.</string>
