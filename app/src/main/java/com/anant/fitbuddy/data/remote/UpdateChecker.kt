@@ -129,7 +129,7 @@ class UpdateChecker(
             val request = Request.Builder().url(url).get().build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching ""
-                response.body?.string().orEmpty().trim()
+                response.body.string().trim()
             }
         }.getOrDefault("")
     }

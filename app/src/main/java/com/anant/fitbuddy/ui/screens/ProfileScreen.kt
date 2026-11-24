@@ -40,7 +40,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.anant.fitbuddy.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import com.anant.fitbuddy.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -64,6 +64,7 @@ import com.anant.fitbuddy.bridge.FreeScaleBridge
 import com.anant.fitbuddy.data.database.BodyMeasurement
 import com.anant.fitbuddy.data.database.UserProfile
 import com.anant.fitbuddy.util.LocalUnitSystem
+import com.anant.fitbuddy.util.UnitSystem
 import com.anant.fitbuddy.util.Units
 import com.anant.fitbuddy.data.model.ActivityLevels
 import com.anant.fitbuddy.data.model.TargetPlanResponse
@@ -574,6 +575,7 @@ private fun ReadingsHistoryCard(
         ) {
             itemsIndexed(measurements, key = { _, m -> m.id }) { index, m ->
                 if (index > 0) HorizontalDivider()
+                val hcImported = m.isFromHealthConnect()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -595,13 +597,22 @@ private fun ReadingsHistoryCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (hcImported) {
+                            Text(
+                                text = stringResource(R.string.dashboard_hc_imported_managed_elsewhere),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                    IconButton(onClick = { onDelete(m) }) {
-                        Icon(
-                            Icons.Filled.DeleteOutline,
-                            contentDescription = stringResource(R.string.profile_delete_reading),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    if (!hcImported) {
+                        IconButton(onClick = { onDelete(m) }) {
+                            Icon(
+                                Icons.Filled.DeleteOutline,
+                                contentDescription = stringResource(R.string.profile_delete_reading),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
@@ -988,13 +999,15 @@ private fun CalculationRow(
 private data class MetricSpec(
     val key: String,
     @androidx.annotation.StringRes val labelRes: Int,
-    val decimal: Boolean = true
+    val decimal: Boolean = true,
+    /** Format arg for [labelRes] (`Body fat (%1$s)`, `BMR (%1$s)`, `Muscle mass (%1$s)`). */
+    val unitLabel: (units: UnitSystem) -> String,
 )
 
 private val OPTIONAL_METRICS = listOf(
-    MetricSpec("bodyFatPct", R.string.profile_body_fat_2),
-    MetricSpec("bmr", R.string.profile_bmr_kcal, decimal = false),
-    MetricSpec("muscleMassKg", R.string.profile_muscle_mass_kg),
+    MetricSpec("bodyFatPct", R.string.profile_body_fat_2) { "%" },
+    MetricSpec("bmr", R.string.profile_bmr_kcal, decimal = false) { "kcal" },
+    MetricSpec("muscleMassKg", R.string.profile_muscle_mass_kg) { Units.weightUnit(it) },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1110,7 +1123,7 @@ private fun AddMeasurementSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OPTIONAL_METRICS.forEach { spec ->
                         NumberField(
-                            label = stringResource(spec.labelRes, Units.weightUnit(units)),
+                            label = stringResource(spec.labelRes, spec.unitLabel(units)),
                             value = optional[spec.key] ?: "",
                             decimal = spec.decimal
                         ) { optional[spec.key] = it }
@@ -1287,7 +1300,7 @@ private fun LabeledDropdown(
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

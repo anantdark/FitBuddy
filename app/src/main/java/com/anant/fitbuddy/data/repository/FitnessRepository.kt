@@ -293,9 +293,15 @@ class FitnessRepository(
     suspend fun getAllMeasurementsOnce(): List<BodyMeasurement> =
         bodyMeasurementDao.getAllOnce()
 
-    suspend fun deleteMeasurement(measurement: BodyMeasurement) {
+    /**
+     * Removes a body reading. Health Connect–imported rows are not deletable (Android forbids
+     * deleting another app's HC records); returns false when blocked.
+     */
+    suspend fun deleteMeasurement(measurement: BodyMeasurement): Boolean {
+        if (measurement.isFromHealthConnect()) return false
         bodyMeasurementDao.deleteAndSync(measurement, System.currentTimeMillis())
         healthConnectSync?.deleteMeasurement(measurement)
+        return true
     }
 
     /** Wellness snapshot from Health Connect (hydration / sleep) for AI context. */

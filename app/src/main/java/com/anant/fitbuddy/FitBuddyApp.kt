@@ -198,8 +198,11 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         NetworkModule.setVerboseHttpLogging(settings.verboseHttpLogging)
         appScope.launch {
             runCatching { exerciseCatalogRepository.ensureLoaded() }
-            // Existing installs: mint signup_date from earliest food/exercise log once.
-            runCatching { repository.ensureSignupDateFromLogs() }
+            // Skip Room until MainActivity resolves a newer-schema downgrade prompt.
+            if (AppDatabase.downgradeInfoOrNull(this@FitBuddyApp) == null) {
+                // Existing installs: mint signup_date from earliest food/exercise log once.
+                runCatching { repository.ensureSignupDateFromLogs() }
+            }
         }
         ReminderReceiver.ensureChannel(this)
         DonationReminderReceiver.ensureChannel(this)

@@ -78,3 +78,15 @@
 # Glance instantiates ActionCallbacks reflectively via the no-arg constructor; without this R8
 # strips <init> and widget buttons throw NoSuchMethodException (widget then falls back to loading).
 -keep class * implements androidx.glance.appwidget.action.ActionCallback { <init>(); }
+
+# Glance identifies each home-screen widget by GlanceAppWidget's canonical class name
+# (GlanceAppWidgetManager.getGlanceIds / DataStore). R8 class merging collapses similar
+# subclasses into one name, so updateAll paints every placement with whichever widget
+# refreshed last — Action Strip becoming Quick Snap ("Late snack?") after dark. Keep
+# original names so the mapping stays stable across installs and updates.
+-keep class com.anant.fitbuddy.widget.QuickSnapWidget
+-keep class com.anant.fitbuddy.widget.DescribeLogWidget
+-keep class com.anant.fitbuddy.widget.CalorieOrbWidget
+-keep class com.anant.fitbuddy.widget.PresetLaunchpadWidget
+-keep class com.anant.fitbuddy.widget.ActionStripWidget
+-keep class com.anant.fitbuddy.widget.WaterIntakeWidget

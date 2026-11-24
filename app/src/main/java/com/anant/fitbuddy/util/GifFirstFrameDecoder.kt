@@ -1,11 +1,8 @@
 package com.anant.fitbuddy.util
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.ImageDecoder
-import android.graphics.Movie
 import android.graphics.drawable.BitmapDrawable
-import android.os.Build
 import coil.ImageLoader
 import coil.decode.DecodeResult
 import coil.decode.Decoder
@@ -22,6 +19,8 @@ import java.nio.ByteBuffer
  * Decodes only the first frame of a GIF as a static bitmap for list thumbnails, so scrolling a
  * large catalog does not animate dozens of GIFs at once. Activated when the request sets
  * [PARAM_STATIC_GIF] to true.
+ *
+ * Uses [ImageDecoder] only (minSdk 29); the old [android.graphics.Movie] path is gone.
  */
 class GifFirstFrameDecoder(
     private val source: ImageSource,
@@ -63,32 +62,12 @@ class GifFirstFrameDecoder(
         }
 
         private fun decodeFirstFrame(bytes: ByteArray, maxSide: Int): Bitmap {
-            decodeWithMovie(bytes, maxSide)?.let { return it }
-            if (Build.VERSION.SDK_INT >= 28) {
-                decodeWithImageDecoderFile(bytes, maxSide)?.let { return it }
-                decodeWithImageDecoderBuffer(bytes, maxSide)?.let { return it }
-            }
+            decodeWithImageDecoderFile(bytes, maxSide)?.let { return it }
+            decodeWithImageDecoderBuffer(bytes, maxSide)?.let { return it }
             error("Could not decode GIF first frame (${bytes.size} bytes)")
         }
 
-        private fun decodeWithMovie(bytes: ByteArray, maxSide: Int): Bitmap? {
-            @Suppress("DEPRECATION")
-            val movie = Movie.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            val w = movie.width().coerceAtLeast(1)
-            val h = movie.height().coerceAtLeast(1)
-            val scale = minOf(1f, maxSide.toFloat() / maxOf(w, h).toFloat())
-            val tw = (w * scale).toInt().coerceAtLeast(1)
-            val th = (h * scale).toInt().coerceAtLeast(1)
-            val bmp = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            canvas.scale(scale, scale)
-            movie.setTime(0)
-            movie.draw(canvas, 0f, 0f)
-            return bmp
-        }
-
         private fun decodeWithImageDecoderFile(bytes: ByteArray, maxSide: Int): Bitmap? {
-            if (Build.VERSION.SDK_INT < 28) return null
             val tmp = File.createTempFile("fitbuddy_gif_", ".gif")
             return try {
                 tmp.writeBytes(bytes)
@@ -103,7 +82,6 @@ class GifFirstFrameDecoder(
         }
 
         private fun decodeWithImageDecoderBuffer(bytes: ByteArray, maxSide: Int): Bitmap? {
-            if (Build.VERSION.SDK_INT < 28) return null
             return try {
                 val decoderSource = ImageDecoder.createSource(ByteBuffer.wrap(bytes))
                 ImageDecoder.decodeBitmap(decoderSource) { decoder, info, _ ->

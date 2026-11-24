@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.MainActivity
+import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.ui.viewmodel.DashboardUiState
 import com.anant.fitbuddy.util.DateUtils
@@ -19,6 +20,9 @@ object WidgetRepository {
 
     suspend fun load(context: Context): WidgetData {
         val app = context.applicationContext as? FitBuddyApp ?: return WidgetData()
+        // Older APK over newer data: MainActivity asks before wipe; widgets stay empty.
+        if (AppDatabase.downgradeInfoOrNull(app) != null) return WidgetData()
+
         val settings = app.settingsRepository.settings.first()
         val today = DateUtils.today(settings.dayChangeHour)
         val repo = app.repository

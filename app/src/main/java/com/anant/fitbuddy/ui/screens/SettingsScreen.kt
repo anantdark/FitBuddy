@@ -74,7 +74,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -97,12 +97,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
+import android.content.ClipData
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -280,6 +282,11 @@ fun SettingsScreen(
     }
     var pendingEnableHealthConnect by remember { mutableStateOf(false) }
     var pendingSyncAfterPermission by remember { mutableStateOf(false) }
+    /**
+     * After the HC permission sheet closes, OEM probes can briefly report empty grants.
+     * Ignore auto-disable until this uptime millis — prevents a stuck-OFF deadlock.
+     */
+    var healthConnectPermissionGraceUntilMs by remember { mutableLongStateOf(0L) }
     /** Live HC grants — drives which metric toggles are visible. */
     var healthConnectGrantedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
     val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
@@ -291,8 +298,15 @@ fun SettingsScreen(
         pendingEnableHealthConnect = false
         val runSync = pendingSyncAfterPermission
         pendingSyncAfterPermission = false
+        // Grace covers the ON_RESUME / LaunchedEffect race right after the sheet.
+        healthConnectPermissionGraceUntilMs = SystemClock.uptimeMillis() + 2_500L
         coroutineScope.launch {
-            val fromApi = healthConnectManager.grantedPermissions()
+            var fromApi = healthConnectManager.grantedPermissions()
+            // Xiaomi/HyperOS sometimes returns empty immediately after a grant.
+            if (fromApi.isEmpty() && (wantEnable || resultGranted.isNotEmpty())) {
+                delay(500)
+                fromApi = healthConnectManager.grantedPermissions()
+            }
             healthConnectGrantedPermissions = fromApi.ifEmpty { resultGranted }
             val previous = settings.healthConnectMetrics
             val aligned = healthConnectManager.applyPermissionResult(
@@ -344,6 +358,10 @@ fun SettingsScreen(
         healthConnectGrantedPermissions = granted
         val waterOn = settings.waterTrackingEnabled
         if (granted.isEmpty()) {
+            // Don't disable during the post-sheet grace — probe may still be catching up.
+            if (SystemClock.uptimeMillis() < healthConnectPermissionGraceUntilMs) {
+                return@LaunchedEffect
+            }
             val current = settings.healthConnectMetrics
             val aligned = healthConnectManager.alignToGranted(current, emptySet(), waterOn)
             if (aligned != current) onHealthConnectMetricsChange(aligned)
@@ -354,6 +372,9 @@ fun SettingsScreen(
         val aligned = healthConnectManager.alignToGranted(current, granted, waterOn)
         if (aligned != current) onHealthConnectMetricsChange(aligned)
         if (!aligned.anyImport() && !aligned.anyExport()) {
+            if (SystemClock.uptimeMillis() < healthConnectPermissionGraceUntilMs) {
+                return@LaunchedEffect
+            }
             onHealthConnectEnabledChange(false)
         }
     }
@@ -420,7 +441,7 @@ fun SettingsScreen(
     }
     var showCloudBackupEnableConfirm by remember { mutableStateOf(false) }
     var showChangeCloudPasswordDialog by remember { mutableStateOf(false) }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val cloudVaultAvailable = remember {
         com.anant.fitbuddy.data.backup.mongo.MongoUriVault.isAvailable()
     }
@@ -1014,7 +1035,7 @@ fun SettingsScreen(
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = themeExpanded,
@@ -1060,7 +1081,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = componentExpanded,
@@ -1105,7 +1126,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = dashboardExpanded,
@@ -1150,7 +1171,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = fontExpanded,
@@ -1323,7 +1344,7 @@ fun SettingsScreen(
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = waterGoalExpanded)
                         },
                         modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
@@ -1399,7 +1420,7 @@ fun SettingsScreen(
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = dayChangeExpanded,
@@ -1532,7 +1553,10 @@ fun SettingsScreen(
                             healthConnectGrantedPermissions = granted
                             if (!settings.healthConnectEnabled) return@launch
                             val waterOn = settings.waterTrackingEnabled
+                            val inGrace =
+                                SystemClock.uptimeMillis() < healthConnectPermissionGraceUntilMs
                             if (granted.isEmpty()) {
+                                if (inGrace) return@launch
                                 healthConnectNeedsAuth = true
                                 val current = settings.healthConnectMetrics
                                 val aligned = healthConnectManager.alignToGranted(
@@ -1553,6 +1577,7 @@ fun SettingsScreen(
                                 onHealthConnectMetricsChange(aligned)
                             }
                             if (!aligned.anyImport() && !aligned.anyExport()) {
+                                if (inGrace) return@launch
                                 onHealthConnectEnabledChange(false)
                             }
                         }
@@ -1956,7 +1981,11 @@ fun SettingsScreen(
                     onClick = {
                         val id = settings.supportId
                         if (id.isNotBlank()) {
-                            clipboardManager.setText(AnnotatedString(id))
+                            coroutineScope.launch {
+                                clipboard.setClipEntry(
+                                    ClipEntry(ClipData.newPlainText("support_id", id))
+                                )
+                            }
                             onSupportIdCopied()
                         }
                     },
@@ -2698,7 +2727,11 @@ fun SettingsScreen(
                 onCopySupportId = {
                     val id = settings.supportId
                     if (id.isNotBlank()) {
-                        clipboardManager.setText(AnnotatedString(id))
+                        coroutineScope.launch {
+                            clipboard.setClipEntry(
+                                ClipEntry(ClipData.newPlainText("support_id", id))
+                            )
+                        }
                         onSupportIdCopied()
                     }
                 },
@@ -2984,7 +3017,7 @@ private fun ModelDropdown(
             },
             // PrimaryNotEditable makes the whole field a tap target that toggles the menu.
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
 
@@ -3316,7 +3349,7 @@ private fun LoadingAnimationChoiceDropdown(
             },
             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(
@@ -3421,7 +3454,7 @@ private fun ProfileSexDropdown(
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

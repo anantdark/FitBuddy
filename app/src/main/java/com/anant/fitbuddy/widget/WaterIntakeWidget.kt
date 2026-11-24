@@ -40,6 +40,7 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import com.anant.fitbuddy.FitBuddyApp
 import com.anant.fitbuddy.R
+import com.anant.fitbuddy.data.database.AppDatabase
 import com.anant.fitbuddy.data.database.WaterDrinkKind
 import com.anant.fitbuddy.util.WaterFillLayers
 import kotlinx.coroutines.flow.first
@@ -210,6 +211,7 @@ class AddWaterActionCallback : ActionCallback {
         val kindName = parameters[kindKey] ?: WaterDrinkKind.WATER.name
         val kind = WaterDrinkKind.fromStored(kindName)
         val app = context.applicationContext as? FitBuddyApp ?: return
+        if (AppDatabase.downgradeInfoOrNull(app) != null) return
         val settings = app.settingsRepository.settings.first()
         if (!settings.waterTrackingEnabled) return
         val amount = parameters[amountKey] ?: settings.quickAddMl(kind)

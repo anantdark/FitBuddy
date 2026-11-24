@@ -33,16 +33,16 @@ class GlanceTrampolineGuardTest {
         val target = nestedIntent(activity)
         assertEquals(WidgetDataChangedReceiver::class.java.name, target.component?.className)
         assertEquals(FitBuddyWidgetUpdater.ACTION_WIDGET_DATA_CHANGED, target.action)
-        assertNotEquals(Intent.ACTION_CLOSE_SYSTEM_DIALOGS, target.action)
+        assertNotEquals(ACTION_CLOSE_SYSTEM_DIALOGS, target.action)
         assertTrue(activity.isFinishing)
         assertNoCloseSystemDialogsBroadcast()
     }
 
     @Test
     fun closeSystemDialogsTarget_isNotBroadcast() {
-        val incoming = Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS).apply {
+        val incoming = Intent(ACTION_CLOSE_SYSTEM_DIALOGS).apply {
             putExtra("ACTION_TYPE", "BROADCAST")
-            putExtra("ACTION_INTENT", Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+            putExtra("ACTION_INTENT", Intent(ACTION_CLOSE_SYSTEM_DIALOGS))
         }
 
         val activity = launch(incoming)
@@ -86,7 +86,7 @@ class GlanceTrampolineGuardTest {
     private fun assertNoCloseSystemDialogsBroadcast() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val forbidden = shadowOf(app).broadcastIntents.any {
-            it.action == Intent.ACTION_CLOSE_SYSTEM_DIALOGS
+            it.action == ACTION_CLOSE_SYSTEM_DIALOGS
         }
         assertEquals(false, forbidden)
     }
@@ -96,6 +96,8 @@ class GlanceTrampolineGuardTest {
         Class.forName(TRAMPOLINE) as Class<out Activity>
 
     private companion object {
+        // Literal — Intent.ACTION_CLOSE_SYSTEM_DIALOGS is deprecated (API 31+).
+        const val ACTION_CLOSE_SYSTEM_DIALOGS = "android.intent.action.CLOSE_SYSTEM_DIALOGS"
         const val TRAMPOLINE =
             "androidx.glance.appwidget.action.InvisibleActionTrampolineActivity"
     }

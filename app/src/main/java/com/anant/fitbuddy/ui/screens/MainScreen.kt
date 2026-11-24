@@ -57,9 +57,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
+import android.content.ClipData
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -1494,7 +1495,7 @@ fun MainScreen(
     }
 
     analysisState.rawAiJson?.let { json ->
-        val clipboard = LocalClipboardManager.current
+        val clipboard = LocalClipboard.current
         AlertDialog(
             onDismissRequest = viewModel::consumeRawAiJson,
             title = { Text(stringResource(R.string.main_raw_ai_json)) },
@@ -1514,7 +1515,11 @@ fun MainScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        clipboard.setText(AnnotatedString(json))
+                        scope.launch {
+                            clipboard.setClipEntry(
+                                ClipEntry(ClipData.newPlainText("raw_ai_json", json))
+                            )
+                        }
                         SystemToast.show(context, context.getString(R.string.main_copied))
                     }
                 ) { Text(stringResource(R.string.main_copy)) }

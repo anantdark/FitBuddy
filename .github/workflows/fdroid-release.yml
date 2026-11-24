@@ -71,15 +71,16 @@ jobs:
           else
             RANGE="HEAD~20..HEAD"
           fi
-          # Extract user-facing commits (skip chore/ci/merge), prefix with bullet.
-          git log "$RANGE" --pretty=format:'%s' --no-merges \
-            | grep -iv '^chore\|^ci\|^merge\|^build\|^refactor\|^style\|^test' \
-            | sed 's/^/• /' \
-            | head -15 \
-            > "$CHANGELOG_FILE"
-          # Fallback if no user-facing commits found.
+          # Only feat/fix (AGENTS.md changelog types); feats first, then fixes.
+          {
+            git log "$RANGE" --pretty=format:'%s' --no-merges \
+              | grep -E '^feat(\(|:| )' || true
+            git log "$RANGE" --pretty=format:'%s' --no-merges \
+              | grep -E '^fix(\(|:| )' || true
+          } | sed 's/^/• /' | head -15 > "$CHANGELOG_FILE"
+          # Fallback if no feat/fix commits found.
           if [ ! -s "$CHANGELOG_FILE" ]; then
-            echo "• Bug fixes and performance improvements" > "$CHANGELOG_FILE"
+            echo "• Bug fixes and improvements" > "$CHANGELOG_FILE"
           fi
           # Trim to ~500 chars (F-Droid recommendation).
           truncate -s '<500' "$CHANGELOG_FILE" 2>/dev/null || true

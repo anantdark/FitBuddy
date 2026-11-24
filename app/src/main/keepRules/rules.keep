@@ -4,9 +4,11 @@
 # For more details, see
 #   https://d.android.com/r/tools/r8/keep-rules
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Glance keys widgets by GlanceAppWidget canonical class name — do not let R8 merge them.
+# (Mirrored in app/proguard-rules.pro for release minify.)
+-keep class com.anant.fitbuddy.widget.QuickSnapWidget
+-keep class com.anant.fitbuddy.widget.DescribeLogWidget
+-keep class com.anant.fitbuddy.widget.CalorieOrbWidget
+-keep class com.anant.fitbuddy.widget.PresetLaunchpadWidget
+-keep class com.anant.fitbuddy.widget.ActionStripWidget
+-keep class com.anant.fitbuddy.widget.WaterIntakeWidget

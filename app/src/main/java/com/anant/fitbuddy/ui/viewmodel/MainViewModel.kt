@@ -2315,8 +2315,22 @@ class MainViewModel(
 
     fun deleteMeasurement(measurement: BodyMeasurement) {
         viewModelScope.launch {
-            repository.deleteMeasurement(measurement)
-            _analysisState.update { it.copy(userMessage = str(R.string.vm_reading_removed)) }
+            if (measurement.isFromHealthConnect()) {
+                _analysisState.update {
+                    it.copy(userMessage = str(R.string.vm_health_connect_imported_not_deletable))
+                }
+                return@launch
+            }
+            val removed = repository.deleteMeasurement(measurement)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (removed) {
+                        str(R.string.vm_reading_removed)
+                    } else {
+                        str(R.string.vm_health_connect_imported_not_deletable)
+                    }
+                )
+            }
         }
     }
 
@@ -4205,19 +4219,19 @@ class MainViewModel(
         val rawJson = maybeRawAiJson()
         _analysisState.update { state ->
             // Nested food edit keeps foodDraft while mealDraft is also set.
-            val foodReviewOpen = state.foodDraft != null
+            val openFood = state.foodDraft
             when (outcome) {
                 is AnalysisOutcome.FoodReady -> {
                     val stamped = outcome.draft.copy(
-                        timestamp = state.foodDraft?.timestamp
+                        timestamp = openFood?.timestamp
                             ?: state.mealDraft?.timestamp
                             ?: outcome.draft.timestamp,
-                        quantity = state.foodDraft?.quantity ?: outcome.draft.quantity,
-                        iconTopic = state.foodDraft?.iconTopic
+                        quantity = openFood?.quantity ?: outcome.draft.quantity,
+                        iconTopic = openFood?.iconTopic
                             ?: state.mealDraft?.iconTopic
                             ?: outcome.draft.iconTopic
                     )
-                    if (foodReviewOpen) {
+                    if (openFood != null) {
                         state.copy(
                             isReanalyzing = false,
                             foodDraft = stamped,
@@ -4238,10 +4252,10 @@ class MainViewModel(
                 }
 
                 is AnalysisOutcome.MealReady -> {
-                    val preservedTs = state.foodDraft?.timestamp
+                    val preservedTs = openFood?.timestamp
                         ?: state.mealDraft?.timestamp
                         ?: outcome.draft.timestamp
-                    val preservedIcon = state.foodDraft?.iconTopic
+                    val preservedIcon = openFood?.iconTopic
                         ?: state.mealDraft?.iconTopic
                         ?: outcome.draft.iconTopic
                     val meal = outcome.draft.copy(
@@ -4249,13 +4263,12 @@ class MainViewModel(
                         iconTopic = preservedIcon
                     ).snapshot()
                     val single = meal.asSingleFoodDraftOrNull()
-                    if (foodReviewOpen) {
+                    if (openFood != null) {
                         if (single != null) {
-                            val priorQty = state.foodDraft?.quantity
                             state.copy(
                                 isReanalyzing = false,
                                 foodDraft = single.copy(
-                                    quantity = priorQty ?: single.quantity
+                                    quantity = openFood.quantity
                                 ),
                                 reviewMessage = outcome.failoverNote,
                                 rawAiJson = rawJson

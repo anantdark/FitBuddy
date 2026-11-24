@@ -8,6 +8,8 @@ import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
 import io.sentry.Breadcrumb
 import io.sentry.CheckIn
 import io.sentry.CheckInStatus
+import io.sentry.HttpBodyType
+import io.sentry.KeyValueCollectionBehavior
 import io.sentry.MonitorConfig
 import io.sentry.MonitorSchedule
 import io.sentry.MonitorScheduleUnit
@@ -81,7 +83,17 @@ object CrashReporter {
             options.setTransportFactory { transportOptions, _ ->
                 SentryCloudTransport(options = transportOptions)
             }
-            options.isSendDefaultPii = false
+            // Privacy-first: migrate off deprecated sendDefaultPii onto dataCollection.
+            options.dataCollection.apply {
+                userInfo = false
+                filePaths = false
+                databaseQueryData = false
+                httpBodies = emptySet<HttpBodyType>()
+                cookies = KeyValueCollectionBehavior.off()
+                urlQueryParams = KeyValueCollectionBehavior.off()
+                httpHeaders.request = KeyValueCollectionBehavior.off()
+                httpHeaders.response = KeyValueCollectionBehavior.off()
+            }
             options.tracesSampleRate = 0.0
             options.isEnableUserInteractionTracing = false
             // Disable all automatic/periodic network traffic — we flush manually

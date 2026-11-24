@@ -181,7 +181,7 @@ fun DrawScope.drawGlyphBoxes(
         .coerceIn(0, cells.size)
     // Full ring: the end box stays at top-middle (cell 0) and pulses between the normal cell color and its brighter color; the rest shimmer.
     val pinnedIndex = if (pinnedEnd && litCount == cells.size) 0 else -1
-    val glow = 0.5f + 0.5f * sin((phase - PI / 2).toDouble()).toFloat()
+    val glow = 0.5f + 0.5f * sin(phase - PI / 2).toFloat()
 
     cells.forEachIndexed { i, cell ->
         val lit = i < litCount
@@ -238,7 +238,7 @@ private fun glyphShimmer(style: GlyphShimmerStyle, index: Int, count: Int, phase
             0.62f + 0.38f * spark
         }
         GlyphShimmerStyle.BREATHE -> {
-            0.65f + 0.35f * (0.5f + 0.5f * sin((phase - PI / 2).toDouble()).toFloat())
+            0.65f + 0.35f * (0.5f + 0.5f * sin(phase - PI / 2).toFloat())
         }
     }
 }

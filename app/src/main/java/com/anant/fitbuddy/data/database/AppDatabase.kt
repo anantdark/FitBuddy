@@ -1,12 +1,29 @@
 package com.anant.fitbuddy.data.database
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+
+/** Keep in sync with [@Database] version on [AppDatabase]. */
+const val APP_DATABASE_SCHEMA_VERSION = 28
+
+/** On-disk schema is newer than this app build; Room cannot downgrade without wiping. */
+class DatabaseDowngradeRequiredException(
+    val onDiskVersion: Int,
+    val appVersion: Int,
+) : IllegalStateException(
+    "Database schema $onDiskVersion is newer than this app ($appVersion); wipe required to continue."
+)
+
+data class DatabaseDowngradeInfo(
+    val onDiskVersion: Int,
+    val appVersion: Int,
+)
 
 @Database(
     entities = [
@@ -23,7 +40,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutExercise::class,
         WaterLog::class,
     ],
-    version = 27,
+    version = APP_DATABASE_SCHEMA_VERSION,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -42,8 +59,45 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun waterLogDao(): WaterLogDao
 
     companion object {
+        const val DB_NAME = "fitness_tracker_db"
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        /**
+         * Reads Room's `user_version` without opening the database through Room.
+         * Returns null when no DB file exists or the file cannot be opened.
+         */
+        fun readOnDiskVersion(context: Context): Int? {
+            val path = context.applicationContext.getDatabasePath(DB_NAME)
+            if (!path.exists()) return null
+            return runCatching {
+                SQLiteDatabase.openDatabase(
+                    path.path,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY
+                ).use { it.version }
+            }.getOrNull()
+        }
+
+        /** Non-null when the on-disk schema is ahead of [APP_DATABASE_SCHEMA_VERSION]. */
+        fun downgradeInfoOrNull(context: Context): DatabaseDowngradeInfo? {
+            val onDisk = readOnDiskVersion(context) ?: return null
+            if (onDisk <= APP_DATABASE_SCHEMA_VERSION) return null
+            return DatabaseDowngradeInfo(
+                onDiskVersion = onDisk,
+                appVersion = APP_DATABASE_SCHEMA_VERSION,
+            )
+        }
+
+        /** Deletes the Room DB (including -wal/-shm) and clears the in-process singleton. */
+        fun wipeDatabase(context: Context) {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+                context.applicationContext.deleteDatabase(DB_NAME)
+            }
+        }
 
         /** Adds manual [sortOrder] for saved foods and meal presets. */
         val MIGRATION_11_12 = migration(11, 12) { db ->
@@ -146,10 +200,20 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                INSTANCE?.let { return it }
+                // Sideloaded older APKs / Auto Backup can leave the on-disk schema ahead of
+                // this build. Refuse to open so the UI can ask before wiping; Room has no
+                // reverse migrations.
+                downgradeInfoOrNull(context)?.let { info ->
+                    throw DatabaseDowngradeRequiredException(
+                        onDiskVersion = info.onDiskVersion,
+                        appVersion = info.appVersion,
+                    )
+                }
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "fitness_tracker_db"
+                    DB_NAME
                 )
                     // Versions 1–10 were pre-production dev iterations with no real migration
                     // path — allow destructive fallback only for those ancient databases.
@@ -173,6 +237,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_24_25,
                         MIGRATION_25_26,
                         MIGRATION_26_27,
+                        MIGRATION_27_28,
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -469,6 +534,13 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_26_27 = migration(26, 27) { db ->
             db.execSQL(
                 "ALTER TABLE exercise_logs ADD COLUMN healthConnectRecordId TEXT"
+            )
+        }
+
+        /** Provenance for Health Connect–imported body measurements (echo-loop prevention). */
+        val MIGRATION_27_28 = migration(27, 28) { db ->
+            db.execSQL(
+                "ALTER TABLE body_measurements ADD COLUMN healthConnectRecordId TEXT"
             )
         }
 
