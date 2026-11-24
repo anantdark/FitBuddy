@@ -79,6 +79,10 @@
     <string name="common_cancel">Cancel</string>
     <string name="common_ok">OK</string>
     <string name="common_pick_log_date">Pick log date</string>
+    <string name="db_downgrade_title">This app can\'t open your data</string>
+    <string name="db_downgrade_body">Your logs were saved with a newer FitBuddy (database %1$d). This install only understands up to %2$d, and older builds can’t convert newer data.\n\nWipe local data to continue here, or exit and install a matching or newer FitBuddy so nothing is lost.</string>
+    <string name="db_downgrade_wipe">Wipe and continue</string>
+    <string name="db_downgrade_exit">Exit</string>
     <string name="dashboard_burned">Burned</string>
     <string name="dashboard_calories_remaining">Calories remaining</string>
     <string name="dashboard_carbs">Carbs</string>

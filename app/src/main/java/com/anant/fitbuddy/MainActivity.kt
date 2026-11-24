@@ -22,6 +22,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.anant.fitbuddy.crash.CrashReporter
 import com.anant.fitbuddy.data.backup.mongo.MongoUriVault
+import com.anant.fitbuddy.data.database.AppDatabase
+import com.anant.fitbuddy.data.database.DatabaseDowngradeInfo
 import com.anant.fitbuddy.data.region.RegionDetector
 import com.anant.fitbuddy.data.remote.oauth.OpenRouterOAuth
 import com.anant.fitbuddy.data.settings.AppSettings
@@ -31,6 +33,7 @@ import com.anant.fitbuddy.util.LocalUnitSystem
 import com.anant.fitbuddy.util.UnitSystem
 import com.anant.fitbuddy.ui.screens.CloudBackupOptInScreen
 import com.anant.fitbuddy.ui.screens.CrashReportingOptInScreen
+import com.anant.fitbuddy.ui.screens.DatabaseDowngradeScreen
 import com.anant.fitbuddy.ui.screens.MainScreen
 import com.anant.fitbuddy.ui.screens.OnboardingScreen
 import com.anant.fitbuddy.ui.screens.RegionSelectionScreen
@@ -65,6 +68,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             // Read dynamic-color preference before theming so Material You toggles live.
             val settings by app.settingsRepository.settings.collectAsStateWithLifecycle(AppSettings())
+            // Gate before ViewModel/repository: opening Room would crash on a newer schema.
+            var pendingDowngrade by remember {
+                mutableStateOf<DatabaseDowngradeInfo?>(AppDatabase.downgradeInfoOrNull(app))
+            }
             FitBuddyTheme(
                 dynamicColor = settings.dynamicColor,
                 colorTheme = settings.colorTheme,
@@ -76,6 +83,17 @@ class MainActivity : ComponentActivity() {
                     LocalUnitSystem provides UnitSystem.resolve(settings.unitSystem, settings.region),
                 ) {
                 Box(modifier = Modifier.fillMaxSize().dismissKeyboardOnTap()) {
+                    val downgrade = pendingDowngrade
+                    if (downgrade != null) {
+                        DatabaseDowngradeScreen(
+                            info = downgrade,
+                            onWipe = {
+                                AppDatabase.wipeDatabase(app)
+                                pendingDowngrade = null
+                            },
+                            onExit = { finishAffinity() },
+                        )
+                    } else {
                     val viewModel: MainViewModel = viewModel(
                         factory = MainViewModelFactory(app, app.repository, app.settingsRepository, app.updateChecker)
                     )
@@ -273,6 +291,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenDonateReminderConsumed = { openDonateReminderRequest = false },
                             )
                         }
+                    }
                     }
                 }
                 }
