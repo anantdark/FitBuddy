@@ -9,6 +9,7 @@ import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppDashboardLayout
 import com.anant.fitbuddy.data.settings.AppFontOption
+import com.anant.fitbuddy.data.settings.AppLanguage
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.squareup.moshi.JsonClass
 
@@ -69,6 +70,7 @@ data class BackupSettings(
     val activeTextModel: String = "",
     val dynamicColor: Boolean = true,
     val unitSystem: String = "",
+    val appLanguage: String = AppLanguage.DEFAULT_TAG,
     val colorTheme: String = AppColorTheme.BRAND.name,
     val fontOption: String = AppFontOption.DEFAULT.name,
     val componentStyle: String = AppComponentStyle.MATERIAL.name,
@@ -202,6 +204,7 @@ data class BackupSettings(
                 activeTextModel = activeTextModel,
                 dynamicColor = dynamicColor,
                 unitSystem = unitSystem,
+                appLanguage = AppLanguage.fromStored(appLanguage).tag,
                 colorTheme = runCatching { AppColorTheme.valueOf(colorTheme) }
                     .getOrDefault(AppColorTheme.BRAND),
                 fontOption = runCatching { AppFontOption.valueOf(fontOption) }
@@ -326,6 +329,7 @@ data class BackupSettings(
             activeTextModel = settings.activeTextModel,
             dynamicColor = settings.dynamicColor,
             unitSystem = settings.unitSystem,
+            appLanguage = AppLanguage.fromStored(settings.appLanguage).tag,
             colorTheme = settings.colorTheme.name,
             fontOption = settings.fontOption.name,
             componentStyle = settings.componentStyle.name,

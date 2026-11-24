@@ -564,6 +564,8 @@
     <string name="settings_personalises_food_log_examples_portion_units">Personalises food log examples, portion units, staples, and coaching.</string>
     <string name="settings_photo_model_vision">Photo model (vision)</string>
     <string name="settings_preferences">Preferences</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_hint">App UI language. Defaults to English. Region packs for food examples stay separate.</string>
     <string name="settings_water_tracking">Water intake tracking</string>
     <string name="settings_water_tracking_hint">Shows a vertical wave meter on the extended dashboard (or a strip in compact), unlocks the Water home-screen widget, and rolls same drinks into one daily entry. Off by default.</string>
     <string name="settings_water_goal">Daily water goal</string>

@@ -169,6 +169,10 @@ data class AppSettings(
     /** `METRIC` / `IMPERIAL`, or empty to follow [region] (North America → US, else metric). */
     val unitSystem: String = "",
     /**
+     * UI language BCP-47 tag ([AppLanguage.tag]). Defaults to English; empty / unknown → English.
+     */
+    val appLanguage: String = AppLanguage.DEFAULT_TAG,
+    /**
      * Static palette when [dynamicColor] is off. Ignored while Material You is enabled.
      * Defaults to FitBuddy brand greens.
      */

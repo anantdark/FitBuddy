@@ -146,6 +146,7 @@ class SettingsRepository(context: Context) {
             },
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
             unitSystem = prefs[KEY_UNIT_SYSTEM].orEmpty(),
+            appLanguage = AppLanguage.fromStored(prefs[KEY_APP_LANGUAGE]).tag,
             colorTheme = prefs[KEY_COLOR_THEME]?.let {
                 runCatching { AppColorTheme.valueOf(it) }.getOrNull()
             } ?: AppColorTheme.BRAND,
@@ -486,6 +487,7 @@ class SettingsRepository(context: Context) {
             }
             prefs[KEY_DYNAMIC_COLOR] = settings.dynamicColor
             prefs[KEY_UNIT_SYSTEM] = settings.unitSystem
+            prefs[KEY_APP_LANGUAGE] = AppLanguage.fromStored(settings.appLanguage).tag
             prefs[KEY_COLOR_THEME] = settings.colorTheme.name
             prefs[KEY_FONT_OPTION] = settings.fontOption.name
             prefs[KEY_COMPONENT_STYLE] = settings.componentStyle.name
@@ -827,6 +829,7 @@ class SettingsRepository(context: Context) {
         val KEY_DIAGNOSTIC_LOGGING = booleanPreferencesKey("diagnostic_logging_enabled")
         val KEY_REGION = stringPreferencesKey("app_region")
         val KEY_UNIT_SYSTEM = stringPreferencesKey("unit_system")
+        val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_REGION_REQUEST_SENT_AT = longPreferencesKey("region_request_sent_at")
         val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("sentry_last_heartbeat_utc_day")
         // Legacy keys — removed on load/save; kept only so clearLegacySentryRoutingPrefs can drop them.

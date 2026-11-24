@@ -61,6 +61,8 @@ class BackupSettingsTest {
                 activePhotoModel = "gemini-2.5-flash",
                 activeTextModel = "gemini-2.5-flash-lite",
                 dynamicColor = false,
+                unitSystem = "IMPERIAL",
+                appLanguage = "es",
                 colorTheme = AppColorTheme.CATPPUCCIN_MOCHA,
                 fontOption = AppFontOption.JERSEY_25,
                 componentStyle = AppComponentStyle.MAKO,

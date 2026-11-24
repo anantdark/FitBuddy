@@ -131,6 +131,7 @@ import com.anant.fitbuddy.data.settings.AppColorTheme
 import com.anant.fitbuddy.data.settings.AppComponentStyle
 import com.anant.fitbuddy.data.settings.AppDashboardLayout
 import com.anant.fitbuddy.data.settings.AppFontOption
+import com.anant.fitbuddy.data.settings.AppLanguage
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.ui.loading.LoadingAnimationRegistry
 import com.anant.fitbuddy.ui.loading.LoadingAnimationSlot
@@ -1222,7 +1223,7 @@ fun SettingsScreen(
             )
         }
 
-        // --- Preferences (reminders + animations + region) -------------------------------
+        // --- Preferences (reminders + animations + language + region) --------------------
         SettingsCard(title = stringResource(R.string.settings_preferences), initiallyExpanded = false) {
             SettingToggleRow(
                 title = stringResource(R.string.settings_daily_log_reminder),
@@ -1443,6 +1444,56 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            HorizontalDivider()
+            Text(
+                text = stringResource(R.string.settings_language),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = stringResource(R.string.settings_language_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val currentLanguage = AppLanguage.fromStored(settings.appLanguage)
+            var languageExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = languageExpanded,
+                onExpandedChange = { languageExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = currentLanguage.displayName(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.settings_language)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = languageExpanded,
+                    onDismissRequest = { languageExpanded = false }
+                ) {
+                    AppLanguage.entries.forEach { language ->
+                        DropdownMenuItem(
+                            text = { Text(language.displayName()) },
+                            onClick = {
+                                languageExpanded = false
+                                if (language != currentLanguage) {
+                                    // Apply immediately on the UI thread; DataStore persists for next launch.
+                                    AppLanguage.apply(language.tag)
+                                    onSaveQuiet(settings.copy(appLanguage = language.tag))
+                                }
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
             HorizontalDivider()
             Text(
                 text = stringResource(R.string.settings_region),

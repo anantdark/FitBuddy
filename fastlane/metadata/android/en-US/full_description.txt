@@ -4,6 +4,7 @@ Snap a photo or type what you ate — an LLM estimates calories and macros insta
 
 Features:
 • Region packs — personalise AI prompts, staples, portion language, and log examples to your region
+• Language — pick the app UI language in Preferences (English, Spanish, Japanese, or Hindi)
 • Metric or imperial system — kg/cm/ml or lb/in/fl oz, defaulting to imperial in North America
 • Smart logging — photo or text; chain up to 5 photos with notes, or queue photos to analyze later; AI parses food and exercise automatically
 • Meal review — edit dish name, adjust ingredient weights with live macro recalc, and pick the log date (default today)

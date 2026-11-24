@@ -27,6 +27,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import android.os.Build
 import com.anant.fitbuddy.util.GifFirstFrameDecoder
+import com.anant.fitbuddy.data.settings.AppLanguage
 import com.anant.fitbuddy.data.settings.AppSettings
 import com.anant.fitbuddy.data.settings.SettingsRepository
 import com.anant.fitbuddy.reminders.DonationReminderReceiver
@@ -184,6 +185,8 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
             maybeEnableCrashReportingForUpgraders()
             settingsRepository.settings.first()
         }
+        // Before any Activity: pin UI language (default English) from DataStore.
+        AppLanguage.apply(settings.appLanguage)
         CrashReporter.init(
             app = this,
             enabled = settings.crashReportingEnabled,
@@ -210,6 +213,12 @@ class FitBuddyApp : Application(), ImageLoaderFactory {
         DonationReminderScheduler.applyFromSettings(this, settings)
         // Cancel legacy weekly Atlas alarms (replaced by startup + 12h debounce).
         MongoBackupScheduler.cancel(this)
+        appScope.launch {
+            settingsRepository.settings
+                .map { it.appLanguage }
+                .distinctUntilChanged()
+                .collect { tag -> AppLanguage.apply(tag) }
+        }
         appScope.launch {
             settingsRepository.settings
                 .map { s ->
