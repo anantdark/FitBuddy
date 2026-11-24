@@ -575,6 +575,7 @@ private fun ReadingsHistoryCard(
         ) {
             itemsIndexed(measurements, key = { _, m -> m.id }) { index, m ->
                 if (index > 0) HorizontalDivider()
+                val hcImported = m.isFromHealthConnect()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -596,13 +597,22 @@ private fun ReadingsHistoryCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (hcImported) {
+                            Text(
+                                text = stringResource(R.string.dashboard_hc_imported_managed_elsewhere),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                    IconButton(onClick = { onDelete(m) }) {
-                        Icon(
-                            Icons.Filled.DeleteOutline,
-                            contentDescription = stringResource(R.string.profile_delete_reading),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    if (!hcImported) {
+                        IconButton(onClick = { onDelete(m) }) {
+                            Icon(
+                                Icons.Filled.DeleteOutline,
+                                contentDescription = stringResource(R.string.profile_delete_reading),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }

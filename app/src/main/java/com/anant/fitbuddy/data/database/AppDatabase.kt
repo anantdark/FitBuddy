@@ -10,7 +10,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** Keep in sync with [@Database] version on [AppDatabase]. */
-const val APP_DATABASE_SCHEMA_VERSION = 27
+const val APP_DATABASE_SCHEMA_VERSION = 28
 
 /** On-disk schema is newer than this app build; Room cannot downgrade without wiping. */
 class DatabaseDowngradeRequiredException(
@@ -237,6 +237,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_24_25,
                         MIGRATION_25_26,
                         MIGRATION_26_27,
+                        MIGRATION_27_28,
                     )
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                     .build()
@@ -533,6 +534,13 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_26_27 = migration(26, 27) { db ->
             db.execSQL(
                 "ALTER TABLE exercise_logs ADD COLUMN healthConnectRecordId TEXT"
+            )
+        }
+
+        /** Provenance for Health Connect–imported body measurements (echo-loop prevention). */
+        val MIGRATION_27_28 = migration(27, 28) { db ->
+            db.execSQL(
+                "ALTER TABLE body_measurements ADD COLUMN healthConnectRecordId TEXT"
             )
         }
 

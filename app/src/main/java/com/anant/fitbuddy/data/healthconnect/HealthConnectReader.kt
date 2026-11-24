@@ -19,24 +19,28 @@ import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 data class ExternalWeight(
+    val recordId: String,
     val timestampMs: Long,
     val weightKg: Double,
     val clientRecordId: String?
 )
 
 data class ExternalBodyFat(
+    val recordId: String,
     val timestampMs: Long,
     val bodyFatPct: Double,
     val clientRecordId: String?
 )
 
 data class ExternalMuscleMass(
+    val recordId: String,
     val timestampMs: Long,
     val muscleMassKg: Double,
     val clientRecordId: String?
 )
 
 data class ExternalHeight(
+    val recordId: String,
     val timestampMs: Long,
     val heightCm: Double,
     val clientRecordId: String?
@@ -81,12 +85,14 @@ internal class HealthConnectReader(
                     timeRangeFilter = TimeRangeFilter.between(from, to)
                 )
             ).records.mapNotNull { record ->
-                val clientId = record.metadata.clientRecordId
-                if (HealthConnectManager.isFitBuddyRecord(clientId)) return@mapNotNull null
+                if (isOwnOrFitBuddy(record.metadata.dataOrigin.packageName, record.metadata.clientRecordId)) {
+                    return@mapNotNull null
+                }
                 ExternalWeight(
+                    recordId = record.metadata.id,
                     timestampMs = record.time.toEpochMilli(),
                     weightKg = record.weight.inKilograms,
-                    clientRecordId = clientId
+                    clientRecordId = record.metadata.clientRecordId
                 )
             }
         }.getOrDefault(emptyList())
@@ -102,12 +108,14 @@ internal class HealthConnectReader(
                     timeRangeFilter = TimeRangeFilter.between(from, to)
                 )
             ).records.mapNotNull { record ->
-                val clientId = record.metadata.clientRecordId
-                if (HealthConnectManager.isFitBuddyRecord(clientId)) return@mapNotNull null
+                if (isOwnOrFitBuddy(record.metadata.dataOrigin.packageName, record.metadata.clientRecordId)) {
+                    return@mapNotNull null
+                }
                 ExternalBodyFat(
+                    recordId = record.metadata.id,
                     timestampMs = record.time.toEpochMilli(),
                     bodyFatPct = record.percentage.value,
-                    clientRecordId = clientId
+                    clientRecordId = record.metadata.clientRecordId
                 )
             }
         }.getOrDefault(emptyList())
@@ -123,12 +131,14 @@ internal class HealthConnectReader(
                     timeRangeFilter = TimeRangeFilter.between(from, to)
                 )
             ).records.mapNotNull { record ->
-                val clientId = record.metadata.clientRecordId
-                if (HealthConnectManager.isFitBuddyRecord(clientId)) return@mapNotNull null
+                if (isOwnOrFitBuddy(record.metadata.dataOrigin.packageName, record.metadata.clientRecordId)) {
+                    return@mapNotNull null
+                }
                 ExternalMuscleMass(
+                    recordId = record.metadata.id,
                     timestampMs = record.time.toEpochMilli(),
                     muscleMassKg = record.mass.inKilograms,
-                    clientRecordId = clientId
+                    clientRecordId = record.metadata.clientRecordId
                 )
             }
         }.getOrDefault(emptyList())
@@ -144,10 +154,13 @@ internal class HealthConnectReader(
                     timeRangeFilter = TimeRangeFilter.between(from, to)
                 )
             ).records
-                .filterNot { HealthConnectManager.isFitBuddyRecord(it.metadata.clientRecordId) }
+                .filterNot {
+                    isOwnOrFitBuddy(it.metadata.dataOrigin.packageName, it.metadata.clientRecordId)
+                }
                 .maxByOrNull { it.time }
                 ?.let { record ->
                     ExternalHeight(
+                        recordId = record.metadata.id,
                         timestampMs = record.time.toEpochMilli(),
                         heightCm = record.height.inMeters * 100.0,
                         clientRecordId = record.metadata.clientRecordId
@@ -160,28 +173,42 @@ internal class HealthConnectReader(
         val client = manager.client ?: return emptyList()
         if (!manager.hasExerciseRead()) return emptyList()
         return runCatching {
-            client.readRecords(
-                ReadRecordsRequest(
-                    recordType = ExerciseSessionRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(from, to)
+            val out = mutableListOf<ExternalExercise>()
+            var pageToken: String? = null
+            do {
+                val response = client.readRecords(
+                    ReadRecordsRequest(
+                        recordType = ExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(from, to),
+                        pageSize = READ_PAGE_SIZE,
+                        pageToken = pageToken
+                    )
                 )
-            ).records.mapNotNull { record ->
-                val clientId = record.metadata.clientRecordId
-                if (HealthConnectManager.isFitBuddyRecord(clientId)) return@mapNotNull null
-                val start = record.startTime
-                val end = record.endTime
-                val kcal = activeCaloriesBetween(start, end)
-                val title = record.title?.takeIf { it.isNotBlank() }
-                    ?: exerciseTypeLabel(record.exerciseType)
-                ExternalExercise(
-                    recordId = record.metadata.id,
-                    title = title,
-                    startMs = start.toEpochMilli(),
-                    endMs = end.toEpochMilli(),
-                    caloriesBurned = kcal,
-                    clientRecordId = clientId
-                )
-            }
+                for (record in response.records) {
+                    if (isOwnOrFitBuddy(
+                            record.metadata.dataOrigin.packageName,
+                            record.metadata.clientRecordId
+                        )
+                    ) {
+                        continue
+                    }
+                    val start = record.startTime
+                    val end = record.endTime
+                    val kcal = activeCaloriesBetween(start, end)
+                    val title = record.title?.takeIf { it.isNotBlank() }
+                        ?: exerciseTypeLabel(record.exerciseType)
+                    out += ExternalExercise(
+                        recordId = record.metadata.id,
+                        title = title,
+                        startMs = start.toEpochMilli(),
+                        endMs = end.toEpochMilli(),
+                        caloriesBurned = kcal,
+                        clientRecordId = record.metadata.clientRecordId
+                    )
+                }
+                pageToken = response.pageToken
+            } while (!pageToken.isNullOrBlank())
+            out
         }.getOrDefault(emptyList())
     }
 
@@ -254,7 +281,9 @@ internal class HealthConnectReader(
                     timeRangeFilter = TimeRangeFilter.between(from, now)
                 )
             ).records
-                .filterNot { HealthConnectManager.isFitBuddyRecord(it.metadata.clientRecordId) }
+                .filterNot {
+                    isOwnOrFitBuddy(it.metadata.dataOrigin.packageName, it.metadata.clientRecordId)
+                }
                 .maxByOrNull { it.endTime }
                 ?.let { session ->
                     val minutes = TimeUnit.MILLISECONDS.toMinutes(
@@ -269,6 +298,15 @@ internal class HealthConnectReader(
                     )
                 }
         }.getOrNull()
+    }
+
+    /** Skip our own writes (by package or fitbuddy- client id) so import never echoes. */
+    private fun isOwnOrFitBuddy(originPackage: String, clientRecordId: String?): Boolean =
+        manager.isOwnOrigin(originPackage) || HealthConnectManager.isFitBuddyRecord(clientRecordId)
+
+    companion object {
+        /** Health Connect default max; paginate so prune-missing sees the full window. */
+        private const val READ_PAGE_SIZE = 1000
     }
 
     private suspend fun activeCaloriesBetween(from: Instant, to: Instant): Int {

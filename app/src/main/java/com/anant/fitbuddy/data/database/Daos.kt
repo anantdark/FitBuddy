@@ -444,7 +444,12 @@ interface BodyMeasurementDao {
         val existing = getByTimestamp(measurement.timestamp)
         val sanitized = measurement.supportedMetricsOnly()
         val toSave = if (existing != null) {
-            sanitized.copy(id = existing.id)
+            sanitized.copy(
+                id = existing.id,
+                // Keep provenance unless the caller explicitly stamps a new HC id.
+                healthConnectRecordId = sanitized.healthConnectRecordId
+                    ?: existing.healthConnectRecordId
+            )
         } else {
             sanitized.copy(id = 0)
         }

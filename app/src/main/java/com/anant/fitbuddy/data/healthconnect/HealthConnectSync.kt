@@ -86,12 +86,16 @@ class HealthConnectSync(
     }
 
     suspend fun deleteNutrition(foodLogId: Int) {
-        if (!exportEnabled { it.exportNutrition }) return
-        runCatching { writer.deleteNutrition(foodLogId) }
-            .onFailure { Log.w(TAG, "delete nutrition failed: ${it.message}") }
+        // Queue tombstone even when write was just revoked so a later sync can clean HC.
+        if (!healthConnectMasterOn()) return
+        if (!writer.deleteNutrition(foodLogId)) {
+            queueTombstone(TOMBSTONE_NUTRITION, HealthConnectManager.foodClientRecordId(foodLogId))
+        }
     }
 
     suspend fun mirrorMeasurement(measurement: BodyMeasurement) {
+        // Never write third-party HC imports back under our package (echo loop).
+        if (measurement.isFromHealthConnect()) return
         if (!autoSyncEnabled()) return
         val prefs = metricPrefs() ?: return
         if (prefs.exportWeight) {
@@ -109,26 +113,36 @@ class HealthConnectSync(
     }
 
     suspend fun deleteMeasurement(measurement: BodyMeasurement) {
-        if (!autoSyncEnabled()) return
-        val prefs = metricPrefs() ?: return
-        if (prefs.exportWeight) {
-            runCatching { writer.deleteWeight(measurement.id) }
+        // Imported rows are owned by another app — HC forbids deleting them.
+        if (measurement.isFromHealthConnect()) return
+        if (!healthConnectMasterOn()) return
+        if (!writer.deleteWeight(measurement.id)) {
+            queueTombstone(TOMBSTONE_WEIGHT, HealthConnectManager.weightClientRecordId(measurement.id))
         }
-        if (prefs.exportBodyFat) {
-            runCatching { writer.deleteBodyFat(measurement.id) }
+        if (!writer.deleteBodyFat(measurement.id)) {
+            queueTombstone(TOMBSTONE_BODY_FAT, HealthConnectManager.bodyFatClientRecordId(measurement.id))
         }
-        if (prefs.exportMuscleMass) {
-            runCatching { writer.deleteMuscleMass(measurement.id) }
+        if (!writer.deleteMuscleMass(measurement.id)) {
+            queueTombstone(
+                TOMBSTONE_MUSCLE_MASS,
+                HealthConnectManager.muscleMassClientRecordId(measurement.id)
+            )
         }
     }
 
     suspend fun mirrorHeight(heightCm: Double) {
         if (!exportEnabled { it.exportHeight }) return
-        runCatching { writer.writeHeight(heightCm) }
-            .onFailure { Log.w(TAG, "mirror height failed: ${it.message}") }
+        runCatching {
+            if (writer.writeHeight(heightCm)) {
+                context.healthConnectSyncStore.edit { prefs ->
+                    prefs[KEY_LAST_EXPORTED_HEIGHT_CM] = heightCm
+                }
+            }
+        }.onFailure { Log.w(TAG, "mirror height failed: ${it.message}") }
     }
 
     suspend fun mirrorExercise(log: ExerciseLog) {
+        if (log.isFromHealthConnect()) return
         if (!exportEnabled { it.exportExercise }) return
         if (HealthConnectSync.isStepsLogName(log.activityName)) return
         runCatching { writer.writeExercise(log) }
@@ -136,9 +150,17 @@ class HealthConnectSync(
     }
 
     suspend fun deleteExercise(exerciseLogId: Int) {
-        if (!exportEnabled { it.exportExercise }) return
-        runCatching { writer.deleteExercise(exerciseLogId) }
-            .onFailure { Log.w(TAG, "delete exercise failed: ${it.message}") }
+        if (!healthConnectMasterOn()) return
+        if (!writer.deleteExercise(exerciseLogId)) {
+            queueTombstone(
+                TOMBSTONE_EXERCISE,
+                HealthConnectManager.exerciseClientRecordId(exerciseLogId)
+            )
+            queueTombstone(
+                TOMBSTONE_EXERCISE_KCAL,
+                "${HealthConnectManager.exerciseClientRecordId(exerciseLogId)}-kcal"
+            )
+        }
     }
 
     suspend fun mirrorHydration(entryId: Long, milliliters: Double, timestampMs: Long) {
@@ -148,8 +170,10 @@ class HealthConnectSync(
     }
 
     suspend fun deleteHydration(entryId: Long) {
-        if (!exportEnabled { it.exportHydration }) return
-        runCatching { writer.deleteHydration(entryId) }
+        if (!healthConnectMasterOn()) return
+        if (!writer.deleteHydration(entryId)) {
+            queueTombstone(TOMBSTONE_HYDRATION, HealthConnectManager.hydrationClientRecordId(entryId))
+        }
     }
 
     /**
@@ -226,7 +250,11 @@ class HealthConnectSync(
         var exercisesExported = 0
         var error: String? = null
 
+        // Full-window sync can safely prune local imports missing from HC.
+        val fullWindow = force || lastSyncAt <= 0L
+
         runCatching {
+            flushTombstones()
             if (metrics.exportNutrition) mealsPushed = pushRecentMeals(fromMs)
             if (metrics.exportWeight || metrics.exportBodyFat || metrics.exportMuscleMass) {
                 pushRecentMeasurements(fromMs, metrics)
@@ -253,7 +281,9 @@ class HealthConnectSync(
             if (metrics.importBodyFat) bodyFatImported = importBodyFats(from, to)
             if (metrics.importMuscleMass) importMuscleMasses(from, to)
             if (metrics.importHeight) heightUpdated = importHeight(from, to)
-            if (metrics.importExercise) exercisesImported = importExercises(from, to)
+            if (metrics.importExercise) {
+                exercisesImported = importExercises(from, to, pruneMissing = fullWindow)
+            }
             if (metrics.importSteps) stepsDaysImported = importDailySteps(from, to)
             refreshWellnessContext(metrics)
 
@@ -289,6 +319,9 @@ class HealthConnectSync(
         return s.healthConnectEnabled && s.healthConnectAutoSync
     }
 
+    private suspend fun healthConnectMasterOn(): Boolean =
+        settingsRepository.settings.first().healthConnectEnabled
+
     private suspend fun metricPrefs(): HealthConnectMetricPrefs? {
         val s = settingsRepository.settings.first()
         return if (s.healthConnectEnabled) {
@@ -317,6 +350,8 @@ class HealthConnectSync(
     private suspend fun pushRecentMeasurements(fromMs: Long, metrics: HealthConnectMetricPrefs) {
         for (m in bodyMeasurementDao.getAllOnce()) {
             if (m.timestamp < fromMs) continue
+            // Skip HC-imported readings — writing them back duplicates third-party data.
+            if (m.isFromHealthConnect()) continue
             if (metrics.exportWeight) writer.writeWeight(m)
             if (metrics.exportBodyFat && m.bodyFatPct != null) writer.writeBodyFat(m)
             if (metrics.exportMuscleMass && m.muscleMassKg != null) writer.writeMuscleMass(m)
@@ -328,6 +363,7 @@ class HealthConnectSync(
         var count = 0
         for (log in exerciseLogDao.getAllOnce()) {
             if (log.timestamp < fromMs) continue
+            if (log.isFromHealthConnect()) continue
             if (isStepsLogName(log.activityName)) continue
             if (writer.writeExercise(log)) count++
         }
@@ -357,24 +393,40 @@ class HealthConnectSync(
         if (!manager.hasWeightRead()) return 0
         var inserted = 0
         for (sample in reader.readWeights(from, to)) {
-            if (sample.weightKg <= 0) continue
+            if (sample.weightKg <= 0 || sample.recordId.isBlank()) continue
             val existing = bodyMeasurementDao.getByTimestamp(sample.timestampMs)
-            val measurement = BodyMeasurement(
-                id = existing?.id ?: 0,
-                timestamp = sample.timestampMs,
-                dateString = DateUtils.format(sample.timestampMs),
-                weightKg = sample.weightKg,
-                bodyFatPct = existing?.bodyFatPct,
-                bmr = existing?.bmr,
-                muscleMassKg = existing?.muscleMassKg
-            ).supportedMetricsOnly()
-            if (
-                bodyMeasurementDao.upsertByTimestampAndSync(
-                    measurement = measurement,
-                    lastUpdatedTimestamp = System.currentTimeMillis()
+            when (
+                val action = resolveMeasurementImport(
+                    existing = existing,
+                    recordId = sample.recordId,
+                    matchesExisting = existing != null &&
+                        kotlin.math.abs(existing.weightKg - sample.weightKg) < 0.05
                 )
             ) {
-                inserted++
+                MeasurementImportAction.Skip -> continue
+                is MeasurementImportAction.StampOnly -> {
+                    bodyMeasurementDao.insert(action.measurement)
+                }
+                is MeasurementImportAction.Upsert -> {
+                    val measurement = BodyMeasurement(
+                        id = existing?.id ?: 0,
+                        timestamp = sample.timestampMs,
+                        dateString = DateUtils.format(sample.timestampMs),
+                        weightKg = sample.weightKg,
+                        bodyFatPct = existing?.bodyFatPct,
+                        bmr = existing?.bmr,
+                        muscleMassKg = existing?.muscleMassKg,
+                        healthConnectRecordId = action.recordId
+                    ).supportedMetricsOnly()
+                    if (
+                        bodyMeasurementDao.upsertByTimestampAndSync(
+                            measurement = measurement,
+                            lastUpdatedTimestamp = System.currentTimeMillis()
+                        )
+                    ) {
+                        inserted++
+                    }
+                }
             }
         }
         return inserted
@@ -386,24 +438,40 @@ class HealthConnectSync(
         val latestWeight = bodyMeasurementDao.getLatest().first()?.weightKg ?: profileWeight
         var inserted = 0
         for (sample in reader.readBodyFats(from, to)) {
-            if (sample.bodyFatPct <= 0) continue
+            if (sample.bodyFatPct <= 0 || sample.recordId.isBlank()) continue
             val existing = bodyMeasurementDao.getByTimestamp(sample.timestampMs)
             val weight = existing?.weightKg?.takeIf { it > 0 } ?: latestWeight
             if (weight <= 0) continue
-            val measurement = BodyMeasurement(
-                id = existing?.id ?: 0,
-                timestamp = sample.timestampMs,
-                dateString = DateUtils.format(sample.timestampMs),
-                weightKg = weight,
-                bodyFatPct = sample.bodyFatPct,
-                bmr = existing?.bmr,
-                muscleMassKg = existing?.muscleMassKg
-            ).supportedMetricsOnly()
-            val wasNew = bodyMeasurementDao.upsertByTimestampAndSync(
-                measurement = measurement,
-                lastUpdatedTimestamp = System.currentTimeMillis()
-            )
-            if (wasNew || existing?.bodyFatPct != sample.bodyFatPct) inserted++
+            when (
+                val action = resolveMeasurementImport(
+                    existing = existing,
+                    recordId = sample.recordId,
+                    matchesExisting = existing?.bodyFatPct != null &&
+                        kotlin.math.abs(existing.bodyFatPct - sample.bodyFatPct) < 0.05
+                )
+            ) {
+                MeasurementImportAction.Skip -> continue
+                is MeasurementImportAction.StampOnly -> {
+                    bodyMeasurementDao.insert(action.measurement)
+                }
+                is MeasurementImportAction.Upsert -> {
+                    val measurement = BodyMeasurement(
+                        id = existing?.id ?: 0,
+                        timestamp = sample.timestampMs,
+                        dateString = DateUtils.format(sample.timestampMs),
+                        weightKg = weight,
+                        bodyFatPct = sample.bodyFatPct,
+                        bmr = existing?.bmr,
+                        muscleMassKg = existing?.muscleMassKg,
+                        healthConnectRecordId = action.recordId
+                    ).supportedMetricsOnly()
+                    val wasNew = bodyMeasurementDao.upsertByTimestampAndSync(
+                        measurement = measurement,
+                        lastUpdatedTimestamp = System.currentTimeMillis()
+                    )
+                    if (wasNew || existing?.bodyFatPct != sample.bodyFatPct) inserted++
+                }
+            }
         }
         return inserted
     }
@@ -414,26 +482,67 @@ class HealthConnectSync(
         val latestWeight = bodyMeasurementDao.getLatest().first()?.weightKg ?: profileWeight
         var inserted = 0
         for (sample in reader.readMuscleMasses(from, to)) {
-            if (sample.muscleMassKg <= 0) continue
+            if (sample.muscleMassKg <= 0 || sample.recordId.isBlank()) continue
             val existing = bodyMeasurementDao.getByTimestamp(sample.timestampMs)
             val weight = existing?.weightKg?.takeIf { it > 0 } ?: latestWeight
             if (weight <= 0) continue
-            val measurement = BodyMeasurement(
-                id = existing?.id ?: 0,
-                timestamp = sample.timestampMs,
-                dateString = DateUtils.format(sample.timestampMs),
-                weightKg = weight,
-                bodyFatPct = existing?.bodyFatPct,
-                bmr = existing?.bmr,
-                muscleMassKg = sample.muscleMassKg
-            ).supportedMetricsOnly()
-            val wasNew = bodyMeasurementDao.upsertByTimestampAndSync(
-                measurement = measurement,
-                lastUpdatedTimestamp = System.currentTimeMillis()
-            )
-            if (wasNew || existing?.muscleMassKg != sample.muscleMassKg) inserted++
+            when (
+                val action = resolveMeasurementImport(
+                    existing = existing,
+                    recordId = sample.recordId,
+                    matchesExisting = existing?.muscleMassKg != null &&
+                        kotlin.math.abs(existing.muscleMassKg - sample.muscleMassKg) < 0.05
+                )
+            ) {
+                MeasurementImportAction.Skip -> continue
+                is MeasurementImportAction.StampOnly -> {
+                    bodyMeasurementDao.insert(action.measurement)
+                }
+                is MeasurementImportAction.Upsert -> {
+                    val measurement = BodyMeasurement(
+                        id = existing?.id ?: 0,
+                        timestamp = sample.timestampMs,
+                        dateString = DateUtils.format(sample.timestampMs),
+                        weightKg = weight,
+                        bodyFatPct = existing?.bodyFatPct,
+                        bmr = existing?.bmr,
+                        muscleMassKg = sample.muscleMassKg,
+                        healthConnectRecordId = action.recordId
+                    ).supportedMetricsOnly()
+                    val wasNew = bodyMeasurementDao.upsertByTimestampAndSync(
+                        measurement = measurement,
+                        lastUpdatedTimestamp = System.currentTimeMillis()
+                    )
+                    if (wasNew || existing?.muscleMassKg != sample.muscleMassKg) inserted++
+                }
+            }
         }
         return inserted
+    }
+
+    private sealed class MeasurementImportAction {
+        data object Skip : MeasurementImportAction()
+        data class StampOnly(val measurement: BodyMeasurement) : MeasurementImportAction()
+        data class Upsert(val recordId: String) : MeasurementImportAction()
+    }
+
+    /**
+     * Never overwrite a FitBuddy-authored reading with HC values (that re-opens the echo loop).
+     * Legacy pre-provenance rows that still match the external sample only get an HC stamp.
+     */
+    private fun resolveMeasurementImport(
+        existing: BodyMeasurement?,
+        recordId: String,
+        matchesExisting: Boolean
+    ): MeasurementImportAction = when {
+        existing == null -> MeasurementImportAction.Upsert(recordId)
+        existing.isFromHealthConnect() -> MeasurementImportAction.Upsert(
+            existing.healthConnectRecordId ?: recordId
+        )
+        matchesExisting -> MeasurementImportAction.StampOnly(
+            existing.copy(healthConnectRecordId = recordId)
+        )
+        else -> MeasurementImportAction.Skip
     }
 
     private suspend fun importHeight(from: Instant, to: Instant): Boolean {
@@ -448,10 +557,18 @@ class HealthConnectSync(
                 lastUpdatedTimestamp = System.currentTimeMillis()
             )
         )
+        // Mark as already mirrored so exportHeight does not echo the imported value back.
+        context.healthConnectSyncStore.edit { prefs ->
+            prefs[KEY_LAST_EXPORTED_HEIGHT_CM] = height.heightCm
+        }
         return true
     }
 
-    private suspend fun importExercises(from: Instant, to: Instant): Int {
+    private suspend fun importExercises(
+        from: Instant,
+        to: Instant,
+        pruneMissing: Boolean
+    ): Int {
         if (!manager.hasExerciseRead()) return 0
         val importedIds = context.healthConnectSyncStore.data.first()[KEY_IMPORTED_EXERCISE_IDS]
             ?.toMutableSet()
@@ -459,10 +576,16 @@ class HealthConnectSync(
         val existing = exerciseLogDao.getAllOnce()
         var inserted = 0
         val newlyImported = mutableSetOf<String>()
+        val seenIds = mutableSetOf<String>()
+        val fromMs = from.toEpochMilli()
+        val toMs = to.toEpochMilli()
 
         for (session in reader.readExercises(from, to)) {
             if (session.recordId.isBlank()) continue
-            if (session.recordId in importedIds) continue
+            seenIds += session.recordId
+            val stillLocal = existing.any { it.healthConnectRecordId == session.recordId }
+            // Stale DataStore id with no local row → allow re-import (ghost recovery).
+            if (session.recordId in importedIds && stillLocal) continue
             val match = existing.firstOrNull { log ->
                 kotlin.math.abs(log.timestamp - session.startMs) < DUPLICATE_WINDOW_MS &&
                     log.activityName.equals(session.title, ignoreCase = true)
@@ -499,7 +622,26 @@ class HealthConnectSync(
             inserted++
         }
 
-        if (newlyImported.isNotEmpty()) {
+        if (pruneMissing) {
+            val localImportedInWindow = existing.filter { log ->
+                !log.healthConnectRecordId.isNullOrBlank() &&
+                    !isStepsLogName(log.activityName) &&
+                    log.timestamp >= fromMs &&
+                    log.timestamp < toMs
+            }
+            // Empty seen + local imports usually means a failed/partial HC read — don't wipe.
+            val safeToPrune = seenIds.isNotEmpty() || localImportedInWindow.isEmpty()
+            if (safeToPrune) {
+                for (log in localImportedInWindow) {
+                    val hcId = log.healthConnectRecordId ?: continue
+                    if (hcId in seenIds) continue
+                    exerciseLogDao.deleteExerciseLog(log)
+                    importedIds.remove(hcId)
+                }
+            }
+        }
+
+        if (newlyImported.isNotEmpty() || pruneMissing) {
             context.healthConnectSyncStore.edit { prefs ->
                 prefs[KEY_IMPORTED_EXERCISE_IDS] = importedIds + newlyImported
             }
@@ -577,6 +719,48 @@ class HealthConnectSync(
         }
     }
 
+    /** Persist a FitBuddy-owned HC clientRecordId to delete once write permission returns. */
+    private suspend fun queueTombstone(type: String, clientRecordId: String) {
+        if (clientRecordId.isBlank()) return
+        val entry = "$type|$clientRecordId"
+        context.healthConnectSyncStore.edit { prefs ->
+            val current = prefs[KEY_TOMBSTONES].orEmpty()
+            prefs[KEY_TOMBSTONES] = current + entry
+        }
+        Log.i(TAG, "queued HC tombstone $entry")
+    }
+
+    private suspend fun flushTombstones() {
+        val prefs = context.healthConnectSyncStore.data.first()
+        val pending = prefs[KEY_TOMBSTONES].orEmpty()
+        if (pending.isEmpty()) return
+        val remaining = pending.toMutableSet()
+        for (entry in pending) {
+            val sep = entry.indexOf('|')
+            if (sep <= 0 || sep >= entry.lastIndex) {
+                remaining.remove(entry)
+                continue
+            }
+            val type = entry.substring(0, sep)
+            val clientId = entry.substring(sep + 1)
+            val ok = when (type) {
+                TOMBSTONE_NUTRITION -> writer.deleteNutritionByClientId(clientId)
+                TOMBSTONE_WEIGHT -> writer.deleteWeightByClientId(clientId)
+                TOMBSTONE_BODY_FAT -> writer.deleteBodyFatByClientId(clientId)
+                TOMBSTONE_MUSCLE_MASS -> writer.deleteMuscleMassByClientId(clientId)
+                TOMBSTONE_EXERCISE -> writer.deleteExerciseSessionByClientId(clientId)
+                TOMBSTONE_EXERCISE_KCAL -> writer.deleteActiveCaloriesByClientId(clientId)
+                TOMBSTONE_HYDRATION -> writer.deleteHydrationByClientId(clientId)
+                else -> true // drop unknown
+            }
+            if (ok) remaining.remove(entry)
+        }
+        context.healthConnectSyncStore.edit { store ->
+            if (remaining.isEmpty()) store.remove(KEY_TOMBSTONES)
+            else store[KEY_TOMBSTONES] = remaining
+        }
+    }
+
     companion object {
         private const val TAG = "FitBuddy/HC"
         /** Bootstrap / manual Sync now history window (Health Connect foreground default). */
@@ -588,6 +772,14 @@ class HealthConnectSync(
         private const val STEPS_PER_MINUTE = 100L
         private const val KCAL_PER_STEP = 0.04
 
+        private const val TOMBSTONE_NUTRITION = "nutrition"
+        private const val TOMBSTONE_WEIGHT = "weight"
+        private const val TOMBSTONE_BODY_FAT = "bodyfat"
+        private const val TOMBSTONE_MUSCLE_MASS = "musclemass"
+        private const val TOMBSTONE_EXERCISE = "exercise"
+        private const val TOMBSTONE_EXERCISE_KCAL = "exercise_kcal"
+        private const val TOMBSTONE_HYDRATION = "hydration"
+
         /** Stable sync error when OS grants are missing or revoked. */
         const val ERROR_PERMISSIONS_REVOKED =
             "Health Connect permissions were revoked — open Integrations and authorize"
@@ -595,6 +787,7 @@ class HealthConnectSync(
         private val KEY_LAST_SYNC_AT = longPreferencesKey("hc_last_sync_at")
         private val KEY_LAST_EXPORTED_HEIGHT_CM = doublePreferencesKey("hc_last_exported_height_cm")
         private val KEY_IMPORTED_EXERCISE_IDS = stringSetPreferencesKey("hc_imported_exercise_ids")
+        private val KEY_TOMBSTONES = stringSetPreferencesKey("hc_tombstones")
         private val KEY_HYDRATION_ML = doublePreferencesKey("hc_hydration_ml_today")
         private val KEY_HYDRATION_DATE = stringPreferencesKey("hc_hydration_date")
         private val KEY_SLEEP_MINUTES = intPreferencesKey("hc_sleep_minutes")

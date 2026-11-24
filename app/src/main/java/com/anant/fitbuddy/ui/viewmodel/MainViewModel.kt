@@ -2315,8 +2315,22 @@ class MainViewModel(
 
     fun deleteMeasurement(measurement: BodyMeasurement) {
         viewModelScope.launch {
-            repository.deleteMeasurement(measurement)
-            _analysisState.update { it.copy(userMessage = str(R.string.vm_reading_removed)) }
+            if (measurement.isFromHealthConnect()) {
+                _analysisState.update {
+                    it.copy(userMessage = str(R.string.vm_health_connect_imported_not_deletable))
+                }
+                return@launch
+            }
+            val removed = repository.deleteMeasurement(measurement)
+            _analysisState.update {
+                it.copy(
+                    userMessage = if (removed) {
+                        str(R.string.vm_reading_removed)
+                    } else {
+                        str(R.string.vm_health_connect_imported_not_deletable)
+                    }
+                )
+            }
         }
     }
 

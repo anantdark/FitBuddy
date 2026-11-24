@@ -53,13 +53,18 @@ internal class HealthConnectWriter(
 
     suspend fun deleteNutrition(foodLogId: Int): Boolean {
         if (foodLogId <= 0) return false
+        return deleteNutritionByClientId(HealthConnectManager.foodClientRecordId(foodLogId))
+    }
+
+    suspend fun deleteNutritionByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
         val client = manager.client ?: return false
         if (!manager.hasNutritionWrite()) return false
         return runCatching {
             client.deleteRecords(
                 recordType = NutritionRecord::class,
                 recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(HealthConnectManager.foodClientRecordId(foodLogId))
+                clientRecordIdsList = listOf(clientRecordId)
             )
         }.isSuccess
     }
@@ -86,13 +91,18 @@ internal class HealthConnectWriter(
 
     suspend fun deleteWeight(measurementId: Int): Boolean {
         if (measurementId <= 0) return false
+        return deleteWeightByClientId(HealthConnectManager.weightClientRecordId(measurementId))
+    }
+
+    suspend fun deleteWeightByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
         val client = manager.client ?: return false
         if (!manager.hasWeightWrite()) return false
         return runCatching {
             client.deleteRecords(
                 recordType = WeightRecord::class,
                 recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(HealthConnectManager.weightClientRecordId(measurementId))
+                clientRecordIdsList = listOf(clientRecordId)
             )
         }.isSuccess
     }
@@ -120,13 +130,18 @@ internal class HealthConnectWriter(
 
     suspend fun deleteBodyFat(measurementId: Int): Boolean {
         if (measurementId <= 0) return false
+        return deleteBodyFatByClientId(HealthConnectManager.bodyFatClientRecordId(measurementId))
+    }
+
+    suspend fun deleteBodyFatByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
         val client = manager.client ?: return false
         if (!manager.hasBodyFatWrite()) return false
         return runCatching {
             client.deleteRecords(
                 recordType = BodyFatRecord::class,
                 recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(HealthConnectManager.bodyFatClientRecordId(measurementId))
+                clientRecordIdsList = listOf(clientRecordId)
             )
         }.isSuccess
     }
@@ -155,15 +170,20 @@ internal class HealthConnectWriter(
 
     suspend fun deleteMuscleMass(measurementId: Int): Boolean {
         if (measurementId <= 0) return false
+        return deleteMuscleMassByClientId(
+            HealthConnectManager.muscleMassClientRecordId(measurementId)
+        )
+    }
+
+    suspend fun deleteMuscleMassByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
         val client = manager.client ?: return false
         if (!manager.hasLeanBodyMassWrite()) return false
         return runCatching {
             client.deleteRecords(
                 recordType = LeanBodyMassRecord::class,
                 recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(
-                    HealthConnectManager.muscleMassClientRecordId(measurementId)
-                )
+                clientRecordIdsList = listOf(clientRecordId)
             )
         }.isSuccess
     }
@@ -220,13 +240,18 @@ internal class HealthConnectWriter(
 
     suspend fun deleteHydration(entryId: Long): Boolean {
         if (entryId <= 0L) return false
+        return deleteHydrationByClientId(HealthConnectManager.hydrationClientRecordId(entryId))
+    }
+
+    suspend fun deleteHydrationByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
         val client = manager.client ?: return false
         if (!manager.hasHydrationWrite()) return false
         return runCatching {
             client.deleteRecords(
                 recordType = HydrationRecord::class,
                 recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(HealthConnectManager.hydrationClientRecordId(entryId))
+                clientRecordIdsList = listOf(clientRecordId)
             )
         }.isSuccess
     }
@@ -275,25 +300,41 @@ internal class HealthConnectWriter(
 
     suspend fun deleteExercise(exerciseLogId: Int): Boolean {
         if (exerciseLogId <= 0) return false
+        val sessionOk = deleteExerciseSessionByClientId(
+            HealthConnectManager.exerciseClientRecordId(exerciseLogId)
+        )
+        val kcalId = "${HealthConnectManager.exerciseClientRecordId(exerciseLogId)}-kcal"
+        val kcalOk = if (manager.hasActiveCaloriesWrite()) {
+            deleteActiveCaloriesByClientId(kcalId)
+        } else {
+            true
+        }
+        return sessionOk && kcalOk
+    }
+
+    suspend fun deleteExerciseSessionByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
         val client = manager.client ?: return false
         if (!manager.hasExerciseWrite()) return false
-        val ids = listOf(
-            HealthConnectManager.exerciseClientRecordId(exerciseLogId),
-            "${HealthConnectManager.exerciseClientRecordId(exerciseLogId)}-kcal"
-        )
         return runCatching {
             client.deleteRecords(
                 recordType = ExerciseSessionRecord::class,
                 recordIdsList = emptyList(),
-                clientRecordIdsList = listOf(ids[0])
+                clientRecordIdsList = listOf(clientRecordId)
             )
-            if (manager.hasActiveCaloriesWrite()) {
-                client.deleteRecords(
-                    recordType = ActiveCaloriesBurnedRecord::class,
-                    recordIdsList = emptyList(),
-                    clientRecordIdsList = listOf(ids[1])
-                )
-            }
+        }.isSuccess
+    }
+
+    suspend fun deleteActiveCaloriesByClientId(clientRecordId: String): Boolean {
+        if (clientRecordId.isBlank()) return false
+        val client = manager.client ?: return false
+        if (!manager.hasActiveCaloriesWrite()) return false
+        return runCatching {
+            client.deleteRecords(
+                recordType = ActiveCaloriesBurnedRecord::class,
+                recordIdsList = emptyList(),
+                clientRecordIdsList = listOf(clientRecordId)
+            )
         }.isSuccess
     }
 }

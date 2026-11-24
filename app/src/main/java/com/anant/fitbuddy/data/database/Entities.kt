@@ -246,7 +246,14 @@ data class BodyMeasurement(
     @Json(ignore = true) val waterWeightKg: Double? = null,
     @Json(ignore = true) val fatMassKg: Double? = null,
     @Json(ignore = true) val freescalePayloadJson: String? = null,
+    /**
+     * Health Connect record id when this reading was imported. Null = FitBuddy-authored.
+     * Imported rows are not exported back (echo-loop) and are not deletable in-app.
+     */
+    val healthConnectRecordId: String? = null,
 ) {
+    fun isFromHealthConnect(): Boolean = !healthConnectRecordId.isNullOrBlank()
+
     fun supportedMetricsOnly(): BodyMeasurement = copy(
         bmi = null,
         muscleRatePct = null,

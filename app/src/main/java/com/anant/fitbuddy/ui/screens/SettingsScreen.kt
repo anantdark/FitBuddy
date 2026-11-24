@@ -282,6 +282,11 @@ fun SettingsScreen(
     }
     var pendingEnableHealthConnect by remember { mutableStateOf(false) }
     var pendingSyncAfterPermission by remember { mutableStateOf(false) }
+    /**
+     * After the HC permission sheet closes, OEM probes can briefly report empty grants.
+     * Ignore auto-disable until this uptime millis — prevents a stuck-OFF deadlock.
+     */
+    var healthConnectPermissionGraceUntilMs by remember { mutableLongStateOf(0L) }
     /** Live HC grants — drives which metric toggles are visible. */
     var healthConnectGrantedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
     val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
@@ -293,8 +298,15 @@ fun SettingsScreen(
         pendingEnableHealthConnect = false
         val runSync = pendingSyncAfterPermission
         pendingSyncAfterPermission = false
+        // Grace covers the ON_RESUME / LaunchedEffect race right after the sheet.
+        healthConnectPermissionGraceUntilMs = SystemClock.uptimeMillis() + 2_500L
         coroutineScope.launch {
-            val fromApi = healthConnectManager.grantedPermissions()
+            var fromApi = healthConnectManager.grantedPermissions()
+            // Xiaomi/HyperOS sometimes returns empty immediately after a grant.
+            if (fromApi.isEmpty() && (wantEnable || resultGranted.isNotEmpty())) {
+                delay(500)
+                fromApi = healthConnectManager.grantedPermissions()
+            }
             healthConnectGrantedPermissions = fromApi.ifEmpty { resultGranted }
             val previous = settings.healthConnectMetrics
             val aligned = healthConnectManager.applyPermissionResult(
@@ -346,6 +358,10 @@ fun SettingsScreen(
         healthConnectGrantedPermissions = granted
         val waterOn = settings.waterTrackingEnabled
         if (granted.isEmpty()) {
+            // Don't disable during the post-sheet grace — probe may still be catching up.
+            if (SystemClock.uptimeMillis() < healthConnectPermissionGraceUntilMs) {
+                return@LaunchedEffect
+            }
             val current = settings.healthConnectMetrics
             val aligned = healthConnectManager.alignToGranted(current, emptySet(), waterOn)
             if (aligned != current) onHealthConnectMetricsChange(aligned)
@@ -356,6 +372,9 @@ fun SettingsScreen(
         val aligned = healthConnectManager.alignToGranted(current, granted, waterOn)
         if (aligned != current) onHealthConnectMetricsChange(aligned)
         if (!aligned.anyImport() && !aligned.anyExport()) {
+            if (SystemClock.uptimeMillis() < healthConnectPermissionGraceUntilMs) {
+                return@LaunchedEffect
+            }
             onHealthConnectEnabledChange(false)
         }
     }
@@ -1534,7 +1553,10 @@ fun SettingsScreen(
                             healthConnectGrantedPermissions = granted
                             if (!settings.healthConnectEnabled) return@launch
                             val waterOn = settings.waterTrackingEnabled
+                            val inGrace =
+                                SystemClock.uptimeMillis() < healthConnectPermissionGraceUntilMs
                             if (granted.isEmpty()) {
+                                if (inGrace) return@launch
                                 healthConnectNeedsAuth = true
                                 val current = settings.healthConnectMetrics
                                 val aligned = healthConnectManager.alignToGranted(
@@ -1555,6 +1577,7 @@ fun SettingsScreen(
                                 onHealthConnectMetricsChange(aligned)
                             }
                             if (!aligned.anyImport() && !aligned.anyExport()) {
+                                if (inGrace) return@launch
                                 onHealthConnectEnabledChange(false)
                             }
                         }

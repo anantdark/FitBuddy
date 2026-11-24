@@ -32,12 +32,17 @@ enum class HealthConnectSdkStatus {
  */
 class HealthConnectManager(private val context: Context) {
 
+    /** This install's package — used to skip our own HC records on import (echo-loop). */
+    val appPackageName: String get() = context.packageName
+
     val client: HealthConnectClient?
         get() = if (sdkStatus() == HealthConnectSdkStatus.Available) {
             runCatching { HealthConnectClient.getOrCreate(context) }.getOrNull()
         } else {
             null
         }
+
+    fun isOwnOrigin(packageName: String): Boolean = packageName == appPackageName
 
     val nutritionWrite = HealthPermission.getWritePermission(NutritionRecord::class)
     val weightRead = HealthPermission.getReadPermission(WeightRecord::class)
