@@ -1,0 +1,6 @@
+• fix: stop Robolectric CI flake on trampoline guard test
+• fix: escape Spanish placeholders and pin Robolectric SDK jar
+• fix: escape Spanish body-fat and BMR string placeholders
+• feat: use ML Kit for barcode scans on GitHub builds
+• feat: add zoom slider to the barcode scanner
+• feat: authorize cloud backup without embedding API keys
