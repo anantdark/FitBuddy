@@ -21,7 +21,9 @@ import org.robolectric.annotation.Config
  * throws SecurityException. The guard rewrites both before Glance's onCreate runs.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(application = TrampolineGuardTestApp::class, sdk = [34])
+// No explicit sdk — pinning API 34 forced a mid-test Maven download of android-all that
+// flakes on CI (MavenArtifactFetcher IOException). Default SDK from Robolectric is enough.
+@Config(application = TrampolineGuardTestApp::class)
 class GlanceTrampolineGuardTest {
 
     @Test

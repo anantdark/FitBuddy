@@ -157,42 +157,6 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
-            all {
-                // Robolectric fetches android-all via its own Maven client (~/.m2), not Gradle.
-                // CI flakes when that mid-test HTTP download fails. Seed ~/.m2 from the jar
-                // Gradle already resolved onto the test classpath.
-                it.doFirst {
-                    val jar = it.classpath.files.firstOrNull { f ->
-                        f.name.startsWith("android-all-instrumented-14-robolectric-10818077")
-                    } ?: return@doFirst
-                    val version = "14-robolectric-10818077-i7"
-                    val destDir = File(
-                        System.getProperty("user.home"),
-                        ".m2/repository/org/robolectric/android-all-instrumented/$version"
-                    )
-                    destDir.mkdirs()
-                    val destJar = destDir.resolve(jar.name)
-                    if (!destJar.exists() || destJar.length() != jar.length()) {
-                        jar.copyTo(destJar, overwrite = true)
-                    }
-                    val pom = destDir.resolve("android-all-instrumented-$version.pom")
-                    if (!pom.exists()) {
-                        pom.writeText(
-                            """
-                            <?xml version="1.0" encoding="UTF-8"?>
-                            <project xmlns="http://maven.apache.org/POM/4.0.0"
-                                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                                xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-                              <modelVersion>4.0.0</modelVersion>
-                              <groupId>org.robolectric</groupId>
-                              <artifactId>android-all-instrumented</artifactId>
-                              <version>$version</version>
-                            </project>
-                            """.trimIndent()
-                        )
-                    }
-                }
-            }
         }
     }
     // MongoDB driver JARs both ship META-INF/native-image props; Android merge fails otherwise.
@@ -275,9 +239,6 @@ dependencies {
     // BackupCrypto's seal/open/classify can be exercised as plain unit tests. 4.16 supports
     // SDK 36 and requires JDK 21, matching this project's compileSdk/toolchain.
     testImplementation("org.robolectric:robolectric:4.16.1")
-    // Pin the instrumented android-all jar Gradle already resolves, so unit tests do not
-    // hit MavenArtifactFetcher at runtime (CI flakes with HttpURLConnection IOException).
-    testRuntimeOnly("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
